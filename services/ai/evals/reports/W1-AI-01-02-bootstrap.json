@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0.0",
+  "task": "W1-AI-01",
+  "scope": "Day 1-2 bootstrap",
+  "status": "local_verified",
+  "verified_environment": {
+    "python": "3.14.5",
+    "fastapi": "0.136.3",
+    "pydantic": "2.13.4",
+    "provider_mode_tested": "fake",
+    "local_ollama_model_configured": "qwen3:4b-instruct",
+    "embedding_model_configured": "embeddinggemma:latest"
+  },
+  "verified_checks": [
+    "GET /healthz returns status ok",
+    "GET /readyz returns status ok against local Ollama",
+    "POST /internal/v1/runs accepts schema 1.0.0 and returns 202",
+    "GET /internal/v1/runs/{run_id} reaches completed in fake mode",
+    "live Ollama qwen3:4b-instruct run reaches completed with structured JSON",
+    "fake provider output validates against ProviderOutput",
+    "structured result validates against AIResult",
+    "pytest services/ai/tests -q: 2 passed",
+    "payload and secrets are excluded from structured run logs"
+  ],
+  "limits": {
+    "context_tokens": 4096,
+    "max_input_tokens": 2800,
+    "max_output_tokens": 1024,
+    "max_provider_calls": 2,
+    "provider_timeout_seconds": 240,
+    "job_deadline_seconds": 600
+  },
+  "live_probe": {
+    "provider": "ollama",
+    "model": "qwen3:4b-instruct",
+    "operation": "health.check",
+    "status": "completed",
+    "input_tokens": 78,
+    "output_tokens": 52,
+    "latency_ms": 9873,
+    "provider_cost_usd": 0,
+    "payload_or_secret_logged": false
+  },
+  "not_done_in_this_scope": [
+    "durable worker queue and restart recovery",
+    "tenant-scoped retrieval/indexing",
+    "30-case evaluation",
+    "public URL/TLS, GA4/GSC property and app staging"
+  ],
+  "synthetic": false
+}

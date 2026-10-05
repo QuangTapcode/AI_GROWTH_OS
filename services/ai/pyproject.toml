@@ -1,0 +1,23 @@
+[project]
+name = "ai-growth-os-ai"
+version = "0.1.0"
+description = "Local-first AI service boundary for AI Growth OS"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "fastapi==0.136.3",
+  "httpx==0.28.1",
+  "pydantic==2.13.4",
+  "uvicorn[standard]==0.49.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==9.0.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
