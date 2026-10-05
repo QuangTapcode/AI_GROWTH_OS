@@ -2,6 +2,8 @@
 
 Nguồn: người dùng cung cấp trong phiên làm việc W1-PM-01. Phân công theo tên thay baseline staffing trong kế hoạch gốc; không sửa tài liệu nguồn để đổi lịch sử.
 
+[Bảng việc từng người theo tuần](weekly-todos/README.md) phân rã task trong [TODO](../../TODO.md) theo đúng các ranh giới dưới đây; có mốc, đầu ra, phụ thuộc, reviewer và tiêu chí hoàn thành. Phần task chung chỉ được đánh dấu Done khi cả hai FE/BE hoàn thành phần được giao và tích hợp đạt.
+
 | Người | Vị trí | Khu vực chính | Review/bàn giao |
 | --- | --- | --- | --- |
 | Quang Quang | AI + PM + PO | `services/ai/`, `docs/coordination/`, `TODO.md`; nghiệm thu nghiệp vụ | Dương hỗ trợ AC/UAT; Thanh kiểm chứng AI độc lập; BE review interface |

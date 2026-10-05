@@ -145,6 +145,23 @@ BA viết story/AC, UI/UX làm spec và Thanh kiểm thử cả hai lane xuyên 
 
 Tuần tính từ kickoff, **5 ngày làm việc/tuần**, chưa gán ngày lịch thực tế. [TODO](TODO.md) có checklist chi tiết của từng vị trí.
 
+**[Bảng việc riêng cho từng người, đủ 4 tuần](docs/coordination/weekly-todos/README.md)** giải thích từng phần task, thứ tự làm, mốc ngày, đầu ra, phụ thuộc, reviewer và tiêu chí hoàn thành. TODO có bảng phân công theo tên ngay trong từng tuần; trạng thái task gốc giữ tại TODO.
+
+Để bắt tay triển khai, đọc **[checklist hành động W1–W4](docs/coordination/execution/README.md)**: mỗi tuần/nhân sự có task con cụ thể tới API, dữ liệu, màn hình, pipeline, phiên bản và ca lỗi phải kiểm. [Data/flows](docs/coordination/execution/DATA-AND-FLOWS.md) có fields cho 16 module, route mapping, quyền và numeric/idempotency examples; thiết kế mới được đánh dấu đề xuất để owner freeze qua contract review.
+
+| Người | Mở kế hoạch của mình | Khu vực chính |
+| --- | --- | --- |
+| Quang Quang | [AI + PM + PO](docs/coordination/weekly-todos/QUANG-QUANG.md) | `services/ai/`, `docs/coordination/`, `TODO.md` |
+| Dương | [BA](docs/coordination/weekly-todos/DUONG.md) | `docs/ba/`, `docs/sources/` |
+| Thiệu Quang | [BE core/contract](docs/coordination/weekly-todos/THIEU-QUANG.md) | API core/domains, `contracts/`, migrations/policies, `infra/`, `.github/` |
+| Mỹ | [BE jobs/integrations](docs/coordination/weekly-todos/MY.md) | API tích hợp/metrics/jobs, `apps/worker/`, seed, runbooks |
+| Tiến | [FE shell/public website](docs/coordination/weekly-todos/TIEN.md) | `apps/pilot/`, web common/routes/config và features theo TEAM |
+| Huyền | [FE content/review](docs/coordination/weekly-todos/HUYEN.md) | Web knowledge/content/review/report/learning, mocks/tests |
+| Trường | [UI/UX](docs/coordination/weekly-todos/TRUONG.md) | `design/` |
+| Thanh | [QA hai lane](docs/coordination/weekly-todos/THANH.md) | `qa/tester-1/`, `qa/tester-2/`, fixtures/evidence |
+
+Task chung FE/BE chỉ Done khi đủ các phần đã chia theo người. Quang Quang và Thanh dùng một kế hoạch/WIP cho vai trò kiêm nhiệm. Thư mục feature đề xuất chưa phải code đã có; ranh giới source chi tiết theo [TEAM](docs/coordination/TEAM.md).
+
 ### Tuần 1 — Nền tảng và M01–M03; tracking M13 từ đầu
 
 - **Ngày 1–2:** PM/PO chốt độ sâu pilot và capacity; BA soạn AC sơ bộ đủ 16 module; BE/FE/AI thống nhất contract, jobs, metric/assignment schemas và quyền tích hợp.
