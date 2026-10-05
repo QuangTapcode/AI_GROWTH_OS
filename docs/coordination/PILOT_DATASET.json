@@ -1,0 +1,149 @@
+{
+    "manifest_version":  "1.0-planning",
+    "status":  "pilot_plan_selected_collection_not_started",
+    "task":  "W1-PM-01",
+    "business":  "TripC",
+    "audience":  "English-speaking expats living or planning to live in Da Nang",
+    "market":  "Da Nang",
+    "location_labels":  [
+                            "Son Tra",
+                            "Hai Chau",
+                            "My Khe"
+                        ],
+    "content_language":  "en",
+    "topic_priority":  [
+                           "housing",
+                           "living_areas",
+                           "coworking",
+                           "gym",
+                           "food",
+                           "events"
+                       ],
+    "goal":  "Incremental Qualified Traffic",
+    "primary_conversion":  "successful_information_request_form",
+    "recommended_ga4_event":  "generate_lead",
+    "conversion_trigger":  "server_confirmed_successful_persisted_submission",
+    "timezone":  "Asia/Bangkok",
+    "website":  {
+                    "exists":  false,
+                    "url":  null,
+                    "architecture":  "TypeScript/Next.js public pilot plus minimal CMS and Next.js management app",
+                    "public_app_path":  "apps/pilot/",
+                    "management_app_path":  "apps/web/",
+                    "cms_api_path":  "apps/api/",
+                    "publication_policy":  "human_approval_of_version_required",
+                    "previous_wordpress_selection":  "superseded_by_user"
+                },
+    "sourcing_mode":  "crawl_requested_sources_recommended_by_agent",
+    "sources":  [
+                    {
+                        "id":  "SRC-01",
+                        "seed_url":  "https://danangfantasticity.com/en",
+                        "topics":  [
+                                       "destination",
+                                       "food",
+                                       "events"
+                                   ],
+                        "role":  "official_tourism_context",
+                        "page_checked_on":  "2026-10-05",
+                        "crawl_status":  "not_started",
+                        "fact_review_status":  "unreviewed",
+                        "bulk_access_status":  "not_verified"
+                    },
+                    {
+                        "id":  "SRC-02",
+                        "seed_url":  "https://www.vietnam.travel/places-to-go/central-vietnam/da-nang",
+                        "topics":  [
+                                       "destination",
+                                       "food",
+                                       "living_areas"
+                                   ],
+                        "role":  "official_tourism_context",
+                        "page_checked_on":  "2026-10-05",
+                        "crawl_status":  "not_started",
+                        "fact_review_status":  "unreviewed",
+                        "bulk_access_status":  "not_verified"
+                    },
+                    {
+                        "id":  "SRC-03",
+                        "seed_url":  "https://hiyorigardentower.com/en/cho-thue/",
+                        "topics":  [
+                                       "housing"
+                                   ],
+                        "role":  "external_provider_facts",
+                        "page_checked_on":  "2026-10-05",
+                        "crawl_status":  "not_started",
+                        "fact_review_status":  "unreviewed_card_conflicts_require_review",
+                        "bulk_access_status":  "not_verified"
+                    },
+                    {
+                        "id":  "SRC-04",
+                        "seed_url":  "https://enostaspace.com/",
+                        "topics":  [
+                                       "coworking",
+                                       "coliving"
+                                   ],
+                        "role":  "external_provider_facts",
+                        "page_checked_on":  "2026-10-05",
+                        "crawl_status":  "not_started",
+                        "fact_review_status":  "unreviewed",
+                        "bulk_access_status":  "not_verified"
+                    },
+                    {
+                        "id":  "SRC-05",
+                        "seed_url":  "https://booking.cali.vn/",
+                        "topics":  [
+                                       "gym"
+                                   ],
+                        "role":  "external_provider_candidate",
+                        "page_checked_on":  "2026-10-05",
+                        "crawl_status":  "not_started",
+                        "fact_review_status":  "unreviewed",
+                        "bulk_access_status":  "not_verified_dynamic_page_probe_required"
+                    }
+                ],
+    "approved_business_sources":  [
+
+                                  ],
+    "source_record_required_fields":  [
+                                          "source_id",
+                                          "workspace_id",
+                                          "url_or_file",
+                                          "title",
+                                          "fetched_at",
+                                          "version",
+                                          "content_hash",
+                                          "approval_status",
+                                          "facts_verified_by",
+                                          "deleted_at"
+                                      ],
+    "crawl_limits_status":  "to_be_estimated_and_configured_in_implementation_tasks",
+    "analytics":  {
+                      "ga4_property":  null,
+                      "gsc_property":  null,
+                      "history_status":  "not_provided_new_pilot",
+                      "live_evidence":  [
+
+                                        ],
+                      "baseline":  null,
+                      "numeric_target":  null
+                  },
+    "experiment":  {
+                       "page_url":  null,
+                       "variants":  2,
+                       "type":  "title_or_cta",
+                       "primary_metric":  "successful_information_request_form"
+                   },
+    "qa":  {
+               "synthetic_label_required":  true,
+               "separate_from_live_data":  true,
+               "ai_eval_minimum_cases":  30,
+               "dataset_version":  null
+           },
+    "acceptance":  {
+                       "person":  "Quang Quang",
+                       "role":  "PO",
+                       "qa_verifier":  "Thanh",
+                       "ba":  "Dương"
+                   }
+}

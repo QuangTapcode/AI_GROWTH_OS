@@ -1,0 +1,1365 @@
+{
+    "version":  "1.0-planning",
+    "date":  "2026-10-05",
+    "task":  "W1-PM-01",
+    "status":  "planning_baseline_complete",
+    "planning_unit":  "working_day_from_kickoff",
+    "delivery_owner_assignment":  "named_people_confirmed_by_user",
+    "acceptance_role":  "PO",
+    "acceptance_person":  "Quang Quang",
+    "website":  {
+                    "exists":  false,
+                    "url":  null,
+                    "architecture":  "TypeScript/Next.js public pilot plus minimal CMS and Next.js management app",
+                    "public_app_path":  "apps/pilot/",
+                    "management_app_path":  "apps/web/",
+                    "cms_api_path":  "apps/api/",
+                    "publication_policy":  "human_approval_of_version_required",
+                    "previous_wordpress_selection":  "superseded_by_user"
+                },
+    "dataset_manifest":  "../PILOT_DATASET.json",
+    "effort_status":  "estimate_required_in_W1-PM-02",
+    "epics":  [
+                  {
+                      "id":  "EP-FOUNDATION",
+                      "module":  null,
+                      "name":  "Nền tảng dùng chung và tích hợp",
+                      "owner":  "BE",
+                      "reviewers":  [
+                                        "FE",
+                                        "AI",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "BE",
+                                           "FE",
+                                           "AI",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "1–4",
+                      "start_day":  1,
+                      "target_day":  20,
+                      "milestones":  "Ngày 2: quyết định/contracts/estimates; ngày 5: staging/CI/jobs/tracking; ngày 20: restore/rollback/handover.",
+                      "build_dependencies":  [
+
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "apps/api/",
+                                    "apps/worker/",
+                                    "database/",
+                                    "infra/",
+                                    "contracts/",
+                                    ".github/",
+                                    "docs/runbooks/",
+                                    "apps/pilot/"
+                                ],
+                      "task_refs":  [
+                                        "W1-BE-01",
+                                        "W1-BE-03",
+                                        "W1-BE-05",
+                                        "W4-BE-04"
+                                    ],
+                      "deliverables":  [
+                                           "Auth/tenant/audit và DB/storage/jobs interfaces dùng chung",
+                                           "Staging/CI, secret/env strategy, API/job contracts liên ngôn ngữ",
+                                           "Tracing/quotas/cost logs và bộ quality gates; release runbooks"
+                                       ],
+                      "ac":  [
+                                 "FE TypeScript, BE/worker TypeScript và AI Python giao tiếp qua HTTP/JSON theo contract chung; fake/mock modes chạy độc lập sau bootstrap.",
+                                 "Local/staging tách biệt, migration/seed hai tenants có kiểm thử; CI checks chạy theo source và mọi consumer khi contract đổi.",
+                                 "Jobs bền vững có trạng thái/attempt/timeout/retry/cancel/recovery theo contract, không chạy pipeline dài trong request web.",
+                                 "Secrets không xuất vào client/log/evidence; trước release backup/restore/rollback/monitoring có bằng chứng."
+                             ],
+                      "out_of_scope":  [
+                                           "Thanh toán production/billing suite",
+                                           "Hệ đa agent độc lập, custom LLM hoặc Enterprise infrastructure"
+                                       ],
+                      "owner_person":  "Thiệu Quang",
+                      "reviewer_people":  [
+                                              "Tiến",
+                                              "Huyền",
+                                              "Quang Quang",
+                                              "Thanh",
+                                              "Mỹ"
+                                          ],
+                      "contributor_people":  [
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Quang Quang",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M01",
+                      "module":  "M01",
+                      "name":  "Workspace",
+                      "owner":  "BE",
+                      "reviewers":  [
+                                        "BA",
+                                        "FE",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "BE",
+                                           "FE",
+                                           "AI",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2",
+                                           "BA"
+                                       ],
+                      "week":  "1",
+                      "start_day":  1,
+                      "target_day":  5,
+                      "milestones":  "Ngày 3–4 tích hợp; ngày 5 W1 gate.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "apps/web/",
+                                    "apps/api/",
+                                    "database/",
+                                    "services/ai/"
+                                ],
+                      "task_refs":  [
+                                        "W1-FE-02",
+                                        "W1-BE-02",
+                                        "W1-AI-02",
+                                        "W1-QA1-02",
+                                        "W1-QA2-01"
+                                    ],
+                      "deliverables":  [
+                                           "Login/session/workspace/profile/brand/audience/language/products/members",
+                                           "RBAC Owner/Editor/Viewer, tenant policies và audit",
+                                           "Business context/Growth Map suggestion chờ duyệt"
+                                       ],
+                      "ac":  [
+                                 "Owner tạo/sửa business profile, lưu và mở lại đúng dữ liệu.",
+                                 "Viewer không sửa; các quyền Editor/Owner được BA/PO định nghĩa và BE kiểm tra phía server.",
+                                 "Người thuộc workspace A không đọc/sửa dữ liệu B qua API/DB/storage.",
+                                 "AI Growth Map chỉ là đề xuất, người dùng duyệt mới áp dụng; UI có loading/empty/error/permission."
+                             ],
+                      "out_of_scope":  [
+                                           "Role sản phẩm ngoài Owner/Editor/Viewer",
+                                           "SSO Enterprise"
+                                       ],
+                      "owner_person":  "Thiệu Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Tiến",
+                                              "Huyền",
+                                              "Thanh",
+                                              "Mỹ"
+                                          ],
+                      "contributor_people":  [
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Quang Quang",
+                                                 "Trường",
+                                                 "Thanh",
+                                                 "Dương"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M02",
+                      "module":  "M02",
+                      "name":  "Business Knowledge Base",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BE",
+                                        "BA",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "UI/UX",
+                                           "BA",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "1",
+                      "start_day":  2,
+                      "target_day":  5,
+                      "milestones":  "Ingestion/source review/RAG tích hợp trước demo ngày 5.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M01"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/worker/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W1-BA-03",
+                                        "W1-FE-02",
+                                        "W1-BE-02",
+                                        "W1-AI-02",
+                                        "W1-QA2-02"
+                                    ],
+                      "deliverables":  [
+                                           "Text/PDF có lớp văn bản/URL được phép; source upload/status/review/version/delete",
+                                           "Extract/chunk/index và tenant-scoped retrieval/citations"
+                                       ],
+                      "ac":  [
+                                 "Nạp nguồn được phép, theo dõi processing/failure, reviewer duyệt source/version trước sử dụng.",
+                                 "RAG chỉ truy hồi nguồn hợp lệ đúng workspace, citation truy về source/version/chunk được.",
+                                 "Thiếu facts thì trả thiếu dữ liệu, không bổ sung giá/địa chỉ/thống kê không xác minh.",
+                                 "Xóa/thu hồi source khiến nguồn không còn vào retrieval/cache; tenant vector filtering được QA2 kiểm chứng."
+                             ],
+                      "out_of_scope":  [
+                                           "OCR/media extraction",
+                                           "Google Docs connector riêng hoặc crawl không giới hạn"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Dương",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Trường",
+                                                 "Dương",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M03",
+                      "module":  "M03",
+                      "name":  "Growth Goal Manager",
+                      "owner":  "BE",
+                      "reviewers":  [
+                                        "BA",
+                                        "FE",
+                                        "Tester 1"
+                                    ],
+                      "contributors":  [
+                                           "BE",
+                                           "FE",
+                                           "AI",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "1",
+                      "start_day":  2,
+                      "target_day":  5,
+                      "milestones":  "Goal/KPI definition chốt ngày 2; lưu/open goal trước ngày 5.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M01"
+                                             ],
+                      "integration_dependencies":  [
+                                                       "EP-M13"
+                                                   ],
+                      "paths":  [
+                                    "apps/web/",
+                                    "apps/api/",
+                                    "services/ai/",
+                                    "database/",
+                                    "docs/ba/"
+                                ],
+                      "task_refs":  [
+                                        "W1-BA-01",
+                                        "W1-BA-02",
+                                        "W1-FE-02",
+                                        "W1-BE-02",
+                                        "W1-AI-02"
+                                    ],
+                      "deliverables":  [
+                                           "Goal/baseline/KPI/period/audience/conversion/budget/channels",
+                                           "AI đề xuất objective/KPI chờ xác nhận, action links"
+                                       ],
+                      "ac":  [
+                                 "Goal tạo/sửa/lưu/mở lại giữ đúng fields và có validation/quyền.",
+                                 "Thiếu baseline không hiện % tăng trưởng; baseline 0 không thực hiện phép chia sai.",
+                                 "Progress gắn metric đã chọn, phân biệt metric chưa có dữ liệu với zero; chưa có sync thì báo thiếu.",
+                                 "Objective/KPI do AI đề xuất cần người dùng xác nhận trước áp dụng."
+                             ],
+                      "out_of_scope":  [
+                                           "Cam kết traffic/revenue tăng trong pilot"
+                                       ],
+                      "owner_person":  "Thiệu Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Tiến",
+                                              "Huyền",
+                                              "Thanh",
+                                              "Mỹ"
+                                          ],
+                      "contributor_people":  [
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Quang Quang",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M04",
+                      "module":  "M04",
+                      "name":  "Market Intelligence Engine",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BE",
+                                        "BA",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "2",
+                      "start_day":  6,
+                      "target_day":  7,
+                      "milestones":  "Research run tích hợp ngày 6–7.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M01",
+                                                 "EP-M02",
+                                                 "EP-M03"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/worker/",
+                                    "apps/api/",
+                                    "apps/web/"
+                                ],
+                      "task_refs":  [
+                                        "W2-AI-01",
+                                        "W2-BE-01",
+                                        "W2-BE-03",
+                                        "W2-FE-01",
+                                        "W2-QA2-01"
+                                    ],
+                      "deliverables":  [
+                                           "Một search/API provider và URLs được phép",
+                                           "Research run/status/evidence: title/URL/time/type, dedup"
+                                       ],
+                      "ac":  [
+                                 "Run trả signal có nguồn/time/evidence đúng goal/workspace.",
+                                 "Provider timeout/errors/quota có trạng thái rõ, job retry/cancel theo contract.",
+                                 "Signal được phân loại và loại trùng theo rule đã chốt.",
+                                 "Không giả search demand/volume khi provider không có metric."
+                             ],
+                      "out_of_scope":  [
+                                           "Social listening đa nền tảng",
+                                           "Crawler nghiên cứu không giới hạn"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Dương",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M05",
+                      "module":  "M05",
+                      "name":  "Opportunity Engine",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BA",
+                                        "BE",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "2",
+                      "start_day":  6,
+                      "target_day":  7,
+                      "milestones":  "Board/score cùng research ngày 6–7; lineage kiểm tra ngày 10.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M03",
+                                                 "EP-M04"
+                                             ],
+                      "integration_dependencies":  [
+                                                       "EP-M06",
+                                                       "EP-M07"
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W2-BA-01",
+                                        "W2-AI-01",
+                                        "W2-BE-01",
+                                        "W2-FE-01",
+                                        "W2-QA2-01"
+                                    ],
+                      "deliverables":  [
+                                           "Opportunity board/detail/filter và keyword/topic/intent",
+                                           "Rubric/components/rationale/evidence/missing flags và priority"
+                                       ],
+                      "ac":  [
+                                 "Score tính lại khớp rubric đã công khai và ghi rubric version/components.",
+                                 "Opportunity có goal/research/source links, filter/select hoạt động và dữ liệu lưu thật.",
+                                 "Chọn sang strategy/brief giữ opportunity ID và nguồn.",
+                                 "Heuristic score không gắn nhãn search volume thật, trường thiếu metric hiện missing."
+                             ],
+                      "out_of_scope":  [
+                                           "Search-volume database hoặc rank tracker riêng"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M06",
+                      "module":  "M06",
+                      "name":  "Growth Strategy Engine",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BA",
+                                        "BE",
+                                        "Tester 1"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "2",
+                      "start_day":  7,
+                      "target_day":  8,
+                      "milestones":  "Strategy/action review ngày 8; end-to-end ngày 10.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M03",
+                                                 "EP-M05"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W2-AI-02",
+                                        "W2-BE-01",
+                                        "W2-FE-01",
+                                        "W2-QA1-01"
+                                    ],
+                      "deliverables":  [
+                                           "Strategy 30 ngày và versioned edit/approval",
+                                           "Actions owner/effort/deadline/channel/KPI, approved plan→tasks"
+                                       ],
+                      "ac":  [
+                                 "Plan dựa goal/opportunities/budget/effort đã cung cấp, nêu dữ liệu còn thiếu.",
+                                 "User có quyền sửa/duyệt đúng strategy version; thay đổi lưu phiên bản.",
+                                 "Duyệt plan mới tạo action/tasks liên kết goal/opportunity, không tạo trùng khi submit lại.",
+                                 "Không tự thực thi action chưa duyệt."
+                             ],
+                      "out_of_scope":  [
+                                           "Autonomous strategy/execution"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M07",
+                      "module":  "M07",
+                      "name":  "Content Intelligence Engine",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BA",
+                                        "BE",
+                                        "Tester 1"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "2",
+                      "start_day":  7,
+                      "target_day":  8,
+                      "milestones":  "Brief fields/source/approval ngày 8.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M02",
+                                                 "EP-M05",
+                                                 "EP-M06"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W2-BA-01",
+                                        "W2-AI-02",
+                                        "W2-BE-02",
+                                        "W2-FE-02",
+                                        "W2-QA1-01"
+                                    ],
+                      "deliverables":  [
+                                           "Brief keyword/intent/audience/angle/unique value/facts/sources",
+                                           "CTA/destination/format/channel, edit/review/version"
+                                       ],
+                      "ac":  [
+                                 "Brief chuyển từ opportunity giữ IDs, source references và CTA.",
+                                 "Facts chưa xác minh có flag, thiếu context không tự bịa facts.",
+                                 "Người dùng sửa và duyệt brief trước generation; BE kiểm tra approved brief version.",
+                                 "Edit/save/reload và field validation đúng contract/AC."
+                             ],
+                      "out_of_scope":  [
+                                           "Generation không có brief được duyệt"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M08",
+                      "module":  "M08",
+                      "name":  "AI Content Factory",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BE",
+                                        "FE",
+                                        "BA",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "2",
+                      "start_day":  8,
+                      "target_day":  10,
+                      "milestones":  "Ngày 9 article/editor/variant; ngày 10 integrated draft gate.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M02",
+                                                 "EP-M07"
+                                             ],
+                      "integration_dependencies":  [
+                                                       "EP-M10"
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/worker/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W2-AI-03",
+                                        "W2-BE-02",
+                                        "W2-BE-03",
+                                        "W2-FE-03",
+                                        "W2-QA1-02",
+                                        "W2-QA2-02"
+                                    ],
+                      "deliverables":  [
+                                           "SEO article/FAQ/meta/social draft và một variant từ source",
+                                           "Editor/save/version/history/restore/regenerate và async status"
+                                       ],
+                      "ac":  [
+                                 "Generation dùng approved brief/context/sources, schema hợp lệ và content có citations/CTA/brand checks.",
+                                 "Người dùng sinh/sửa/lưu/mở lại/khôi phục draft, restore tạo version mới; concurrent edits trả conflict.",
+                                 "Variant giữ source-content version/lineage; lỗi provider/cancel/cost cap hiển thị đúng.",
+                                 "Sửa approved content version vô hiệu approval, phải review lại qua M10 trước publish."
+                             ],
+                      "out_of_scope":  [
+                                           "Image/video generation: chỉ prompt/script",
+                                           "Full video editor"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Tiến",
+                                              "Huyền",
+                                              "Dương",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M09",
+                      "module":  "M09",
+                      "name":  "SEO Intelligence Engine",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BA",
+                                        "BE",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "2–3",
+                      "start_day":  9,
+                      "target_day":  15,
+                      "milestones":  "Ngày 9 title/meta/headings; ngày 11 cluster/link/local; refresh đối chiếu metric ngày 14–15.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M07",
+                                                 "EP-M08"
+                                             ],
+                      "integration_dependencies":  [
+                                                       "EP-M13"
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/worker/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W2-AI-03",
+                                        "W3-AI-01",
+                                        "W3-BE-01",
+                                        "W3-FE-01",
+                                        "W3-QA2-02"
+                                    ],
+                      "deliverables":  [
+                                           "Keyword/cluster nhỏ, title/meta/headings audit và suggestions",
+                                           "Internal/broken links trong tập URL nhỏ, một local template có unique data",
+                                           "Refresh từ dữ liệu nguồn có sẵn, lưu content version"
+                                       ],
+                      "ac":  [
+                                 "Audit tìm đúng lỗi trong fixtures đã chốt; source/URL limits và rule version được ghi.",
+                                 "Gợi ý internal links thuộc website pilot; broken links trong allowed set được xác minh.",
+                                 "Local draft có unique approved facts, không sinh trang gần trùng để publish hàng loạt.",
+                                 "Refresh dùng metric/context có nguồn và lưu version mới; thiếu metrics thì báo thiếu, không giả decay."
+                             ],
+                      "out_of_scope":  [
+                                           "Crawler lớn, rank tracker riêng",
+                                           "Local page mass publishing"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M10",
+                      "module":  "M10",
+                      "name":  "Distribution Engine",
+                      "owner":  "BE",
+                      "reviewers":  [
+                                        "BA",
+                                        "FE",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "BE",
+                                           "FE",
+                                           "AI",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "3",
+                      "start_day":  11,
+                      "target_day":  12,
+                      "milestones":  "Ngày 11 approval; ngày 12 CMS publish thật; regression ngày 15.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M08",
+                                                 "EP-M09"
+                                             ],
+                      "integration_dependencies":  [
+                                                       "EP-M12"
+                                                   ],
+                      "paths":  [
+                                    "apps/api/",
+                                    "apps/worker/",
+                                    "apps/web/",
+                                    "database/",
+                                    "services/ai/",
+                                    "apps/pilot/"
+                                ],
+                      "task_refs":  [
+                                        "W3-BE-02",
+                                        "W3-FE-01",
+                                        "W3-AI-02",
+                                        "W3-QA1-01",
+                                        "W3-QA2-01"
+                                    ],
+                      "deliverables":  [
+                                           "Approval/reject/resubmit gắn content version/hash",
+                                           "Calendar/schedule và CMS Next.js tối giản, URL/status/errors/idempotent retry"
+                                       ],
+                      "ac":  [
+                                 "Chỉ approved version được publish; BE kiểm tra lại quyền/source/approval lúc execution.",
+                                 "Edit sau duyệt hủy hiệu lực approval và xử lý job lịch cũ; reject/edit/resubmit chạy đúng.",
+                                 "Publish thật có URL; retry/timeout/restart không đăng trùng, unknown outcome có reconciliation.",
+                                 "Một timezone pilot, timestamps UTC; social ngoài CMS được ghi draft/export/handoff thủ công.",
+                                 "Public TripC blog/landing chỉ đọc published content; draft/preview và CMS mutation cần auth. Human approval gắn version/hash trước xuất bản; AI không tự duyệt."
+                             ],
+                      "out_of_scope":  [
+                                           "Nhiều CMS",
+                                           "Autonomous social publishing"
+                                       ],
+                      "owner_person":  "Mỹ",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Tiến",
+                                              "Huyền",
+                                              "Thanh",
+                                              "Thiệu Quang"
+                                          ],
+                      "contributor_people":  [
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Quang Quang",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M11",
+                      "module":  "M11",
+                      "name":  "Community Growth Engine",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BA",
+                                        "BE",
+                                        "Tester 1"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "3",
+                      "start_day":  12,
+                      "target_day":  13,
+                      "milestones":  "Ngày 13 conversation→response→approve→manual link.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M02",
+                                                 "EP-M05",
+                                                 "EP-M08",
+                                                 "EP-M10"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W3-AI-02",
+                                        "W3-BE-03",
+                                        "W3-FE-02",
+                                        "W3-QA1-02"
+                                    ],
+                      "deliverables":  [
+                                           "Intent Radar từ user input hoặc nguồn được phép",
+                                           "Response/source/approval/status và manual posted URL"
+                                       ],
+                      "ac":  [
+                                 "Nhập URL/content hợp lệ tạo conversation đúng workspace, intent/rationale lưu được.",
+                                 "AI response hữu ích có nguồn; claims thiếu facts được gắn cờ.",
+                                 "User có quyền duyệt response version rồi handoff và lưu link đăng thủ công.",
+                                 "UI/audit không ghi đã auto publish khi chỉ export/handoff; không đăng hàng loạt."
+                             ],
+                      "out_of_scope":  [
+                                           "Auto discovery đa cộng đồng",
+                                           "Automated comment posting/spam bot"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M12",
+                      "module":  "M12",
+                      "name":  "Traffic Engine",
+                      "owner":  "BE",
+                      "reviewers":  [
+                                        "BA",
+                                        "FE",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "BE",
+                                           "FE",
+                                           "AI",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "1 và 3",
+                      "start_day":  1,
+                      "target_day":  13,
+                      "milestones":  "Tracking scaffold từ T1; ngày 13 UTM/campaign/content aggregation.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M03"
+                                             ],
+                      "integration_dependencies":  [
+                                                       "EP-M10",
+                                                       "EP-M13"
+                                                   ],
+                      "paths":  [
+                                    "apps/api/",
+                                    "apps/web/",
+                                    "database/",
+                                    "services/ai/",
+                                    "apps/pilot/"
+                                ],
+                      "task_refs":  [
+                                        "W1-FE-03",
+                                        "W1-BE-04",
+                                        "W3-BE-03",
+                                        "W3-FE-02",
+                                        "W3-QA2-02"
+                                    ],
+                      "deliverables":  [
+                                           "UTM campaign/content/channel builder và link management",
+                                           "Pilot click/conversion event mapping, traffic contribution aggregation"
+                                       ],
+                      "ac":  [
+                                 "Campaign URLs có UTM đúng theo quy ước BA, mapping campaign/content/channel truy được.",
+                                 "Click/conversion test trên website thật nối được IDs, dedup theo event contract.",
+                                 "Aggregation dùng metric/source đã xác minh, phân biệt chưa sync và zero.",
+                                 "Attribution cơ bản được ghi method/window rõ; không gắn nhãn multi-touch; AI chỉ gợi ý kênh.",
+                                 "TripC form chỉ ghi conversion sau server-confirmed persisted submission; submission/event idempotency chống đếm trùng, UTM nối đúng campaign/content; không dùng account Signup thay conversion này."
+                             ],
+                      "out_of_scope":  [
+                                           "Multi-touch attribution",
+                                           "AI tự phân bổ ngân sách"
+                                       ],
+                      "owner_person":  "Mỹ",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Tiến",
+                                              "Huyền",
+                                              "Thanh",
+                                              "Thiệu Quang"
+                                          ],
+                      "contributor_people":  [
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Quang Quang",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M13",
+                      "module":  "M13",
+                      "name":  "Analytics Engine",
+                      "owner":  "BE",
+                      "reviewers":  [
+                                        "BA",
+                                        "FE",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "BE",
+                                           "FE",
+                                           "AI",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "1–3",
+                      "start_day":  1,
+                      "target_day":  14,
+                      "milestones":  "T1 probe/quyền/event; ngày 14 connector/dashboard/metric snapshots; QA ngày 15.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M01",
+                                                 "EP-M03"
+                                             ],
+                      "integration_dependencies":  [
+                                                       "EP-M12"
+                                                   ],
+                      "paths":  [
+                                    "apps/api/",
+                                    "apps/worker/",
+                                    "apps/web/",
+                                    "database/",
+                                    "services/ai/",
+                                    "apps/pilot/"
+                                ],
+                      "task_refs":  [
+                                        "W1-BE-04",
+                                        "W1-FE-03",
+                                        "W3-BE-04",
+                                        "W3-FE-03",
+                                        "W3-AI-03",
+                                        "W3-QA2-02"
+                                    ],
+                      "deliverables":  [
+                                           "GA4/GSC limited OAuth/sync, properties/range/timezone và metric API",
+                                           "Dashboard traffic/click/CTR/conversion, sync/delay/missing và snapshots"
+                                       ],
+                      "ac":  [
+                                 "Connector dùng tài khoản/dữ liệu nguồn thật được cấp quyền, đối chiếu một range/property cụ thể khớp nguồn.",
+                                 "Metric zero khác missing/partial/delayed, hiển thị sync time/timezone/source provenance.",
+                                 "Expired/revoked OAuth có state rõ, credentials không trả FE hoặc log.",
+                                 "Metric snapshots có version/IDs/periods/units làm input M14–M16; không dùng bảng synthetic để nghiệm thu live connector.",
+                                 "GA4/UTM đối chiếu successful form submission với DB theo contract; không gửi tên/email vào analytics. GSC site mới không có dữ liệu phải hiện empty/delayed theo nguồn, không giả baseline tăng trưởng."
+                             ],
+                      "out_of_scope":  [
+                                           "CRM/social analytics suite",
+                                           "Revenue attribution nâng cao"
+                                       ],
+                      "owner_person":  "Mỹ",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Tiến",
+                                              "Huyền",
+                                              "Thanh",
+                                              "Thiệu Quang"
+                                          ],
+                      "contributor_people":  [
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Quang Quang",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M14",
+                      "module":  "M14",
+                      "name":  "AI Growth Analyst",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BA",
+                                        "BE",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "4",
+                      "start_day":  16,
+                      "target_day":  16,
+                      "milestones":  "Ngày 16 integrated report; UAT ngày 19.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M03",
+                                                 "EP-M06",
+                                                 "EP-M13"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W4-AI-01",
+                                        "W4-BE-01",
+                                        "W4-FE-01",
+                                        "W4-QA1-01",
+                                        "W4-QA2-01"
+                                    ],
+                      "deliverables":  [
+                                           "On-demand Growth Brief hai kỳ/metric/source/evidence",
+                                           "Recommended actions cần duyệt trước tạo task"
+                                       ],
+                      "ac":  [
+                                 "Số và % trong report khớp snapshot input, số học tính xác định trước diễn đạt.",
+                                 "Baseline zero/missing không chia sai hoặc kết luận growth giả; không đủ dữ liệu thì nói rõ.",
+                                 "Nhận xét truy về source/metric/content và nêu giới hạn, không khẳng định nhân quả thiếu bằng chứng.",
+                                 "User duyệt action mới tạo task liên kết goal/strategy, retry approval không tạo trùng."
+                             ],
+                      "out_of_scope":  [
+                                           "Daily scheduled growth jobs",
+                                           "Cam kết outcome tăng trưởng"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M15",
+                      "module":  "M15",
+                      "name":  "Experiment Engine",
+                      "owner":  "BE",
+                      "reviewers":  [
+                                        "BA",
+                                        "FE",
+                                        "AI",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "BE",
+                                           "FE",
+                                           "AI",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "4",
+                      "start_day":  17,
+                      "target_day":  17,
+                      "milestones":  "Ngày 17 one-page assignment/exposure/outcome; UAT ngày 19.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M08",
+                                                 "EP-M10",
+                                                 "EP-M12",
+                                                 "EP-M13"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "apps/api/",
+                                    "apps/web/",
+                                    "database/",
+                                    "services/ai/",
+                                    "apps/pilot/"
+                                ],
+                      "task_refs":  [
+                                        "W3-FE-03",
+                                        "W4-BE-02",
+                                        "W4-FE-02",
+                                        "W4-AI-02",
+                                        "W4-QA1-02",
+                                        "W4-QA2-01"
+                                    ],
+                      "deliverables":  [
+                                           "Hypothesis/two title hoặc CTA variants/primary metric/period/grouping",
+                                           "Một website page widget + stable assignment + dedup exposures/outcomes/results"
+                                       ],
+                      "ac":  [
+                                 "Experiment đăng ký được giả thuyết/hai variants/metric/period/method; config lưu thật.",
+                                 "Một visitor giữ cùng variant theo policy đã chốt; widget dùng visitor-scoped API, không token Owner.",
+                                 "Events không đếm trùng và truy được assignment→exposure→outcome, result tách variant.",
+                                 "Mẫu ít hiện chưa đủ bằng chứng, không tự tuyên bố winner hoặc statistically significant.",
+                                 "Hai title/CTA variants trên một TripC landing page dùng primary metric form thành công; outcome truy được persisted submission và assignment, không coi click CTA hoặc lỗi form là conversion."
+                             ],
+                      "out_of_scope":  [
+                                           "Statistical engine nâng cao",
+                                           "Multi-page experiment platform"
+                                       ],
+                      "owner_person":  "Mỹ",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Tiến",
+                                              "Huyền",
+                                              "Quang Quang",
+                                              "Thanh",
+                                              "Thiệu Quang"
+                                          ],
+                      "contributor_people":  [
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Quang Quang",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  },
+                  {
+                      "id":  "EP-M16",
+                      "module":  "M16",
+                      "name":  "Learning Engine",
+                      "owner":  "AI",
+                      "reviewers":  [
+                                        "BA",
+                                        "BE",
+                                        "Tester 2"
+                                    ],
+                      "contributors":  [
+                                           "AI",
+                                           "BE",
+                                           "FE",
+                                           "BA",
+                                           "UI/UX",
+                                           "Tester 1",
+                                           "Tester 2"
+                                       ],
+                      "week":  "4",
+                      "start_day":  18,
+                      "target_day":  18,
+                      "milestones":  "Ngày 18 insight→approve→new strategy version, feature freeze; UAT ngày 19.",
+                      "build_dependencies":  [
+                                                 "EP-FOUNDATION",
+                                                 "EP-M06",
+                                                 "EP-M08",
+                                                 "EP-M13",
+                                                 "EP-M14",
+                                                 "EP-M15"
+                                             ],
+                      "integration_dependencies":  [
+
+                                                   ],
+                      "paths":  [
+                                    "services/ai/",
+                                    "apps/api/",
+                                    "apps/web/",
+                                    "database/"
+                                ],
+                      "task_refs":  [
+                                        "W4-AI-02",
+                                        "W4-BE-03",
+                                        "W4-FE-03",
+                                        "W4-QA1-01",
+                                        "W4-QA2-01"
+                                    ],
+                      "deliverables":  [
+                                           "Content/channel/performance/experiment snapshots + rule-based insight",
+                                           "Evidence/version review/approve→strategy update/tasks"
+                                       ],
+                      "ac":  [
+                                 "Insight/ranking topic/format truy về content/metric/experiment snapshot và rule version.",
+                                 "Dữ liệu ít hoặc thiếu outcome hiện chưa đủ, không khẳng định nhân quả hoặc winner giả.",
+                                 "Chỉ approved insight mới cập nhật strategy thành version mới; stale strategy version trả conflict.",
+                                 "Insight→approval→strategy/task lineage có audit; không tự huấn luyện model hoặc autonomous update."
+                             ],
+                      "out_of_scope":  [
+                                           "Autonomous learning/strategy updates",
+                                           "Model training hoặc advanced opportunity graph"
+                                       ],
+                      "owner_person":  "Quang Quang",
+                      "reviewer_people":  [
+                                              "Dương",
+                                              "Thiệu Quang",
+                                              "Mỹ",
+                                              "Thanh"
+                                          ],
+                      "contributor_people":  [
+                                                 "Quang Quang",
+                                                 "Thiệu Quang",
+                                                 "Mỹ",
+                                                 "Tiến",
+                                                 "Huyền",
+                                                 "Dương",
+                                                 "Trường",
+                                                 "Thanh"
+                                             ]
+                  }
+              ],
+    "roster":  [
+                   "Quang Quang",
+                   "Dương",
+                   "Thiệu Quang",
+                   "Mỹ",
+                   "Tiến",
+                   "Huyền",
+                   "Trường",
+                   "Thanh"
+               ],
+    "pm_person":  "Quang Quang",
+    "primary_conversion":  "successful_information_request_form",
+    "pilot_decisions":  "../PILOT.md",
+    "source_plan":  "../SOURCES.md",
+    "implementation_status":  "not_started"
+}

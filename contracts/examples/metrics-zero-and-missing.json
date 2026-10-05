@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "schema_version": "1.0.0",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "source": "ga4",
+  "property_id": "synthetic-property",
+  "timezone": "Asia/Bangkok",
+  "period": {"from": "2026-10-01", "to": "2026-10-04"},
+  "metrics": [
+    {"name": "sessions", "value": 0, "unit": "count", "availability": "available"},
+    {"name": "signups", "value": null, "unit": "count", "availability": "missing", "reason": "EVENT_NOT_CONFIGURED"}
+  ],
+  "baseline": {"sessions": 0, "availability": "available"},
+  "percentage_change": null,
+  "percentage_change_reason": "ZERO_BASELINE",
+  "synced_at": "2026-10-05T02:00:00Z"
+}

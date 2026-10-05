@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "schema_version": "1.0.0",
+  "id": "00000000-0000-4000-8000-000000000009",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "operation": "content.generate",
+  "status": "running",
+  "progress_percent": 40,
+  "attempt": 1,
+  "max_attempts": 3,
+  "input_version": 3,
+  "result_ref": null,
+  "error": null,
+  "request_id": "synthetic-request-001",
+  "trace_id": "synthetic-trace-001"
+}

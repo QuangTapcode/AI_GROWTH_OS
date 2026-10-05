@@ -1,0 +1,1816 @@
+PRD — AI Growth OS
+Product: AI Growth OS
+Version: 1.0
+Status: Product Definition / MVP
+Product Type: B2B SaaS
+Primary Use Case: Autonomous AI-powered organic growth
+Initial Internal Customer: TripC
+Target External Customers: Local businesses, travel businesses, hotels, restaurants, coworking spaces, education, real estate, healthcare, destinations and other SMBs.
+
+1. Executive Summary
+1.1 Product Vision
+AI Growth OS là một hệ thống AI giúp doanh nghiệp vận hành một growth engine liên tục thay vì phải tự làm thủ công từng công việc:
+nghiên cứu thị trường
+tìm trend
+nghiên cứu search demand
+tìm content opportunity
+lập content strategy
+tạo content
+tạo SEO pages
+tối ưu website
+phân phối content
+social publishing
+community engagement
+theo dõi traffic
+phân tích kết quả
+phát hiện cơ hội mới
+tự đề xuất và triển khai content tiếp theo
+Mục tiêu không phải tạo nhiều content hơn.
+Mục tiêu là:
+Tạo ra nhiều qualified traffic và user hơn với cùng một lượng nhân sự.
+
+2. Product Positioning
+2.1 Không phải
+AI Growth OS không phải:
+AI writing tool
+AI copywriter
+social media scheduler
+SEO keyword tool
+analytics dashboard
+content calendar
+chatbot
+2.2 Là
+AI Growth OS là:
+An autonomous AI growth operating system that continuously discovers opportunities, creates and distributes content, measures outcomes, and learns what drives growth.
+Core loop:
+Goal
+ ↓
+Research
+ ↓
+Opportunity Discovery
+ ↓
+Strategy
+ ↓
+Content
+ ↓
+SEO
+ ↓
+Distribution
+ ↓
+Traffic
+ ↓
+User
+ ↓
+Measurement
+ ↓
+Learning
+ ↓
+Optimization
+ ↓
+New Growth Actions
+
+3. Core Growth Objectives
+Doanh nghiệp có thể chọn một hoặc nhiều mục tiêu.
+Awareness
+Increase brand impressions
+Increase brand mentions
+Increase branded searches
+Increase social reach
+Search
+Increase search impressions
+Increase keyword rankings
+Increase organic clicks
+Increase search CTR
+Increase indexed pages
+Traffic
+Increase website traffic
+Increase landing page traffic
+Increase referral traffic
+Increase social traffic
+Acquisition
+Increase signups
+Increase leads
+Increase qualified leads
+Reduce cost per acquisition
+Business
+Increase bookings
+Increase purchases
+Increase revenue
+Increase returning users
+
+4. North Star Metric
+Primary North Star
+Incremental Qualified Traffic
+Không tối ưu số lượng content.
+Không tối ưu views đơn thuần.
+Không tối ưu impressions đơn thuần.
+Hệ thống phải tối ưu:
+Traffic có khả năng tạo ra business value.
+Secondary metrics:
+Brand Search Growth
+Organic Click Growth
+Organic Traffic Growth
+Social Referral Growth
+Signup Growth
+Qualified Lead Growth
+Revenue Attributed to Content
+Content ROI
+
+5. Target Customers
+5.1 Primary ICP
+Local business
+Restaurant
+Cafe
+Gym
+Spa
+Coworking
+Education
+Real estate
+Local services
+Travel
+Hotel
+Resort
+Tour operator
+Attraction
+Restaurant
+Experience provider
+Travel agency
+Destination
+Organization
+Tourism boards
+Associations
+Communities
+Local government destination organizations
+
+6. User Personas
+6.1 Founder / Business Owner
+Muốn:
+traffic
+leads
+customers
+Không muốn:
+quản lý content team
+học SEO
+đọc analytics hàng ngày
+6.2 Marketing Manager
+Muốn:
+content strategy
+SEO
+automation
+analytics
+experiments
+6.3 Content Manager
+Muốn:
+content pipeline
+AI writing
+repurposing
+scheduling
+6.4 SEO Manager
+Muốn:
+keyword research
+clusters
+content gaps
+internal linking
+ranking monitoring
+6.5 Growth Manager
+Muốn:
+growth experiments
+attribution
+funnel
+optimization
+
+7. Core Product Architecture
+                        AI GROWTH OS
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        ↓                     ↓                     ↓
+  BUSINESS CONTEXT      MARKET INTELLIGENCE    ANALYTICS
+        │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              ↓
+                     GROWTH STRATEGY
+                              ↓
+                  OPPORTUNITY ENGINE
+                              ↓
+                     CONTENT ENGINE
+                              ↓
+                      SEO ENGINE
+                              ↓
+                  DISTRIBUTION ENGINE
+                              ↓
+                    TRAFFIC ENGINE
+                              ↓
+                    MEASUREMENT
+                              ↓
+                   LEARNING ENGINE
+                              │
+                              └────────→ Strategy
+
+8. Module 1 — Workspace
+Mỗi customer có một Workspace.
+Workspace Data
+Company name
+Website
+Industry
+Locations
+Target markets
+Target audiences
+Languages
+Products
+Services
+Brand voice
+Brand guidelines
+Competitors
+Growth goals
+Conversion goals
+Workspace onboarding
+AI hỏi:
+What do you sell?
+Who are your customers?
+Where do you operate?
+What locations do you target?
+What are your growth goals?
+What keywords/topics matter?
+What competitors matter?
+What channels do you currently use?
+What conversion action matters?
+What content already exists?
+AI sau đó tạo:
+Initial Growth Map
+
+9. Module 2 — Business Knowledge Base
+AI cần hiểu business trước khi tạo content.
+Data sources
+Website
+Product pages
+PDFs
+Docs
+FAQs
+Pricing
+Images
+Brand guidelines
+Existing content
+Social profiles
+Google Business Profile
+CRM data
+Analytics
+Search Console
+Knowledge categories
+Company
+Products
+Services
+Locations
+Audience
+Pricing
+Policies
+FAQs
+Brand
+Competitors
+Content
+Performance
+Knowledge status
+Imported
+Processing
+Verified
+Outdated
+Needs review
+AI safety rule
+AI không được tự bịa:
+pricing
+availability
+promotion
+business address
+opening hours
+product features
+legal claims
+statistics
+customer testimonials
+
+10. Module 3 — Growth Goal Manager
+User tạo Growth Goal.
+Example:
+Goal:
+Increase organic traffic
+
+Target:
+Da Nang expats
+
+Period:
+90 days
+
+Target:
++40%
+
+Primary conversion:
+Signup
+
+Budget:
+$1,000/month
+AI chuyển goal thành:
+Objective
+↓
+KPIs
+↓
+Audience
+↓
+Topics
+↓
+Channels
+↓
+Experiments
+↓
+Execution plan
+
+11. Module 4 — Market Intelligence Engine
+AI liên tục nghiên cứu thị trường.
+Sources
+Search trends
+Search results
+News
+Social
+YouTube
+TikTok
+Reddit
+Public communities
+Competitor websites
+Competitor content
+Internal analytics
+Search Console
+Google Analytics
+Discovery types
+Trend
+Something becoming popular.
+Search opportunity
+High demand / low competition.
+Content gap
+Competitors have content that the customer does not.
+Fresh opportunity
+New event, place, business, regulation, trend.
+User intent
+People actively asking for solutions.
+Commercial opportunity
+Search/query likely to generate business value.
+
+12. Module 5 — Opportunity Engine
+Mỗi opportunity được lưu thành một object.
+Opportunity
+├── type
+├── topic
+├── audience
+├── location
+├── search_intent
+├── business_intent
+├── keyword
+├── estimated_demand
+├── competition
+├── freshness
+├── business_value
+├── content_gap
+├── recommended_format
+├── recommended_channel
+└── priority_score
+Opportunity Score
+Opportunity Score =
+Demand
+× Business Relevance
+× Growth Potential
+× Content Gap
+× Freshness
+× Conversion Potential
+AI xếp hạng opportunity.
+
+13. Module 6 — Growth Strategy Engine
+AI tạo:
+30-day Growth Strategy
+Ví dụ:
+Primary audience:
+Expats in Da Nang
+
+Priority:
+Housing
+Coworking
+Fitness
+Food
+Events
+
+SEO:
+20 commercial pages
+30 informational pages
+
+Social:
+60 short-form posts
+
+Community:
+100 relevant conversations
+
+Goal:
++30% qualified traffic
+AI tự phân bổ effort theo opportunity score.
+
+14. Module 7 — Content Intelligence Engine
+Hệ thống quyết định:
+Nên tạo content gì?
+Content types
+SEO
+Blog
+Guide
+Listicle
+Comparison
+FAQ
+Location page
+Product page
+Category page
+Landing page
+Social
+Facebook post
+TikTok
+Reel
+Instagram carousel
+Short video
+Image post
+Community
+Answer
+Discussion
+Recommendation
+Educational response
+Conversion
+Product comparison
+Buyer guide
+Offer page
+Lead magnet
+CTA content
+
+15. Content Brief Generator
+Mỗi content có brief:
+Title
+Primary keyword
+Secondary keywords
+Search intent
+Audience
+Pain point
+Angle
+Unique value
+Competitor references
+Facts
+CTA
+Destination
+Format
+Channel
+AI tạo brief trước khi viết.
+
+16. Module 8 — AI Content Factory
+Input:
+Content Brief
++
+Business Knowledge
++
+Brand Voice
++
+SEO Strategy
+Output:
+Article
+Social posts
+Short video scripts
+Image prompts
+Carousel
+Newsletter
+Community responses
+FAQs
+Metadata
+
+17. Content Repurposing Engine
+Một source content có thể tạo nhiều assets.
+Example:
+"Best Coworking Spaces in Da Nang"
+        │
+        ├── SEO article
+        ├── 5 Facebook posts
+        ├── 3 TikTok scripts
+        ├── Instagram carousel
+        ├── YouTube short
+        ├── Newsletter
+        ├── FAQ
+        ├── 10 social snippets
+        └── internal links
+Goal:
+One research → multi-channel distribution.
+
+18. Module 9 — SEO Intelligence Engine
+Keyword discovery
+AI phát hiện:
+keywords
+long-tail keywords
+local keywords
+question keywords
+commercial keywords
+emerging queries
+Keyword database
+Keyword
+Search volume
+Trend
+Difficulty
+Intent
+Location
+Language
+Current ranking
+CTR
+URL
+Competitor ranking
+
+19. Topic Cluster Engine
+AI xây topic authority.
+Example:
+Da Nang
+│
+├── Living
+│   ├── Cost of Living
+│   ├── Apartments
+│   ├── Best Areas
+│   └── Utilities
+│
+├── Work
+│   ├── Coworking
+│   ├── Cafes
+│   └── Remote Work
+│
+├── Fitness
+│   ├── Gyms
+│   ├── Yoga
+│   └── Swimming
+│
+└── Food
+    ├── Restaurants
+    ├── Local Food
+    └── Cafes
+
+20. Programmatic SEO
+AI có thể tạo pages từ structured data.
+Example:
+/best-gyms-da-nang
+/gyms-son-tra
+/gyms-hai-chau
+/gyms-near-my-khe
+/24-hour-gyms-da-nang
+/gyms-for-expats-da-nang
+Guardrails
+Không tạo hàng nghìn pages có nội dung gần như giống nhau.
+Mỗi page phải có:
+unique value
+unique data
+useful local information
+internal links
+clear search intent
+
+21. Internal Linking Engine
+AI tự phát hiện:
+New article
+↓
+Related pages
+↓
+Relevant anchor text
+↓
+Internal links
+AI định kỳ kiểm tra:
+orphan pages
+broken links
+weak pages
+overlinked pages
+missing internal links
+
+22. SEO Optimization Agent
+Sau khi publish, AI theo dõi:
+ranking
+impressions
+CTR
+clicks
+indexed status
+traffic
+AI đề xuất:
+Rewrite title.
+Improve introduction.
+Add missing section.
+Add FAQ.
+Add internal links.
+Update outdated information.
+Create supporting article.
+
+23. Module 10 — Distribution Engine
+Mọi content đi qua Distribution Engine.
+Content
+↓
+Channel Selection
+↓
+Format Adaptation
+↓
+Scheduling
+↓
+Publishing
+↓
+Tracking
+Channels:
+Website
+Facebook
+Instagram
+TikTok
+YouTube
+LinkedIn
+Newsletter
+Community
+Google Business Profile where supported
+
+24. Auto Publishing
+Content status:
+Idea
+↓
+Brief
+↓
+Draft
+↓
+Review
+↓
+Approved
+↓
+Scheduled
+↓
+Published
+↓
+Measured
+Publishing modes
+Manual
+User publishes.
+Approval
+AI prepares → human approves → system publishes.
+Autonomous
+AI publishes automatically within predefined rules.
+Default MVP:
+Approval mode.
+Autonomous publishing is opt-in.
+
+25. Channel-specific AI
+Không dùng một content cho mọi platform.
+Facebook
+Optimize:
+hook
+readability
+discussion
+comments
+TikTok
+Optimize:
+first 3 seconds
+visual hook
+retention
+short CTA
+Instagram
+Optimize:
+visual
+carousel
+saves
+shares
+SEO
+Optimize:
+search intent
+information depth
+entities
+internal links
+CTR
+
+26. Module 11 — Community Growth Engine
+AI tìm conversations liên quan đến business.
+Examples:
+"Where should I live in Da Nang?"
+"Best gym in Da Nang?"
+"Where can I work?"
+"Best restaurants?"
+"What to do this weekend?"
+AI:
+Detect
+↓
+Classify intent
+↓
+Score opportunity
+↓
+Generate useful response
+↓
+Human approval
+↓
+Publish
+Important
+MVP không cho AI spam hàng loạt.
+Mục tiêu:
+Relevant contribution, not automated advertising.
+
+27. Intent Radar
+Dashboard:
+HIGH INTENT
+
+92 — Looking for apartment
+88 — Best coworking
+86 — Family activities
+81 — Gym recommendation
+77 — Restaurant recommendation
+User có thể approve response.
+
+28. Module 12 — Traffic Engine
+AI tối ưu toàn bộ traffic sources.
+Organic
+Search → Website
+Social
+Social → Website
+Community
+Community → Website
+Referral
+Partner → Website
+Email
+Email → Website
+AI phân tích contribution của từng channel.
+
+29. UTM & Attribution
+Mọi campaign/content/channel có tracking.
+utm_source
+utm_medium
+utm_campaign
+utm_content
+Ví dụ:
+facebook
+organic
+da-nang-gym
+best-gym-post-01
+
+30. Module 13 — Analytics Engine
+Data integrations
+Google Analytics
+Google Search Console
+social analytics
+website analytics
+CRM
+product analytics
+Metrics
+Awareness
+Reach
+Impressions
+Mentions
+Branded search
+Search
+Impressions
+Clicks
+CTR
+Ranking
+Indexed pages
+Social
+Views
+Engagement
+Shares
+Saves
+Clicks
+Website
+Sessions
+Users
+Pageviews
+Engagement
+Conversion
+Business
+Leads
+Signups
+Bookings
+Revenue
+
+31. Module 14 — AI Growth Analyst
+AI tạo Daily Growth Brief.
+Example:
+GROWTH REPORT — OCT 5
+
+Organic traffic:
++18%
+
+Main driver:
+Da Nang housing cluster
+
+Best content:
+"Best areas to live in Da Nang"
+
+CTR:
+5.2%
+
+Weak content:
+"Best cafes"
+
+Recommendation:
+Create 5 additional housing pages.
+
+New opportunity:
+"Da Nang apartment for rent under $500"
+
+Priority:
+HIGH
+
+32. Module 15 — Experiment Engine
+AI tạo experiments.
+Examples:
+Title experiment
+A:
+Best Gyms in Da Nang
+B:
+10 Gyms in Da Nang Expats Actually Use
+CTA experiment
+A:
+Explore on TripC
+B:
+Find a Gym Near You
+Content format
+A:
+Article
+B:
+Comparison table
+C:
+Interactive directory
+AI theo dõi kết quả.
+
+33. Module 16 — Learning Engine
+Đây là core moat.
+Mỗi content được ghi nhận:
+Topic
+Audience
+Keyword
+Intent
+Format
+Hook
+CTA
+Channel
+Publish time
+Impressions
+Clicks
+CTR
+Traffic
+Signup
+Revenue
+AI tìm correlation:
+Content about housing generates 3.4× more signup than restaurant content.
+Comparison pages have 2.1× higher CTR.
+“Near me” keywords generate stronger conversion.
+AI cập nhật strategy.
+
+34. Autonomous Growth Loop
+                 BUSINESS GOAL
+                       ↓
+                AI STRATEGIST
+                       ↓
+              OPPORTUNITY ENGINE
+                       ↓
+                CONTENT ENGINE
+                       ↓
+                  SEO ENGINE
+                       ↓
+             DISTRIBUTION ENGINE
+                       ↓
+                TRAFFIC ENGINE
+                       ↓
+                USER ACTIVITY
+                       ↓
+               ANALYTICS ENGINE
+                       ↓
+                AI ANALYST
+                       ↓
+               LEARNING ENGINE
+                       ↓
+             NEW OPPORTUNITIES
+                       ↓
+                   REPEAT
+
+35. Growth Command Center
+Dashboard chính.
+Header
+Workspace: TripC
+Goal: +30% Qualified Traffic
+Period: 30 days
+KPI cards
+Brand Search      +18%
+Organic Clicks    +27%
+Traffic           +34%
+New Users         +21%
+Signup            +16%
+AI Recommendations
+1. Create 8 housing pages
+2. Update 5 existing pages
+3. Repurpose top article into video
+4. Increase coworking content
+5. Reduce generic restaurant content
+Content Pipeline
+Ideas             183
+Opportunities      47
+Drafts             29
+Review              8
+Scheduled          31
+Published         126
+Growth Opportunities
+HIGH
+Da Nang housing
+
+HIGH
+Coworking spaces
+
+MEDIUM
+Gyms
+
+LOW
+Generic cafes
+
+36. AI Agents
+Sản phẩm nên được xây theo Agent architecture.
+Agent 1 — Research Agent
+Finds:
+news
+trends
+topics
+questions
+Agent 2 — SEO Agent
+Finds:
+keywords
+gaps
+clusters
+ranking opportunities
+Agent 3 — Opportunity Agent
+Ranks opportunities.
+Agent 4 — Strategist Agent
+Creates growth strategy.
+Agent 5 — Content Agent
+Creates content.
+Agent 6 — SEO Optimizer
+Optimizes content/pages.
+Agent 7 — Distribution Agent
+Publishes content.
+Agent 8 — Community Agent
+Finds relevant conversations.
+Agent 9 — Analytics Agent
+Analyzes performance.
+Agent 10 — Experiment Agent
+Runs experiments.
+Agent 11 — Learning Agent
+Updates strategy.
+Agent 12 — Growth Orchestrator
+Controls the whole system.
+
+37. Growth Orchestrator
+Đây là agent quan trọng nhất.
+Nó quyết định:
+What should the system do next?
+Example:
+Current goal:
++30% organic traffic
+
+Current performance:
++12%
+
+Gap:
+18%
+
+Available opportunities:
+23
+
+Best opportunity:
+Housing
+
+Recommended actions:
+- 5 new pages
+- update 3 old pages
+- 10 social posts
+- 2 comparison pages
+- 1 interactive tool
+Orchestrator tạo task cho các agents.
+
+38. Human-in-the-loop
+Không nên autonomous 100% ngay từ đầu.
+Level 1
+AI recommends.
+Human executes.
+Level 2
+AI creates.
+Human approves.
+Level 3
+AI publishes within rules.
+Human monitors.
+Level 4
+AI autonomous.
+Human handles exceptions.
+MVP:
+Level 2.
+
+39. Content Governance
+Mỗi workspace có:
+Brand rules
+Tone
+Vocabulary
+Forbidden claims
+Preferred CTA
+Language
+Formatting
+Content rules
+Topics allowed
+Topics forbidden
+Approval required
+Auto-publish allowed
+SEO rules
+Minimum quality
+Duplicate threshold
+Internal links
+Meta requirements
+
+40. Content Quality Score
+Mỗi content được AI chấm:
+Accuracy       95
+Originality    82
+SEO            91
+Useful value   88
+Brand fit      94
+Conversion     79
+
+TOTAL          88
+Content dưới threshold:
+Needs improvement.
+
+41. Content Lifecycle
+DISCOVERED
+↓
+OPPORTUNITY
+↓
+BRIEF
+↓
+DRAFT
+↓
+QUALITY CHECK
+↓
+APPROVAL
+↓
+SCHEDULED
+↓
+PUBLISHED
+↓
+MEASURED
+↓
+OPTIMIZED
+↓
+UPDATED
+
+42. Programmatic Local Content
+Đặc biệt quan trọng với TripC.
+Database:
+10 cities
+×
+20 categories
+×
+100 places
+Có thể tạo:
+city pages
+category pages
+location pages
+place pages
+comparison pages
+neighborhood pages
+Nhưng chỉ publish khi có đủ unique value.
+
+43. AI Content Calendar
+Calendar tự động được tạo dựa trên:
+Business goal
++
+Opportunity score
++
+Existing content
++
+Historical performance
++
+Seasonality
++
+Platform
+Ví dụ:
+MON
+SEO — Housing
+
+TUE
+Facebook — Coworking
+
+WED
+TikTok — Food
+
+THU
+SEO — Gym
+
+FRI
+Facebook — Weekend activities
+
+SAT
+TikTok — Things to do
+
+SUN
+Newsletter
+
+44. AI Content Recycling
+Content không chết sau một lần publish.
+AI phát hiện:
+Content published 90 days ago, traffic declining 32%.
+AI đề xuất:
+Refresh
+↓
+Update facts
+↓
+Add new places
+↓
+Improve title
+↓
+Add FAQ
+↓
+Republish
+
+45. Content Decay Detection
+AI tự phát hiện:
+traffic declining
+ranking declining
+outdated facts
+competitor overtaking
+missing sections
+Sau đó tạo:
+Refresh Task
+
+46. Competitor Intelligence
+AI theo dõi competitor:
+new pages
+new topics
+ranking changes
+content formats
+social topics
+Không copy.
+AI tìm:
+Where can we outperform?
+
+47. Growth Opportunity Board
+Mỗi opportunity có:
+Opportunity
+Potential traffic
+Business value
+Difficulty
+Estimated effort
+Priority
+Status
+Ví dụ:
+Opportunity
+Traffic
+Business Value
+Effort
+Priority
+Da Nang apartment
+High
+Very High
+Medium
+P0
+Coworking
+Medium
+High
+Low
+P0
+Cafe
+High
+Low
+Low
+P2
+Gym
+Medium
+Medium
+Low
+P1
+
+
+48. SaaS Multi-tenancy
+Architecture:
+Organization
+ ├── Users
+ ├── Workspace
+ ├── Brand
+ ├── Knowledge
+ ├── Goals
+ ├── Content
+ ├── SEO
+ ├── Campaigns
+ ├── Analytics
+ └── Billing
+Role:
+Owner
+Admin
+Growth Manager
+Content Manager
+Editor
+Viewer
+
+49. Billing
+Starter
+For small businesses.
+Includes:
+1 workspace
+limited AI credits
+SEO
+content
+analytics
+Growth
+For growing companies.
+Includes:
+multiple channels
+automation
+advanced SEO
+experiments
+analytics
+more AI agents
+Pro
+Includes:
+autonomous growth
+multiple websites
+advanced integrations
+team collaboration
+advanced analytics
+Enterprise
+Includes:
+multiple organizations
+custom integrations
+API
+SSO
+dedicated infrastructure
+custom agents
+Pricing should initially be validated rather than fixed permanently.
+
+50. AI Usage / Credit System
+AI-intensive actions consume credits.
+Examples:
+Research
+Content generation
+Video generation
+Image generation
+SEO analysis
+Competitor analysis
+Data enrichment
+Dashboard:
+AI Credits
+Used: 6,240
+Remaining: 3,760
+
+51. Database Model
+Core tables:
+organizations
+users
+workspaces
+brands
+business_profiles
+products
+services
+locations
+audiences
+competitors
+
+growth_goals
+growth_kpis
+growth_strategies
+growth_opportunities
+
+sources
+research_items
+trends
+keywords
+keyword_clusters
+competitor_pages
+
+content_ideas
+content_briefs
+contents
+content_variants
+content_assets
+
+seo_pages
+seo_audits
+internal_links
+seo_keywords
+rankings
+
+channels
+social_accounts
+publishing_jobs
+campaigns
+
+community_opportunities
+community_responses
+
+traffic_sources
+analytics_events
+content_performance
+conversion_events
+
+experiments
+experiment_variants
+experiment_results
+
+ai_agents
+agent_runs
+agent_tasks
+
+knowledge_documents
+knowledge_chunks
+
+notifications
+audit_logs
+subscriptions
+usage
+
+52. Important Entity Relationships
+Growth Goal
+    ↓
+Strategy
+    ↓
+Opportunity
+    ↓
+Content Brief
+    ↓
+Content
+    ↓
+Distribution
+    ↓
+Traffic
+    ↓
+Conversion
+    ↓
+Performance
+    ↓
+Learning
+
+53. Content Object
+{
+  "id": "",
+  "workspace_id": "",
+  "title": "",
+  "type": "article",
+  "topic": "",
+  "keyword": "",
+  "intent": "commercial",
+  "audience": "",
+  "language": "en",
+  "status": "draft",
+  "content_score": 91,
+  "seo_score": 88,
+  "business_value": 9,
+  "created_by": "ai",
+  "published_at": null
+}
+
+54. Opportunity Object
+{
+  "type": "search",
+  "topic": "Da Nang coworking",
+  "keyword": "best coworking spaces in Da Nang",
+  "intent": "commercial",
+  "demand_score": 82,
+  "business_value": 91,
+  "competition": 44,
+  "freshness": 78,
+  "priority": "P0"
+}
+
+55. Agent Task System
+Mỗi agent tạo task.
+TASK-001
+Agent: SEO
+Action: Find keyword opportunities
+Status: Running
+
+TASK-002
+Agent: Content
+Action: Create article
+Status: Awaiting approval
+
+TASK-003
+Agent: Distribution
+Action: Schedule Facebook
+Status: Scheduled
+Task states:
+Queued
+Running
+Needs Review
+Approved
+Completed
+Failed
+Retry
+
+56. Notifications
+User nhận:
+Daily
+Growth Brief
+Important
+New high-value opportunity discovered.
+Warning
+Organic traffic dropped 18%.
+Recommendation
+Update 5 declining pages.
+Approval
+12 contents waiting for approval.
+
+57. MVP Scope
+MVP không xây tất cả agents ngay.
+MVP Phase 1
+Must have
+Workspace
+Business onboarding
+Knowledge base
+Growth goals
+Research agent
+Opportunity engine
+Content brief
+AI content generation
+SEO optimization
+Content calendar
+Website publishing
+Facebook publishing where supported
+Google Analytics integration
+Search Console integration
+Basic analytics
+AI growth report
+Human approval
+
+58. MVP Phase 2
+Keyword clustering
+Programmatic SEO
+Internal linking
+Competitor intelligence
+Content refresh
+Content decay
+Social publishing expansion
+Community opportunity radar
+Experiments
+
+59. MVP Phase 3
+Autonomous strategy
+Autonomous publishing
+Advanced attribution
+AI experimentation
+Multi-agent orchestration
+Revenue optimization
+Predictive growth
+
+60. Explicitly NOT Build Initially
+Không build trong MVP:
+Full CRM
+Full marketing automation suite
+Email marketing platform
+Full social network
+Ad platform
+AI avatar
+AI livestream
+Complex video editor
+Native mobile app
+Custom LLM
+Full competitor intelligence suite
+Hundreds of integrations
+Autonomous community spam bot
+
+61. Recommended Tech Stack
+Frontend
+Next.js
+TypeScript
+Tailwind
+shadcn/ui
+Backend
+Next.js API
+Supabase
+PostgreSQL
+AI
+LLM API
+Embeddings
+Vector search
+Image generation
+Video generation where needed
+Automation
+n8n
+Analytics
+PostHog
+Google Analytics
+Google Search Console
+Storage
+Supabase Storage / S3
+Hosting
+Vercel
+Supabase
+
+62. AI Architecture
+Không nên để một LLM làm tất cả.
+Orchestrator
+      │
+      ├── Research Agent
+      ├── SEO Agent
+      ├── Opportunity Agent
+      ├── Content Agent
+      ├── Distribution Agent
+      ├── Analytics Agent
+      ├── Experiment Agent
+      └── Learning Agent
+Mỗi agent có:
+objective
+tools
+knowledge
+constraints
+output schema
+evaluation criteria
+
+63. AI Evaluation
+Mỗi AI output phải được đánh giá.
+Content
+Accuracy
+Relevance
+Originality
+SEO
+Brand fit
+Business value
+Opportunity
+Demand
+Relevance
+Competition
+Freshness
+Conversion potential
+Recommendation
+Evidence
+Expected impact
+Confidence
+Cost
+Risk
+
+64. Confidence System
+AI không chỉ nói:
+“Do this.”
+Mà:
+Recommendation:
+Create Da Nang housing cluster
+
+Expected impact:
+HIGH
+
+Confidence:
+87%
+
+Evidence:
+- Search clicks +32%
+- 14 new related queries
+- Competitor gap
+- Existing conversion data
+
+Estimated effort:
+Medium
+
+65. Autonomous Decision Rules
+AI được phép tự động:
+generate content
+generate variants
+update metadata
+suggest internal links
+schedule content
+analyze performance
+create experiments
+AI cần approval:
+publish sensitive content
+change brand positioning
+make claims
+pricing
+legal/medical claims
+respond publicly to sensitive topics
+publish community comments initially
+
+66. Security
+Multi-tenant isolation
+RBAC
+OAuth
+encrypted credentials
+audit logs
+API token security
+content approval logs
+publishing permissions
+Không lưu password social account nếu có OAuth/API alternative.
+
+67. Success Metrics
+MVP success
+Sau 30 ngày:
+1 internal workspace
+100+ opportunities discovered
+100+ content assets
+50+ published assets
+10+ SEO pages
+automated analytics
+measurable traffic growth
+AI produces weekly recommendations
+Product-market validation
+Sau 90 ngày:
+5 external customers
+at least 3 paying customers
+measurable traffic improvement
+customers actively use AI recommendations
+repeat monthly usage
+clear willingness to pay
+
+68. Core Product KPI
+Product-level:
+% of growth tasks automated
+% of AI recommendations executed
+% of AI recommendations producing positive impact
+Traffic generated per $ spent
+Traffic generated per content asset
+Revenue generated per workspace
+Important metric:
+Incremental qualified traffic per AI dollar.
+
+69. Example — TripC
+TripC goal:
+Increase expat traffic by 50% in 90 days.
+AI discovers:
+Housing
+Coworking
+Gym
+Food
+Events
+Visa
+Transportation
+AI detects housing as highest-value opportunity.
+Strategy:
+30 housing pages
+20 neighborhood pages
+10 comparison pages
+50 social assets
+100 community opportunities
+System publishes.
+After 30 days:
+Housing traffic +82%
+Coworking +21%
+Food +4%
+AI learns:
+Housing content is currently the strongest acquisition engine.
+Next strategy:
+More housing
+Less generic food
+More relocation content
+More neighborhood pages
+
+70. The Product's Real Moat
+Không phải AI writing.
+Không phải n8n.
+Không phải SEO.
+Moat sẽ đến từ:
+1. Growth data
+Biết content nào thực sự tạo traffic/user.
+2. Business context
+AI hiểu từng business.
+3. Opportunity graph
+Biết:
+Demand → Topic → Content → Channel → Traffic → User → Revenue.
+4. Learning loop
+Mỗi customer càng dùng lâu, hệ thống càng hiểu:
+What works for this business.
+5. Autonomous execution
+Từ recommendation → execution → measurement → next action.
+
+71. Product Principle
+Toàn bộ product phải tuân theo một nguyên tắc:
+Do not optimize content production. Optimize growth outcomes.
+Không hỏi:
+“AI đã tạo bao nhiêu bài?”
+Hỏi:
+“AI đã tạo thêm bao nhiêu qualified traffic?”
+Không hỏi:
+“Có bao nhiêu views?”
+Hỏi:
+“Bao nhiêu người đã trở thành user?”
+Không hỏi:
+“Có bao nhiêu keyword?”
+Hỏi:
+“Keyword nào tạo ra business value?”
+
+72. Ultimate Product Experience
+Cuối cùng user chỉ cần nói:
+“I want 50% more qualified traffic from English-speaking expats in Da Nang within 90 days.”
+AI trả lời:
+CURRENT:
+42,000 qualified visits/month
+
+TARGET:
+63,000
+
+GAP:
+21,000
+
+TOP OPPORTUNITIES:
+
+1. Housing       HIGH
+2. Coworking     HIGH
+3. Fitness       MEDIUM
+4. Events        MEDIUM
+
+RECOMMENDED PLAN:
+
+SEO
++40 pages
+
+SOCIAL
++120 assets
+
+COMMUNITY
++200 opportunities
+
+CONTENT REFRESH
++15 pages
+
+EXPECTED IMPACT:
++18K–25K qualified visits
+
+CONFIDENCE:
+81%
+
+START GROWTH PLAN
+Sau khi user bấm:
+START
+hệ thống bắt đầu vận hành.
+Đó mới là trải nghiệm SaaS mà tôi muốn hướng tới.
+
+73. Roadmap
+Phase 0 — Internal Prototype
+2 weeks
+Chạy cho TripC.
+Mục tiêu:
+chứng minh closed-loop growth.
+
+Phase 1 — AI Growth Assistant
+4–6 weeks
+Research
+→ Opportunity
+→ Content
+→ SEO
+→ Publishing
+→ Analytics
+Human approval.
+
+Phase 2 — AI Growth Manager
+6–10 weeks
+Thêm:
+strategy
+competitor intelligence
+experiments
+content refresh
+community opportunities
+learning engine
+
+Phase 3 — Autonomous Growth OS
+10–16 weeks
+Thêm:
+autonomous execution
+multi-agent orchestration
+predictive opportunities
+automatic experiments
+revenue optimization
+
+74. First Customer Strategy
+Không nên launch public SaaS ngay.
+Làm:
+Customer #1
+TripC
+→ dogfood.
+Customer #2–5
+Các doanh nghiệp du lịch Đà Nẵng.
+→ triển khai managed SaaS.
+Customer #6–20
+Local businesses.
+→ standardize.
+Sau đó:
+Self-service SaaS.
+
+75. Business Model
+Tôi đề xuất 3 tầng:
+SaaS
+$49–199/month
+Growth
+$299–999/month
+Managed Growth
+$1,000–3,000+/month
+Managed service là cách tốt để học trước khi SaaS hóa.
+
+76. Final Product Definition
+AI Growth OS không nên được định vị là:
+“AI tạo content cho bạn.”
+Mà là:
+“AI vận hành growth engine cho doanh nghiệp.”
+Vòng lặp cốt lõi:
+DISCOVER
+   ↓
+DECIDE
+   ↓
+CREATE
+   ↓
+OPTIMIZE
+   ↓
+PUBLISH
+   ↓
+DISTRIBUTE
+   ↓
+MEASURE
+   ↓
+LEARN
+   ↓
+GROW
+   ↓
+DISCOVER AGAIN
+Content là một action. SEO là một channel. Social là một channel. Traffic là một outcome.
+Sản phẩm thực sự là AI Growth Loop.

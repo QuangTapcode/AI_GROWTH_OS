@@ -1,0 +1,25 @@
+# Secrets / local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies / generated builds
+node_modules/
+.next/
+dist/
+build/
+coverage/
+.turbo/
+__pycache__/
+.venv/
+
+# Local diagnostics and test artifacts
+*.log
+test-results/
+playwright-report/
+.DS_Store
+Thumbs.db
+
+# Keep manifest/lockfiles versioned per unit; no ignore rule for them.

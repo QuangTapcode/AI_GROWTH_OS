@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "schema_version": "1.0.0",
+  "id": "00000000-0000-4000-8000-000000000004",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "brief_id": "00000000-0000-4000-8000-000000000005",
+  "version": 3,
+  "title": "Bản nháp minh họa — dữ liệu giả dùng cho test",
+  "type": "article",
+  "language": "vi",
+  "status": "draft",
+  "body": "Chưa có facts được xác minh để viết nội dung thực tế.",
+  "evidence": [],
+  "warnings": ["MISSING_VERIFIED_FACTS"],
+  "approved_version": null,
+  "published_at": null
+}
