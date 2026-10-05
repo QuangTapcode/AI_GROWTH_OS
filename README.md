@@ -1,3 +1,15 @@
+AI Growth OS là nền tảng dùng AI để hỗ trợ doanh nghiệp thu hút khách hàng qua nội dung, SEO và các kênh trực tuyến. Doanh nghiệp đưa ra mục tiêu, hệ thống sẽ tìm cơ hội, đề xuất kế hoạch, tạo nội dung và theo dõi hiệu quả để cải thiện những hoạt động tiếp theo.
+Dự án giải quyết vấn đề: doanh nghiệp nhỏ thường thiếu nhân sự marketing, mất nhiều thời gian nghiên cứu và viết bài, đăng nội dung rời rạc, nhưng khó biết nội dung nào thực sự mang lại khách hàng.
+Hệ thống hỗ trợ một quy trình liên tục:
+1. Hiểu doanh nghiệp, sản phẩm và khách hàng mục tiêu.
+2. Nghiên cứu xu hướng, nhu cầu tìm kiếm và cơ hội nội dung.
+3. Lập kế hoạch, tạo bài viết và tối ưu SEO.
+4. Cho người phụ trách duyệt rồi xuất bản.
+5. Đo lượt truy cập, lượt đăng ký và kết quả chuyển đổi.
+6. Dựa vào dữ liệu để đề xuất nội dung và hành động tiếp theo.
+Pilot của nhóm triển khai cho TripC, hướng đến người nước ngoài nói tiếng Anh tại Đà Nẵng. Nhóm xây website và CMS tối giản bằng Next.js, đăng nội dung về nhà ở, coworking và dịch vụ địa phương; conversion chính ban đầu là gửi form đăng ký nhận thông tin hoặc tham gia danh sách chờ.
+Giá trị cốt lõi: giúp doanh nghiệp tạo thêm lượng truy cập có khả năng trở thành khách hàng với cùng nguồn nhân lực, đồng thời biết hoạt động marketing nào mang lại hiệu quả.
+
 # AI Growth OS — Cấu trúc dự án và kế hoạch pilot 4 tuần
 
 Phiên bản tài liệu: 2.1 · Cập nhật: 05/10/2026 · Phạm vi: **16 module / 4 tuần / một website pilot**.
@@ -6,7 +18,7 @@ AI Growth OS giúp doanh nghiệp vận hành vòng **goal → knowledge → res
 
 README và [TODO](TODO.md) dùng kế hoạch 4 tuần ngày 05/10/2026 làm baseline thực thi. Mã **M01–M16 theo bản mới**, đã thay cách đánh số trước đây. [Bản đồ phạm vi](docs/ba/SCOPE.md) giải thích giới hạn từng module; [tài liệu nguồn](docs/sources/README.md) giữ PRD và các kế hoạch để truy vết.
 
-**Trạng thái hiện tại:** repository mới có khung thư mục và tài liệu. App, manifest/lockfile, mock server, test runner, CI và môi trường chạy chưa được triển khai. W1-PM-01 đã hoàn tất phần lập backlog/pilot; các task triển khai còn lại chưa hoàn thành.
+**Trạng thái hiện tại:** repository mới có khung thư mục và tài liệu. App, manifest/lockfile, mock server, test runner, CI và môi trường ứng dụng chưa được triển khai. Dependencies local PostgreSQL/pgvector và SearXNG đã chạy, có smoke evidence. W1-PM-01/02 đã hoàn tất phần kế hoạch; W1-PM-03 đã có tài liệu điều phối và local AI smoke, còn quyền triển khai/Google và demo ngày 5. Các task triển khai sản phẩm chưa hoàn thành.
 
 ## 1. Bắt đầu làm việc
 
@@ -200,7 +212,7 @@ flowchart LR
     Q -. kiểm chứng .-> AI
 ```
 
-Người dùng đã chốt FE/BE **TypeScript**, AI **Python**; website pilot và CMS tối giản dùng **Next.js/TypeScript**. `apps/pilot/` là blog/landing/form công khai, `apps/web/` là quản trị/CMS UI; `apps/api/` giữ nghiệp vụ CMS, xuất bản và dữ liệu form. BE chốt cách tổ chức Next.js API và worker TypeScript ở W1-BE-01; AI dùng FastAPI theo quyết định cơ sở. PostgreSQL/Supabase, queue và hosting còn cần chốt ngày 1–2. [DEC-001](docs/ba/processes/DEC-001-LANGUAGES.md) ghi ngôn ngữ; [PILOT](docs/coordination/PILOT.md) ghi quyết định website. Worker làm job dài ngoài request web; AI không publish, không giữ CMS/OAuth credentials hoặc tự cập nhật strategy.
+Người dùng đã chốt FE/BE **TypeScript**, AI **Python**; website pilot và CMS tối giản dùng **Next.js/TypeScript**. `apps/pilot/` là blog/landing/form công khai, `apps/web/` là quản trị/CMS UI; `apps/api/` giữ nghiệp vụ CMS, xuất bản và dữ liệu form. BE chốt cách tổ chức Next.js API và worker TypeScript ở W1-BE-01; AI dùng FastAPI theo quyết định cơ sở. Baseline W1-PM-02 chọn PostgreSQL + pgvector, SearXNG tự host và pg-boss worker; người dùng chọn Ollama local và máy chủ sẵn có. Versions và access/probes còn do BE kiểm chứng ngày 1–2. [DEC-001](docs/ba/processes/DEC-001-LANGUAGES.md) ghi ngôn ngữ; [PILOT](docs/coordination/PILOT.md) ghi quyết định website. Worker làm job dài ngoài request web; AI không publish, không giữ CMS/OAuth credentials hoặc tự cập nhật strategy.
 
 - Cổng dự kiến: quản trị web `3000`, pilot `3001`, API `4000`, AI nội bộ `5000`. `.env.example` là tên biến đề xuất; từng owner triển khai và kiểm chứng lệnh chạy thật.
 - FE không query DB trực tiếp; AI nhận tenant-scoped retrieval/snapshots. API kiểm tra membership/RBAC, DB/storage/vector có tenant policies.
@@ -214,9 +226,9 @@ Cấu trúc này giảm conflict file; để giảm lỗi hành vi khi merge v�
 
 ## 8. Capacity, chất lượng và Definition of Done
 
-Theo kế hoạch mới, mỗi người có **20 ngày danh nghĩa**, giữ **5 ngày** cho review/tích hợp/sửa lỗi/bàn giao, tối đa **15 ngày tính năng**. Roster hiện có 8 người; W1-PM-02 phải estimate lại theo thời gian thực tế, trong đó AI/PM/PO dùng chung capacity Quang Quang và hai lane QA dùng chung capacity Thanh. Không dùng con số 105 ngày và PM riêng của kế hoạch gốc để cam kết cho roster mới. Không lấy capacity BA/QA bù lập trình FE/BE/AI.
+Theo kế hoạch mới, mỗi người có **20 ngày danh nghĩa**, giữ **5 ngày** cho review/tích hợp/sửa lỗi/bàn giao, tối đa **15 ngày tính năng**. Roster hiện có 8 người; W1-PM-02 đã chuyển sang effort tương đối S/M/L và mốc bàn giao theo chỉ đạo mới, không yêu cầu bảng giờ chi tiết; trong đó AI/PM/PO dùng chung capacity Quang Quang và hai lane QA dùng chung capacity Thanh. Không dùng con số 105 ngày và PM riêng của kế hoạch gốc để cam kết cho roster mới. Không lấy capacity BA/QA bù lập trình FE/BE/AI.
 
-Ngày 2 phải estimate riêng từng vai trò và chốt ngân sách/token/timeout/tải pilot; ngày 10 review lại. Nếu vượt capacity, PO/PM giảm độ sâu trong 16 module, bổ sung người phù hợp hoặc đổi mốc. Bốn tuần là mục tiêu có điều kiện của pilot.
+Ngày 2 các owner rà effort theo task và dependency với baseline local/cost/token/timeout/tải đã lập ở W1-PM-02; ngày 10 review lại. Nếu vượt capacity, PO/PM giảm độ sâu trong 16 module, bổ sung người phù hợp hoặc đổi mốc. Bốn tuần là mục tiêu có điều kiện của pilot.
 
 Một task chỉ Done khi code review/checks đạt, FE/API tích hợp staging, AC đạt, QA có evidence và docs cập nhật. Các checks xuyên suốt:
 
@@ -247,3 +259,10 @@ Sau pilot mới mở rộng nhiều CMS/social publishing, OCR/media, crawler/ra
 - [Pilot TripC](docs/coordination/PILOT.md) và [dataset manifest](docs/coordination/PILOT_DATASET.json)
 - [Nguồn crawl đề xuất đã khảo sát](docs/coordination/SOURCES.md)
 - [Skills hỗ trợ](docs/coordination/SKILLS.md)
+
+
+## Kế hoạch PM tuần 1 — cập nhật theo phương án local
+
+[W1-PM-02](docs/coordination/W1-PM-02.md) quản theo task/mốc, không yêu cầu bảng giờ chi tiết. AI chạy Ollama local, hosting trên server của nhóm; PostgreSQL + pgvector và SearXNG self-host là baseline. Paid AI/search/cloud hosting/database mặc định tắt, chi phí điện/phần cứng/domain không được coi là bằng 0. [PILOT_LIMITS](docs/coordination/PILOT_LIMITS.md) ghi token/timeout/concurrency/load.
+
+[W1-PM-03](docs/coordination/W1-PM-03.md) có access matrix, [risks/blockers](docs/coordination/RISKS.md), [deployment plan](infra/local/README.md) và [demo ngày 5](docs/coordination/DEMO-W1.md). Máy Windows hiện tại được người dùng chọn làm host; Ollama/embeddings/PostgreSQL/pgvector/SearXNG đã probe thành công. Public website/CMS và GA4/GSC chưa triển khai/verify, demo vẫn planned. Toàn bộ W1-PM-03 giữ mở đến khi có evidence thật.

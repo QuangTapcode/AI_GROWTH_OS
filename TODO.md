@@ -15,8 +15,8 @@ Mỗi task cần thêm estimate, reviewer, hạn bàn giao, phụ thuộc, story
 ### PM/PO: Quang Quang — `docs/coordination/`, PM cập nhật `TODO.md`
 
 - [x] W1-PM-01 · Chốt 16 epic + epic nền tảng, owner/reviewer/AC/dependencies và website/dataset/người nghiệm thu pilot. [Bàn giao](docs/coordination/W1-PM-01.md): TripC, Next.js website/CMS, form conversion, roster và nguồn nghiên cứu đã chọn.
-- [ ] W1-PM-02 · Ngày 2 chốt effort theo roster 8 người: 2 FE, 2 BE, AI/PM/PO chung Quang Quang, hai lane QA chung Thanh; tối đa 15 ngày tính năng/người trong tổng thời gian thực tế; ngân sách/token/timeout/tải pilot. Nếu vượt, quyết định giảm độ sâu/bổ sung năng lực/đổi mốc.
-- [ ] W1-PM-03 · Quang Quang điều phối quyền LLM/embeddings, deploy CMS Next.js và GA4/GSC; lập risks/blockers, WIP một feature chính + một lane sửa lỗi; demo ngày 5.
+- [x] W1-PM-02 · [Bàn giao](docs/coordination/W1-PM-02.md): quản theo task S/M/L và mốc, roster/WIP kiêm nhiệm; Ollama + server sẵn có, PostgreSQL/pgvector, SearXNG tự host; không paid API/cloud mặc định; token/timeout/tải và phương án xử lý quá tải đã lập.
+- [ ] W1-PM-03 · [Điều phối đã chuẩn bị](docs/coordination/W1-PM-03.md): host Windows xác nhận, local LLM/embeddings/DB/vector/search probes đạt, access matrix/risks/WIP/deployment plan/demo ngày 5 có owner và mốc. Còn public URL/GA4-GSC, app staging và actual demo; xem [blockers](docs/coordination/RISKS.md).
 
 ### BA: Dương — `docs/ba/`
 

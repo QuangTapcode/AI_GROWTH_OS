@@ -1,0 +1,22 @@
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+
+general:
+  instance_name: AI Growth OS local
+
+search:
+  formats:
+    - html
+    - json
+
+server:
+  # Real value comes from SEARXNG_SECRET in ignored .env.
+  secret_key: local-env-overrides-this-value
+  limiter: false
+  public_instance: false
+
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 20.0

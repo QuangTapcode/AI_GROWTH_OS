@@ -19,3 +19,9 @@ npx skills add https://github.com/anthropics/skills --skill frontend-design
 ```
 
 Chưa chạy lệnh cài. Skill hỗ trợ công việc của agent, không thay thế BA/QA/owner review hoặc contract của dự án. Không cần đưa skill này thành dependency bắt buộc của product.
+
+
+W1-PM-02/03: đã đọc lại find-skills và kiểm tra leaderboard skills.sh ngày 05/10/2026; dùng codebase-documenter sẵn có để soạn/kiểm tra tài liệu. Không cần cài thêm skill để lập kế hoạch PM. Chưa cài package hoặc bootstrap ứng dụng.
+
+
+Phần bootstrap dependencies local dùng thêm karpathy-guidelines: cấu hình nhỏ, project/ports/volumes riêng và kiểm chứng compose/SQL/vector/search; không triển khai feature app hoặc claim gate đã đạt.

@@ -50,3 +50,11 @@ Dataset chia bốn loại: business context TripC do PO xác nhận; external fa
 Ngày 2 chốt estimates/limits/hosting/runtime ở W1-PM-02/W1-BE-01. Mục tiêu: pilot shell/tracking/role nền tảng ngày 5; English content/approval ngày 10–11; publish ngày 12; analytics ngày 14; one-page experiment ngày 17; UAT ngày 19 và release ngày 20.
 
 Domain/URL/deployment, property IDs/OAuth/service accounts, crawl limits và verified facts sẽ được kỹ thuật/BA tạo trong các task triển khai. Chúng chưa tồn tại nhưng không còn thiếu quyết định lựa chọn pilot của W1-PM-01. Không tự cam kết bốn tuần khả thi trước estimate đội thực tế.
+
+
+## Cập nhật W1-PM-02/03 — local-first
+
+Người dùng chọn Ollama local và máy chủ sẵn có; không yêu cầu bảng giờ chi tiết. PostgreSQL + pgvector, SearXNG và pg-boss worker là baseline tự host được đề xuất trong [W1-PM-02](W1-PM-02.md). Không dùng paid fallback mặc định. Domain chưa có; GA4/GSC và server/public-URL access chưa verify, được theo dõi trong [W1-PM-03](W1-PM-03.md). Kickoff chưa chốt, vẫn dùng ngày làm việc tương đối. Local smoke không thay deployment/30-case eval.
+
+
+Xác nhận bổ sung: máy Windows hiện tại là máy host; GA4/GSC chưa có. Dependencies local DB/search đã deploy và probe; public app/CMS/Google/demo vẫn chưa hoàn thành. [Infra local](../../infra/local/README.md) có lệnh start/stop và secrets trong .env bị ignore.

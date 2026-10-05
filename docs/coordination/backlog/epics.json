@@ -18,7 +18,7 @@
                     "previous_wordpress_selection":  "superseded_by_user"
                 },
     "dataset_manifest":  "../PILOT_DATASET.json",
-    "effort_status":  "estimate_required_in_W1-PM-02",
+    "effort_status":  "task_based_SML_baseline_W1-PM-02",
     "epics":  [
                   {
                       "id":  "EP-FOUNDATION",
@@ -308,13 +308,13 @@
                       "out_of_scope":  [
                                            "Cam kết traffic/revenue tăng trong pilot"
                                        ],
-                      "owner_person":  "Thiệu Quang",
+                      "owner_person":  "Mỹ",
                       "reviewer_people":  [
                                               "Dương",
                                               "Tiến",
                                               "Huyền",
                                               "Thanh",
-                                              "Mỹ"
+                                              "Thiệu Quang"
                                           ],
                       "contributor_people":  [
                                                  "Thiệu Quang",
@@ -1361,5 +1361,7 @@
     "primary_conversion":  "successful_information_request_form",
     "pilot_decisions":  "../PILOT.md",
     "source_plan":  "../SOURCES.md",
-    "implementation_status":  "not_started"
+    "implementation_status":  "not_started",
+    "planning_decisions": "../W1-PM-02.md",
+    "operations_plan": "../W1-PM-03.md"
 }

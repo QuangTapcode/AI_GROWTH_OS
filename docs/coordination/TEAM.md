@@ -22,8 +22,8 @@ Nguồn: người dùng cung cấp trong phiên làm việc W1-PM-01. Phân côn
 
 ## Ranh giới hai BE
 
-- Thiệu Quang sở hữu API root/router/common libs và domains `identity`, `workspaces`, `business`, `goals`, `knowledge`, `opportunities`, `strategies`, `tasks`, `briefs`, `contents`, `approval`; đầu mối contract và migrations/policies.
-- Mỹ sở hữu domains `research`, `seo`, `publishing`, `leads` (form submission), `community`, `tracking`, `metrics`, `reports`, `experiments`, `learning`, `integrations`, worker jobs/adapters, seed và runbooks.
+- Thiệu Quang sở hữu API root/router/common libs và domains `identity`, `workspaces`, `business`, `knowledge`, `opportunities`, `strategies`, `tasks`, `briefs`, `contents`, `approval`; đầu mối contract và migrations/policies.
+- Mỹ sở hữu domains `goals`, business-profile slice M01, `research`, `seo`, `publishing`, `leads` (form submission), `community`, `tracking`, `metrics`, `reports`, `experiments`, `learning`, `integrations`, worker jobs/adapters, seed và runbooks.
 - Domain handlers nằm ở file/module riêng; root routing/common configuration do Thiệu Quang tích hợp. Mỹ đề xuất migration qua PR, Thiệu Quang cấp thứ tự/review/merge; worker package do Mỹ quản manifest/lockfile riêng.
 - Đây là phân công thực thi ban đầu theo ranh giới hiện có, được PM/PO đổi bằng decision record khi estimate cho thấy mất cân bằng.
 
@@ -39,8 +39,11 @@ Nguồn: người dùng cung cấp trong phiên làm việc W1-PM-01. Phân côn
 
 Đội có **8 người**, 2 FE, 2 BE, 1 BA, 1 UI/UX, 1 Tester; Quang Quang là một người kiêm AI/PM/PO. Không có PM riêng hoặc hai Tester riêng trong roster này.
 
-W1-PM-02 phải estimate lại theo 8 người và thời gian kiêm nhiệm. Không tính Quang Quang thành ba người/60 ngày, không tính Thanh thành hai người. 20 ngày danh nghĩa/người trong kế hoạch là tổng thời gian các vai trò dùng chung, chưa có phân bổ được xác nhận; không tự tăng feature capacity bởi thay roster.
+W1-PM-02 dùng task S/M/L và mốc bàn giao theo chỉ đạo mới; không yêu cầu bảng giờ chi tiết. WIP dùng chung cho vai trò kiêm nhiệm, giữ review/tích hợp/QA. Không tính Quang Quang thành ba người/60 ngày, không tính Thanh thành hai người. 20 ngày danh nghĩa/người trong kế hoạch là tổng thời gian các vai trò dùng chung, chưa có phân bổ được xác nhận; không tự tăng feature capacity bởi thay roster.
 
 Quang Quang có thể nghiệm thu với tư cách PO theo phân công của người dùng. Kết quả pipeline do Quang Quang viết phải có Thanh kiểm chứng và BE review interface; không lấy AI tự chấm hoặc tác giả tự xác nhận làm bằng chứng chất lượng duy nhất. AI agent vẫn không tự thực hiện human approval; thao tác duyệt của PO/người dùng cần identity/audit cụ thể.
 
-Git usernames/team, kickoff date và số giờ từng vai trò chưa có; W1-BE-05/W1-PM-02 sẽ bổ sung. Bảng tên không phải CODEOWNERS đã được cấu hình.
+Git usernames/team và kickoff date chưa có; W1-BE-05/PM sẽ bổ sung. Theo chỉ đạo mới không yêu cầu kê số giờ từng vai trò; W1-PM-02 quản theo task/mốc. Bảng tên không phải CODEOWNERS đã được cấu hình.
+
+
+Cập nhật W1-PM-02: Mỹ nhận M03 goals và business-profile slice M01 để cân bằng BE; Thiệu Quang vẫn review root API/auth/contracts/migrations. Local AI Ollama và hosting server theo người dùng; PostgreSQL/pgvector và SearXNG là baseline đề xuất đã đưa vào kế hoạch. Xem [W1-PM-02](W1-PM-02.md) và [W1-PM-03](W1-PM-03.md).

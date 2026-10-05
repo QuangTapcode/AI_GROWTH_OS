@@ -1,0 +1,42 @@
+name: ai-growth-os-local
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?Run bootstrap.ps1 first}
+    restart: unless-stopped
+    mem_limit: 768m
+    environment:
+      POSTGRES_DB: ai_growth_os
+      POSTGRES_USER: ai_growth_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run bootstrap.ps1 first}
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/001-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_growth_dev -d ai_growth_os"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  searxng:
+    image: ${SEARXNG_IMAGE:?Run bootstrap.ps1 first}
+    restart: unless-stopped
+    mem_limit: 768m
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?Run bootstrap.ps1 first}
+      SEARXNG_BASE_URL: http://127.0.0.1:18081/
+      SEARXNG_BIND_ADDRESS: 0.0.0.0
+      SEARXNG_PORT: 8080
+      SEARXNG_LIMITER: "false"
+      SEARXNG_PUBLIC_INSTANCE: "false"
+    ports:
+      - "127.0.0.1:18081:8080"
+    volumes:
+      - ./searxng-settings.yml:/etc/searxng/settings.yml:ro
+      - searxng_cache:/var/cache/searxng
+
+volumes:
+  postgres_data:
+  searxng_cache:

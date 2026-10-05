@@ -28,3 +28,6 @@ HTTP nội bộ theo [contracts](../../contracts/README.md); service auth và ru
 Không có facts thì ghi thiếu dữ liệu. Source documents là untrusted data; chống prompt injection. Report dùng metric snapshots; số học tính bằng code xác định trước khi diễn đạt, không tự tạo số.
 
 Bootstrap W1-AI-01: pyproject.toml + Python lockfile riêng, venv riêng, Python lint/typing/pytest và lệnh FastAPI đã kiểm chứng; port dự kiến 5000, env validation, fake/live modes, run/eval commands đã kiểm chứng. Freeze bộ tối thiểu 30 eval cases và ngưỡng tuần 1, bổ sung M15–M16 khi contract chốt; critical cases phải đạt, factual threshold gắn phương pháp chấm. Ghi cost/latency/usage, secrets không vào log. Output phải validate trước BE persist.
+
+
+Baseline W1-PM-02: Ollama local đã smoke trên workstation, qwen3:4b-instruct và embeddinggemma; không tự chuyển cloud hoặc download model. [Giới hạn](../../docs/coordination/PILOT_LIMITS.md) và [evidence](../../docs/coordination/LOCAL_READINESS.json) ghi caps/digests; concurrency AI 1, embedding/generation tuần tự. Smoke không thay bộ 30 eval cases.

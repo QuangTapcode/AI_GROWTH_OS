@@ -1,0 +1,21 @@
+{
+    "checked_at":  "2026-10-05T17:32:34.9015343+07:00",
+    "scope":  "AI_Growth_OS_local_dependencies_only",
+    "endpoint":  "http://127.0.0.1:18081",
+    "http_json":  "passed",
+    "enabled_engines":  [
+                            "duckduckgo"
+                        ],
+    "search_probe":  {
+                         "status":  "passed",
+                         "result_count":  10,
+                         "unresponsive_engines":  [
+
+                                                  ],
+                         "sample_urls":  [
+                                             "https://danangfantasticity.com/en",
+                                             "https://danangfantasticity.com/en/about-da-nang-city",
+                                             "https://vr360.danangfantasticity.com/"
+                                         ]
+                     }
+}

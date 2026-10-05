@@ -1,0 +1,72 @@
+{
+  "checked_at": "2026-10-05T17:20:24.6487588+07:00",
+  "scope": "current_workstation_confirmed_by_user_as_pilot_host",
+  "endpoint": "http://127.0.0.1:11434",
+  "service_version": "0.35.1",
+  "models": [
+    {
+      "name": "qwen3:4b-instruct",
+      "capabilities": [
+        "tools",
+        "thinking",
+        "completion"
+      ],
+      "parameter_size": "4.0B",
+      "quantization": "Q4_K_M",
+      "digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0"
+    },
+    {
+      "name": "embeddinggemma:latest",
+      "capabilities": [
+        "embedding"
+      ],
+      "parameter_size": "307.58M",
+      "quantization": "BF16",
+      "digest": "85462619ee721b466c5927d109d4cb765861907d5417b9109caebc4e614679f1"
+    }
+  ],
+  "chat_smoke": {
+    "status": "passed",
+    "elapsed_ms": 37603,
+    "output_tokens": 6,
+    "prompt_tokens": 18,
+    "response_ok": true,
+    "request_options": {
+      "num_ctx": 2048,
+      "num_predict": 24,
+      "temperature": 0
+    }
+  },
+  "embedding_smoke": {
+    "status": "passed",
+    "elapsed_ms": 24617,
+    "vector_dimension": 768,
+    "prompt_tokens": 9
+  },
+  "hardware_scope": "current_workstation_only",
+  "hardware": {
+    "gpu": "NVIDIA GeForce GTX 1650",
+    "ram_gb": 15.9,
+    "cpu": "Intel Core i5-12400F",
+    "deployment_server_specs_verified": true
+  },
+  "host_selected_by_user": true,
+  "public_web_deployment_status": "not_started",
+  "database_smoke": {
+    "checked_at": "2026-10-05T10:34:10.300Z",
+    "status": "passed",
+    "endpoint": "127.0.0.1:15432",
+    "postgres_version": "17.11",
+    "pgvector_version": "0.8.7",
+    "cosine_identical_vector_distance": 0,
+    "scope": "new_local_dependency_database_only; application schema/tenant roles/backup not tested"
+  },
+  "services": {
+    "compose_project": "ai-growth-os-local",
+    "postgres_image": "pgvector/pgvector@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d",
+    "search_image": "searxng/searxng@sha256:76b0bf285aca014c7191fc4d9234c4bfb358624ac33d8883833d496c059ec072",
+    "search_endpoint": "http://127.0.0.1:18081",
+    "bind_scope": "loopback_only",
+    "secrets_location": "ignored infra/local/.env; values not in evidence"
+  }
+}

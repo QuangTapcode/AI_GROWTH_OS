@@ -55,7 +55,7 @@ M13 bật tracking/đối chiếu quyền từ T1, không đợi publish T3. Con
 
 | ID | Đầu mối | Đầu ra |
 | --- | --- | --- |
-| D01 | PM/PO + chuyên môn | Estimate theo roster 8 người và thời gian kiêm nhiệm AI/PM/PO, QA; 20 ngày danh nghĩa, tối đa 15 ngày tính năng/người; điều chỉnh độ sâu/nhân lực/mốc nếu vượt |
+| D01 | PM/PO + chuyên môn | [W1-PM-02](../coordination/W1-PM-02.md) đã lập effort S/M/L/task, WIP chung cho kiêm nhiệm, giữ review/QA; không yêu cầu timesheet theo chỉ đạo mới; đổi độ sâu/nhân lực/mốc khi gate trễ |
 | D02 | BE + PM/PO | CMS, GA4/GSC quyền/properties/history, website instrumentation permissions và connector support matrix |
 | D03 | BA/PO + AI/BE | Pilot dataset/formats/limits, một search provider, allowed URLs và approved-fact/source policies |
 | D04 | BE/FE/AI/QA2 | Runtime/queue/hosting, 16-module API/job schemas, strategy/brief/approval versions, event/assignment/metric snapshots |

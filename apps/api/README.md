@@ -30,3 +30,6 @@ AC/schema đạt, tenant/role negative cases đạt, stale version trả conflic
 
 
 Ngôn ngữ đã chốt: TypeScript + SQL; CMS tối giản dùng Next.js API. Thiệu Quang sở hữu core/contracts/approval, Mỹ sở hữu publishing/metrics/tracking và form submission domain; Thiệu Quang review auth/public boundary và migrations. Public read chỉ published content; form persisted/idempotent success là conversion. [TEAM](../../docs/coordination/TEAM.md) và [PILOT](../../docs/coordination/PILOT.md) là phân công hiện hành; cách bootstrap runtime/queue còn ở W1-BE-01.
+
+
+Cân bằng BE ở W1-PM-02: Mỹ nhận M03 goals và business-profile slice M01; Thiệu Quang giữ review auth/contracts/migrations. Database baseline PostgreSQL/pgvector local; không tự tạo paid Supabase project. [TEAM](../../docs/coordination/TEAM.md).

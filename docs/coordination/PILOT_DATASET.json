@@ -145,5 +145,13 @@
                        "role":  "PO",
                        "qa_verifier":  "Thanh",
                        "ba":  "Dương"
-                   }
+                   },
+    "local_stack": {
+        "llm": "Ollama",
+        "database": "PostgreSQL + pgvector self-hosted",
+        "search": "SearXNG self-hosted",
+        "hosting": "user-owned server",
+        "provisioning_status": "not_deployed_by_pm_tasks",
+        "domain": null
+    }
 }
