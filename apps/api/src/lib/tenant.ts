@@ -47,13 +47,13 @@ export async function resolveTenantContext(
   } catch (err: any) {
     if (err instanceof AppError) throw err;
 
-    // Trong giai đoạn khởi đầu trước khi chạy migration DB, nếu bảng chưa có:
-    console.warn("Table memberships might not be created yet. Fallback for bootstrap test.");
-    return {
-      user,
-      workspaceId,
-      role: "owner",
-    };
+    // Lỗi cú pháp UUID hoặc database error
+    if (err?.code === "22P02") {
+      throw new AppError(400, "BAD_REQUEST", "Invalid workspace UUID format");
+    }
+
+    console.error("Tenant resolution failed:", err);
+    throw new AppError(500, "INTERNAL_ERROR", "Failed to resolve tenant context");
   }
 }
 
