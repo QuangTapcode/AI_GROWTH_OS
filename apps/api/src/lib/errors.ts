@@ -15,7 +15,7 @@ export interface ApiErrorResponse {
     };
 }
 
-export class AppeError extends Error {
+export class AppError extends Error {
     constructor(
         public readonly statusCode: number,
         public readonly code: string, message: string,
@@ -23,7 +23,7 @@ export class AppeError extends Error {
         public readonly detail?: unknown
     ) {
         super(message);
-        this.name = 'AppeError';
+        this.name = 'AppError';
     }
 }
 
@@ -51,7 +51,7 @@ export function createErrorResponse(
 
 
 export function handleApiError(err: unknown, requestId: string = uuidv4()): NextResponse<ApiErrorResponse> {
-        if (err instanceof AppeError) {
+        if (err instanceof AppError) {
             return createErrorResponse(
                 err.statusCode,
                 err.code,
