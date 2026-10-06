@@ -67,7 +67,7 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 
 ### AI: Quang Quang — `services/ai/`
 
-- [x] W1-AI-01 · Bootstrap Python/FastAPI, pyproject.toml/lockfile/venv riêng và run/check commands; provider fake/live, internal service/job contract, structured output validation, context/model/prompt versions, trace/token/cost logging. [Bàn giao](services/ai/README.md): local_verified fake + live Ollama probe; durable queue/RAG/eval vẫn là task sau.
+- [ ] W1-AI-01 · Bootstrap Python/FastAPI, pyproject.toml/lockfile/venv riêng và run/check commands; provider fake/live, internal service/job contract, structured output validation, context/model/prompt versions, trace/token/cost logging.
 - [ ] W1-AI-02 · [M01–M03] Extract text/PDF/URL, chunk/index, tenant-scoped RAG citations; approved sources only, source delete propagation, thiếu facts báo thiếu; goal/Growth Map gợi ý chờ duyệt.
 - [ ] W1-AI-03 · Với QA2 xây và chốt bộ tối thiểu 30 ca retrieval/facts/content/scoring/report, gồm injection/deleted sources; BA/PO xác nhận rubric/ngưỡng, freeze dataset version.
 

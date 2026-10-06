@@ -8,17 +8,7 @@
 
 ## Tuần 1 — Ngày 1–5
 
-**Task gốc:** W1-PM-01/02/03, W1-AI-01/02/03. PM-01/02 và W1-AI-01 bootstrap đã hoàn thành ở mức local_verified; PM-03, W1-AI-02 và W1-AI-03 còn mở. Phụ thuộc: AC M01–M03 của Dương, internal job/source schema của Thiệu Quang/Mỹ, fixtures hai tenant của Thanh.
-
-### Trạng thái bàn giao Ngày 1–2
-
-- [x] Rà lại roster/WIP/blockers và giữ nguyên PM plan; cập nhật blocker public URL, GA4/GSC và app staging trong [W1-PM-03](../../W1-PM-03.md). Không tự đánh dấu các quyền hoặc deployment chưa có.
-- [x] Chốt baseline local: Ollama `qwen3:4b-instruct`, embeddings `embeddinggemma:latest`, context 4096, input 2800, output 1024, tối đa 2 provider calls/job, timeout provider 240s, job 600s theo [PILOT_LIMITS](../../PILOT_LIMITS.md). Paid provider/cloud fallback vẫn tắt.
-- [x] Bootstrap AI Python/FastAPI tại `services/ai/`: `pyproject.toml`, `requirements.lock`, env validation, fake/live provider, `/healthz`, `/readyz`, `POST /internal/v1/runs` và `GET /internal/v1/runs/{run_id}`.
-- [x] Structured output được validate bằng Pydantic trước khi trả cho BE; log có job/tenant/operation/model/prompt version/token/timeout/latency, không ghi payload/prompt/secret. `pytest services/ai/tests -q`: 2 tests passed.
-- [ ] Public URL/TLS, GA4/GSC property và app staging thật: vẫn là blocker của PM-03, owner/mốc giữ nguyên trong [RISKS](../../RISKS.md).
-
-**Bằng chứng Ngày 1–2:** [AI bootstrap report](../../../services/ai/evals/reports/W1-AI-01-02-bootstrap.json), [README chạy local](../../../services/ai/README.md). Registry run hiện chỉ ở RAM để kiểm tra contract; queue durable, tenant-scoped retrieval và 30 eval cases thuộc các bước tiếp theo.
+**Task gốc:** W1-PM-01/02/03, W1-AI-01/02/03. PM-01/02 đã hoàn thành phạm vi kế hoạch; PM-03 và cả ba AI task còn mở. Phụ thuộc: AC M01–M03 của Dương, internal job/source schema của Thiệu Quang/Mỹ, fixtures hai tenant của Thanh; được khởi tạo với fake provider trước.
 
 1. **Ngày 1–2:** rà owner/WIP và blockers; tiếp tục xử lý public URL, quyền Google và app staging trong PM-03. Không tạo lại roster/plan đã chốt. Chốt model/context/token/timeout theo [limits](../PILOT_LIMITS.md), local Ollama, không tự chuyển sang paid API.
 2. Bootstrap Python/FastAPI, manifest/lockfile và cấu hình fake/live provider. Tạo health endpoint, nhận internal job theo schema, kiểm tra structured output; log job/tenant/prompt/model/token/timeout, không log secret.
