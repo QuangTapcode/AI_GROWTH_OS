@@ -12,6 +12,9 @@ dist/
 build/
 coverage/
 .turbo/
+.wrangler/
+*.tsbuildinfo
+infra/staging/.runtime/
 __pycache__/
 .venv/
 

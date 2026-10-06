@@ -18,7 +18,19 @@ AI Growth OS giúp doanh nghiệp vận hành vòng **goal → knowledge → res
 
 README và [TODO](TODO.md) dùng kế hoạch 4 tuần ngày 05/10/2026 làm baseline thực thi. Mã **M01–M16 theo bản mới**, đã thay cách đánh số trước đây. [Bản đồ phạm vi](docs/ba/SCOPE.md) giải thích giới hạn từng module; [tài liệu nguồn](docs/sources/README.md) giữ PRD và các kế hoạch để truy vết.
 
-**Trạng thái hiện tại:** repository mới có khung thư mục và tài liệu. App, manifest/lockfile, mock server, test runner, CI và môi trường ứng dụng chưa được triển khai. Dependencies local PostgreSQL/pgvector và SearXNG đã chạy, có smoke evidence. W1-PM-01/02 đã hoàn tất phần kế hoạch; W1-PM-03 đã có tài liệu điều phối và local AI smoke, còn quyền triển khai/Google và demo ngày 5. Các task triển khai sản phẩm chưa hoàn thành.
+**Trạng thái hiện tại (06/10/2026):** `apps/pilot`, `apps/web` và `apps/api` đã có bootstrap Next.js/TypeScript, manifest/lockfile riêng, env local, process health và bộ kiểm tra kết nối. Pilot/web là shell ban đầu; auth, CMS, database/queue nghiệp vụ và CI chưa triển khai. Dependencies local PostgreSQL/pgvector và SearXNG đã có smoke evidence trước đó. URL `https://aigrowthos-staging.pages.dev/` là trang thông báo riêng, GA4 đã nhận dữ liệu và GSC đã xác minh; chưa deploy ba app local lên URL này và chưa có live Google API connector. W1-PM-01/02 hoàn tất phần kế hoạch; các task sản phẩm/release gate vẫn cần triển khai và nghiệm thu.
+
+### Chạy staging tối giản trên Windows
+
+Node.js major 24 (`24.14.1`), ba app chạy ở port pilot `3001`, web `3000`, API `4000`:
+
+```powershell
+.\infra\staging\start.ps1
+# Dừng các tiến trình do launcher tạo:
+.\infra\staging\stop.ps1
+```
+
+Launcher build lần lượt, chạy `next start` trong nền và kiểm tra `/health`. Hướng dẫn cấu hình, kiểm thử và troubleshooting ở [infra/staging/README.md](infra/staging/README.md). Bootstrap này chưa hoàn thành chức năng sản phẩm.
 
 ## 1. Bắt đầu làm việc
 

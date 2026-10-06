@@ -2,32 +2,56 @@
 
 [Bảng toàn đội](README.md) · [Checklist trạng thái gốc](../../../TODO.md). Ba vai trò do **một người** thực hiện; nhận một pipeline AI chính, điều phối/review theo mốc, không tính ba lane lập trình song song. Source Python tại `services/ai/`; kế hoạch/quyết định tại `docs/coordination/`; task AI tại `services/ai/tasks/`. Thanh kiểm chứng AI, Thiệu Quang/Mỹ review giao tiếp; Dương review nghiệp vụ.
 
+**Cập nhật: 06/10/2026.** Đã hoàn thành thiết lập public URL, tài khoản đo lường GA4/GSC và bootstrap staging local tối giản. Các mốc Ngày 1–20 bên dưới là ngày trong kế hoạch, không phải ngày lịch.
+
 <a id="tuan-1"></a>
 
 **Task con để bắt tay làm:** [Tuần 1 — quang-quang](../execution/W1.md#quang-quang) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
 
 ## Tuần 1 — Ngày 1–5
 
-**Task gốc:** W1-PM-01/02/03, W1-AI-01/02/03. PM-01/02 và W1-AI-01 bootstrap đã hoàn thành ở mức local_verified; PM-03, W1-AI-02 và W1-AI-03 còn mở. Phụ thuộc: AC M01–M03 của Dương, internal job/source schema của Thiệu Quang/Mỹ, fixtures hai tenant của Thanh.
+**Task gốc:** W1-PM-01/02/03, W1-AI-01/02/03. PM-01/02 và W1-AI-01 bootstrap đã hoàn thành ở mức local_verified. PM-03 đã có URL/TLS, GA4/GSC và app bootstrap local; vẫn còn mở cho triển khai ứng dụng công khai, tích hợp nghiệp vụ và demo có QA review. W1-AI-02 và W1-AI-03 còn mở. Phụ thuộc: AC M01–M03 của Dương, internal job/source schema của Thiệu Quang/Mỹ, fixtures hai tenant của Thanh.
 
 ### Trạng thái bàn giao Ngày 1–2
 
-- [x] Rà lại roster/WIP/blockers và giữ nguyên PM plan; cập nhật blocker public URL, GA4/GSC và app staging trong [W1-PM-03](../../W1-PM-03.md). Không tự đánh dấu các quyền hoặc deployment chưa có.
-- [x] Chốt baseline local: Ollama `qwen3:4b-instruct`, embeddings `embeddinggemma:latest`, context 4096, input 2800, output 1024, tối đa 2 provider calls/job, timeout provider 240s, job 600s theo [PILOT_LIMITS](../../PILOT_LIMITS.md). Paid provider/cloud fallback vẫn tắt.
+- [x] Rà lại roster/WIP/blockers và giữ nguyên PM plan; ghi nhận blocker ban đầu trong [W1-PM-03](../W1-PM-03.md). Trạng thái bổ sung ngày 06/10/2026 được ghi tại mục bàn giao bên dưới.
+- [x] Chốt baseline local: Ollama `qwen3:4b-instruct`, embeddings `embeddinggemma:latest`, context 4096, input 2800, output 1024, tối đa 2 provider calls/job, timeout provider 240s, job 600s theo [PILOT_LIMITS](../PILOT_LIMITS.md). Paid provider/cloud fallback vẫn tắt.
 - [x] Bootstrap AI Python/FastAPI tại `services/ai/`: `pyproject.toml`, `requirements.lock`, env validation, fake/live provider, `/healthz`, `/readyz`, `POST /internal/v1/runs` và `GET /internal/v1/runs/{run_id}`.
 - [x] Structured output được validate bằng Pydantic trước khi trả cho BE; log có job/tenant/operation/model/prompt version/token/timeout/latency, không ghi payload/prompt/secret. `pytest services/ai/tests -q`: 2 tests passed.
-- [ ] Public URL/TLS, GA4/GSC property và app staging thật: vẫn là blocker của PM-03, owner/mốc giữ nguyên trong [RISKS](../../RISKS.md).
+- [x] Public URL/TLS: Cloudflare Pages tại `https://aigrowthos-staging.pages.dev/`, HTTPS trả 200; hiện phục vụ trang thông báo staging.
+- [x] Thiết lập GA4/GSC: GA4 nhận dữ liệu Realtime; GSC đã xác minh quyền sở hữu qua Google Analytics theo ảnh người dùng cung cấp.
+- [x] Bootstrap staging local: `apps/pilot`, `apps/web`, `apps/api` chạy tại các port `3001`, `3000`, `4000`; hai frontend kết nối API qua HTTP.
+- [ ] Triển khai ứng dụng nghiệp vụ trên URL công khai, hoàn thành luồng Website/CMS/API và quyền/tích hợp API Google khi cần đọc metrics từ backend.
+- [ ] Demo journey thực tế với BE và QA review độc lập trước khi đóng PM-03; giữ owner/mốc theo [RISKS](../RISKS.md).
 
 **Bằng chứng Ngày 1–2:** [AI bootstrap report](../../../services/ai/evals/reports/W1-AI-01-02-bootstrap.json), [README chạy local](../../../services/ai/README.md). Registry run hiện chỉ ở RAM để kiểm tra contract; queue durable, tenant-scoped retrieval và 30 eval cases thuộc các bước tiếp theo.
 
 **Cập nhật AI 06/10 (W1-QQ-01…05):** thay registry RAM bằng run store bền vững (khóa `job_id + operation + input_version`, restart → `RUN_INTERRUPTED` retryable, tối đa 2 LLM calls/job), lỗi có mã thống nhất; thêm `knowledge.ingest` (text/PDF/URL allowlist, locator page/paragraph/url, embeddinggemma 768), `knowledge.answer` (snapshot đúng tenant/approved, evidence, thiếu giá/địa chỉ/availability báo thiếu) và `growth_map.suggest` (đề xuất chờ duyệt). Bộ 30 eval cases draft `w1-ai-eval-0.1.0` có report fake/live. Trạng thái từng task con và phần chờ Mỹ/Thanh/Dương: [W1](../execution/W1.md#quang-quang), [CR-001](../../../contracts/changes/CR-001-ai-internal-runs.md).
 
-1. **Ngày 1–2:** rà owner/WIP và blockers; tiếp tục xử lý public URL, quyền Google và app staging trong PM-03. Không tạo lại roster/plan đã chốt. Chốt model/context/token/timeout theo [limits](../PILOT_LIMITS.md), local Ollama, không tự chuyển sang paid API.
+### Bàn giao URL, đo lường và staging — 06/10/2026
+
+| Hạng mục | Cấu hình và bằng chứng | Trạng thái |
+| --- | --- | --- |
+| Public URL | [aigrowthos-staging.pages.dev](https://aigrowthos-staging.pages.dev/); HTTPS 200, đã gắn Google tag | Hoàn thành thiết lập URL; trang thông báo riêng, chưa phục vụ app/API local |
+| Tài khoản Google | `quang10a1dt@gmail.com` | Người dùng quản lý và tự xác minh quyền sở hữu |
+| GA4 | Property `AI Growth OS - Staging` (`557397610`), stream `AI Growth OS Staging Web` (`16047521297`), Measurement ID `G-8LQN27Y8QQ` | Ảnh Realtime ghi nhận 10 người dùng hoạt động và 12 lượt xem tại `/` trong 30 phút; xác nhận thu thập dữ liệu |
+| GSC | URL-prefix `https://aigrowthos-staging.pages.dev/`; phương thức Google Analytics | Ảnh xác nhận “Bạn là chủ sở hữu được xác minh” |
+| Pilot | `apps/pilot` — `http://localhost:3001`, `/health` | Giao diện ban đầu và kiểm tra kết nối API |
+| Web quản trị | `apps/web` — `http://localhost:3000`, `/health` | Giao diện ban đầu và kiểm tra kết nối API |
+| API | `apps/api` — `http://localhost:4000`, `/health`, `/v1/health` | Health trả `scope: process_only`; chỉ xác nhận tiến trình đang chạy |
+
+**Kiểm chứng bootstrap:** lint, typecheck và production build của cả ba app đã pass; 5 HTTP tests và 2 Playwright tests đã pass. Browser tests kiểm tra kết nối API, báo mất kết nối và phục hồi khi thử lại, layout mobile và lỗi JavaScript. Launcher đã kiểm tra từ chối port bị chiếm, dừng và khởi động lại.
+
+**Chạy lại trên Windows:** từ repository root, dùng `.\infra\staging\start.ps1`; dừng bằng `.\infra\staging\stop.ps1`. Sau khi reboot cần chạy start lại. Xem [hướng dẫn staging](../../../infra/staging/README.md), [Pilot README](../../../apps/pilot/README.md), [Web README](../../../apps/web/README.md) và [API README](../../../apps/api/README.md).
+
+**Phần còn lại:** authentication/roles, CMS/nội dung/form, database persistence, queue/worker và journey nghiệp vụ chưa hoàn thành trong bootstrap này. GA4/GSC đã xong phần thiết lập và xác minh; backend connector đọc Google API chưa triển khai. Public Pages đang `noindex, nofollow`; số Realtime dùng để chứng minh tracking hoạt động, chưa là evidence tăng trưởng hay kết quả SEO. Các ghi nhận blocker cũ trong W1-PM-03/RISKS cần đối chiếu với bản bàn giao này trước lần review tiếp theo; PM-03 và release gates vẫn mở.
+
+1. **Ngày 1–2:** rà owner/WIP và blockers; đối chiếu evidence URL, GA4/GSC và bootstrap local đã hoàn thành, tiếp tục phần deploy app và tích hợp nghiệp vụ trong PM-03. Không tạo lại roster/plan đã chốt. Giữ model/context/token/timeout theo [limits](../PILOT_LIMITS.md), local Ollama, không tự chuyển sang paid API.
 2. Bootstrap Python/FastAPI, manifest/lockfile và cấu hình fake/live provider. Tạo health endpoint, nhận internal job theo schema, kiểm tra structured output; log job/tenant/prompt/model/token/timeout, không log secret.
 3. **Ngày 2–4:** extraction text/PDF có text/URL được phép → chunk → embedding 768 theo model đã probe → index/retrieval. Chỉ retrieve nguồn tenant hiện tại đã duyệt; lưu source/version/citation, hỗ trợ revoke/delete để nguồn cũ không còn truy hồi.
 4. Tạo business context/Growth Map và gợi ý goal/KPI từ facts có nguồn; thiếu facts trả trạng thái thiếu, gợi ý chưa tự áp dụng. BE giữ quyền approve, auth và tenant boundary.
 5. Cùng Thanh chuẩn bị **ít nhất 30 ca** retrieval/facts/content/scoring/report; thêm injected instructions, revoked/deleted source và thiếu facts. Dương/PO chốt rubric, critical cases, dataset version; chốt ngưỡng 100% critical và ≥90% facts/retrieval chuẩn theo rubric được duyệt.
-6. **Ngày 5:** chạy tích hợp với BE, để Thanh đối chiếu kết quả độc lập; tổ chức demo theo [agenda](../DEMO-W1.md), ghi kết quả thực tế và mở/đóng blockers. Nếu thiếu staging/Google thì ghi chưa đạt, không dùng mock để đóng gate.
+6. **Ngày 5:** chạy tích hợp với BE, để Thanh đối chiếu kết quả độc lập; tổ chức demo theo [agenda](../DEMO-W1.md), ghi kết quả thực tế và mở/đóng blockers. Kiểm tra journey nghiệp vụ trên staging công khai và tracking tương ứng; nếu thiếu deployment/tích hợp thì ghi chưa đạt, không dùng trang thông báo hoặc mock để đóng gate.
 
 **Bàn giao:** `services/ai/src/` pipeline/context/guardrails, `prompts/`, `evals/datasets/`, `evals/reports/`, README/lệnh run/check; cập nhật W1-PM-03/RISKS/DEMO-W1. **Đạt khi:** service gọi được từ worker, schema đúng, RAG đúng tenant/approved source, nguồn xóa không còn dùng, facts thiếu không bịa; 30 ca có kết quả và QA review. PM-03 chỉ Done khi phần deploy/tracking/demo thực tế đủ evidence.
 
