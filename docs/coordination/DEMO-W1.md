@@ -33,4 +33,4 @@ Gate pass cần services thật/AC/evidence; có blocker thì ghi blocked hoặc
 [W1-PM-03](W1-PM-03.md) · [RISKS](RISKS.md) · [SCOPE gates](../ba/SCOPE.md).
 
 
-Readiness đã có: Ollama JSON/embeddings, PostgreSQL/vector và SearXNG query local passed. Đây là dependency probes, không phải demo app/nghiệm thu W1-GATE. GA4/GSC người dùng xác nhận chưa có.
+Readiness đã có: Ollama JSON/embeddings, PostgreSQL/vector và SearXNG query local passed. Đây là dependency probes, không phải demo app/nghiệm thu W1-GATE. 06/10 bổ sung: public URL `https://aigrowthos-staging.pages.dev/` (trang thông báo), GA4/GSC đã thiết lập; AI service có ingest/RAG/growth map và bộ 30 eval cases draft chạy local cả fake/live (`services/ai/evals/reports/`). Vẫn là readiness trước demo, chưa phải kết quả demo hay gate.

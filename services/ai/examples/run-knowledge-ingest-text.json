@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "job_id": "8c086156-c032-5e83-a796-8e94374a16c4",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "operation": "knowledge.ingest",
+  "input_version": 1,
+  "approved_source_versions": [],
+  "constraints": {
+    "language": "en",
+    "timeout_seconds": 600
+  },
+  "trace_id": "eval-example-ingest-text",
+  "synthetic": true,
+  "payload": {
+    "source": {
+      "source_id": "10000000-0000-4000-8000-000000000003",
+      "version": 1,
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "kind": "text",
+      "title": "Example Residence (synthetic)",
+      "label": "SRC-HOUSING-v1",
+      "text": "SYNTHETIC FIXTURE - not a real listing.\n\nExample Residence is a synthetic apartment building used to test the TripC knowledge base. It is described as being in the Son Tra area of Da Nang, close to My Khe beach.\n\nUnits are fully furnished one-bedroom apartments with air conditioning, a kitchenette and a work desk. The building has a shared rooftop terrace and a small gym.\n\nThe monthly rent has not been published by the provider. The street address has not been verified and is intentionally left blank.\n\nLeases are described as flexible. English-speaking staff can help new residents with registration paperwork."
+    }
+  }
+}

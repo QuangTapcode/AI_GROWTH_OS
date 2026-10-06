@@ -1,0 +1,51 @@
+{
+  "title": "Da Nang commune-level reorganisation, effective 2025-07-01",
+  "legal_basis": "Resolution 1659/NQ-UBTVQH15 (16/06/2025) of the National Assembly Standing Committee, Article 1",
+  "license": "Legal normative documents are not protected by copyright (Law on Intellectual Property, Article 15); this table is a TripC compilation.",
+  "checked_against": [
+    "https://luatvietnam.vn/co-cau-to-chuc/nghi-quyet-1659-nq-ubtvqh15-cua-uy-ban-thuong-vu-quoc-hoi-ve-viec-sap-xep-cac-don-vi-hanh-chinh-cap-xa-cua-thanh-pho-da-nang-nam-2025-403019-d1.html",
+    "https://hoatieu.vn/phap-luat/nghi-quyet-1659-nq-ubtvqh15-2025-233542"
+  ],
+  "checked_on": "2026-10-06",
+  "notes": "Da Nang has 94 units after the reorganisation (23 wards, 70 communes, 1 special zone); only wards are listed. Clauses 13-20 (Tam Ky, Dien Ban area) were read from one source only. 'former_districts' and 'landmarks' are derived hints for search, not legal text: BA (Duong) should confirm them before they are shown to users.",
+  "wards": [
+    {"clause": 1, "ward": "Hải Châu", "ward_en": "Hai Chau", "former_units": ["Thanh Bình", "Thuận Phước", "Thạch Thang", "Phước Ninh", "Hải Châu"], "sources_checked": 2},
+    {"clause": 2, "ward": "Hòa Cường", "ward_en": "Hoa Cuong", "former_units": ["Bình Thuận", "Hòa Thuận Tây", "Hòa Cường Bắc", "Hòa Cường Nam"], "sources_checked": 2},
+    {"clause": 3, "ward": "Thanh Khê", "ward_en": "Thanh Khe", "former_units": ["Xuân Hà", "Chính Gián", "Thạc Gián", "Thanh Khê Tây", "Thanh Khê Đông"], "sources_checked": 2},
+    {"clause": 4, "ward": "An Khê", "ward_en": "An Khe", "former_units": ["Hòa An", "Hòa Phát", "An Khê"], "sources_checked": 2},
+    {"clause": 5, "ward": "An Hải", "ward_en": "An Hai", "former_units": ["Phước Mỹ", "An Hải Bắc", "An Hải Nam"], "sources_checked": 2},
+    {"clause": 6, "ward": "Sơn Trà", "ward_en": "Son Tra", "former_units": ["Thọ Quang", "Nại Hiên Đông", "Mân Thái"], "sources_checked": 2},
+    {"clause": 7, "ward": "Ngũ Hành Sơn", "ward_en": "Ngu Hanh Son", "former_units": ["Mỹ An", "Khuê Mỹ", "Hòa Hải", "Hòa Quý"], "sources_checked": 2},
+    {"clause": 8, "ward": "Hòa Khánh", "ward_en": "Hoa Khanh", "former_units": ["Hòa Khánh Nam", "Hòa Minh", "Hòa Sơn"], "sources_checked": 2},
+    {"clause": 9, "ward": "Hải Vân", "ward_en": "Hai Van", "former_units": ["Hòa Hiệp Bắc", "Hòa Hiệp Nam", "Hòa Bắc", "Hòa Liên (part)"], "sources_checked": 2},
+    {"clause": 10, "ward": "Liên Chiểu", "ward_en": "Lien Chieu", "former_units": ["Hòa Khánh Bắc", "Hòa Liên (remainder)"], "sources_checked": 2},
+    {"clause": 11, "ward": "Cẩm Lệ", "ward_en": "Cam Le", "former_units": ["Hòa Thọ Tây", "Hòa Thọ Đông", "Khuê Trung"], "sources_checked": 2},
+    {"clause": 12, "ward": "Hòa Xuân", "ward_en": "Hoa Xuan", "former_units": ["Hòa Xuân", "Hòa Châu", "Hòa Phước"], "sources_checked": 2},
+    {"clause": 13, "ward": "Tam Kỳ", "ward_en": "Tam Ky", "former_units": ["An Mỹ", "An Xuân", "Trường Xuân"], "sources_checked": 1},
+    {"clause": 14, "ward": "Quảng Phú", "ward_en": "Quang Phu", "former_units": ["An Phú", "Tam Thanh", "Tam Phú"], "sources_checked": 1},
+    {"clause": 15, "ward": "Hương Trà", "ward_en": "Huong Tra", "former_units": ["An Sơn", "Hòa Hương", "Tam Ngọc"], "sources_checked": 1},
+    {"clause": 16, "ward": "Bàn Thạch", "ward_en": "Ban Thach", "former_units": ["Tân Thạnh", "Hòa Thuận", "Tam Thăng"], "sources_checked": 1},
+    {"clause": 17, "ward": "Điện Bàn", "ward_en": "Dien Ban", "former_units": ["Điện Phương", "Điện Minh", "Vĩnh Điện"], "sources_checked": 1},
+    {"clause": 18, "ward": "Điện Bàn Đông", "ward_en": "Dien Ban Dong", "former_units": ["Điện Nam Đông", "Điện Nam Trung", "Điện Dương", "Điện Ngọc", "Điện Nam Bắc"], "sources_checked": 1},
+    {"clause": 19, "ward": "An Thắng", "ward_en": "An Thang", "former_units": ["Điện An", "Điện Thắng Nam", "Điện Thắng Trung"], "sources_checked": 1},
+    {"clause": 20, "ward": "Điện Bàn Bắc", "ward_en": "Dien Ban Bac", "former_units": ["Điện Thắng Bắc", "Điện Hòa", "Điện Tiến"], "sources_checked": 1},
+    {"clause": 21, "ward": "Hội An", "ward_en": "Hoi An", "former_units": ["Minh An", "Cẩm Phô", "Sơn Phong", "Cẩm Nam", "Cẩm Kim"], "sources_checked": 2},
+    {"clause": 22, "ward": "Hội An Đông", "ward_en": "Hoi An Dong", "former_units": ["Cẩm Châu", "Cửa Đại", "Cẩm Thanh"], "sources_checked": 2},
+    {"clause": 23, "ward": "Hội An Tây", "ward_en": "Hoi An Tay", "former_units": ["Thanh Hà", "Tân An", "Cẩm An", "Cẩm Hà"], "sources_checked": 2}
+  ],
+  "former_districts": {
+    "Hải Châu": ["Hải Châu", "Hòa Cường"],
+    "Thanh Khê": ["Thanh Khê", "An Khê"],
+    "Sơn Trà": ["An Hải", "Sơn Trà"],
+    "Ngũ Hành Sơn": ["Ngũ Hành Sơn"],
+    "Cẩm Lệ": ["Cẩm Lệ", "An Khê", "Hòa Xuân"],
+    "Liên Chiểu": ["Hòa Khánh", "Hải Vân", "Liên Chiểu"]
+  },
+  "landmarks": {
+    "My Khe beach": ["An Hải", "Ngũ Hành Sơn"],
+    "An Thuong": ["Ngũ Hành Sơn"],
+    "Son Tra Peninsula": ["Sơn Trà"],
+    "Han Market": ["Hải Châu"],
+    "Marble Mountains": ["Ngũ Hành Sơn"]
+  }
+}

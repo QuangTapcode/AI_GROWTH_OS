@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0.0",
+  "job_id": "f716c26a-b123-5802-99f2-e6f05b66bd5b",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "operation": "growth_map.suggest",
+  "input_version": 1,
+  "approved_source_versions": [
+    {
+      "source_id": "10000000-0000-4000-8000-000000000003",
+      "version": 1
+    }
+  ],
+  "constraints": {
+    "language": "en",
+    "timeout_seconds": 600
+  },
+  "trace_id": "eval-example-growth-map",
+  "synthetic": true,
+  "payload": {
+    "workspace_id": "10000000-0000-4000-8000-000000000001",
+    "business_profile": {
+      "company": "TripC",
+      "industry": "Expat living and relocation information",
+      "locations": [
+        "Da Nang",
+        "Son Tra",
+        "Hai Chau",
+        "My Khe"
+      ],
+      "audiences": [
+        "English-speaking expats living in Da Nang",
+        "Expats planning to move to Da Nang"
+      ],
+      "language": "en",
+      "products": [],
+      "services": [
+        "Housing and living-area guides",
+        "Information requests"
+      ],
+      "voice": "Practical, friendly, factual",
+      "competitors": [],
+      "topic_priority": [
+        "housing",
+        "living_areas",
+        "coworking",
+        "gym",
+        "food",
+        "events"
+      ]
+    },
+    "approved_facts": [
+      {
+        "key": "residence_name",
+        "value": "Example Residence",
+        "unit": null,
+        "source_id": "10000000-0000-4000-8000-000000000003",
+        "source_version": 1,
+        "locator": "paragraph:2"
+      },
+      {
+        "key": "monthly_rent",
+        "value": null,
+        "unit": "VND/month",
+        "source_id": "10000000-0000-4000-8000-000000000003",
+        "source_version": 1,
+        "locator": null
+      },
+      {
+        "key": "address",
+        "value": null,
+        "unit": null,
+        "source_id": "10000000-0000-4000-8000-000000000003",
+        "source_version": 1,
+        "locator": null
+      },
+      {
+        "key": "availability",
+        "value": null,
+        "unit": null,
+        "source_id": "10000000-0000-4000-8000-000000000003",
+        "source_version": 1,
+        "locator": null
+      }
+    ],
+    "goal_context": {
+      "primary_metric": "persisted_leads"
+    }
+  }
+}

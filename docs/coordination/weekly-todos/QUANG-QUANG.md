@@ -20,6 +20,8 @@
 
 **Bằng chứng Ngày 1–2:** [AI bootstrap report](../../../services/ai/evals/reports/W1-AI-01-02-bootstrap.json), [README chạy local](../../../services/ai/README.md). Registry run hiện chỉ ở RAM để kiểm tra contract; queue durable, tenant-scoped retrieval và 30 eval cases thuộc các bước tiếp theo.
 
+**Cập nhật AI 06/10 (W1-QQ-01…05):** thay registry RAM bằng run store bền vững (khóa `job_id + operation + input_version`, restart → `RUN_INTERRUPTED` retryable, tối đa 2 LLM calls/job), lỗi có mã thống nhất; thêm `knowledge.ingest` (text/PDF/URL allowlist, locator page/paragraph/url, embeddinggemma 768), `knowledge.answer` (snapshot đúng tenant/approved, evidence, thiếu giá/địa chỉ/availability báo thiếu) và `growth_map.suggest` (đề xuất chờ duyệt). Bộ 30 eval cases draft `w1-ai-eval-0.1.0` có report fake/live. Trạng thái từng task con và phần chờ Mỹ/Thanh/Dương: [W1](../execution/W1.md#quang-quang), [CR-001](../../../contracts/changes/CR-001-ai-internal-runs.md).
+
 1. **Ngày 1–2:** rà owner/WIP và blockers; tiếp tục xử lý public URL, quyền Google và app staging trong PM-03. Không tạo lại roster/plan đã chốt. Chốt model/context/token/timeout theo [limits](../PILOT_LIMITS.md), local Ollama, không tự chuyển sang paid API.
 2. Bootstrap Python/FastAPI, manifest/lockfile và cấu hình fake/live provider. Tạo health endpoint, nhận internal job theo schema, kiểm tra structured output; log job/tenant/prompt/model/token/timeout, không log secret.
 3. **Ngày 2–4:** extraction text/PDF có text/URL được phép → chunk → embedding 768 theo model đã probe → index/retrieval. Chỉ retrieve nguồn tenant hiện tại đã duyệt; lưu source/version/citation, hỗ trợ revoke/delete để nguồn cũ không còn truy hồi.

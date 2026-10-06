@@ -23,3 +23,9 @@ playwright-report/
 Thumbs.db
 
 # Keep manifest/lockfiles versioned per unit; no ignore rule for them.
+
+# AI service local run store
+services/ai/var/
+
+# Generated pilot corpus (rebuild with python -m corpus.build)
+services/ai/corpus/out/
