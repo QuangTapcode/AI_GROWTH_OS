@@ -1,4 +1,4 @@
-[project]
+﻿[project]
 name = "ai-growth-os-ai"
 version = "0.1.0"
 description = "Local-first AI service boundary for AI Growth OS"
