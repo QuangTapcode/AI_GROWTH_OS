@@ -2,6 +2,10 @@
 
 Thiệu phụ trách hai lane: `tester-1/**` cho UI/nghiệp vụ/E2E/accessibility/UAT; `tester-2/**` cho API/data/contract/security/integration/performance/AI verification. Mỗi lane có suite và môi trường riêng.
 
+## QQ_test — regression khi tích hợp BE
+
+[QQ_test](QQ_test/README.md) lưu automation và [test case](QQ_test/TEST_CASES.md) của Quang Quang dùng khi merge BE vào `Quang-Quang`: migration/PostgreSQL, workspace/member/tenant, source lifecycle, API response, lead/public content và worker retry/recovery. Suite có manifest/lockfile riêng, database tạm và evidence từng lần chạy. Xem [baseline](QQ_test/BASELINE.md) để phân biệt kết quả đạt với gate cấu hình hoặc coverage còn thiếu.
+
 ## Làm độc lập
 
 - Nhận AC/contracts tuần 1, viết scenarios trước code và test lát tích hợp hằng ngày.
