@@ -2,32 +2,38 @@
   "name": "@ai-growth-os/api",
   "version": "0.1.0",
   "private": true,
-  "engines": {
-    "node": ">=24.14.1 <25"
-  },
+  "description": "AI Growth OS core & public API modules (workspaces, sources, leads, public content, integrations)",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --port 4000",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1 --port 4000",
     "lint": "eslint .",
-    "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --test tests/bootstrap.test.mjs"
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:workspaces": "tsx --env-file=.env scripts/test-workspaces.ts",
+    "test:sources": "tsx --env-file=.env scripts/test-sources.ts",
+    "db:migrate": "tsx --env-file=.env scripts/migrate.ts"
   },
   "dependencies": {
-    "next": "16.3.8",
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "next": "^14.2.15",
+    "pg": "^8.23.1",
+    "pgvector": "^0.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "uuid": "^10.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "24.19.1",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
-    "eslint": "10.12.0",
-    "@eslint/js": "10.0.1",
-    "globals": "17.13.0",
-    "typescript-eslint": "8.71.1",
-    "eslint-plugin-react-hooks": "7.1.1",
-    "typescript": "5.9.3"
+    "@types/node": "^20.17.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.15",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3"
   }
 }
-

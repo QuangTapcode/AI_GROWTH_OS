@@ -1,0 +1,26 @@
+{
+  "synthetic": true,
+  "schema_version": "1.0.0",
+  "workspace": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "name": "TripC Da Nang",
+    "slug": "tripc-danang",
+    "timezone": "Asia/Bangkok",
+    "default_language": "en",
+    "created_at": "2026-10-05T00:00:00.000Z"
+  },
+  "business_profile": {
+    "workspace_id": "00000000-0000-4000-8000-000000000001",
+    "company_name": "TripC",
+    "website_url": "https://tripc.vn",
+    "industry": "Travel & Expat Services",
+    "target_locations": ["Da Nang", "Son Tra", "Hai Chau", "My Khe"],
+    "target_audiences": ["English-speaking expats living or planning to live in Da Nang"],
+    "products_services": ["housing", "living_areas", "coworking", "gym", "food", "events"],
+    "brand_voice": "helpful, local expert, reliable, English-first",
+    "brand_guidelines": "Focus on accurate rental prices, neighborhood safety, and community connections.",
+    "competitors": [],
+    "version": 1,
+    "updated_at": "2026-10-05T00:00:00.000Z"
+  }
+}

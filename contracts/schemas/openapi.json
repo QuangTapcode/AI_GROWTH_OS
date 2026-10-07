@@ -1,0 +1,429 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AI Growth OS — Public & Management API",
+    "version": "1.0.0",
+    "description": "Baseline API contract for Week 1 (M01-M03, Pilot Lead Form, Health & Operations). Owner: Thiệu Quang (BE Core)."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "User bearer token. Membership and permissions are derived on the server."
+      }
+    },
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message", "request_id"],
+            "properties": {
+              "code": { "type": "string", "example": "BAD_REQUEST" },
+              "message": { "type": "string", "example": "Invalid input data" },
+              "request_id": { "type": "string", "format": "uuid" },
+              "field_errors": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "details": { "type": "object" }
+            }
+          }
+        }
+      },
+      "Workspace": {
+        "type": "object",
+        "required": ["id", "name", "slug", "timezone", "default_language", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string", "example": "TripC Da Nang" },
+          "slug": { "type": "string", "example": "tripc-danang" },
+          "timezone": { "type": "string", "example": "Asia/Bangkok" },
+          "default_language": { "type": "string", "example": "en" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Membership": {
+        "type": "object",
+        "required": ["id", "workspace_id", "user_id", "role", "status", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "user_id": { "type": "string", "format": "uuid" },
+          "role": { "type": "string", "enum": ["owner", "editor", "viewer"] },
+          "status": { "type": "string", "enum": ["active", "invited", "suspended"] },
+          "user": {
+            "type": "object",
+            "properties": {
+              "email": { "type": "string", "format": "email" },
+              "full_name": { "type": "string" }
+            }
+          },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "BusinessProfile": {
+        "type": "object",
+        "required": ["workspace_id", "company_name", "target_locations", "target_audiences", "products_services", "version"],
+        "properties": {
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "company_name": { "type": "string", "example": "TripC" },
+          "website_url": { "type": "string", "format": "uri", "nullable": true, "example": "https://tripc.vn" },
+          "industry": { "type": "string", "example": "Travel & Expat Relocation" },
+          "target_locations": { "type": "array", "items": { "type": "string" } },
+          "target_audiences": { "type": "array", "items": { "type": "string" } },
+          "products_services": { "type": "array", "items": { "type": "string" } },
+          "brand_voice": { "type": "string", "example": "helpful, local expert, reliable" },
+          "brand_guidelines": { "type": "string" },
+          "competitors": { "type": "array", "items": { "type": "string" } },
+          "version": { "type": "integer", "minimum": 1 },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Source": {
+        "type": "object",
+        "required": ["id", "workspace_id", "title", "kind", "url_or_blob", "status", "version", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "title": { "type": "string", "example": "Expat Housing in Da Nang Guide" },
+          "kind": { "type": "string", "enum": ["text", "pdf", "url"] },
+          "url_or_blob": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": [
+              "company",
+              "products",
+              "services",
+              "locations",
+              "audience",
+              "pricing",
+              "policies",
+              "faqs",
+              "brand",
+              "competitors",
+              "content",
+              "performance"
+            ],
+            "example": "locations"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["imported", "processing", "needs_review", "approved", "rejected", "revoked", "deleted"]
+          },
+          "version": { "type": "integer", "minimum": 1 },
+          "content_hash": { "type": "string" },
+          "reviewed_by": { "type": "string", "format": "uuid", "nullable": true },
+          "reviewed_at": { "type": "string", "format": "date-time", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Goal": {
+        "type": "object",
+        "required": ["id", "workspace_id", "objective", "primary_metric", "target_value", "period_start", "period_end"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "objective": { "type": "string", "example": "Generate qualified expat leads for Da Nang housing" },
+          "primary_metric": { "type": "string", "example": "leads_form_submission" },
+          "baseline_value": { "type": "number", "nullable": true },
+          "target_value": { "type": "number", "example": 50 },
+          "period_start": { "type": "string", "format": "date" },
+          "period_end": { "type": "string", "format": "date" },
+          "conversion_type": { "type": "string", "example": "successful_lead_submission" },
+          "budget_usd": { "type": "number", "default": 0 }
+        }
+      },
+      "LeadSubmissionRequest": {
+        "type": "object",
+        "required": ["email", "consent"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "full_name": { "type": "string" },
+          "topic_interest": { "type": "string", "example": "housing" },
+          "consent": { "type": "boolean" },
+          "utm_source": { "type": "string" },
+          "utm_medium": { "type": "string" },
+          "utm_campaign": { "type": "string" },
+          "variant_id": { "type": "string" }
+        }
+      },
+      "LeadSubmissionResponse": {
+        "type": "object",
+        "required": ["submission_id", "status"],
+        "properties": {
+          "submission_id": { "type": "string", "format": "uuid" },
+          "status": { "type": "string", "enum": ["persisted", "duplicate"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication token missing or invalid",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Action not allowed for user role or tenant",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Liveness probe",
+        "responses": {
+          "200": { "description": "Service is alive" }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "summary": "Readiness probe with database check",
+        "responses": {
+          "200": { "description": "Database connected" },
+          "503": { "description": "Database unavailable" }
+        }
+      }
+    },
+    "/v1/workspaces": {
+      "get": {
+        "summary": "List workspaces the authenticated user belongs to",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of workspaces",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/Workspace" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "summary": "Create a new workspace (creator automatically becomes Owner)",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "slug"],
+                "properties": {
+                  "name": { "type": "string", "example": "TripC Da Nang" },
+                  "slug": { "type": "string", "example": "tripc-danang" },
+                  "timezone": { "type": "string", "default": "Asia/Bangkok" },
+                  "default_language": { "type": "string", "default": "en" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workspace created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Workspace" }
+              }
+            }
+          },
+          "409": { "description": "Slug already exists" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/members": {
+      "get": {
+        "summary": "List members of workspace",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/Membership" } }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "summary": "Invite or add member (Owner only)",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "role"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "role": { "type": "string", "enum": ["owner", "editor", "viewer"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Member added" },
+          "403": { "description": "Only Owner can add members" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/sources": {
+      "get": {
+        "summary": "List sources in workspace with status filter",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/Source" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload or register a new source metadata",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "kind", "url_or_blob"],
+                "properties": {
+                  "title": { "type": "string" },
+                  "kind": { "type": "string", "enum": ["text", "pdf", "url"] },
+                  "url_or_blob": { "type": "string" },
+                  "category": { "type": "string", "default": "general" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Source registered in imported status" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/sources/{source_id}/review": {
+      "post": {
+        "summary": "Approve or reject a source version (Owner only)",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "source_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["decision", "expected_version"],
+                "properties": {
+                  "decision": { "type": "string", "enum": ["approved", "rejected"] },
+                  "expected_version": { "type": "integer" },
+                  "reason": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Review status updated" },
+          "409": { "description": "Stale version conflict" },
+          "403": { "description": "Permission denied" }
+        }
+      }
+    },
+    "/public/v1/sites/{site_id}/leads": {
+      "post": {
+        "summary": "Submit lead form on TripC public website (Idempotent)",
+        "parameters": [
+          { "name": "site_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "Idempotency-Key", "in": "header", "required": false, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LeadSubmissionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lead submission received and persisted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LeadSubmissionResponse" }
+              }
+            }
+          },
+          "422": { "description": "Validation error (invalid email or missing consent)" }
+        }
+      }
+    }
+  }
+}
