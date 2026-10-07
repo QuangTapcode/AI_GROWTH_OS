@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 SCHEMA_VERSION = "1.0.0"
@@ -193,10 +193,15 @@ SourceStatus = Literal["imported", "processing", "needs_review", "approved", "re
 class SourceFact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    key: str = Field(min_length=1, max_length=80)
-    value: str | int | float | None = None
+    # Accept the AI-friendly fixture names and the canonical BE column names.
+    # The normalized Python names keep guardrails independent from persistence.
+    key: str = Field(min_length=1, max_length=100, validation_alias=AliasChoices("key", "fact_key"))
+    value: str | int | float | None = Field(default=None, validation_alias=AliasChoices("value", "fact_value"))
     unit: str | None = Field(default=None, max_length=40)
-    verification: Literal["verified", "missing", "unverified"] | None = None
+    verification: Literal["verified", "missing", "unverified", "disputed"] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("verification", "verification_status"),
+    )
     locator: str | None = Field(default=None, max_length=300)
     # Prices and availability go stale; an expired fact is treated as unverified.
     valid_until: datetime | None = None
@@ -205,25 +210,54 @@ class SourceFact(BaseModel):
 class SnapshotChunk(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    chunk_id: str = Field(min_length=1, max_length=120)
-    text: str = Field(min_length=1, max_length=8000)
-    locator: str | None = Field(default=None, max_length=300)
+    # ``id``, ``text_content`` and ``citation_locator`` are the source_chunks
+    # columns in the BE migration; the short names remain valid for old jobs.
+    chunk_id: str = Field(
+        min_length=1,
+        max_length=120,
+        validation_alias=AliasChoices("chunk_id", "id"),
+    )
+    text: str = Field(
+        min_length=1,
+        max_length=8000,
+        validation_alias=AliasChoices("text", "text_content"),
+    )
+    locator: str | None = Field(
+        default=None,
+        max_length=300,
+        validation_alias=AliasChoices("locator", "citation_locator"),
+    )
     page: int | None = Field(default=None, ge=1)
     url: str | None = Field(default=None, max_length=2000)
     embedding: list[float] | None = None
+    chunk_index: int | None = Field(default=None, ge=0)
+    model: str | None = Field(default=None, max_length=50)
+    workspace_id: UUID | None = None
+    source_id: UUID | None = None
+    source_version: int | None = Field(default=None, ge=1)
+    created_at: datetime | None = None
 
 
 class SnapshotSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    source_id: UUID
-    version: int = Field(ge=1)
+    # These aliases allow the worker to pass a source row/snapshot assembled
+    # directly from BE without a second lossy DTO translation.
+    source_id: UUID = Field(validation_alias=AliasChoices("source_id", "id"))
+    version: int = Field(ge=1, validation_alias=AliasChoices("version", "source_version"))
     workspace_id: UUID
     status: SourceStatus
     deleted_at: datetime | None = None
     title: str | None = Field(default=None, max_length=300)
+    kind: Literal["text", "pdf", "url"] | None = None
+    url_or_blob: str | None = Field(default=None, max_length=2000)
+    content_hash: str | None = Field(default=None, max_length=64)
     category: str | None = Field(default=None, max_length=80)
     label: str | None = Field(default=None, max_length=80)
+    reviewed_by: UUID | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     provenance: SourceProvenance | None = None
     facts: list[SourceFact] = Field(default_factory=list, max_length=200)
     chunks: list[SnapshotChunk] = Field(default_factory=list, max_length=500)
@@ -249,36 +283,93 @@ class AnswerPayload(BaseModel):
 class BusinessProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    company: str = Field(min_length=1, max_length=200)
+    company: str = Field(
+        min_length=1,
+        max_length=255,
+        validation_alias=AliasChoices("company", "company_name"),
+    )
+    website_url: str | None = Field(default=None, max_length=500)
+    overview: str | None = None
+    safety_rules: dict[str, Any] | None = None
+    brand_guidelines: str | None = None
+    version: int | None = Field(default=None, ge=1)
     industry: str | None = Field(default=None, max_length=200)
-    locations: list[str] = Field(default_factory=list, max_length=20)
-    audiences: list[str] = Field(default_factory=list, max_length=20)
+    locations: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+        validation_alias=AliasChoices("locations", "target_locations"),
+    )
+    audiences: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+        validation_alias=AliasChoices("audiences", "target_audiences"),
+    )
     language: str = "en"
-    products: list[str] = Field(default_factory=list, max_length=50)
+    products: list[str] = Field(
+        default_factory=list,
+        max_length=50,
+        validation_alias=AliasChoices("products", "products_services"),
+    )
     services: list[str] = Field(default_factory=list, max_length=50)
-    voice: str | None = Field(default=None, max_length=500)
+    voice: str | None = Field(
+        default=None,
+        max_length=500,
+        validation_alias=AliasChoices("voice", "brand_voice"),
+    )
     competitors: list[str] = Field(default_factory=list, max_length=20)
     topic_priority: list[str] = Field(default_factory=list, max_length=20)
+    id: UUID | None = None
+    workspace_id: UUID | None = None
+    updated_by: UUID | None = None
+    updated_at: datetime | None = None
 
 
 class ApprovedFact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    key: str = Field(min_length=1, max_length=80)
-    value: str | int | float | None = None
+    key: str = Field(min_length=1, max_length=100, validation_alias=AliasChoices("key", "fact_key"))
+    value: str | int | float | None = Field(default=None, validation_alias=AliasChoices("value", "fact_value"))
     unit: str | None = Field(default=None, max_length=40)
     source_id: UUID
     source_version: int = Field(ge=1)
     locator: str | None = Field(default=None, max_length=300)
+    verification: Literal["verified", "missing", "unverified", "disputed"] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("verification", "verification_status"),
+    )
+    id: UUID | None = None
+    workspace_id: UUID | None = None
+    created_at: datetime | None = None
 
 
 class GoalContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    objective: str | None = Field(default=None, max_length=200)
-    primary_metric: str | None = Field(default=None, max_length=80)
-    baseline: float | None = Field(default=None, ge=0)
+    objective: str | None = Field(
+        default=None,
+        max_length=255,
+        validation_alias=AliasChoices("objective", "title"),
+    )
+    primary_metric: str | None = Field(
+        default=None,
+        max_length=100,
+        validation_alias=AliasChoices("primary_metric", "metric_name"),
+    )
+    baseline: float | None = Field(
+        default=None,
+        ge=0,
+        validation_alias=AliasChoices("baseline", "baseline_value", "current_value"),
+    )
+    target_value: float | None = Field(default=None, ge=0)
+    primary_conversion: str | None = Field(default=None, max_length=50)
+    budget_usd: float | None = Field(default=None, ge=0)
+    status: str | None = Field(default=None, max_length=50)
     period_days: int | None = Field(default=None, ge=1, le=366)
+    id: UUID | None = None
+    workspace_id: UUID | None = None
+    target_traffic_pct: float | None = Field(default=None, ge=0)
+    target_qualified_visits: int | None = Field(default=None, ge=0)
+    created_at: datetime | None = None
 
 
 class GrowthMapPayload(BaseModel):

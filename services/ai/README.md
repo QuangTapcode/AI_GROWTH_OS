@@ -27,6 +27,20 @@ Owner: Quang Quang (AI, kiêm PM/PO). Ngôn ngữ: **Python**; FastAPI là lựa
 
 HTTP nội bộ theo [contracts](../../contracts/README.md) và đề xuất [CR-001](../../contracts/changes/CR-001-ai-internal-runs.md). AI không publish, không sửa business DB và không quyết định approval. Retrieval nhận snapshot BE đã giới hạn tenant; filter workspace/status/version nằm trong code, không chỉ trong prompt. Source documents là untrusted data; chống prompt injection. Không có facts thì ghi thiếu dữ liệu, không tự tạo số.
 
+### DB handoff với `thieuquang_be`
+
+BE là nguồn chuẩn của persistence. Snapshot gửi vào AI có thể được dựng trực tiếp từ các bảng:
+
+| DB table | Fields AI nhận khi BE chuyển snapshot |
+| --- | --- |
+| `sources` | `id`, `workspace_id`, `title`, `kind`, `url_or_blob`, `category`, `status`, `version`, `content_hash`, `deleted_at` |
+| `source_chunks` | `id`, `source_id`, `source_version`, `chunk_index`, `text_content`, `citation_locator`, `embedding`, `model` |
+| `source_facts` | `source_id`, `source_version`, `fact_key`, `fact_value`, `unit`, `verification_status` |
+| `business_profiles` | `company_name`, `target_locations`, `target_audiences`, `products_services`, `brand_voice`, `version` |
+| `growth_goals` | `title`, `period_days`, `primary_conversion`, `budget_usd`, KPI baseline/current fields |
+
+The AI schema normalizes these DB names to its internal names (`source_id`, `chunk_id`, `text`, `key`, `value`) while still accepting the legacy fixture names. AI returns chunks/evidence/proposals only; the worker/API persists them to `source_chunks`, `source_facts`, `growth_*` or `agent_tasks` after validation and human approval. It never writes those tables directly.
+
 | Operation | Đầu vào chính | Kết quả |
 | --- | --- | --- |
 | `knowledge.ingest` | `source{kind: text\|pdf\|url}` | chunks + locator (paragraph/page/url) + embedding 768 (`embeddinggemma`), `searchable=false` để BE persist rồi duyệt. PDF không text → `UNSUPPORTED_PDF_NO_TEXT`, không OCR. URL ngoài allowlist → 422. |

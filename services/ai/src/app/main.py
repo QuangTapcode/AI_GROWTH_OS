@@ -19,7 +19,7 @@ from typing import Any
 from uuid import UUID, uuid5
 
 import httpx
-from fastapi import FastAPI, Header
+from fastapi import Depends, FastAPI, Header
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -54,7 +54,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
     # PILOT_LIMITS: one AI job running at a time on the shared GPU.
     concurrency = asyncio.Semaphore(1)
 
-    def require_internal_auth(authorization: str | None) -> None:
+    def require_internal_auth(authorization: str | None = Header(default=None)) -> None:
         expected = settings.internal_ai_auth_token
         if not expected:
             return
@@ -106,7 +106,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
         return operation, payload
 
     async def execute_run(run_id: UUID, job: JobRequest, operation: Operation, payload: Any) -> None:
-        fields = {"run_id": str(run_id), "job_id": str(job.job_id), "tenant": str(job.workspace_id), "operation": job.operation}
+        fields = {"run_id": str(run_id), "job_id": str(job.job_id), "workspace_id": str(job.workspace_id), "operation": job.operation}
         try:
             async with concurrency:
                 row = store.get(run_id)
@@ -201,8 +201,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
         return await healthz()
 
     @app.post("/internal/v1/runs", response_model=RunStatus, status_code=202)
-    async def create_run(job: JobRequest, authorization: str | None = Header(default=None)) -> JSONResponse:
-        require_internal_auth(authorization)
+    async def create_run(job: JobRequest, _: None = Depends(require_internal_auth)) -> JSONResponse:
         operation, payload = validate_job(job)
         digest = request_hash(job)
         row = store.find(job.job_id, job.operation, job.input_version)
@@ -230,7 +229,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     "ai_run_accepted",
                     run_id=str(run_id),
                     job_id=str(job.job_id),
-                    tenant=str(job.workspace_id),
+                    workspace_id=str(job.workspace_id),
                     operation=job.operation,
                     input_version=job.input_version,
                     model=model_version_for(operation),
@@ -259,8 +258,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
         return respond(store.get(run_id), 200)
 
     @app.get("/internal/v1/runs/{run_id}", response_model=RunStatus)
-    async def get_run(run_id: UUID, authorization: str | None = Header(default=None)) -> JSONResponse:
-        require_internal_auth(authorization)
+    async def get_run(run_id: UUID, _: None = Depends(require_internal_auth)) -> JSONResponse:
         row = store.get(run_id)
         if row is None:
             raise APIError(404, "RUN_NOT_FOUND", "Run not found")

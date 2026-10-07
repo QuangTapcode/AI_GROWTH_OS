@@ -1,7 +1,8 @@
 """Uniform error envelope from contracts/README.md §1.
 
-Every non-2xx response is ``{"error": {"code", "message", "request_id", "details"}}``
-so the worker can branch on a stable ``code`` instead of parsing FastAPI text.
+Every non-2xx response has a stable ``code``/``message``/``request_id``. The
+optional ``details`` member is present only when there are safe validation or
+conflict details to return; auth errors must not disclose schema information.
 """
 
 from __future__ import annotations
@@ -50,9 +51,12 @@ def request_id_of(request: Request) -> str:
 
 def error_response(request: Request, status_code: int, code: str, message: str, details: Any = None) -> JSONResponse:
     request_id = request_id_of(request)
+    error: dict[str, Any] = {"code": code, "message": message, "request_id": request_id}
+    if details is not None:
+        error["details"] = details
     return JSONResponse(
         status_code=status_code,
-        content={"error": {"code": code, "message": message, "request_id": request_id, "details": details}},
+        content={"error": error},
         headers={REQUEST_ID_HEADER: request_id},
     )
 

@@ -108,6 +108,8 @@ async def run_ingest(ctx: RunContext) -> OperationOutcome:
         "source_version": source.version,
         "workspace_id": str(source.workspace_id),
         "kind": source.kind,
+        # Canonical names consumed by the BE sources/source_chunks tables.
+        "url_or_blob": final_url,
         "label": source.label,
         "title": title,
         "url": final_url,
@@ -123,7 +125,9 @@ async def run_ingest(ctx: RunContext) -> OperationOutcome:
             {
                 "chunk_index": chunk.index,
                 "text": chunk.text,
+                "text_content": chunk.text,
                 "locator": chunk.locator,
+                "citation_locator": chunk.locator,
                 "page": chunk.page,
                 "url": chunk.url,
                 "paragraph_start": chunk.paragraph_start,
@@ -131,6 +135,7 @@ async def run_ingest(ctx: RunContext) -> OperationOutcome:
                 "token_estimate": chunk.token_estimate,
                 "content_hash": chunk.content_hash,
                 "embedding": vector,
+                "model": ctx.provider.embedding_model_version,
             }
             for chunk, vector in zip(chunks, vectors, strict=True)
         ],

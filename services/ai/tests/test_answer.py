@@ -52,6 +52,55 @@ def test_monthly_rent_null_reports_missing_without_number(client) -> None:
     assert body["result"]["usage"]["llm_calls"] == 0
 
 
+def test_be_db_column_snapshot_is_normalized(client) -> None:
+    """The worker may pass source/source_chunks/source_facts rows directly."""
+    source_id = SOURCE_IDS["SRC-HOUSING"]
+    source = {
+        "id": source_id,
+        "version": 1,
+        "workspace_id": WS_A,
+        "title": "Housing DB fixture",
+        "kind": "text",
+        "url_or_blob": "fixture://housing",
+        "category": "pricing",
+        "status": "approved",
+        "content_hash": "a" * 64,
+        "deleted_at": None,
+        "facts": [
+            {
+                "fact_key": "monthly_rent",
+                "fact_value": "9000000",
+                "unit": "VND/month",
+                "verification_status": "verified",
+            }
+        ],
+        "chunks": [
+            {
+                "id": f"{source_id}-chunk-1",
+                "source_id": source_id,
+                "source_version": 1,
+                "workspace_id": WS_A,
+                "chunk_index": 0,
+                "text_content": "The monthly rent is stored as a verified structured fact.",
+                "citation_locator": "paragraph:1",
+            }
+        ],
+    }
+    body = run_job(
+        client,
+        job(
+            "knowledge.answer",
+            answer_payload("What is the monthly rent?", [source]),
+            name="db-column-snapshot",
+            approved=["SRC-HOUSING-v1"],
+        ),
+    )
+    result = body["result"]["result"]
+    assert result["answered_from"] == "verified_facts"
+    assert "9000000" in result["answer"]
+    assert body["result"]["evidence"][0]["source_id"] == source_id
+
+
 def test_revoked_price_source_is_never_used(client) -> None:
     sources = [snapshot_source("SRC-HOUSING-v1"), snapshot_source("SRC-REVOKED-v1")]
     body = ask(
