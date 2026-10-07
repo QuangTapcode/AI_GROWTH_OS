@@ -81,6 +81,7 @@
         "properties": {
           "workspace_id": { "type": "string", "format": "uuid" },
           "company_name": { "type": "string", "example": "TripC" },
+          "website_url": { "type": "string", "format": "uri", "nullable": true, "example": "https://tripc.vn" },
           "industry": { "type": "string", "example": "Travel & Expat Relocation" },
           "target_locations": { "type": "array", "items": { "type": "string" } },
           "target_audiences": { "type": "array", "items": { "type": "string" } },
@@ -101,7 +102,24 @@
           "title": { "type": "string", "example": "Expat Housing in Da Nang Guide" },
           "kind": { "type": "string", "enum": ["text", "pdf", "url"] },
           "url_or_blob": { "type": "string" },
-          "category": { "type": "string", "example": "housing" },
+          "category": {
+            "type": "string",
+            "enum": [
+              "company",
+              "products",
+              "services",
+              "locations",
+              "audience",
+              "pricing",
+              "policies",
+              "faqs",
+              "brand",
+              "competitors",
+              "content",
+              "performance"
+            ],
+            "example": "locations"
+          },
           "status": {
             "type": "string",
             "enum": ["imported", "processing", "needs_review", "approved", "rejected", "revoked", "deleted"]

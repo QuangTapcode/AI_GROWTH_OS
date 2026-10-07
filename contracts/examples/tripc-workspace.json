@@ -12,6 +12,7 @@
   "business_profile": {
     "workspace_id": "00000000-0000-4000-8000-000000000001",
     "company_name": "TripC",
+    "website_url": "https://tripc.vn",
     "industry": "Travel & Expat Services",
     "target_locations": ["Da Nang", "Son Tra", "Hai Chau", "My Khe"],
     "target_audiences": ["English-speaking expats living or planning to live in Da Nang"],

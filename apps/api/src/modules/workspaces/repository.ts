@@ -146,10 +146,10 @@ export async function createWorkspaceWithDefaults(
 
   await client.query(
     `INSERT INTO business_profiles (
-      workspace_id, company_name, industry, target_locations, target_audiences, 
+      workspace_id, company_name, website_url, industry, target_locations, target_audiences, 
       products_services, brand_voice
     ) VALUES (
-      $1, $2, 'Travel & Expat Housing', 
+      $1, $2, 'https://tripc.vn', 'Travel & Expat Housing', 
       ARRAY['Da Nang'], 
       ARRAY['English-speaking expats living or planning to live in Da Nang'],
       ARRAY['housing', 'living_areas', 'coworking', 'gym', 'food', 'events'],

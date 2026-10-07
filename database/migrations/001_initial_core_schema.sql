@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS business_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id UUID NOT NULL UNIQUE REFERENCES workspaces(id) ON DELETE CASCADE,
     company_name VARCHAR(255) NOT NULL,
+    website_url VARCHAR(500),
     industry VARCHAR(100),
     target_locations TEXT[] DEFAULT ARRAY['Da Nang'],
     target_audiences TEXT[] DEFAULT ARRAY['English-speaking expats living or planning to live in Da Nang'],
@@ -64,6 +65,9 @@ CREATE TABLE IF NOT EXISTS business_profiles (
     updated_by UUID REFERENCES users(id),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Đảm bảo cột website_url tồn tại nếu bảng đã tạo từ trước
+ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS website_url VARCHAR(500);
 
 -- ============================================================================
 -- PHẦN 2: KNOWLEDGE BASE, VECTOR EMBEDDINGS & NGUỒN TRI THỨC (M02)
