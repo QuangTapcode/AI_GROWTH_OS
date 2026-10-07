@@ -1,0 +1,45 @@
+{
+  "workspaces": [
+    {
+      "id": "tenant_1_tripc",
+      "name": "TripC Workspace",
+      "domain": "tripc.vn",
+      "industry": "Travel"
+    },
+    {
+      "id": "tenant_2_competitor",
+      "name": "Competitor Workspace",
+      "domain": "competitor.com",
+      "industry": "Travel"
+    }
+  ],
+  "users": {
+    "tenant_1_tripc": {
+      "owner": {
+        "email": "owner@tripc.vn",
+        "password": "Password123!",
+        "token": "Bearer token_tripc_owner_123"
+      },
+      "viewer": {
+        "email": "viewer@tripc.vn",
+        "password": "Password123!",
+        "token": "Bearer token_tripc_viewer_123"
+      }
+    },
+    "tenant_2_competitor": {
+      "owner": {
+        "email": "owner@competitor.com",
+        "password": "Password123!",
+        "token": "Bearer token_competitor_owner_456"
+      }
+    }
+  },
+  "knowledge_sources": [
+    {
+      "id": "source_001",
+      "title": "Chính sách giá tour Đà Nẵng",
+      "type": "pdf",
+      "status": "approved"
+    }
+  ]
+}
