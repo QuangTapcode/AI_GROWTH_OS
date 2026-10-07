@@ -4,7 +4,7 @@
 
 
 
-* **Giai đoạn:** Ngày 3–4 (W1) - Phối hợp đánh giá cùng AI \& Thanh (QA)
+* **Giai đoạn:** Ngày 3–4 (W1) - Phối hợp đánh giá cùng AI \& Thiệu (QA)
 
 
 
@@ -44,7 +44,7 @@ Bộ 30 ca kiểm thử (Evaluation Cases) được chia thành 3 nhóm trọng 
 
 ##### 2\. THANG ĐO VÀ TIÊU CHÍ CHẤM ĐIỂM (RUBRIC 3 MỨC: PASS / PARTIAL / FAIL)
 
-Mỗi Evaluation Case trong tổng số 30 cases sẽ được QA (Thanh) và AI chấm điểm dựa trên Rubric chi tiết sau:
+Mỗi Evaluation Case trong tổng số 30 cases sẽ được QA (Thiệu) và AI chấm điểm dựa trên Rubric chi tiết sau:
 
 
 

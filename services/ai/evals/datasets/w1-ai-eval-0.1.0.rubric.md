@@ -1,6 +1,6 @@
 # Rubric W1 AI eval — `w1-ai-eval-0.1.0` / `w1-ai-rubric-0.1.0`
 
-**Trạng thái: draft, chưa freeze.** Quang Quang soạn 30 case từ fixtures synthetic; cần Thanh kiểm chứng expected độc lập, Dương review ý nghĩa nghiệp vụ/critical marks, PO duyệt ngưỡng trước khi đổi trạng thái thành `frozen`. Khi đổi expected hoặc thêm case phải tăng `DATASET_VERSION`, không sửa file đã freeze.
+**Trạng thái: draft, chưa freeze.** Quang Quang soạn 30 case từ fixtures synthetic; cần Thiệu kiểm chứng expected độc lập, Dương review ý nghĩa nghiệp vụ/critical marks, PO duyệt ngưỡng trước khi đổi trạng thái thành `frozen`. Khi đổi expected hoặc thêm case phải tăng `DATASET_VERSION`, không sửa file đã freeze.
 
 - Dataset: [`w1-ai-eval-0.1.0.jsonl`](w1-ai-eval-0.1.0.jsonl), sinh lại bằng `python -m evals.build_dataset` (in sha256).
 - Fixtures: [`evals/fixtures.py`](../fixtures.py), toàn bộ dữ liệu SYNTHETIC; ID theo [EXAMPLES](../../../../docs/coordination/execution/EXAMPLES.md). Giá 9.000.000/12.000.000/5.000.000 VND chỉ xuất hiện trong nguồn revoked, WS-B hoặc injected để chứng minh không bị dùng.
@@ -25,6 +25,6 @@ Mỗi case pass khi **mọi** assertion trong `expect` đúng (nhị phân, ch�
 
 ## Việc review còn lại
 
-- [ ] Thanh: đối chiếu expected từng case với fixture, thêm case độc lập trong `qa/tester-2/ai-eval/` nếu thấy thiếu (đặc biệt WS-B qua BE adapter thật).
+- [ ] Thiệu: đối chiếu expected từng case với fixture, thêm case độc lập trong `qa/tester-2/ai-eval/` nếu thấy thiếu (đặc biệt WS-B qua BE adapter thật).
 - [ ] Dương: xác nhận critical marks và nghĩa của "missing fact" cho rent/address/availability/deposit.
 - [ ] PO: duyệt ngưỡng, đổi trạng thái `frozen`, ghi dataset sha256 vào gate evidence.

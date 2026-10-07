@@ -1,8 +1,8 @@
 # EP-M13 — Analytics Engine
 
 - Trạng thái: planned; chỉ scope/AC baseline, chưa code, chưa Ready trước estimate/contract/design.
-- Owner bàn giao: **Mỹ (BE)**. Reviewers: **Dương, Tiến, Huyền, Thanh, Thiệu Quang**. Nghiệm thu: **Quang Quang (PO)**; **Dương** điều phối AC/UAT; **Thanh** cung cấp QA evidence.
-- Contributors: Thiệu Quang, Mỹ, Tiến, Huyền, Quang Quang, Dương, Trường, Thanh; vai trò: BE, FE, AI, BA, UI/UX, Tester 1, Tester 2. Thanh làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
+- Owner bàn giao: **Mỹ (BE)**. Reviewers: **Dương, Tiến, Huyền, Thiệu, Thiệu Quang**. Nghiệm thu: **Quang Quang (PO)**; **Dương** điều phối AC/UAT; **Thiệu** cung cấp QA evidence.
+- Contributors: Thiệu Quang, Mỹ, Tiến, Huyền, Quang Quang, Dương, Trường, Thiệu; vai trò: BE, FE, AI, BA, UI/UX, Tester 1, Tester 2. Thiệu làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
 - Tuần: 1–3; ngày bắt đầu: 1; hạn mục tiêu: ngày 14 tính từ kickoff, chưa là ngày lịch.
 - Milestones: T1 probe/quyền/event; ngày 14 connector/dashboard/metric snapshots; QA ngày 15.
 - Effort: S/M/L theo [W1-PM-02](../../W1-PM-02.md); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.

@@ -12,7 +12,7 @@ Task quản theo effort S/M/L và mốc bàn giao, không yêu cầu bảng gi�
 
 **[Bảng việc chi tiết của 8 người trong 4 tuần](docs/coordination/weekly-todos/README.md)** ghi thứ tự thực hiện, hạn ngày, phần task được giao, đầu ra, thư mục, phụ thuộc, reviewer và tiêu chí hoàn thành. Mở link theo tên ở mỗi tuần bên dưới để nhận việc; checklist tại file này giữ trạng thái tổng hợp của task cha.
 
-Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. Task chung chỉ Done khi đủ tất cả phần đã phân công; không tick vì một người đã xong. Quang Quang là một người kiêm AI/PM/PO, Thanh là một người làm cả hai lane QA. Mỗi người giữ một feature chính + một lane sửa lỗi, theo [quy tắc bàn giao](docs/coordination/weekly-todos/README.md#cách-nhận-và-hoàn-thành-việc). Mỗi bàn giao ghi story/AC, contract version, commit/build, môi trường và evidence; mock chỉ chứng minh làm độc lập, không thay tích hợp thật. Checklist triển khai sâu theo dõi task con; file này giữ trạng thái task cha tổng hợp, chỉ tick khi các phần liên quan và gate đạt.
+Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. Task chung chỉ Done khi đủ tất cả phần đã phân công; không tick vì một người đã xong. Quang Quang là một người kiêm AI/PM/PO, Thiệu là một người làm cả hai lane QA. Mỗi người giữ một feature chính + một lane sửa lỗi, theo [quy tắc bàn giao](docs/coordination/weekly-todos/README.md#cách-nhận-và-hoàn-thành-việc). Mỗi bàn giao ghi story/AC, contract version, commit/build, môi trường và evidence; mock chỉ chứng minh làm độc lập, không thay tích hợp thật. Checklist triển khai sâu theo dõi task con; file này giữ trạng thái task cha tổng hợp, chỉ tick khi các phần liên quan và gate đạt.
 
 ## Tuần 1 — Ngày 1–5: nền tảng, M01–M03 và tracking M13
 
@@ -31,7 +31,7 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 | Tiến | Bootstrap FE/common/routes, workspace/profile/member/goals; TripC blog/landing/form/tracking | Ngày 2 shell/mock; ngày 4 live/pilot; ngày 5 build/demo · [Chi tiết](docs/coordination/weekly-todos/TIEN.md#tuan-1) |
 | Huyền | Knowledge upload/review/provenance/version/delete, FE mocks/component/consumer tests | Ngày 2 mocks; ngày 4 live knowledge; ngày 5 tests · [Chi tiết](docs/coordination/weekly-todos/HUYEN.md#tuan-1) |
 | Trường | Tokens/core journey, thiết kế M01–M03 và public pilot đủ states; wireframe W2 | Ngày 2 lô nền tảng; trước ngày 5 lô W2 · [Chi tiết](docs/coordination/weekly-todos/TRUONG.md#tuan-1) |
-| Thanh | Hai runner/fixtures/test plan, tenant/role/source/form UI+API, 30 eval cases và E2E W1 | Test từng lát ngày 2–4; ngày 5 QA verdict · [Chi tiết](docs/coordination/weekly-todos/THANH.md#tuan-1) |
+| Thiệu | Hai runner/fixtures/test plan, tenant/role/source/form UI+API, 30 eval cases và E2E W1 | Test từng lát ngày 2–4; ngày 5 QA verdict · [Chi tiết](docs/coordination/weekly-todos/THIEU.md#tuan-1) |
 
 ### PM/PO: Quang Quang — `docs/coordination/`, PM cập nhật `TODO.md`
 
@@ -71,13 +71,13 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 - [ ] W1-AI-02 · [M01–M03] Extract text/PDF/URL, chunk/index, tenant-scoped RAG citations; approved sources only, source delete propagation, thiếu facts báo thiếu; goal/Growth Map gợi ý chờ duyệt.
 - [ ] W1-AI-03 · Với QA2 xây và chốt bộ tối thiểu 30 ca retrieval/facts/content/scoring/report, gồm injection/deleted sources; BA/PO xác nhận rubric/ngưỡng, freeze dataset version.
 
-### Tester lane 1: Thanh — `qa/tester-1/`
+### Tester lane 1: Thiệu — `qa/tester-1/`
 
 - [ ] W1-QA1-01 · Test plan/AC traceability cho 16 module, TypeScript/Playwright runner với package/lockfile riêng và fixtures; chuẩn bị journeys research→content.
 - [ ] W1-QA1-02 · [M01–M03] Test login/workspace/roles/onboarding, upload/source review/delete/provenance, goals/baseline và form/error/empty states mỗi ngày; pilot form chỉ báo thành công sau server xác nhận.
 - [ ] W1-QA1-03 · E2E staging nền tảng, retest lỗi; evidence theo build/task, responsive/accessibility cơ bản và demo ngày 5.
 
-### Tester lane 2: Thanh — `qa/tester-2/`, đầu mối `qa/fixtures/`
+### Tester lane 2: Thiệu — `qa/tester-2/`, đầu mối `qa/fixtures/`
 
 - [ ] W1-QA2-01 · Fixtures hai workspace/Owner/Editor/Viewer, Python/pytest/HTTP client/SQL API/contract/security suite, pyproject/lockfile riêng và CI smoke; cross-tenant API/DB/storage/vector negative tests.
 - [ ] W1-QA2-02 · [M02/M13] Source lifecycle/revoke/delete, upload/URL safety, event thật/tracking mapping; public API không lộ draft, form persistence/dedup và analytics không chứa tên/email; không dùng synthetic data thay bằng chứng connector thật.
@@ -108,7 +108,7 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 | Tiến | Strategy/approve/tasks UI, ghép routes/common cho research/brief/editor | Ngày 8 strategy/tasks; ngày 10 journey integration · [Chi tiết](docs/coordination/weekly-todos/TIEN.md#tuan-2) |
 | Huyền | Research/board, brief/approve, editor/autosave/history/restore/variant và SEO fields | Ngày 7 board; ngày 8 brief; ngày 9 editor; ngày 10 live · [Chi tiết](docs/coordination/weekly-todos/HUYEN.md#tuan-2) |
 | Trường | Specs research→editor đủ states, design QA; chuẩn bị publish/analytics W3 | Bàn giao trước từng lô; trước ngày 10 W3 handoff · [Chi tiết](docs/coordination/weekly-todos/TRUONG.md#tuan-2) |
-| Thanh | Journey research→draft, score/version/permissions, job failure/quota/restart và AI grounding eval | Test ngày 6–9; ngày 10 regression/gate verdict · [Chi tiết](docs/coordination/weekly-todos/THANH.md#tuan-2) |
+| Thiệu | Journey research→draft, score/version/permissions, job failure/quota/restart và AI grounding eval | Test ngày 6–9; ngày 10 regression/gate verdict · [Chi tiết](docs/coordination/weekly-todos/THIEU.md#tuan-2) |
 
 ### PM/PO: Quang Quang — `docs/coordination/`
 
@@ -143,12 +143,12 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 - [ ] W2-AI-02 · [M06–M07] Strategy 30 ngày theo budget/effort; brief từ approved facts/brand, đủ unique value/CTA/source, thiếu fact gắn cờ.
 - [ ] W2-AI-03 · [M08–M09] Article/FAQ/meta/social draft và một variant từ source; rule SEO trước LLM suggestions; eval từng pipeline, cost/timeout checks.
 
-### Tester lane 1: Thanh — `qa/tester-1/`
+### Tester lane 1: Thiệu — `qa/tester-1/`
 
 - [ ] W2-QA1-01 · E2E research→board→strategy approve→brief approve→draft; filters/source display và goal/opportunity lineage.
 - [ ] W2-QA1-02 · Editor autosave/history/restore/regenerate, errors/empty/cancel, missing fact UX; hồi quy M01–M03 và evidence tuần 2.
 
-### Tester lane 2: Thanh — `qa/tester-2/`
+### Tester lane 2: Thiệu — `qa/tester-2/`
 
 - [ ] W2-QA2-01 · Schema/score components/recompute, strategy/brief permissions, tenant lineage, concurrent edit/version conflicts; timeout/provider errors/quota/restart.
 - [ ] W2-QA2-02 · AI factuality/brand/grounding/invalid JSON, cost caps và job failure states; đối chiếu frozen eval theo từng bước.
@@ -178,7 +178,7 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 | Tiến | Published public pages, traffic/UTM/integrations/analytics UI và widget interface | Ngày 12 public URL; ngày 14 dashboard; ngày 15 widget readiness · [Chi tiết](docs/coordination/weekly-todos/TIEN.md#tuan-3) |
 | Huyền | SEO suggestions/local draft, approval/reject/resubmit/calendar, community/manual link UI | Ngày 11 approval/SEO; ngày 12 calendar; ngày 13 community · [Chi tiết](docs/coordination/weekly-todos/HUYEN.md#tuan-3) |
 | Trường | Publish/analytics/community specs/design QA, handoff report/experiment/learning | Theo lô ngày 11–14; trước ngày 15 W4 specs · [Chi tiết](docs/coordination/weekly-todos/TRUONG.md#tuan-3) |
-| Thanh | Approval→publish E2E/recovery, UTM/real metrics checks, SEO/community và regression | Test ngày 11–14; ngày 15 gate verdict · [Chi tiết](docs/coordination/weekly-todos/THANH.md#tuan-3) |
+| Thiệu | Approval→publish E2E/recovery, UTM/real metrics checks, SEO/community và regression | Test ngày 11–14; ngày 15 gate verdict · [Chi tiết](docs/coordination/weekly-todos/THIEU.md#tuan-3) |
 
 ### PM/PO: Quang Quang — `docs/coordination/`
 
@@ -214,12 +214,12 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 - [ ] W3-AI-02 · [M10–M11] Format/channel checks, intent scoring/response có nguồn; người duyệt trước handoff, không autonomous community posting.
 - [ ] W3-AI-03 · [M13–M16] Chuẩn hóa metric input; prototype analyst/learning trên snapshot test có nhãn; chuẩn bị eval report/experiment/learning và missing-data cases.
 
-### Tester lane 1: Thanh — `qa/tester-1/`
+### Tester lane 1: Thiệu — `qa/tester-1/`
 
 - [ ] W3-QA1-01 · E2E draft→reject→edit→approve→publish→URL/dashboard; sửa sau duyệt phải duyệt lại, calendar/timezone/cancel/failure recovery.
 - [ ] W3-QA1-02 · SEO suggestions/local drafts, radar approve/handoff/link, UTM, dashboard filters/sync/empty/zero/missing; hồi quy M01–M08.
 
-### Tester lane 2: Thanh — `qa/tester-2/`
+### Tester lane 2: Thiệu — `qa/tester-2/`
 
 - [ ] W3-QA2-01 · Reviewer rights/stale approval, CMS duplicate/timeout/unknown outcome/restart/revoked token; kiểm tra audit và secrets logs.
 - [ ] W3-QA2-02 · GA4/GSC nguồn thật/range/property/timezone, UTM→click/conversion, zero/missing/delay; SEO/link/refresh rules trên fixtures và source refs.
@@ -249,7 +249,7 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 | Tiến | Experiments/admin+pilot widget, action/task/strategy integration, final builds/config/release smoke | Ngày 17 experiment; ngày 18 freeze/build; ngày 19–20 UAT/release · [Chi tiết](docs/coordination/weekly-todos/TIEN.md#tuan-4) |
 | Huyền | Report/evidence/action review, learning/approve/version UI; UI regression/fixes/handoff | Ngày 16 report; ngày 18 learning; ngày 19–20 UAT/release · [Chi tiết](docs/coordination/weekly-todos/HUYEN.md#tuan-4) |
 | Trường | Design QA W4/core flows, usability fixes và final design handoff | Ngày 16–19 QA; ngày 20 tokens/specs/screens · [Chi tiết](docs/coordination/weekly-todos/TRUONG.md#tuan-4) |
-| Thanh | Numeric/assignment/dedup/learning tests, final eval, full UAT/restore/performance và release verdict | Ngày 16–18 critical tests; ngày 19 UAT; ngày 20 release smoke · [Chi tiết](docs/coordination/weekly-todos/THANH.md#tuan-4) |
+| Thiệu | Numeric/assignment/dedup/learning tests, final eval, full UAT/restore/performance và release verdict | Ngày 16–18 critical tests; ngày 19 UAT; ngày 20 release smoke · [Chi tiết](docs/coordination/weekly-todos/THIEU.md#tuan-4) |
 
 ### PM/PO: Quang Quang — `docs/coordination/`
 
@@ -285,12 +285,12 @@ Hai FE/hai BE cùng tham gia một mã task nhưng làm các phần khác nhau. 
 - [ ] W4-AI-02 · [M15–M16] Experiment hypothesis và giải thích thiếu mẫu; learning rules rank topic/format có evidence/version, không khẳng định nhân quả hoặc tự huấn luyện model.
 - [ ] W4-AI-03 · Final frozen eval có M15–M16 cases, cost/timeout/numeric/grounding; khóa prompt/schema/model config và bàn giao fallback/limitations.
 
-### Tester lane 1: Thanh — `qa/tester-1/`
+### Tester lane 1: Thiệu — `qa/tester-1/`
 
 - [ ] W4-QA1-01 · E2E/UAT 16 module: goal→report→approved action và insight→approve→strategy update; retest lỗi, regression UI.
 - [ ] W4-QA1-02 · Experiment setup/widget/variant results/thiếu mẫu; pilot user guide/usability, release smoke và evidence UAT cuối.
 
-### Tester lane 2: Thanh — `qa/tester-2/`
+### Tester lane 2: Thiệu — `qa/tester-2/`
 
 - [ ] W4-QA2-01 · API/tenant/RBAC/CMS/analytics regression; assignment ổn định, event dedup/trace, AI report numeric và learning approval consistency.
 - [ ] W4-QA2-02 · Final eval: 100% critical, ≥90% facts/retrieval chuẩn theo rubric được duyệt; report numbers khớp input, phân biệt synthetic và dữ liệu nguồn thật.

@@ -1,6 +1,12 @@
 # Quang Quang — AI, PM và PO
 
-[Bảng toàn đội](README.md) · [Checklist trạng thái gốc](../../../TODO.md). Ba vai trò do **một người** thực hiện; nhận một pipeline AI chính, điều phối/review theo mốc, không tính ba lane lập trình song song. Source Python tại `services/ai/`; kế hoạch/quyết định tại `docs/coordination/`; task AI tại `services/ai/tasks/`. Thanh kiểm chứng AI, Thiệu Quang/Mỹ review giao tiếp; Dương review nghiệp vụ.
+## Quy tắc chốt task của QQ
+
+- `Code xong`, `local_verified`, fake/live eval hoặc demo nội bộ chỉ là đầu ra phía QQ, chưa phải `Done`.
+- Các task `W1-QQ-01..08`, `W2-QQ-01..05`, `W3-QQ-01..05` và `W4-QQ-01..05` chỉ được tick `Done` khi Tester Thiệu ghi verdict `pass` trên đúng commit/build, kèm test ID, môi trường, actual result và evidence. `blocked`, `failed` hoặc `not_tested` giữ `[ ]`.
+- `W1-QQ-09` còn cần PO/pháp lý/đối tác duyệt; Tester chỉ xác nhận provenance/evidence, không thay thế approval đó. Dương, BE và PO vẫn giữ các gate độc lập của mình.
+
+[Bảng toàn đội](README.md) · [Checklist trạng thái gốc](../../../TODO.md). Ba vai trò do **một người** thực hiện; nhận một pipeline AI chính, điều phối/review theo mốc, không tính ba lane lập trình song song. Source Python tại `services/ai/`; kế hoạch/quyết định tại `docs/coordination/`; task AI tại `services/ai/tasks/`. Thiệu kiểm chứng AI, Thiệu Quang/Mỹ review giao tiếp; Dương review nghiệp vụ.
 
 **Cập nhật: 06/10/2026.** Đã hoàn thành thiết lập public URL, tài khoản đo lường GA4/GSC và bootstrap staging local tối giản. Các mốc Ngày 1–20 bên dưới là ngày trong kế hoạch, không phải ngày lịch.
 
@@ -10,7 +16,7 @@
 
 ## Tuần 1 — Ngày 1–5
 
-**Task gốc:** W1-PM-01/02/03, W1-AI-01/02/03. PM-01/02 và W1-AI-01 bootstrap đã hoàn thành ở mức local_verified. PM-03 đã có URL/TLS, GA4/GSC và app bootstrap local; vẫn còn mở cho triển khai ứng dụng công khai, tích hợp nghiệp vụ và demo có QA review. W1-AI-02 và W1-AI-03 còn mở. Phụ thuộc: AC M01–M03 của Dương, internal job/source schema của Thiệu Quang/Mỹ, fixtures hai tenant của Thanh.
+**Task gốc:** W1-PM-01/02/03, W1-AI-01/02/03. PM-01/02 và W1-AI-01 bootstrap đã hoàn thành ở mức local_verified. PM-03 đã có URL/TLS, GA4/GSC và app bootstrap local; vẫn còn mở cho triển khai ứng dụng công khai, tích hợp nghiệp vụ và demo có QA review. W1-AI-02 và W1-AI-03 còn mở. Phụ thuộc: AC M01–M03 của Dương, internal job/source schema của Thiệu Quang/Mỹ, fixtures hai tenant của Thiệu.
 
 ### Trạng thái bàn giao Ngày 1–2
 
@@ -26,7 +32,7 @@
 
 **Bằng chứng Ngày 1–2:** [AI bootstrap report](../../../services/ai/evals/reports/W1-AI-01-02-bootstrap.json), [README chạy local](../../../services/ai/README.md). Registry run hiện chỉ ở RAM để kiểm tra contract; queue durable, tenant-scoped retrieval và 30 eval cases thuộc các bước tiếp theo.
 
-**Cập nhật AI 06/10 (W1-QQ-01…05):** thay registry RAM bằng run store bền vững (khóa `job_id + operation + input_version`, restart → `RUN_INTERRUPTED` retryable, tối đa 2 LLM calls/job), lỗi có mã thống nhất; thêm `knowledge.ingest` (text/PDF/URL allowlist, locator page/paragraph/url, embeddinggemma 768), `knowledge.answer` (snapshot đúng tenant/approved, evidence, thiếu giá/địa chỉ/availability báo thiếu) và `growth_map.suggest` (đề xuất chờ duyệt). Bộ 30 eval cases draft `w1-ai-eval-0.1.0` có report fake/live. Trạng thái từng task con và phần chờ Mỹ/Thanh/Dương: [W1](../execution/W1.md#quang-quang), [CR-001](../../../contracts/changes/CR-001-ai-internal-runs.md).
+**Cập nhật AI 06/10 (W1-QQ-01…05):** thay registry RAM bằng run store bền vững (khóa `job_id + operation + input_version`, restart → `RUN_INTERRUPTED` retryable, tối đa 2 LLM calls/job), lỗi có mã thống nhất; thêm `knowledge.ingest` (text/PDF/URL allowlist, locator page/paragraph/url, embeddinggemma 768), `knowledge.answer` (snapshot đúng tenant/approved, evidence, thiếu giá/địa chỉ/availability báo thiếu) và `growth_map.suggest` (đề xuất chờ duyệt). Bộ 30 eval cases draft `w1-ai-eval-0.1.0` có report fake/live. Trạng thái từng task con và phần chờ Mỹ/Thiệu/Dương: [W1](../execution/W1.md#quang-quang), [CR-001](../../../contracts/changes/CR-001-ai-internal-runs.md).
 
 ### Bàn giao URL, đo lường và staging — 06/10/2026
 
@@ -50,8 +56,8 @@
 2. Bootstrap Python/FastAPI, manifest/lockfile và cấu hình fake/live provider. Tạo health endpoint, nhận internal job theo schema, kiểm tra structured output; log job/tenant/prompt/model/token/timeout, không log secret.
 3. **Ngày 2–4:** extraction text/PDF có text/URL được phép → chunk → embedding 768 theo model đã probe → index/retrieval. Chỉ retrieve nguồn tenant hiện tại đã duyệt; lưu source/version/citation, hỗ trợ revoke/delete để nguồn cũ không còn truy hồi.
 4. Tạo business context/Growth Map và gợi ý goal/KPI từ facts có nguồn; thiếu facts trả trạng thái thiếu, gợi ý chưa tự áp dụng. BE giữ quyền approve, auth và tenant boundary.
-5. Cùng Thanh chuẩn bị **ít nhất 30 ca** retrieval/facts/content/scoring/report; thêm injected instructions, revoked/deleted source và thiếu facts. Dương/PO chốt rubric, critical cases, dataset version; chốt ngưỡng 100% critical và ≥90% facts/retrieval chuẩn theo rubric được duyệt.
-6. **Ngày 5:** chạy tích hợp với BE, để Thanh đối chiếu kết quả độc lập; tổ chức demo theo [agenda](../DEMO-W1.md), ghi kết quả thực tế và mở/đóng blockers. Kiểm tra journey nghiệp vụ trên staging công khai và tracking tương ứng; nếu thiếu deployment/tích hợp thì ghi chưa đạt, không dùng trang thông báo hoặc mock để đóng gate.
+5. Cùng Thiệu chuẩn bị **ít nhất 30 ca** retrieval/facts/content/scoring/report; thêm injected instructions, revoked/deleted source và thiếu facts. Dương/PO chốt rubric, critical cases, dataset version; chốt ngưỡng 100% critical và ≥90% facts/retrieval chuẩn theo rubric được duyệt.
+6. **Ngày 5:** chạy tích hợp với BE, để Thiệu đối chiếu kết quả độc lập; tổ chức demo theo [agenda](../DEMO-W1.md), ghi kết quả thực tế và mở/đóng blockers. Kiểm tra journey nghiệp vụ trên staging công khai và tracking tương ứng; nếu thiếu deployment/tích hợp thì ghi chưa đạt, không dùng trang thông báo hoặc mock để đóng gate.
 
 **Bàn giao:** `services/ai/src/` pipeline/context/guardrails, `prompts/`, `evals/datasets/`, `evals/reports/`, README/lệnh run/check; cập nhật W1-PM-03/RISKS/DEMO-W1. **Đạt khi:** service gọi được từ worker, schema đúng, RAG đúng tenant/approved source, nguồn xóa không còn dùng, facts thiếu không bịa; 30 ca có kết quả và QA review. PM-03 chỉ Done khi phần deploy/tracking/demo thực tế đủ evidence.
 
@@ -66,10 +72,10 @@
 1. **Ngày 6–7:** research từ một provider đã chọn và URL được phép, dedup kết quả, ghi URL/timestamp/evidence. Phân loại insight và tính opportunity score theo rubric; lưu từng thành phần/rationale. Không sinh search volume khi không có nguồn.
 2. **Ngày 8:** strategy 30 ngày có goal/KPI, owner, effort, deadline, budget; trả proposal để con người duyệt. Brief từ approved facts/brand/source có CTA, destination/format và giá trị riêng; giữ IDs nối goal → opportunity → strategy → brief.
 3. **Ngày 9:** article/FAQ/meta/social draft và một variant. Kiểm JSON/facts/citations/brand trước trả output; thiếu facts gắn cờ. SEO title/meta/headings bắt đầu bằng rule kiểm tra được rồi mới gợi ý LLM. Không thêm tạo ảnh/video.
-4. Chạy từng pipeline với queue của Mỹ; kiểm retry không tạo kết quả trùng, timeout/quota không bypass caps. Prompt và schema có version; lưu cost/token/latency. Thanh chạy lại frozen eval.
+4. Chạy từng pipeline với queue của Mỹ; kiểm retry không tạo kết quả trùng, timeout/quota không bypass caps. Prompt và schema có version; lưu cost/token/latency. Thiệu chạy lại frozen eval.
 5. **Ngày 10:** demo opportunity → approved strategy/brief → draft; review capacity tuần 3–4 và dữ liệu cho M14–M16. Nếu chậm, chốt giảm độ sâu/bổ sung năng lực/đổi mốc bằng decision record; giữ QA và integration.
 
-**Bàn giao:** agents/pipelines M04–M09 trong `services/ai/src/agents/`, prompt/eval versions; biên bản demo/capacity trong `docs/coordination/`. **Đạt khi:** output đúng schema, score tính lại được, đủ source/CTA/lineage, facts thiếu báo thiếu, generation chỉ dùng brief đã duyệt và staging chạy trọn một journey. Review: BE interface, Dương rubric, Thanh AI/eval.
+**Bàn giao:** agents/pipelines M04–M09 trong `services/ai/src/agents/`, prompt/eval versions; biên bản demo/capacity trong `docs/coordination/`. **Đạt khi:** output đúng schema, score tính lại được, đủ source/CTA/lineage, facts thiếu báo thiếu, generation chỉ dùng brief đã duyệt và staging chạy trọn một journey. Review: BE interface, Dương rubric, Thiệu AI/eval.
 
 <a id="tuan-3"></a>
 
@@ -85,7 +91,7 @@
 4. PM theo dõi approval → CMS thật → tracking trước bài đầu tiên; xác nhận owner/recovery khi publish lỗi. PO duyệt nội dung **bằng thao tác người dùng có identity/audit**, không để pipeline tự approve.
 5. **Ngày 15:** demo W3, khóa chức năng mới M01–M13, chốt lỗi và inputs tuần 4; ghi Google/public URL/metric delay còn thiếu với người xử lý.
 
-**Bàn giao:** SEO/community pipeline + eval; schema/fixture analyst/learning trong vùng AI; demo/freeze decision. **Đạt khi:** rule/nguồn truy được, local facts không bịa, response chờ duyệt, metric thiếu không biến thành 0, snapshot có provenance; QA độc lập và live publish/tracking có evidence cho gate. Review: Dương, Mỹ/Thiệu Quang, Thanh.
+**Bàn giao:** SEO/community pipeline + eval; schema/fixture analyst/learning trong vùng AI; demo/freeze decision. **Đạt khi:** rule/nguồn truy được, local facts không bịa, response chờ duyệt, metric thiếu không biến thành 0, snapshot có provenance; QA độc lập và live publish/tracking có evidence cho gate. Review: Dương, Mỹ/Thiệu Quang, Thiệu.
 
 <a id="tuan-4"></a>
 
@@ -93,12 +99,12 @@
 
 ## Tuần 4 — Ngày 16–20
 
-**Task gốc:** W4-PM-01/02, W4-AI-01/02/03; điều phối W4-GATE-01/02/03/04. Phụ thuộc: snapshots/report/experiment/learning APIs của Mỹ, approved action/strategy update của Thiệu Quang; Thanh/Dương cung cấp eval/UAT verdict.
+**Task gốc:** W4-PM-01/02, W4-AI-01/02/03; điều phối W4-GATE-01/02/03/04. Phụ thuộc: snapshots/report/experiment/learning APIs của Mỹ, approved action/strategy update của Thiệu Quang; Thiệu/Dương cung cấp eval/UAT verdict.
 
 1. **Ngày 16:** Growth Brief hai kỳ; dùng số học đã tính xác định trước diễn đạt. Gắn nhận xét/action với source/metric/content; baseline 0 và missing ghi đúng giới hạn, actions vẫn chờ duyệt.
 2. **Ngày 17:** đề xuất hypothesis/title hoặc CTA hai variants cho một trang pilot, metric là form lưu thành công; giải thích kết quả theo evidence, thiếu mẫu không kết luận winner.
 3. **Ngày 18:** learning rules rank topic/format từ snapshots, insight có evidence/version. Chỉ proposal strategy update; quyền approve/apply thuộc API. Chốt prompt/model/schema và frozen eval cuối, gồm M15–M16; freeze tính năng.
-4. **Ngày 19:** hỗ trợ Thanh/Dương UAT, sửa lỗi critical/numeric/grounding/timeout; ghi known issues và limits. Không tự chấm pipeline thay QA.
+4. **Ngày 19:** hỗ trợ Thiệu/Dương UAT, sửa lỗi critical/numeric/grounding/timeout; ghi known issues và limits. Không tự chấm pipeline thay QA.
 5. **Ngày 20:** đọc QA evidence, UAT, restore/rollback readiness, blocker list; ghi go/no-go và owner vận hành. No-go nếu critical/điều kiện release chưa đạt, không ký Done vì đã đến ngày 20.
 
-**Bàn giao:** AI reports/eval/fallback/run instructions; PO acceptance/release decision và backlog sau pilot. **Đạt khi:** số report khớp input, learning có human approval, caps được giữ, AI có reviewer độc lập; cả bốn release gates có evidence trước go. Review: Thanh AI, Dương nghiệp vụ/UAT, hai BE interface/vận hành.
+**Bàn giao:** AI reports/eval/fallback/run instructions; PO acceptance/release decision và backlog sau pilot. **Đạt khi:** số report khớp input, learning có human approval, caps được giữ, AI có reviewer độc lập; cả bốn release gates có evidence trước go. Review: Thiệu AI, Dương nghiệp vụ/UAT, hai BE interface/vận hành.

@@ -1,14 +1,14 @@
-# Thanh — Một Tester phụ trách hai lane
+# Thiệu — Một Tester phụ trách hai lane
 
 [Bảng toàn đội](README.md) · [Checklist trạng thái](../../../TODO.md). Lane 1 TypeScript/Playwright tại `qa/tester-1/` (UI/E2E/UAT); lane 2 Python/pytest/HTTP client/SQL tại `qa/tester-2/` (API/data/security/AI); fixtures `qa/fixtures/`, evidence `qa/evidence/<build>/<task>/`. Đây là **một kế hoạch chung**, không phải hai Tester chạy đầy capacity. Ưu tiên tenant/source/approval/form/numeric critical trước; thiếu capacity báo PM điều chỉnh scope/mốc, không bỏ critical tests.
 
 <a id="tuan-1"></a>
 
-**Task con để bắt tay làm:** [Tuần 1 — thanh](../execution/W1.md#thanh) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
+**Task con để bắt tay làm:** [Tuần 1 — Thiệu](../execution/W1.md#thieu) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
 
 ## Tuần 1 — Ngày 1–5
 
-**Task gốc:** W1-QA1-01/02/03 và W1-QA2-01/02/03; evidence W1-GATE-01/02/03. Phụ thuộc: BA AC/roles, schema/examples, FE mock trước live staging, AI pipeline/dataset. Review test nghiệp vụ bởi Dương/FE; review API/eval bởi BE/AI, kết quả pipeline do Thanh đối chiếu độc lập.
+**Task gốc:** W1-QA1-01/02/03 và W1-QA2-01/02/03; evidence W1-GATE-01/02/03. Phụ thuộc: BA AC/roles, schema/examples, FE mock trước live staging, AI pipeline/dataset. Review test nghiệp vụ bởi Dương/FE; review API/eval bởi BE/AI, kết quả pipeline do Thiệu đối chiếu độc lập.
 
 1. **Ngày 1–2:** test plan/trace 16 module, test IDs/expected results/priority; hai tenant và Owner/Editor/Viewer fixtures với Mỹ. Bootstrap Playwright package/lockfile riêng và pytest project/lockfile riêng, lệnh run/check và CI smoke; không cần Postman nếu HTTP suite đủ.
 2. Lane 2 kiểm contract examples và negative tenant API/DB/storage/vector; Viewer không sửa, workspace A không đọc B. Chạy sớm khi BE đưa lát auth/source, không đợi ngày 5.
@@ -21,7 +21,7 @@
 
 <a id="tuan-2"></a>
 
-**Task con để bắt tay làm:** [Tuần 2 — thanh](../execution/W2.md#thanh) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
+**Task con để bắt tay làm:** [Tuần 2 — Thiệu](../execution/W2.md#thieu) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
 
 ## Tuần 2 — Ngày 6–10
 
@@ -37,7 +37,7 @@
 
 <a id="tuan-3"></a>
 
-**Task con để bắt tay làm:** [Tuần 3 — thanh](../execution/W3.md#thanh) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
+**Task con để bắt tay làm:** [Tuần 3 — Thiệu](../execution/W3.md#thieu) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
 
 ## Tuần 3 — Ngày 11–15
 
@@ -53,7 +53,7 @@
 
 <a id="tuan-4"></a>
 
-**Task con để bắt tay làm:** [Tuần 4 — thanh](../execution/W4.md#thanh) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
+**Task con để bắt tay làm:** [Tuần 4 — Thiệu](../execution/W4.md#thieu) · [Fields/API/luồng chuẩn](../execution/DATA-AND-FLOWS.md).
 
 ## Tuần 4 — Ngày 16–20
 

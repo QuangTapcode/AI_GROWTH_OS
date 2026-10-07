@@ -1,6 +1,6 @@
 # Tiến — FE nền tảng và website TripC
 
-[Bảng toàn đội](README.md) · [Checklist trạng thái](../../../TODO.md). TypeScript/Next.js; sở hữu `apps/pilot/`, app quản trị routes/layout/common/config/manifest/lockfile và features `workspace`, `onboarding`, `goals`, `strategy`, `tasks`, `traffic`, `integrations`, `analytics`, `experiments`. Task tại `apps/web/tasks/` hoặc `apps/pilot/tasks/`, tên kèm `tien`. Huyền peer-review, Trường design review, Thanh kiểm AC; BE review API boundary.
+[Bảng toàn đội](README.md) · [Checklist trạng thái](../../../TODO.md). TypeScript/Next.js; sở hữu `apps/pilot/`, app quản trị routes/layout/common/config/manifest/lockfile và features `workspace`, `onboarding`, `goals`, `strategy`, `tasks`, `traffic`, `integrations`, `analytics`, `experiments`. Task tại `apps/web/tasks/` hoặc `apps/pilot/tasks/`, tên kèm `tien`. Huyền peer-review, Trường design review, Thiệu kiểm AC; BE review API boundary.
 
 <a id="tuan-1"></a>
 
@@ -15,9 +15,9 @@
 3. **Ngày 3–4:** tích hợp auth/workspace của Thiệu Quang, profile/goals của Mỹ; lưu/reload dữ liệu thật. Nhận knowledge feature của Huyền và ghép route, không sửa trực tiếp source feature của Huyền.
 4. Website TripC tiếng Anh: blog list/detail, landing và form theo BA/design; loading/validation/error/success. Public read chỉ published; draft chỉ thấy trong CMS có quyền. Form chỉ báo success sau server persist, double-submit/retry xử lý theo idempotency contract.
 5. Gắn UTM và GA4 config khi có property/public URL; conversion `generate_lead` sau server success, không gửi email/name. Chuẩn bị điểm gắn experiment widget một landing page; không tính click CTA là conversion.
-6. **Ngày 5:** build/smoke và staging demo với Thanh; Google chưa có thì feature local/mock có nhãn, live tracking/gate vẫn mở.
+6. **Ngày 5:** build/smoke và staging demo với Thiệu; Google chưa có thì feature local/mock có nhãn, live tracking/gate vẫn mở.
 
-**Bàn giao:** shell/common/API client, workspace/onboarding/goals, `apps/pilot/` blog/landing/form/config và README chạy được. **Đạt khi:** build chạy, mock độc lập dùng cùng contract, live flows persist/reload, Viewer/UI states đúng, form failure không success/event. Review: Huyền/Trường, Thiệu Quang/Mỹ, Thanh.
+**Bàn giao:** shell/common/API client, workspace/onboarding/goals, `apps/pilot/` blog/landing/form/config và README chạy được. **Đạt khi:** build chạy, mock độc lập dùng cùng contract, live flows persist/reload, Viewer/UI states đúng, form failure không success/event. Review: Huyền/Trường, Thiệu Quang/Mỹ, Thiệu.
 
 <a id="tuan-2"></a>
 
@@ -32,7 +32,7 @@
 3. **Ngày 9:** tích hợp API thật strategy/tasks; loading/empty/errors/stale version. Nhận brief/editor navigation và shared job-progress/common components từ Huyền, giữ lineage khi chuyển màn hình.
 4. **Ngày 10:** cùng Huyền/BE chạy research → strategy → brief → draft; fix shell/auth/API client blockers và build. Tiếp tục kiểm form/tracking pilot đã có, không thêm social/video/website thứ hai.
 
-**Bàn giao:** features `strategy`, `tasks`, routes/common và integration evidence. **Đạt khi:** strategy/task save/reload/approve đúng quyền/version, journey không mất IDs, mock chuyển live không phải đổi source feature. Review: Huyền, Trường, Thiệu Quang, Thanh.
+**Bàn giao:** features `strategy`, `tasks`, routes/common và integration evidence. **Đạt khi:** strategy/task save/reload/approve đúng quyền/version, journey không mất IDs, mock chuyển live không phải đổi source feature. Review: Huyền, Trường, Thiệu Quang, Thiệu.
 
 <a id="tuan-3"></a>
 
@@ -48,7 +48,7 @@
 4. Chuẩn bị widget interface cho hai title hoặc CTA variants tại một landing page; visitor assignment/exposure/outcome wiring theo contract, chưa tự viết rule winner.
 5. **Ngày 15:** regression pilot/session/common và demo dashboard; freeze features M01–M13, ghi tracking/data blockers thay vì số liệu giả.
 
-**Bàn giao:** `traffic`, `integrations`, `analytics`, pilot published rendering/tracking/widget interface. **Đạt khi:** URL/content/UTM đúng, analytics không chứa PII và missing không biến thành 0, live dashboard khớp nguồn có quyền; mock không đóng gate Google. Review: Huyền/Trường, Mỹ, Thanh.
+**Bàn giao:** `traffic`, `integrations`, `analytics`, pilot published rendering/tracking/widget interface. **Đạt khi:** URL/content/UTM đúng, analytics không chứa PII và missing không biến thành 0, live dashboard khớp nguồn có quyền; mock không đóng gate Google. Review: Huyền/Trường, Mỹ, Thiệu.
 
 <a id="tuan-4"></a>
 
@@ -64,4 +64,4 @@
 4. **Ngày 18:** sau learning được duyệt, app refresh đúng strategy version và liên kết insight; production config/build cho hai app, freeze feature.
 5. **Ngày 19–20:** fix UAT/responsive/session/widget critical, cập nhật FE README/lệnh chạy/env mẫu, release smoke sau PO go. Bàn giao build/config/routes/known issues.
 
-**Bàn giao:** `experiments`, pilot widget, shared integration và verified build/run docs. **Đạt khi:** visitor ổn định, exposure/form outcomes không trùng, experiment thiếu mẫu có nhãn, production build và UAT đạt. Review: Huyền/Trường, Mỹ/Thiệu Quang, Thanh.
+**Bàn giao:** `experiments`, pilot widget, shared integration và verified build/run docs. **Đạt khi:** visitor ổn định, exposure/form outcomes không trùng, experiment thiếu mẫu có nhãn, production build và UAT đạt. Review: Huyền/Trường, Mỹ/Thiệu Quang, Thiệu.

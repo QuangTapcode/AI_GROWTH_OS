@@ -1,6 +1,6 @@
 # CR-001 — AI internal runs: error envelope, idempotency key, knowledge/growth-map operations
 
-- **Owner/consumer reviewers:** Quang Quang (AI, provider) đề xuất; Thiệu Quang merge contract; Mỹ (worker) là consumer chính; Thanh (QA2) review assertions; Dương review nghĩa `missing_fact`/growth-map.
+- **Owner/consumer reviewers:** Quang Quang (AI, provider) đề xuất; Thiệu Quang merge contract; Mỹ (worker) là consumer chính; Thiệu (QA2) review assertions; Dương review nghĩa `missing_fact`/growth-map.
 - **Story/module và lý do:** W1-QQ-01..05 / W1-AI-01..03, M01–M03. Worker cần mã lỗi ổn định, khóa idempotency đúng contract §3, ingest/retrieval có citation và Growth Map dạng đề xuất.
 - **Trạng thái:** đề xuất; provider đã implement tại `services/ai/` (local_verified), **chưa** được BE/consumer review hoặc freeze.
 
@@ -34,7 +34,7 @@ Additive cho envelope request; **breaking** cho bootstrap cũ ở hai điểm: `
 
 1. **Mỹ:** chấp nhận SQLite trong AI service + "resend để resume" làm cơ chế recovery W1, hay chuyển run store vào PostgreSQL/pg-boss của worker. Interface `RunStore` tách riêng để thay được.
 2. **Thiệu Quang:** thêm `knowledge.answer`, `growth_map.suggest` vào danh sách operation và JSON Schema khi tạo OpenAPI.
-3. **Thanh:** dùng `evals/datasets/w1-ai-eval-0.1.0.jsonl` làm baseline, bổ sung case qua BE adapter thật.
+3. **Thiệu:** dùng `evals/datasets/w1-ai-eval-0.1.0.jsonl` làm baseline, bổ sung case qua BE adapter thật.
 
 ## Evidence
 

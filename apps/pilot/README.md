@@ -1,6 +1,6 @@
 # FE — Website pilot TripC
 
-Owner: Tiến; Huyền peer-review, Trường design review, Thanh QA. **TypeScript/Next.js**, tách package/manifest/lockfile/env khỏi app quản trị. Đã có bootstrap local với trang English TripC và kiểm tra kết nối API; blog/form/CMS chưa triển khai. [PILOT](../../docs/coordination/PILOT.md) · [TEAM](../../docs/coordination/TEAM.md) · [TODO](../../TODO.md).
+Owner: Tiến; Huyền peer-review, Trường design review, Thiệu QA. **TypeScript/Next.js**, tách package/manifest/lockfile/env khỏi app quản trị. Đã có bootstrap local với trang English TripC và kiểm tra kết nối API; blog/form/CMS chưa triển khai. [PILOT](../../docs/coordination/PILOT.md) · [TEAM](../../docs/coordination/TEAM.md) · [TODO](../../TODO.md).
 
 ## Chạy bootstrap local — 06/10/2026
 

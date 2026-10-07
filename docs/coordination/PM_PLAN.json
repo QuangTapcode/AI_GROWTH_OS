@@ -25,7 +25,7 @@
     "Tiến",
     "Huyền",
     "Trường",
-    "Thanh"
+    "Thiệu"
   ],
   "capacity": {
     "unit": "S/M/L task complexity, not hours",
@@ -126,7 +126,7 @@
         "Tiến",
         "Huyền",
         "Quang Quang",
-        "Thanh",
+        "Thiệu",
         "Mỹ"
       ],
       "relative_effort": {
@@ -151,7 +151,7 @@
         "Dương",
         "Tiến",
         "Huyền",
-        "Thanh",
+        "Thiệu",
         "Mỹ"
       ],
       "relative_effort": {
@@ -176,7 +176,7 @@
         "Thiệu Quang",
         "Mỹ",
         "Dương",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "M",
@@ -200,7 +200,7 @@
         "Dương",
         "Tiến",
         "Huyền",
-        "Thanh",
+        "Thiệu",
         "Mỹ"
       ],
       "relative_effort": {
@@ -225,7 +225,7 @@
         "Thiệu Quang",
         "Mỹ",
         "Dương",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "S",
@@ -249,7 +249,7 @@
         "Dương",
         "Thiệu Quang",
         "Mỹ",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "S",
@@ -273,7 +273,7 @@
         "Dương",
         "Thiệu Quang",
         "Mỹ",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "M",
@@ -297,7 +297,7 @@
         "Dương",
         "Thiệu Quang",
         "Mỹ",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "S",
@@ -323,7 +323,7 @@
         "Tiến",
         "Huyền",
         "Dương",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "M",
@@ -347,7 +347,7 @@
         "Dương",
         "Thiệu Quang",
         "Mỹ",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "S",
@@ -371,7 +371,7 @@
         "Dương",
         "Tiến",
         "Huyền",
-        "Thanh",
+        "Thiệu",
         "Thiệu Quang"
       ],
       "relative_effort": {
@@ -396,7 +396,7 @@
         "Dương",
         "Thiệu Quang",
         "Mỹ",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "S",
@@ -420,7 +420,7 @@
         "Dương",
         "Tiến",
         "Huyền",
-        "Thanh",
+        "Thiệu",
         "Thiệu Quang"
       ],
       "relative_effort": {
@@ -445,7 +445,7 @@
         "Dương",
         "Tiến",
         "Huyền",
-        "Thanh",
+        "Thiệu",
         "Thiệu Quang"
       ],
       "relative_effort": {
@@ -470,7 +470,7 @@
         "Dương",
         "Thiệu Quang",
         "Mỹ",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "S",
@@ -495,7 +495,7 @@
         "Tiến",
         "Huyền",
         "Quang Quang",
-        "Thanh",
+        "Thiệu",
         "Thiệu Quang"
       ],
       "relative_effort": {
@@ -520,7 +520,7 @@
         "Dương",
         "Thiệu Quang",
         "Mỹ",
-        "Thanh"
+        "Thiệu"
       ],
       "relative_effort": {
         "ba": "S",

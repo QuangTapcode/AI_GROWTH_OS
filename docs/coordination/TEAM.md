@@ -6,14 +6,14 @@ Nguồn: người dùng cung cấp trong phiên làm việc W1-PM-01. Phân côn
 
 | Người | Vị trí | Khu vực chính | Review/bàn giao |
 | --- | --- | --- | --- |
-| Quang Quang | AI + PM + PO | `services/ai/`, `docs/coordination/`, `TODO.md`; nghiệm thu nghiệp vụ | Dương hỗ trợ AC/UAT; Thanh kiểm chứng AI độc lập; BE review interface |
-| Dương | BA | `docs/ba/`, quản `docs/sources/` | Quang Quang duyệt scope; Thanh review testability |
+| Quang Quang | AI + PM + PO | `services/ai/`, `docs/coordination/`, `TODO.md`; nghiệm thu nghiệp vụ | Dương hỗ trợ AC/UAT; Thiệu kiểm chứng AI độc lập; BE review interface |
+| Dương | BA | `docs/ba/`, quản `docs/sources/` | Quang Quang duyệt scope; Thiệu review testability |
 | Thiệu Quang | BE, đầu mối API/contract | `apps/api/` core/router/config, `database/migrations/`, `database/policies/`, `contracts/`, `.github/`, `infra/`, `docs/architecture/` | Mỹ peer-review BE; FE/AI review contracts |
-| Mỹ | BE, jobs/integrations/data | `apps/worker/`, các API modules tích hợp/metrics/jobs, `database/seed/`, `docs/runbooks/` | Thiệu Quang review boundary/migrations; Thanh test jobs/metrics |
+| Mỹ | BE, jobs/integrations/data | `apps/worker/`, các API modules tích hợp/metrics/jobs, `database/seed/`, `docs/runbooks/` | Thiệu Quang review boundary/migrations; Thiệu test jobs/metrics |
 | Tiến | FE, đầu mối app shell/common | `apps/pilot/` toàn bộ website công khai; `apps/web/src/app/`, `components/`, `lib/`, FE config/manifest; các features phân bên dưới | Huyền peer-review FE; Trường design review |
-| Huyền | FE, content flows và UI tests | Các features phân bên dưới, `apps/web/src/mocks/`, `tests/` | Tiến peer-review FE; Trường/Thanh review UI/AC |
+| Huyền | FE, content flows và UI tests | Các features phân bên dưới, `apps/web/src/mocks/`, `tests/` | Tiến peer-review FE; Trường/Thiệu review UI/AC |
 | Trường | UI/UX | `design/` | Tiến/Huyền review handoff; Dương review flows |
-| Thanh | Tester: cả lane 1 và lane 2 | `qa/tester-1/`, `qa/tester-2/`, `qa/fixtures/`, `qa/evidence/` | Chuyên môn review defects; Quang Quang nhận QA evidence |
+| Thiệu | Tester: cả lane 1 và lane 2 | `qa/tester-1/`, `qa/tester-2/`, `qa/fixtures/`, `qa/evidence/` | Chuyên môn review defects; Quang Quang nhận QA evidence |
 
 ## Ranh giới hai FE
 
@@ -34,16 +34,16 @@ Nguồn: người dùng cung cấp trong phiên làm việc W1-PM-01. Phân côn
 - FE: **TypeScript**, HTML/CSS; Next.js/React/Tailwind theo cấu trúc đã chọn.
 - BE/API và worker: **TypeScript + SQL**. CMS pilot đã chốt Next.js/TypeScript; cách tổ chức API Next.js và worker chốt ở W1-BE-01; task này không bootstrap hoặc cài framework.
 - AI: **Python**, SQL cơ bản; FastAPI là lựa chọn cơ sở theo bảng người dùng gửi, SDK LLM; LangGraph chỉ thêm khi pipeline cần.
-- Thanh lane 1: TypeScript/Playwright; lane 2: Python/pytest/HTTP client/SQL, Postman nếu cần.
+- Thiệu lane 1: TypeScript/Playwright; lane 2: Python/pytest/HTTP client/SQL, Postman nếu cần.
 - FE/BE/AI trao đổi HTTP/JSON qua OpenAPI/JSON Schema có version; không dùng source/type TypeScript nội bộ làm contract bắt buộc cho Python.
 
 ## Capacity và tách vai trò nghiệm thu
 
 Đội có **8 người**, 2 FE, 2 BE, 1 BA, 1 UI/UX, 1 Tester; Quang Quang là một người kiêm AI/PM/PO. Không có PM riêng hoặc hai Tester riêng trong roster này.
 
-W1-PM-02 dùng task S/M/L và mốc bàn giao theo chỉ đạo mới; không yêu cầu bảng giờ chi tiết. WIP dùng chung cho vai trò kiêm nhiệm, giữ review/tích hợp/QA. Không tính Quang Quang thành ba người/60 ngày, không tính Thanh thành hai người. 20 ngày danh nghĩa/người trong kế hoạch là tổng thời gian các vai trò dùng chung, chưa có phân bổ được xác nhận; không tự tăng feature capacity bởi thay roster.
+W1-PM-02 dùng task S/M/L và mốc bàn giao theo chỉ đạo mới; không yêu cầu bảng giờ chi tiết. WIP dùng chung cho vai trò kiêm nhiệm, giữ review/tích hợp/QA. Không tính Quang Quang thành ba người/60 ngày, không tính Thiệu thành hai người. 20 ngày danh nghĩa/người trong kế hoạch là tổng thời gian các vai trò dùng chung, chưa có phân bổ được xác nhận; không tự tăng feature capacity bởi thay roster.
 
-Quang Quang có thể nghiệm thu với tư cách PO theo phân công của người dùng. Kết quả pipeline do Quang Quang viết phải có Thanh kiểm chứng và BE review interface; không lấy AI tự chấm hoặc tác giả tự xác nhận làm bằng chứng chất lượng duy nhất. AI agent vẫn không tự thực hiện human approval; thao tác duyệt của PO/người dùng cần identity/audit cụ thể.
+Quang Quang có thể nghiệm thu với tư cách PO theo phân công của người dùng. Kết quả pipeline do Quang Quang viết phải có Thiệu kiểm chứng và BE review interface; không lấy AI tự chấm hoặc tác giả tự xác nhận làm bằng chứng chất lượng duy nhất. AI agent vẫn không tự thực hiện human approval; thao tác duyệt của PO/người dùng cần identity/audit cụ thể.
 
 Git usernames/team và kickoff date chưa có; W1-BE-05/PM sẽ bổ sung. Theo chỉ đạo mới không yêu cầu kê số giờ từng vai trò; W1-PM-02 quản theo task/mốc. Bảng tên không phải CODEOWNERS đã được cấu hình.
 

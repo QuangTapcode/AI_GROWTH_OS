@@ -1,6 +1,6 @@
 # Trường — UI/UX
 
-[Bảng toàn đội](README.md) · [Checklist trạng thái](../../../TODO.md). Sở hữu `design/tokens/`, `assets/`, `prototypes/`, `specs/`, `tasks/`. Figma/prototype và spec trong repo phải chỉ rõ screen/state/version/link; screenshot đẹp không thay field/interaction specs. Tiến/Huyền review khả năng triển khai, Dương review nghiệp vụ, Thanh review testability.
+[Bảng toàn đội](README.md) · [Checklist trạng thái](../../../TODO.md). Sở hữu `design/tokens/`, `assets/`, `prototypes/`, `specs/`, `tasks/`. Figma/prototype và spec trong repo phải chỉ rõ screen/state/version/link; screenshot đẹp không thay field/interaction specs. Tiến/Huyền review khả năng triển khai, Dương review nghiệp vụ, Thiệu review testability.
 
 <a id="tuan-1"></a>
 
@@ -32,7 +32,7 @@
 4. Design QA FE theo từng lô; phản hồi screen/task cụ thể, không mở redesign ngoài scope. Giữ tokens/common để hai FE không làm hai style riêng.
 5. **Trước ngày 10:** chuẩn bị W3 SEO audit/local draft, approval queue/calendar, community intent/handoff, traffic/integrations/analytics; bàn giao lô approval/publish trước ngày 11.
 
-**Bàn giao:** specs/prototype M04–M08/SEO fields, W3 wireframes và design QA issues. **Đạt khi:** FE/BA xác nhận đủ state/fields, source/missing rõ và editor conflict không bị bỏ qua. Reviewer: Tiến/Huyền, Dương, Thanh.
+**Bàn giao:** specs/prototype M04–M08/SEO fields, W3 wireframes và design QA issues. **Đạt khi:** FE/BA xác nhận đủ state/fields, source/missing rõ và editor conflict không bị bỏ qua. Reviewer: Tiến/Huyền, Dương, Thiệu.
 
 <a id="tuan-3"></a>
 
@@ -45,9 +45,9 @@
 1. **Ngày 11–12:** hoàn thiện SEO/cluster/link/local/refresh và approval/reject/resubmit/calendar/publish status/error/retry/unknown outcome/cancel. Sửa sau approve có cảnh báo cần duyệt lại, timezone hiển thị rõ.
 2. **Ngày 13–14:** community response sources/approve/manual link và UTM/traffic/integrations/analytics; phân biệt zero/missing/delayed/no permission, show property/range/sync time.
 3. **Trước ngày 15:** report hai kỳ/action review/evidence, experiment hypothesis/2 variants/primary metric/period/results và thiếu mẫu, learning insight/evidence/approve/strategy version. Bàn giao cho FE trước ngày 16.
-4. Design QA live approval/publish/dashboard, kiểm readability/responsive/keyboard states với Thanh; issue theo priority/owner, không vẽ metric giả như số production.
+4. Design QA live approval/publish/dashboard, kiểm readability/responsive/keyboard states với Thiệu; issue theo priority/owner, không vẽ metric giả như số production.
 
-**Bàn giao:** specs M09–M16 và QA findings. **Đạt khi:** published/failed/manual/missing/insufficient-data được hiểu đúng, FE đủ specs cho W4, BA/Thanh review state và labels.
+**Bàn giao:** specs M09–M16 và QA findings. **Đạt khi:** published/failed/manual/missing/insufficient-data được hiểu đúng, FE đủ specs cho W4, BA/Thiệu review state và labels.
 
 <a id="tuan-4"></a>
 
@@ -58,7 +58,7 @@
 **Task gốc:** W4-UX-01/02. Phụ thuộc: FE report/experiment/learning build, UAT feedback.
 
 1. **Ngày 16–18:** design QA report/action/experiment/learning và core journeys; kiểm evidence links, missing/baseline 0, human approval và version changes. Chỉ sửa usability cần cho gate sau freeze.
-2. **Ngày 19:** cùng Thanh/FE retest lỗi hiển thị/mobile/keyboard/focus/validation; chốt high-priority usability, không thêm màn/module mới.
+2. **Ngày 19:** cùng Thiệu/FE retest lỗi hiển thị/mobile/keyboard/focus/validation; chốt high-priority usability, không thêm màn/module mới.
 3. **Ngày 20:** handoff final tokens/assets/screens/specs/prototype links/versions và hướng dẫn luồng pilot; ghi khác biệt còn lại giữa design và build trong known issues.
 
 **Bàn giao:** design system/specs cuối và design QA verdict trong `design/`. **Đạt khi:** FE và BA xác nhận handoff khớp build, critical flows sử dụng được, các gaps có owner và severity, PO biết limits trước release.

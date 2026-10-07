@@ -33,9 +33,9 @@
 
 |AC|Test ID|Owner|Evidence|Trạng thái|
 |-|-|-|-|-|
-|AC-01|TC-M01-01|Thanh (QA)|Log API 200 OK|backlog|
-|AC-02|TC-M01-02|Thanh (QA)|UI Read-only state|backlog|
-|AC-03|TC-M01-03|Thanh (QA)|Validation error message|backlog|
+|AC-01|TC-M01-01|Thiệu (QA)|Log API 200 OK|backlog|
+|AC-02|TC-M01-02|Thiệu (QA)|UI Read-only state|backlog|
+|AC-03|TC-M01-03|Thiệu (QA)|Validation error message|backlog|
 
 * Local evidence (mock/stub):Local API test via Swagger UI \& Unit Test logs
 * Integrated evidence (staging thật):Chờ deploy môi trường staging.
@@ -78,9 +78,9 @@
 
 |AC|Test ID|Owner|Evidence|Trạng thái|
 |-|-|-|-|-|
-|AC-01|TC-M02-01|Thanh (QA)|DB status check Unreviewed|backlog|
-|AC-02|TC-M02-02|Thanh (QA)|Vector index log|backlog|
-|AC-03|TC-M02-03|Thanh (QA)|Query test trả về missing|backlog|
+|AC-01|TC-M02-01|Thiệu (QA)|DB status check Unreviewed|backlog|
+|AC-02|TC-M02-02|Thiệu (QA)|Vector index log|backlog|
+|AC-03|TC-M02-03|Thiệu (QA)|Query test trả về missing|backlog|
 
 * Local evidence (mock/stub):Local file ingestion test.
 * Integrated evidence (staging thật):Chờ deploy staging.
@@ -122,9 +122,9 @@
 
 |AC|Test ID|Owner|Evidence|Trạng thái|
 |-|-|-|-|-|
-|AC-01|TC-M03-01|Thanh (QA)|UI display check (No % shown)|backlog|
-|AC-02|TC-M03-02|Thanh (QA)|Form validation check|backlog|
-|AC-03|TC-M03-03|Thanh (QA)|Server response \& form reset log|backlog|
+|AC-01|TC-M03-01|Thiệu (QA)|UI display check (No % shown)|backlog|
+|AC-02|TC-M03-02|Thiệu (QA)|Form validation check|backlog|
+|AC-03|TC-M03-03|Thiệu (QA)|Server response \& form reset log|backlog|
 
 * Local evidence (mock/stub):Form submission mock API test.
 * Integrated evidence (staging thật):Chờ deploy staging.

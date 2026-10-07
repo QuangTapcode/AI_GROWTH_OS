@@ -41,7 +41,7 @@ Launcher build lần lượt, chạy `next start` trong nền và kiểm tra `/h
 5. Tạo PR ngắn theo task, review và tích hợp mỗi ngày theo [CONTRIBUTING](CONTRIBUTING.md).
 6. Demo staging thật cuối mỗi tuần. Mock đạt chỉ là `local_verified`; chỉ Done khi AC và kiểm thử tích hợp đạt.
 
-Đội thực tế **8 người**: BA Dương; UI/UX Trường; FE Tiến/Huyền; BE Thiệu Quang/Mỹ; Tester Thanh; AI kiêm PM/PO Quang Quang. Thanh phụ trách hai lane QA, Quang Quang dùng chung thời gian AI/PM/PO. [TEAM](docs/coordination/TEAM.md) phân công chi tiết để hai FE/hai BE làm độc lập.
+Đội thực tế **8 người**: BA Dương; UI/UX Trường; FE Tiến/Huyền; BE Thiệu Quang/Mỹ; Tester Thiệu; AI kiêm PM/PO Quang Quang. Thiệu phụ trách hai lane QA, Quang Quang dùng chung thời gian AI/PM/PO. [TEAM](docs/coordination/TEAM.md) phân công chi tiết để hai FE/hai BE làm độc lập.
 
 ## 2. Cấu trúc thư mục và ghi chú owner
 
@@ -89,7 +89,7 @@ AI-Growth-OS/
 │   └── migrations/ + seed/ + policies/
 ├── design/                           # UI/UX: toàn bộ thiết kế và handoff
 │   └── tokens/ + assets/ + prototypes/ + specs/ + tasks/
-├── qa/                               # Thanh: hai lane kiểm thử độc lập
+├── qa/                               # Thiệu: hai lane kiểm thử độc lập
 │   ├── tester-1/                     # Tester 1: UI/nghiệp vụ/E2E/UAT
 │   │   └── e2e/ + accessibility/ + uat/ + tasks/
 │   ├── tester-2/                     # Tester 2: API/data/security/AI
@@ -119,8 +119,8 @@ Tất cả đường dẫn dưới đây tính từ root dự án.
 | **FE: Tiến/Huyền** | `apps/web/`; Tiến sở hữu `apps/pilot/` | Screens/components, API client/mocks, editor, dashboard, pilot tracking/widget | UI/UX, BE, Tester 1 |
 | **BE: Thiệu Quang/Mỹ** | `apps/api/`, `apps/worker/`, `database/`, `infra/`, `docs/architecture/`, `docs/runbooks/` | Auth/RBAC, APIs/DB/jobs, CMS/analytics/tracking/experiment data, vận hành | FE/AI cho interface, Tester 2 |
 | **AI: Quang Quang** | `services/ai/` | Context/RAG, agents, prompts, output schemas/evidence, eval | BE, BA, Tester 2 |
-| **Tester lane 1: Thanh** | `qa/tester-1/` | UI/nghiệp vụ/E2E/accessibility/UAT cases và evidence | BA, FE, Tester 2 |
-| **Tester lane 2: Thanh** | `qa/tester-2/`; đầu mối `qa/fixtures/` | API/contract/tenant/jobs/integration/AI/data tests | BE, AI, Tester 1 |
+| **Tester lane 1: Thiệu** | `qa/tester-1/` | UI/nghiệp vụ/E2E/accessibility/UAT cases và evidence | BA, FE, Tester 2 |
+| **Tester lane 2: Thiệu** | `qa/tester-2/`; đầu mối `qa/fixtures/` | API/contract/tenant/jobs/integration/AI/data tests | BE, AI, Tester 1 |
 | **PM/PO: Quang Quang** | `docs/coordination/`, `TODO.md` | Capacity, ngày bàn giao, blockers, weekly demo, release decision với PO | PO và owner task |
 | **BE đầu mối tích hợp** | `contracts/`, `.github/`, root config, `README.md`, `CONTRIBUTING.md` | Contract baseline, CI/ownership, xử lý merge và config chung | Mọi consumer bị ảnh hưởng |
 
@@ -151,7 +151,7 @@ Các tên dưới `src/features/`, `src/modules/`, `src/agents/` là quy ước 
 | M15 | Experiment Engine | 4 | `experiments`, pilot widget | `experiments`, assignment/events/results | Hypothesis, giới hạn kết quả |
 | M16 | Learning Engine | 4 | `learning` | `learning`, strategy version update | Rules/insight cần duyệt |
 
-BA viết story/AC, UI/UX làm spec và Thanh kiểm thử cả hai lane xuyên suốt tất cả 16 module. **Approval là phần dùng chung trong M10**; M08/M11 sử dụng lại, không tự tạo ba quy trình duyệt khác nhau.
+BA viết story/AC, UI/UX làm spec và Thiệu kiểm thử cả hai lane xuyên suốt tất cả 16 module. **Approval là phần dùng chung trong M10**; M08/M11 sử dụng lại, không tự tạo ba quy trình duyệt khác nhau.
 
 ## 5. Ghi chú kế hoạch theo từng tuần
 
@@ -170,9 +170,9 @@ Tuần tính từ kickoff, **5 ngày làm việc/tuần**, chưa gán ngày lị
 | Tiến | [FE shell/public website](docs/coordination/weekly-todos/TIEN.md) | `apps/pilot/`, web common/routes/config và features theo TEAM |
 | Huyền | [FE content/review](docs/coordination/weekly-todos/HUYEN.md) | Web knowledge/content/review/report/learning, mocks/tests |
 | Trường | [UI/UX](docs/coordination/weekly-todos/TRUONG.md) | `design/` |
-| Thanh | [QA hai lane](docs/coordination/weekly-todos/THANH.md) | `qa/tester-1/`, `qa/tester-2/`, fixtures/evidence |
+| Thiệu | [QA hai lane](docs/coordination/weekly-todos/THIEU.md) | `qa/tester-1/`, `qa/tester-2/`, fixtures/evidence |
 
-Task chung FE/BE chỉ Done khi đủ các phần đã chia theo người. Quang Quang và Thanh dùng một kế hoạch/WIP cho vai trò kiêm nhiệm. Thư mục feature đề xuất chưa phải code đã có; ranh giới source chi tiết theo [TEAM](docs/coordination/TEAM.md).
+Task chung FE/BE chỉ Done khi đủ các phần đã chia theo người. Quang Quang và Thiệu dùng một kế hoạch/WIP cho vai trò kiêm nhiệm. Thư mục feature đề xuất chưa phải code đã có; ranh giới source chi tiết theo [TEAM](docs/coordination/TEAM.md).
 
 ### Tuần 1 — Nền tảng và M01–M03; tracking M13 từ đầu
 
@@ -255,7 +255,7 @@ Cấu trúc này giảm conflict file; để giảm lỗi hành vi khi merge v�
 
 ## 8. Capacity, chất lượng và Definition of Done
 
-Theo kế hoạch mới, mỗi người có **20 ngày danh nghĩa**, giữ **5 ngày** cho review/tích hợp/sửa lỗi/bàn giao, tối đa **15 ngày tính năng**. Roster hiện có 8 người; W1-PM-02 đã chuyển sang effort tương đối S/M/L và mốc bàn giao theo chỉ đạo mới, không yêu cầu bảng giờ chi tiết; trong đó AI/PM/PO dùng chung capacity Quang Quang và hai lane QA dùng chung capacity Thanh. Không dùng con số 105 ngày và PM riêng của kế hoạch gốc để cam kết cho roster mới. Không lấy capacity BA/QA bù lập trình FE/BE/AI.
+Theo kế hoạch mới, mỗi người có **20 ngày danh nghĩa**, giữ **5 ngày** cho review/tích hợp/sửa lỗi/bàn giao, tối đa **15 ngày tính năng**. Roster hiện có 8 người; W1-PM-02 đã chuyển sang effort tương đối S/M/L và mốc bàn giao theo chỉ đạo mới, không yêu cầu bảng giờ chi tiết; trong đó AI/PM/PO dùng chung capacity Quang Quang và hai lane QA dùng chung capacity Thiệu. Không dùng con số 105 ngày và PM riêng của kế hoạch gốc để cam kết cho roster mới. Không lấy capacity BA/QA bù lập trình FE/BE/AI.
 
 Ngày 2 các owner rà effort theo task và dependency với baseline local/cost/token/timeout/tải đã lập ở W1-PM-02; ngày 10 review lại. Nếu vượt capacity, PO/PM giảm độ sâu trong 16 module, bổ sung người phù hợp hoặc đổi mốc. Bốn tuần là mục tiêu có điều kiện của pilot.
 

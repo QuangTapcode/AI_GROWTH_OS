@@ -1,6 +1,6 @@
 # Giới hạn pilot local — baseline W1-PM-02
 
-05/10/2026 · Quang Quang quản AI/PM/PO, Mỹ quản queue/search/metrics, Thiệu Quang quản DB/auth, Thanh kiểm chứng. Các giới hạn là quyết định thiết kế, **chưa được áp dụng trong app hoặc benchmark**.
+05/10/2026 · Quang Quang quản AI/PM/PO, Mỹ quản queue/search/metrics, Thiệu Quang quản DB/auth, Thiệu kiểm chứng. Các giới hạn là quyết định thiết kế, **chưa được áp dụng trong app hoặc benchmark**.
 
 ## Dữ liệu, token và thời gian
 
@@ -33,7 +33,7 @@ Log model/digest, input/output tokens, attempts, runtime, queue wait và lỗi t
 
 Smoke hiện tại chỉ chứng minh Ollama API và embeddings phản hồi; 30 frozen eval cases mới là gate chất lượng. Ollama không dùng được thì báo provider_unavailable/queued/timeout và giữ draft; fake mode chỉ local_verified, không giả nghiệm thu AI thật.
 
-Thanh đo 10 phút trên local/staging với fake provider trước; live AI đo từng job tuần tự theo caps. Lưu commit/env/model digest, p50/p95/sample size/errors/tokens, không suy ra năng lực từ một smoke nhỏ. API/form mục tiêu p95 <=1s và public cached page <=2s tại tải test, chưa xác nhận đạt. Không bắn load vào website nguồn hoặc search engine ngoài.
+Thiệu đo 10 phút trên local/staging với fake provider trước; live AI đo từng job tuần tự theo caps. Lưu commit/env/model digest, p50/p95/sample size/errors/tokens, không suy ra năng lực từ một smoke nhỏ. API/form mục tiêu p95 <=1s và public cached page <=2s tại tải test, chưa xác nhận đạt. Không bắn load vào website nguồn hoặc search engine ngoài.
 
 Nguồn: [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [embeddings](https://docs.ollama.com/api/embed), [SearXNG JSON API](https://docs.searxng.org/dev/search_api.html). JSON format của SearXNG phải bật trên instance tự host; backend engines vẫn có hạn mức/quyền truy cập riêng, không được coi là search miễn phí không giới hạn.
 

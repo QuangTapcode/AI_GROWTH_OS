@@ -2,7 +2,7 @@
 
 [Data/flows](DATA-AND-FLOWS.md) · [Checklist W1–W4](README.md). Tất cả dữ liệu dưới đây **synthetic**, field/API là draft để consumer review; chưa phải JSON Schema đã freeze. Không dùng giá/địa chỉ hay metrics minh họa làm facts/báo cáo pilot thật. UUID được dùng để các bên viết mock/stub/test cùng nhãn; cùng record phải giữ tenant/versions.
 
-## 1. Profile và goal — Dương → Mỹ → Tiến → Thanh
+## 1. Profile và goal — Dương → Mỹ → Tiến → Thiệu
 
 Mỹ đặc tả GET/PATCH business profile; Tiến form có các fields bên dưới, không tự gán website URL khi chưa có. Thiệu Quang kiểm quyền/version; Dương chốt required/nullability. Example response:
 
@@ -43,9 +43,9 @@ POST goals draft request, numeric target chưa được người dùng chốt:
 }
 ```
 
-Các ngày là range fixture, không xác nhận kickoff thực tế. Thanh assert Save→GET giữ null baseline/target; đổi period to trước from→422 field error, Viewer POST→403; UI không hiện 0 hay %+growth khi baseline null.
+Các ngày là range fixture, không xác nhận kickoff thực tế. Thiệu assert Save→GET giữ null baseline/target; đổi period to trước from→422 field error, Viewer POST→403; UI không hiện 0 hay %+growth khi baseline null.
 
-## 2. Source → RAG — Thiệu Quang/Mỹ → Quang Quang → Huyền/Thanh
+## 2. Source → RAG — Thiệu Quang/Mỹ → Quang Quang → Huyền/Thiệu
 
 Source record ở trạng thái reviewed, fact không có giá:
 
@@ -107,7 +107,7 @@ Approved brief payload tối thiểu generation:
 }
 ```
 
-Generation dùng brief v2, source v1; user edits content v1→v2 sau generation. Approval request gửi `expected_version=2`, actor lấy từ session. Publishing job gửi approved_version2/hash không phải current_version tự đoán. Thanh run:
+Generation dùng brief v2, source v1; user edits content v1→v2 sau generation. Approval request gửi `expected_version=2`, actor lấy từ session. Publishing job gửi approved_version2/hash không phải current_version tự đoán. Thiệu run:
 
 | Thao tác | Expected result |
 | --- | --- |
@@ -118,7 +118,7 @@ Generation dùng brief v2, source v1; user edits content v1→v2 sau generation.
 | Restore bodyv1 khi currentv3 | New versionv4, historyv1/v2/v3 không sửa |
 | Worker generationv1 trở về sau human editv4 | Stale result lưu riêng/discard theo policy, không overwrite v4 |
 
-## 4. Visitor form — Mỹ → Tiến → Thanh
+## 4. Visitor form — Mỹ → Tiến → Thiệu
 
 Proposed POST `/public/v1/sites/tripc-pilot/leads`, header `Idempotency-Key: synthetic-submit-001`. Site slug là routing fixture, không phải public domain đã hoạt động.
 
@@ -155,9 +155,9 @@ Response **sau DB transaction thành công**, create201 / same-payload retry200 
 
 Không echo email/name trong analytics response/event. Same key+payload trả same submission_id/deduplicatedtrue; same key khác email/topic trả409, không tạo record khác. Consentfalse/invalidemail→422. DB failure→5xx, không submission/outcome/GA4 success event.
 
-Tiến sau persisted response mới show “Thanks — your request has been received.”; event `generate_lead` chỉ fields allowlist như content/campaign/variant/event ID theo policy, không email/name. Thanh kiểm browser network/HTML/logs và SQL row count=1 sau double-submit/retry.
+Tiến sau persisted response mới show “Thanks — your request has been received.”; event `generate_lead` chỉ fields allowlist như content/campaign/variant/event ID theo policy, không email/name. Thiệu kiểm browser network/HTML/logs và SQL row count=1 sau double-submit/retry.
 
-## 5. Report và experiment — Mỹ → AI → Tiến/Huyền → Thanh
+## 5. Report và experiment — Mỹ → AI → Tiến/Huyền → Thiệu
 
 Deterministic report input example:
 
@@ -208,4 +208,4 @@ Insight đề xuất “prioritize housing guides in next plan” phải giữ p
 }
 ```
 
-Server lấy actor từ session, transaction tạo strategyv3 + application audit insight→v2→v3. Same approval replay trả cùngv3, khôngv4; nếu strategy đãv4 trước request→409 và cần review lại. Huyền show applied/newversion only server confirms; Thanh assert one application/audit/new strategy and no unauthorized AI direct mutation.
+Server lấy actor từ session, transaction tạo strategyv3 + application audit insight→v2→v3. Same approval replay trả cùngv3, khôngv4; nếu strategy đãv4 trước request→409 và cần review lại. Huyền show applied/newversion only server confirms; Thiệu assert one application/audit/new strategy and no unauthorized AI direct mutation.

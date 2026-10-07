@@ -1,10 +1,10 @@
 # Demo ngày 5 — kế hoạch và biên bản chờ thực hiện
 
-**Trạng thái: planned, chưa diễn ra; verdict: chưa đánh giá.** Ngày làm việc 5 từ kickoff, timezone Asia/Bangkok; ngày lịch chưa chốt. Chủ trì/nghiệm thu: Quang Quang; BA Dương, FE Tiến/Huyền, BE Thiệu Quang/Mỹ, UI Trường, QA Thanh tham gia. Đây là agenda/checklist, không phải thư mời đã gửi.
+**Trạng thái: planned, chưa diễn ra; verdict: chưa đánh giá.** Ngày làm việc 5 từ kickoff, timezone Asia/Bangkok; ngày lịch chưa chốt. Chủ trì/nghiệm thu: Quang Quang; BA Dương, FE Tiến/Huyền, BE Thiệu Quang/Mỹ, UI Trường, QA Thiệu tham gia. Đây là agenda/checklist, không phải thư mời đã gửi.
 
 ## Điều kiện trước demo
 
-Rehearsal ngày 4 có staging commit/env thật, hai tenants, Owner/Editor/Viewer, một source đã duyệt và một source test revoke/delete. Public form/API đã persistence; access/properties có evidence hoặc blocker được ghi. Thanh chuẩn bị cases và evidence, Dương kiểm chứng AC; không đưa secrets/email vào screen/log/analytics.
+Rehearsal ngày 4 có staging commit/env thật, hai tenants, Owner/Editor/Viewer, một source đã duyệt và một source test revoke/delete. Public form/API đã persistence; access/properties có evidence hoặc blocker được ghi. Thiệu chuẩn bị cases và evidence, Dương kiểm chứng AC; không đưa secrets/email vào screen/log/analytics.
 
 ## Agenda và scenarios
 
@@ -15,7 +15,7 @@ Rehearsal ngày 4 có staging commit/env thật, hai tenants, Owner/Editor/Viewe
 | 3 | Knowledge/RAG | Huyền + Quang Quang | Source review/approved context/citation; delete/revoke không còn retrieval; missing facts không được bịa |
 | 4 | Public pilot blog/landing/form | Tiến + Mỹ | Chỉ published content public; validation và retry, server persist success mới báo thành công/conversion |
 | 5 | Tracking/Google readiness | Mỹ | UTM mapping và event evidence thật; property/GSC delayed/empty được ghi đúng; local mock không thay Google probe |
-| 6 | QA/design và gate decision | Thanh + Dương/Trường | Negative cases/defects/evidence; Quang Quang chốt pass/blocked/fail và owner/hạn follow-up |
+| 6 | QA/design và gate decision | Thiệu + Dương/Trường | Negative cases/defects/evidence; Quang Quang chốt pass/blocked/fail và owner/hạn follow-up |
 
 Chưa yêu cầu hoàn thành toàn bộ publish calendar M10 ở T1; CMS wiring/auth/public visibility được probe T1, publish flow đầy đủ theo mốc M10 T3. Human approval và version checks vẫn bắt buộc với mọi bài publish trong demo.
 

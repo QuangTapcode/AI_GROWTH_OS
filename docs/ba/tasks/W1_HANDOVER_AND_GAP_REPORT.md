@@ -8,7 +8,7 @@
 
 
 
-* Chủ trì: Dương (BA) | Người nhận bàn giao: Team Dev, AI \& QA (Thanh) | Phê duyệt: Quang Quang (PO)
+* Chủ trì: Dương (BA) | Người nhận bàn giao: Team Dev, AI \& QA (Thiệu) | Phê duyệt: Quang Quang (PO)
 
 
 

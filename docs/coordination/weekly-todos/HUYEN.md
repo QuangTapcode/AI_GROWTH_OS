@@ -13,10 +13,10 @@
 1. **Ngày 1–2:** cùng Tiến chốt list/detail/form/upload/common props, mock/live client interface; tạo mock fixtures có version cho thành công/loading/empty/error/forbidden, không giả fixture là live data.
 2. Knowledge UI: upload text/PDF có text/URL được phép, danh sách/detail, ingestion progress/error, source/provenance/version và review approve/revoke/delete theo role.
 3. **Ngày 3–4:** tích hợp source/knowledge API Thiệu Quang và job status Mỹ; save/reload, lỗi validation/provider, Viewer read-only. Nguồn chưa duyệt có nhãn, nguồn bị xóa không còn xuất hiện như active context.
-4. Viết component/consumer checks nền tảng cho cả inputs common thống nhất với Tiến; unit UI tests dưới vùng FE, E2E suite độc lập do Thanh quản. Nhờ Tiến ghép routes.
-5. **Ngày 5:** chạy knowledge journey live với BE/AI/Thanh, fix UI blockers; review pilot form/common states của Tiến trong PR, không tự đổi source pilot.
+4. Viết component/consumer checks nền tảng cho cả inputs common thống nhất với Tiến; unit UI tests dưới vùng FE, E2E suite độc lập do Thiệu quản. Nhờ Tiến ghép routes.
+5. **Ngày 5:** chạy knowledge journey live với BE/AI/Thiệu, fix UI blockers; review pilot form/common states của Tiến trong PR, không tự đổi source pilot.
 
-**Bàn giao:** feature `knowledge`, mocks/component tests và integration evidence. **Đạt khi:** đầy đủ state/role/source metadata, upload/review/delete dùng API thật và reload đúng; schema changes phát hiện qua consumer checks. Review: Tiến/Trường, Thiệu Quang/Mỹ, Thanh.
+**Bàn giao:** feature `knowledge`, mocks/component tests và integration evidence. **Đạt khi:** đầy đủ state/role/source metadata, upload/review/delete dùng API thật và reload đúng; schema changes phát hiện qua consumer checks. Review: Tiến/Trường, Thiệu Quang/Mỹ, Thiệu.
 
 <a id="tuan-2"></a>
 
@@ -30,9 +30,9 @@
 2. **Ngày 8:** brief create/edit/facts/source/CTA/format/destination và approve state; giữ goal/opportunity/strategy IDs. Generation bị khóa với brief chưa duyệt; strategy page nhận từ Tiến.
 3. **Ngày 9:** editor/autosave/history/version/restore/regenerate/progress và một variant; title/meta/headings/SEO warnings cơ bản. Stale version có conflict UI, không ghi đè âm thầm; restore tạo version mới.
 4. Thiếu facts/schema/job failed có thông báo và bước sửa; cancel/retry đúng capability, không hiển thị job complete nếu output chưa lưu. Dùng list/detail/form tái sử dụng để giữ scope pilot.
-5. **Ngày 10:** chuyển mock → API thật cho cả journey, phối hợp Tiến ghép route, Thanh chạy E2E; lưu consumer/component evidence và fix blockers.
+5. **Ngày 10:** chuyển mock → API thật cho cả journey, phối hợp Tiến ghép route, Thiệu chạy E2E; lưu consumer/component evidence và fix blockers.
 
-**Bàn giao:** `research`, `opportunities`, `briefs`, `content`, `variants`, SEO fields + mocks/tests. **Đạt khi:** research→strategy Tiến→brief approved→draft giữ lineage, edit/version/conflict đúng, citations/CTA hiển thị và dữ liệu reload thật. Review: Tiến/Trường, hai BE/AI, Thanh.
+**Bàn giao:** `research`, `opportunities`, `briefs`, `content`, `variants`, SEO fields + mocks/tests. **Đạt khi:** research→strategy Tiến→brief approved→draft giữ lineage, edit/version/conflict đúng, citations/CTA hiển thị và dữ liệu reload thật. Review: Tiến/Trường, hai BE/AI, Thiệu.
 
 <a id="tuan-3"></a>
 
@@ -46,9 +46,9 @@
 2. **Ngày 12:** calendar/schedule/timezone/publish URL/status, failed/unknown outcome/retry/cancel states; dùng shared approval, không tạo workflow duyệt khác trong content/community.
 3. **Ngày 13:** radar/conversation/intent/response sources/approve, manual handoff/post link; label draft/export/manual rõ, không tạo UI ngụ ý auto-post social.
 4. **Ngày 14:** test source/version/permission/missing states và chuyển sang analytics của Tiến qua đúng content/campaign refs; consumer checks khi BE sửa schemas.
-5. **Ngày 15:** E2E publish flow với Thanh/BE, hồi quy editor/knowledge và design QA, freeze M01–M13.
+5. **Ngày 15:** E2E publish flow với Thiệu/BE, hồi quy editor/knowledge và design QA, freeze M01–M13.
 
-**Bàn giao:** `seo`, `approval`, `calendar`, `community`, component/consumer tests. **Đạt khi:** đúng state transitions, stale approval không cho publish, URL/status/calendar đúng, manual link lưu thật; UI failure không báo success giả. Review: Tiến/Trường, Thiệu Quang/Mỹ, Thanh.
+**Bàn giao:** `seo`, `approval`, `calendar`, `community`, component/consumer tests. **Đạt khi:** đúng state transitions, stale approval không cho publish, URL/status/calendar đúng, manual link lưu thật; UI failure không báo success giả. Review: Tiến/Trường, Thiệu Quang/Mỹ, Thiệu.
 
 <a id="tuan-4"></a>
 
@@ -62,6 +62,6 @@
 2. **Ngày 17:** review experiment UI/consumer states với Tiến, bảo đảm result/missing sample không gây hiểu sai; viết component checks theo schema mình tiêu thụ.
 3. **Ngày 18:** learning insight/evidence/version/review/approve; chỉ sau API apply thành công mới báo strategy version mới và link đến trang Tiến. Xử lý reject/stale/concurrent approval; freeze.
 4. **Ngày 19:** hồi quy knowledge→editor→publish→report→learning, sửa UAT/usability với Trường; cập nhật mocks/UI tests/known gaps.
-5. **Ngày 20:** review final FE build và docs của Tiến, release smoke phần mình với Thanh, bàn giao source/tests và cách sử dụng content/report/learning.
+5. **Ngày 20:** review final FE build và docs của Tiến, release smoke phần mình với Thiệu, bàn giao source/tests và cách sử dụng content/report/learning.
 
-**Bàn giao:** `reports`, `learning`, final UI tests/mocks và handoff. **Đạt khi:** evidence truy được, zero/missing đúng, approve action/insight lưu thật/idempotent, version mới rõ; UAT/design review đạt. Review: Tiến/Trường, Mỹ/Thiệu Quang/AI, Thanh.
+**Bàn giao:** `reports`, `learning`, final UI tests/mocks và handoff. **Đạt khi:** evidence truy được, zero/missing đúng, approve action/insight lưu thật/idempotent, version mới rõ; UAT/design review đạt. Review: Tiến/Trường, Mỹ/Thiệu Quang/AI, Thiệu.

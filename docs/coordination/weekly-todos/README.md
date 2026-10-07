@@ -15,7 +15,7 @@ Cập nhật 05/10/2026. Đây là phân rã thực thi của [TODO gốc](../..
 | Tiến | FE shell/public website | [Bootstrap/workspace/goals/pilot](TIEN.md#tuan-1) | [Strategy/tasks, ghép routes](TIEN.md#tuan-2) | [Traffic/analytics/public pages](TIEN.md#tuan-3) | [Experiment/widget, build/release](TIEN.md#tuan-4) |
 | Huyền | FE content flows/mocks | [Knowledge, mock/test nền tảng](HUYEN.md#tuan-1) | [Research/board/brief/editor](HUYEN.md#tuan-2) | [SEO/approval/calendar/community](HUYEN.md#tuan-3) | [Report/learning, hồi quy](HUYEN.md#tuan-4) |
 | Trường | UI/UX | [Tokens, thiết kế nền tảng/pilot](TRUONG.md#tuan-1) | [Thiết kế research/content](TRUONG.md#tuan-2) | [Thiết kế publish/analytics/W4](TRUONG.md#tuan-3) | [Design QA và handoff](TRUONG.md#tuan-4) |
-| Thanh | Một Tester, hai lane | [Runner/fixtures/nền tảng/eval](THANH.md#tuan-1) | [E2E content/jobs/AI](THANH.md#tuan-2) | [Publish/analytics regression](THANH.md#tuan-3) | [UAT/eval/restore/release](THANH.md#tuan-4) |
+| Thiệu | Một Tester, hai lane | [Runner/fixtures/nền tảng/eval](THIEU.md#tuan-1) | [E2E content/jobs/AI](THIEU.md#tuan-2) | [Publish/analytics regression](THIEU.md#tuan-3) | [UAT/eval/restore/release](THIEU.md#tuan-4) |
 
 ## Cách nhận và hoàn thành việc
 
@@ -30,10 +30,10 @@ Cập nhật 05/10/2026. Đây là phân rã thực thi của [TODO gốc](../..
 Ngày 1–20 tính từ kickoff, 5 ngày làm việc/tuần; chưa gán ngày lịch. Các mốc trong bảng là mục tiêu bàn giao, không phải xác nhận tính năng đã tồn tại. Không yêu cầu kê giờ. Effort S/M/L và xử lý quá tải theo [W1-PM-02](../W1-PM-02.md); scope thay đổi phải có quyết định PM/PO, không âm thầm bỏ module/AC.
 
 - Ngày 2: field/state/schema/jobs/event baseline; ngày 5: nền tảng và RAG; ngày 10: research → draft; ngày 15: publish → analytics; ngày 18: freeze toàn bộ tính năng; ngày 19: UAT; ngày 20: go/no-go.
-- Dương/Trường bàn giao theo lô trước triển khai 1–2 ngày; không đợi thiết kế/spec hoàn chỉnh cả 16 module. Thanh kiểm từng lát khi có build, không gom kiểm thử vào ngày cuối tuần.
+- Dương/Trường bàn giao theo lô trước triển khai 1–2 ngày; không đợi thiết kế/spec hoàn chỉnh cả 16 module. Thiệu kiểm từng lát khi có build, không gom kiểm thử vào ngày cuối tuần.
 - Thiệu Quang tích hợp contracts, API router/common, migrations/policies và CI. Tiến tích hợp FE routes/common/manifest/lockfile. Mỹ quản worker package. Huyền gửi nhu cầu route/common qua Tiến. Chưa tạo folder feature không có nghĩa được sửa tùy ý vùng khác.
 - PostgreSQL/pgvector/SearXNG và Ollama đã có probe local; các app/worker/AI product vẫn cần bootstrap. Không đánh dấu task lập trình Done bằng probe hạ tầng.
-- Public URL/domain và GA4/GSC đang thiếu. Quang Quang điều phối quyền/URL; Mỹ kết nối; Tiến gắn tracking; Thanh kiểm chứng. Thiếu quyền thì ghi blocker, tiếp tục stub/local; gate live giữ mở.
+- Public URL/domain và GA4/GSC đang thiếu. Quang Quang điều phối quyền/URL; Mỹ kết nối; Tiến gắn tracking; Thiệu kiểm chứng. Thiếu quyền thì ghi blocker, tiếp tục stub/local; gate live giữ mở.
 - Human approval gắn đúng version trước publish. Conversion là **form được server lưu thành công**, không phải click CTA/account signup. Không đưa tên/email vào analytics. Experiment ít mẫu phải hiện thiếu bằng chứng.
 
 ## Mẫu cập nhật một lát công việc
@@ -41,7 +41,7 @@ Ngày 1–20 tính từ kickoff, 5 ngày làm việc/tuần; chưa gán ngày l�
 ```text
 Task: W2-FE-01 / Huyền / research và opportunities
 Trạng thái: local_verified
-Reviewer: Tiến (FE), Trường (design); Thanh kiểm AC
+Reviewer: Tiến (FE), Trường (design); Thiệu kiểm AC
 Đầu ra: feature + mock cùng contract version; loading/empty/error đủ
 Phụ thuộc còn thiếu: live research API, owner Mỹ
 Evidence: commit/build, AC IDs, lệnh kiểm tra và đường dẫn kết quả

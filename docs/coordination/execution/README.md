@@ -9,7 +9,7 @@
 | 3 / ngày 11–15 | [W3 — M09–M13](W3.md) | Duyệt đúng phiên bản → bài public có URL → UTM/form events → dashboard đối chiếu nguồn |
 | 4 / ngày 16–20 | [W4 — M14–M16, UAT/release](W4.md) | Report hai kỳ đúng số; experiment hai CTA/title; insight được duyệt tạo strategy version mới |
 
-Đọc [dữ liệu, API và luồng chuẩn dùng chung](DATA-AND-FLOWS.md) trước khi code. Mỗi tuần có 8 mục theo tên, các task con có mã để đưa lên branch/PR và theo dõi thực thi. Mã `QQ` = Quang Quang, `DU` = Dương, `TQ` = Thiệu Quang, `MY` = Mỹ, `TI` = Tiến, `HY` = Huyền, `TR` = Trường, `TH` = Thanh.
+Đọc [dữ liệu, API và luồng chuẩn dùng chung](DATA-AND-FLOWS.md) trước khi code. Mỗi tuần có 8 mục theo tên, các task con có mã để đưa lên branch/PR và theo dõi thực thi. Mã `QQ` = Quang Quang, `DU` = Dương, `TQ` = Thiệu Quang, `MY` = Mỹ, `TI` = Tiến, `HY` = Huyền, `TR` = Trường, `TH` = Thiệu.
 
 [EXAMPLES](EXAMPLES.md) có payload profile/goal/source/brief/form/report/experiment/learning và expected result cho retry, stale version, baseline thiếu/0; BA→BE→FE/AI→QA dùng chung để bắt đầu mock/stub/tests.
 
@@ -27,7 +27,7 @@ Mỗi PR ghi task con + task cha + epic AC IDs; một lát feature chính mỗi 
 
 ## Bộ dữ liệu xuyên suốt để đội không làm lệch nhau
 
-Các ID dưới đây là **nhãn fixture**, triển khai dùng UUID theo schema. Thanh/Mỹ tạo synthetic seed; dữ liệu demo thật dùng nguồn đã được PO duyệt riêng.
+Các ID dưới đây là **nhãn fixture**, triển khai dùng UUID theo schema. Thiệu/Mỹ tạo synthetic seed; dữ liệu demo thật dùng nguồn đã được PO duyệt riêng.
 
 | Nhãn | Nội dung | Dùng kiểm điều gì |
 | --- | --- | --- |
@@ -49,4 +49,4 @@ Các ID dưới đây là **nhãn fixture**, triển khai dùng UUID theo schema
 3. Editor chỉnh draft v1→v2, Owner review v2; schedule/publish đúng v2. Public `/blog/{slug}` chỉ thấy bản đã đăng.
 4. Visitor đến LANDING-A bằng UTM, thấy một CTA variant cố định; gửi form. Backend lưu một submission và outcome, FE mới báo success/gửi event hợp lệ.
 5. Metrics snapshots có nguồn/range/timezone; report so sánh hai kỳ, PO approve action mới tạo task. Learning insight được duyệt mới tạo strategy version tiếp theo.
-6. Thanh lặp negative cases: Viewer mutate, tenant B access, source revoked, stale edit/approval, publish retry, submit retry, zero/missing, ít mẫu. Failure nào cũng có expected result và evidence.
+6. Thiệu lặp negative cases: Viewer mutate, tenant B access, source revoked, stale edit/approval, publish retry, submit retry, zero/missing, ít mẫu. Failure nào cũng có expected result và evidence.

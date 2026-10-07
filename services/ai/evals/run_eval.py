@@ -5,7 +5,7 @@ From services/ai:
     python -m evals.run_eval --mode live      # local Ollama, sequential, slow
 
 Checks are deterministic assertions on the service response; they do not use an
-LLM judge. Thanh's independent review of expectations is recorded separately.
+LLM judge. Thiệu's independent review of expectations is recorded separately.
 """
 
 from __future__ import annotations
@@ -257,7 +257,7 @@ def main() -> int:
         },
         "cases": rows,
         "synthetic": True,
-        "notes": "Deterministic assertions only; not a substitute for Thanh's independent review or PO approval of the rubric.",
+        "notes": "Deterministic assertions only; not a substitute for Thiệu's independent review or PO approval of the rubric.",
     }
     out = args.out or REPORTS / f"{DATASET_VERSION}-{args.mode}.json"
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

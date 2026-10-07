@@ -12,7 +12,7 @@ FE và BE/worker dùng TypeScript, database dùng SQL; AI dùng Python. FE theo 
 ## Hệ quả
 
 - `apps/pilot`, `apps/web`, `apps/api`, `apps/worker` giữ package/lockfile TypeScript riêng theo đơn vị; `services/ai` cần `pyproject.toml` và dependency lock riêng khi bootstrap.
-- QA1 TypeScript/Playwright; QA2 Python/pytest/HTTP/SQL. Thanh đảm nhận cả hai lane nhưng môi trường/dependencies tách.
+- QA1 TypeScript/Playwright; QA2 Python/pytest/HTTP/SQL. Thiệu đảm nhận cả hai lane nhưng môi trường/dependencies tách.
 - HTTP/JSON + OpenAPI/JSON Schema là contract chung; SDK types có thể sinh riêng TypeScript/Python. Không yêu cầu Python import package source của FE/BE.
 - CI AI/QA2 dùng Python lint/type checks/pytest/evals; CI FE/BE dùng TypeScript lint/typecheck/tests/build. Hiện chưa có manifest/CI/test runners.
 

@@ -60,13 +60,13 @@ Schema migration cũng theo cách này: thêm nullable field/column trước, ba
 | --- | --- | --- |
 | FE | Lint, typecheck, UI tests, build, contract consumer tests | FE reviewer được chỉ định; UI/UX/QA1 khi phù hợp |
 | BE/worker/DB | Lint/typecheck, API/job tests, tenant/RLS, migration | BE reviewer được chỉ định, QA2; AI/FE cho boundary |
-| AI Python | Python lint/typing/pytest, schema/fake tests, frozen eval | Thanh kiểm chứng, BE review interface, Dương review facts |
+| AI Python | Python lint/typing/pytest, schema/fake tests, frozen eval | Thiệu kiểm chứng, BE review interface, Dương review facts |
 | Contract | OpenAPI/schema validate, breaking diff, examples + consumer checks | BE + mọi consumer bị ảnh hưởng |
 | Design | Specs/tokens validate và FE review | UI/UX + FE |
 | BA | Markdown links, traceability và AC review | PO/QA + owner kỹ thuật |
-| QA | Playwright/TypeScript lane 1; pytest/Python lane 2; suite config, smoke, evidence | Service owner + Dương; Thanh không tự tạo reviewer thứ hai |
+| QA | Playwright/TypeScript lane 1; pytest/Python lane 2; suite config, smoke, evidence | Service owner + Dương; Thiệu không tự tạo reviewer thứ hai |
 
-Tiến/Huyền peer-review FE; Thiệu Quang/Mỹ peer-review BE. Quang Quang kiêm AI/PM/PO nhưng kết quả AI cần Thanh kiểm chứng, BE review interface và Dương review facts/AC. Phân công theo [TEAM](docs/coordination/TEAM.md); review chéo không tự tăng capacity.
+Tiến/Huyền peer-review FE; Thiệu Quang/Mỹ peer-review BE. Quang Quang kiêm AI/PM/PO nhưng kết quả AI cần Thiệu kiểm chứng, BE review interface và Dương review facts/AC. Phân công theo [TEAM](docs/coordination/TEAM.md); review chéo không tự tăng capacity.
 
 CI dùng path filters để chạy nhanh, nhưng thay đổi contract phải chạy checks của mọi consumer; source change có ảnh hưởng boundary phải chạy integration subset. Trước merge checks phải chạy trên trạng thái đã kết hợp với `main` mới nhất; dùng merge queue nếu Git host hỗ trợ, nếu không thì đầu mối tuần tự merge và revalidate PR còn lại.
 
