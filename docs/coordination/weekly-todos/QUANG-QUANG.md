@@ -69,6 +69,8 @@
 
 **Task gốc:** W2-PM-01/02, W2-AI-01/02/03. Phụ thuộc: SearXNG adapter/jobs của Mỹ, rubric/AC của Dương, source/goal/strategy/brief/content contracts của Thiệu Quang; dùng frozen fixtures khi live chưa có.
 
+**Điều kiện trước khi vào W2:** W1 run/RAG contract và 30-case dataset/rubric phải có version; Mỹ có research/queue contract với URL safety và failure states; Dương chốt M04–M09 AC/rubric; Thiệu Quang freeze opportunity/strategy/brief/content schemas. Thiếu live dependency chỉ được bắt đầu bằng fixture có nhãn, chưa được đóng gate.
+
 1. **Ngày 6–7:** research từ một provider đã chọn và URL được phép, dedup kết quả, ghi URL/timestamp/evidence. Phân loại insight và tính opportunity score theo rubric; lưu từng thành phần/rationale. Không sinh search volume khi không có nguồn.
 2. **Ngày 8:** strategy 30 ngày có goal/KPI, owner, effort, deadline, budget; trả proposal để con người duyệt. Brief từ approved facts/brand/source có CTA, destination/format và giá trị riêng; giữ IDs nối goal → opportunity → strategy → brief.
 3. **Ngày 9:** article/FAQ/meta/social draft và một variant. Kiểm JSON/facts/citations/brand trước trả output; thiếu facts gắn cờ. SEO title/meta/headings bắt đầu bằng rule kiểm tra được rồi mới gợi ý LLM. Không thêm tạo ảnh/video.
@@ -85,6 +87,8 @@
 
 **Task gốc:** W3-PM-01/02, W3-AI-01/02/03. Phụ thuộc: SEO page/audit của Mỹ, approval của Thiệu Quang, metrics/snapshots có source và BA rules; title/meta đã có từ tuần 2.
 
+**Điều kiện trước khi vào W3:** W2 journey và QA verdict đã pass; M01–M09 contracts/versions đã freeze; Mỹ có public/CMS, tracking và metric snapshot interfaces; Thiệu Quang có approval/publish/audit boundary; Dương chốt SEO, local facts, UTM/GA4/GSC rules. Public URL hoặc Google chưa có thì giữ blocker và owner, không dùng mock để pass live gate.
+
 1. **Ngày 11–12:** keyword cluster/link/local-page/refresh suggestions trên tập URL giới hạn. Local draft cần dữ liệu riêng được duyệt; chưa có metrics thì refresh ghi thiếu dữ liệu. Output là proposal/version, không tự ghi đè hay publish.
 2. Format/channel check dùng cùng quy trình duyệt M10. Community: phân loại intent, chấm ưu tiên và tạo response có nguồn; người duyệt rồi handoff thủ công. Không tự crawl nhóm kín hoặc đăng community tự động.
 3. **Ngày 13–14:** nhận metric snapshots chuẩn hóa theo property/range/timezone/unit; thử analyst/learning trên fixture có nhãn synthetic. Chuẩn bị cases baseline 0/missing, thiếu mẫu, evidence mâu thuẫn và learning chưa được duyệt.
@@ -100,6 +104,8 @@
 ## Tuần 4 — Ngày 16–20
 
 **Task gốc:** W4-PM-01/02, W4-AI-01/02/03; điều phối W4-GATE-01/02/03/04. Phụ thuộc: snapshots/report/experiment/learning APIs của Mỹ, approved action/strategy update của Thiệu Quang; Thiệu/Dương cung cấp eval/UAT verdict.
+
+**Điều kiện trước khi vào W4:** W3 M01–M13 đã freeze và có publish/tracking/metric evidence hoặc blocker chính thức; Mỹ cung cấp immutable report/experiment/learning inputs; Thiệu Quang freeze approve→task/strategy transactions; Dương chốt formulas/UAT; Thiệu có frozen M15–M16 eval, critical fixtures, restore/rollback và release smoke checklist.
 
 1. **Ngày 16:** Growth Brief hai kỳ; dùng số học đã tính xác định trước diễn đạt. Gắn nhận xét/action với source/metric/content; baseline 0 và missing ghi đúng giới hạn, actions vẫn chờ duyệt.
 2. **Ngày 17:** đề xuất hypothesis/title hoặc CTA hai variants cho một trang pilot, metric là form lưu thành công; giải thích kết quả theo evidence, thiếu mẫu không kết luận winner.

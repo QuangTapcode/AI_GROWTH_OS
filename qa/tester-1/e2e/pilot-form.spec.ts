@@ -5,7 +5,7 @@ test.describe('M13: Luồng thu thập Lead Pilot Form', () => {
 
   test('Form báo thành công KHI VÀ CHỈ KHI Server xác nhận 200 OK', async ({ page }) => {
     const pilotPage = new PilotFormPage(page);
-    
+
     // Tạm comment lệnh goto chờ UI
     // await pilotPage.goto();
     // await pilotPage.fillForm('Nguyễn Văn A', 'a@company.com', 'Tech Corp');
@@ -16,7 +16,7 @@ test.describe('M13: Luồng thu thập Lead Pilot Form', () => {
     });
 
     // await pilotPage.submit();
-    
+
     // Yêu cầu: Spinner phải xuất hiện chờ đợi, sau đó thông báo Success mới hiện ra
     // await expect(page.locator(pilotPage.loadingSpinner)).toBeVisible();
     // await expect(page.locator(pilotPage.successMessage)).toBeVisible();
@@ -24,7 +24,7 @@ test.describe('M13: Luồng thu thập Lead Pilot Form', () => {
 
   test('Form hiển thị lỗi khi Server sập (500) hoặc mất mạng', async ({ page }) => {
     const pilotPage = new PilotFormPage(page);
-    
+
     // await pilotPage.goto();
     // await pilotPage.fillForm('Trần B', 'b@company.com', 'Fail Corp');
 
@@ -34,7 +34,7 @@ test.describe('M13: Luồng thu thập Lead Pilot Form', () => {
     });
 
     // await pilotPage.submit();
-    
+
     // Yêu cầu: Không được phép hiển thị Success. Phải báo lỗi cho user.
     // await expect(page.locator(pilotPage.successMessage)).not.toBeVisible();
     // await expect(page.locator(pilotPage.errorMessage)).toBeVisible();
