@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit",
     "test": "vitest run",
+    "test:workspaces": "tsx --env-file=.env scripts/test-workspaces.ts",
+    "test:sources": "tsx --env-file=.env scripts/test-sources.ts",
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts"
   },
   "dependencies": {
