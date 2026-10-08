@@ -134,6 +134,18 @@ CREATE TABLE IF NOT EXISTS source_facts (
 
 CREATE INDEX IF NOT EXISTS idx_facts_workspace ON source_facts(workspace_id);
 
+-- W1-TQ-08: RAG Provenance, Model Prefixes & Fact Validity
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS license VARCHAR(100);
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS attribution TEXT;
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS upstream_version VARCHAR(50);
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS retrieved_at TIMESTAMPTZ;
+
+ALTER TABLE source_chunks ADD COLUMN IF NOT EXISTS embedding_model VARCHAR(50) DEFAULT 'embeddinggemma';
+ALTER TABLE source_chunks ADD COLUMN IF NOT EXISTS embedding_input_format VARCHAR(50) DEFAULT 'embeddinggemma-prefix-v1';
+
+ALTER TABLE source_facts ADD COLUMN IF NOT EXISTS valid_until TIMESTAMPTZ;
+
 -- ============================================================================
 -- PHẦN 3: BRAND PROFILE, SẢN PHẨM, KHÁCH HÀNG & ĐỊA ĐIỂM (BỔ SUNG TỪ MỸ)
 -- ============================================================================

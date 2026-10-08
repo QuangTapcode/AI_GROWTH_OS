@@ -7,6 +7,8 @@ export interface AuthUser {
   name: string;
 }
 
+export type AuthenticatedUser = AuthUser;
+
 /**
  * Trích xuất Bearer token từ Header và giải mã thông tin User.
  * Trong môi trường Local Dev / Pilot Tuần 1:

@@ -69,3 +69,19 @@ export function requireRole(context: TenantContext, allowedRoles: Role[]): void 
     );
   }
 }
+
+/**
+ * Helper kiểm tra quyền truy cập và vai trò của user trong workspace
+ */
+export async function requireWorkspaceAccess(
+  workspaceId: string,
+  userOrId: AuthUser | string,
+  allowedRoles?: Role[]
+): Promise<TenantContext> {
+  const user = typeof userOrId === "string" ? { id: userOrId, email: "", name: "" } : userOrId;
+  const ctx = await resolveTenantContext(user, workspaceId);
+  if (allowedRoles && allowedRoles.length > 0) {
+    requireRole(ctx, allowedRoles);
+  }
+  return ctx;
+}
