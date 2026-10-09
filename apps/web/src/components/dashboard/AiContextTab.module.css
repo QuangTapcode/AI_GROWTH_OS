@@ -1,0 +1,777 @@
+/* ── AI Context Tab Styles ── */
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Generic Card Base ── */
+.card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.cardTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cardIcon {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #2563eb;
+}
+
+.cardTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.cardActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: transparent !important;
+  border: none !important;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb !important;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.cardActionBtn:hover {
+  background-color: #eff6ff !important;
+  text-decoration: underline;
+}
+
+.cardEditBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: transparent !important;
+  border: none !important;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #0f172a !important;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.cardEditBtn:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* ── 1. Top Header Card ── */
+.headerCard {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.headerIconCircle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+}
+
+.headerTitle {
+  font-size: 17.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.headerSubtitle {
+  font-size: 13.5px;
+  color: #64748b;
+  margin: 4px 0 0;
+}
+
+/* ── 2. Business Context Card ── */
+.businessGrid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 32px;
+}
+
+.metaCol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metaLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.metaValueBold {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.calloutBox {
+  background-color: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+/* ── 3. Mid Grid (Products & services + Target audience) ── */
+.twoColGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.multiActionWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.itemCard {
+  background-color: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.itemCard:last-child {
+  margin-bottom: 0;
+}
+
+.itemTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.itemBadgeProduct {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.itemBadgeService {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.itemPrice {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.itemTitle {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.itemDesc {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.uspBlock {
+  margin-top: 12px;
+}
+
+.uspLabel {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.pillsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.uspPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 12px;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #2563eb;
+}
+
+.targetPersonaLine {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.targetPersonaVal {
+  font-weight: 600;
+  color: #0f172a;
+  margin-left: 4px;
+}
+
+/* Target Audience Details */
+.audienceTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.demographicsLine {
+  font-size: 12.5px;
+  color: #64748b;
+  margin-bottom: 14px;
+}
+
+.demographicsVal {
+  font-weight: 600;
+  color: #0f172a;
+  margin-left: 4px;
+}
+
+.audienceSectionBox {
+  background-color: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.audienceSectionBox:last-child {
+  margin-bottom: 0;
+}
+
+.audienceSectionLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.painPointPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+}
+
+.interestPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #2563eb;
+}
+
+/* ── 4. Bottom 2-Column Section (Left Stack ~66% + Right AI Rules ~34%) ── */
+.bottomSectionGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  align-items: stretch;
+}
+
+.leftColumnStack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.locationsCompetitorsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+/* Locations Card */
+.locationItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.locationItem:last-child {
+  margin-bottom: 0;
+}
+
+.locationItemSecondary {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  background-color: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 8px;
+}
+
+.locationLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.locationIcon {
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+}
+
+.locationIconGray {
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+}
+
+.primaryBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: #2563eb;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Competitors Card */
+.competitorItem {
+  background-color: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.competitorItem:last-child {
+  margin-bottom: 0;
+}
+
+.competitorTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.competitorName {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.competitorUrl {
+  font-size: 12px;
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.competitorUrl:hover {
+  text-decoration: underline;
+}
+
+.competitorDesc {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* Brand Context Card */
+.brandContextGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.forbiddenPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #e11d48;
+}
+
+/* ── Right Section: AI rules Card ── */
+.aiRulesCard {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+}
+
+.aiRulesHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.aiRulesBadgeIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: #3b82f6;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.25);
+}
+
+.aiRulesHeaderText {
+  display: flex;
+  flex-direction: column;
+}
+
+.aiRulesTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.aiRulesSubtitle {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.rulesGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  flex: 1;
+}
+
+.ruleBox {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.ruleBox:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.ruleText {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.ruleIconRed {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.8px solid #ef4444;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.ruleIconBlue {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.8px solid #2563eb;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+/* ── Modal Dialog ── */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modalContent {
+  background-color: #ffffff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modalHeader {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modalTitle {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.modalCloseBtn {
+  background: transparent !important;
+  border: none !important;
+  color: #94a3b8 !important;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.modalCloseBtn:hover {
+  color: #0f172a !important;
+  background-color: #f1f5f9 !important;
+}
+
+.modalBody {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.formInput,
+.formTextarea {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 13.5px;
+  color: #0f172a;
+  outline: none;
+  background-color: #ffffff;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.formInput:focus,
+.formTextarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.modalFooter {
+  padding: 16px 24px;
+  background-color: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.cancelBtn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0 !important;
+  background-color: #ffffff !important;
+  color: #475569 !important;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.cancelBtn:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.submitBtn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none !important;
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.submitBtn:hover {
+  background-color: #1d4ed8 !important;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1080px) {
+  .bottomSectionGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .twoColGrid,
+  .locationsCompetitorsGrid,
+  .brandContextGrid,
+  .businessGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .headerCard {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .cardHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .rulesGrid {
+    grid-template-columns: 1fr;
+  }
+}

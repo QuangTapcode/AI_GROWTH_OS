@@ -1,0 +1,516 @@
+.sidebar {
+  width: 250px;
+  background-color: #f0f4f9;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden;
+  user-select: none;
+  flex-shrink: 0;
+  z-index: 30;
+}
+
+.sidebarCollapsed {
+  width: 72px;
+}
+
+/* ── Top Header ── */
+.topHeader {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #f0f4f9;
+}
+
+.logoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logoBadge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: #2563eb;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  flex-shrink: 0;
+}
+
+.logoTitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.collapseToggleBtn {
+  background: transparent;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.collapseToggleBtn:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+/* ── Workspace Box & Dropdown ── */
+.workspaceWrapper {
+  position: relative;
+  margin: 12px 12px 8px;
+}
+
+.workspaceBox {
+  padding: 8px 12px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.workspaceBox:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.08);
+}
+
+.workspaceInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.workspaceName {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+.workspaceType {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.workspaceSwitchBtn {
+  background: transparent;
+  border: none;
+  color: #2563eb;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s;
+}
+
+.workspaceSwitchBtn:hover {
+  background-color: #eff6ff;
+}
+
+/* Dropdown Menu */
+.workspaceDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 250px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  z-index: 60;
+  overflow: hidden;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspaceDropdownHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.wsCountBadge {
+  background-color: #f1f5f9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.workspaceList {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.workspaceItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.workspaceItem:hover {
+  background-color: #f8fafc;
+}
+
+.workspaceItemActive {
+  background-color: #eff6ff !important;
+}
+
+.wsItemAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.workspaceItemActive .wsItemAvatar {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.wsItemDetails {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.wsItemName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspaceItemActive .wsItemName {
+  color: #1d4ed8;
+}
+
+.wsItemSub {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wsCheckIcon {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.workspaceDropdownFooter {
+  padding: 8px 12px;
+  border-top: 1px solid #f1f5f9;
+  background-color: #f8fafc;
+}
+
+.addWorkspaceBtn {
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.addWorkspaceBtn:hover {
+  background-color: #ffffff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+.workspaceCollapsedBadge {
+  margin: 14px auto 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.workspaceCollapsedBadge:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+/* ── Nav Menu ── */
+.navMenu {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+}
+
+.navItem:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.navItemActive {
+  background-color: transparent;
+  color: #0f172a;
+}
+
+.itemIcon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.itemLabel {
+  white-space: nowrap;
+}
+
+/* ── SECTION: STRATEGY & GOALS (White Card in Screenshot) ── */
+.strategyCardActive {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.strategyActiveTitle {
+  color: #2563eb !important;
+}
+
+/* ── Accordion Section Headers ── */
+.sectionGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+}
+
+.sectionHeader:hover {
+  background-color: #f1f5f9;
+}
+
+.sectionTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionTitle {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.chevron {
+  color: #64748b;
+  transition: transform 0.2s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.subList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 28px;
+  padding-right: 6px;
+  padding-top: 2px;
+  padding-bottom: 6px;
+}
+
+.subItem {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.subItem:hover {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.subItemActivePill {
+  background-color: #f0f7ff !important;
+  color: #2563eb !important;
+  font-weight: 600 !important;
+  border-radius: 8px;
+}
+
+/* ── Bottom User Profile Card ── */
+.bottomCard {
+  padding: 12px 14px;
+  background-color: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.userProfile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.userName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.userRole {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.logoutBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background-color: #eff6ff;
+  border: 1px solid #dbeafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.logoutBtn:hover {
+  background-color: #fee2e2;
+  border-color: #fecaca;
+}
+
+.logoutBtn:hover svg {
+  stroke: #ef4444;
+}
