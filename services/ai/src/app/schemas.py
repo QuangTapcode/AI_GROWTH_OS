@@ -98,6 +98,18 @@ class ProviderOutput(BaseModel):
     warnings: list[str] = Field(default_factory=list, max_length=20)
 
 
+class RunArtifact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_id: UUID
+    workspace_id: UUID
+    version: int = Field(ge=1)
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    context_snapshot_id: UUID | None = None
+    role: str | None = None
+    storage: Literal["ai_run_store"] = "ai_run_store"
+
+
 class AIResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -112,6 +124,7 @@ class AIResult(BaseModel):
     prompt_version: str = PROMPT_VERSION
     input_version: int
     trace_id: str
+    artifact: RunArtifact | None = None
 
 
 RunState = Literal["queued", "running", "completed", "failed"]
@@ -379,3 +392,5 @@ class GrowthMapPayload(BaseModel):
     business_profile: BusinessProfile
     approved_facts: list[ApprovedFact] = Field(default_factory=list, max_length=200)
     goal_context: GoalContext | None = None
+    # When present, verified facts are derived from this snapshot, not a second fact list.
+    snapshot: KnowledgeSnapshot | None = None

@@ -24,4 +24,4 @@ B01 đã resolved cho local dependencies; B02–B05 **partial** từ 06/10 (URL/
 
 Blocker quá một ngày: owner nêu tác động và bước tiếp theo, Quang Quang ghi quyết định giảm độ sâu/bổ sung năng lực/đổi mốc. Không đổi từ local/mocked thành integrated để tránh trễ. Cross-tenant/approval/source/duplicate conversion/publish hoặc numeric error là critical, chặn gate/release.
 
-[W1-PM-03](W1-PM-03.md) · [DEMO-W1](DEMO-W1.md) · [TODO](../../TODO.md).
+[W1-PM-03](W1-PM-03.md) · [DEMO-W1](sprint-3-weeks/README.md) · [TODO](../../TODO.md).

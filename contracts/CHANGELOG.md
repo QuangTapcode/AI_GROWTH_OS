@@ -27,3 +27,7 @@
 - Tạo catalog public API, AI run boundary, state machines và quy tắc dữ liệu.
 - Tạo examples synthetic cho content, job và missing/zero analytics.
 - Chưa có schema/OpenAPI, validator hay consumer tests. Chưa phát hành contract 1.0.0.
+
+## 14/10/2026 — CR-002 implementation candidate, awaiting review
+
+AI internal: six-role schema bundle/registry; typed research.run input; optional AIResult.artifact; optional snapshot for growth_map.suggest. Public OpenAPI unchanged. Consumer migration and version assessment in [CR-002](changes/CR-002-six-agent-pipelines.md).
