@@ -22,17 +22,18 @@ export interface IntegrationConnectionStatus {
   capabilities: Array<{ capability: string; status: 'not_connected' }>;
 }
 
-/** Stub connection status (W1: mọi workspace chưa có credentials Google). */
+/** Stub connection status (W1: mọi workspace chưa có credentials). */
 export function getConnectionStatus(workspaceId: string, provider: IntegrationProvider): IntegrationConnectionStatus {
+  const rows = matrixFor(provider);
   return {
     provider,
     workspace_id: workspaceId,
     status: 'not_connected',
-    missing_reason: 'GOOGLE_CREDENTIALS_NOT_CONFIGURED',
+    missing_reason: rows[0]?.default_missing_reason ?? 'INTEGRATION_NOT_CONNECTED',
     property_ref: null,
     scopes: [],
     credential_ref: null,
-    capabilities: matrixFor(provider).map((row) => ({
+    capabilities: rows.map((row) => ({
       capability: row.capability,
       status: row.default_status,
     })),
@@ -59,7 +60,7 @@ export function probeOwnership(
     site_or_property: siteOrProperty,
     status: 'not_connected',
     checked: false,
-    missing_reason: provider === 'gsc' ? 'PROPERTY_NOT_VERIFIED' : 'PROBE_REQUIRES_CONNECTED_ACCOUNT',
+    missing_reason: matrixFor(provider)[0]?.default_missing_reason ?? 'PROBE_REQUIRES_CONNECTED_ACCOUNT',
     verified: null,
   };
 }
@@ -112,4 +113,55 @@ export function runSync(provider: IntegrationProvider): SyncJobResult {
 /** Danh sách matrix đầy đủ (support matrix evidence cho PM/QA). */
 export function supportMatrix(): typeof INTEGRATION_MATRIX {
   return INTEGRATION_MATRIX;
+}
+
+/**
+ * MY-02 — quyết định social live/manual theo capability matrix.
+ * Publish live chỉ khi provider đã connected VÀ quyền publish được probe
+ * verified; thiếu → manual pack có nhãn, không pretend live (sprint README D3).
+ */
+export type ChannelMode = 'live' | 'manual';
+
+export interface ChannelDecision {
+  channel: 'website' | 'facebook' | 'instagram';
+  provider: IntegrationProvider;
+  mode: ChannelMode;
+  /** Nhãn hiển thị trên social pack khi mode=manual */
+  label: string;
+  missing_reason: MissingReason | null;
+}
+
+export function socialChannelDecision(input: {
+  /** từ getConnectionStatus().status khi có credentials thật */
+  connected: Partial<Record<IntegrationProvider, boolean>>;
+  /** probe kết quả publish capability đã verified hay chưa */
+  verified: Partial<Record<IntegrationProvider, boolean>>;
+}): ChannelDecision[] {
+  const decide = (
+    channel: ChannelDecision['channel'],
+    provider: IntegrationProvider,
+    publishCapability: (typeof INTEGRATION_MATRIX)[number]['capability'],
+    missing: MissingReason,
+  ): ChannelDecision => {
+    const isConnected = input.connected[provider] === true;
+    const isVerified = input.verified[provider] === true;
+    const row = INTEGRATION_MATRIX.find(
+      (r) => r.provider === provider && r.capability === publishCapability,
+    );
+    if (isConnected && isVerified) {
+      return { channel, provider, mode: 'live', label: 'live', missing_reason: null };
+    }
+    return {
+      channel,
+      provider,
+      mode: 'manual',
+      label: `manual_${publishCapability}`,
+      missing_reason: isConnected ? (row?.default_missing_reason ?? missing) : missing,
+    };
+  };
+  return [
+    decide('website', 'website_cms', 'publish_cms_post', 'CMS_NOT_PUBLISHED'),
+    decide('facebook', 'facebook_page', 'publish_page_post', 'FACEBOOK_PAGE_PERMISSION_MISSING'),
+    decide('instagram', 'instagram_business', 'publish_ig_media', 'INSTAGRAM_ACCOUNT_NOT_LINKED'),
+  ];
 }
