@@ -22,6 +22,10 @@ import { PgBossQueue, type QueueTransport } from './adapters/QueueAdapter';
 import { FakeAiAdapter, type AiAdapter } from './adapters/AiAdapter';
 import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { FileResultStorage } from './adapters/StorageAdapter';
+import { DbWorkflowStore } from './workflow';
+
+/** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
+let workflowStore: DbWorkflowStore | null = null;
 
 /** Chọn AI adapter theo config: fake (mặc định) | live (HTTP CR-001). */
 function buildAiAdapter(cfg: ReturnType<typeof env>): AiAdapter {
@@ -39,6 +43,15 @@ function buildAiAdapter(cfg: ReturnType<typeof env>): AiAdapter {
 
 async function main(): Promise<void> {
   const cfg = env();
+  // Wire DbWorkflowStore (MY-03): verify Postgres connection at startup.
+  workflowStore = new DbWorkflowStore();
+  try {
+    await workflowStore.getWorkflow('__worker_probe__');
+    console.log('[worker] DbWorkflowStore connected OK');
+  } catch (err) {
+    console.warn('[worker] DbWorkflowStore not available:', err);
+  }
+
   const store = new FileJobStore(cfg.WORKER_STATE_DIR);
   const storage = new FileResultStorage(cfg.WORKER_STATE_DIR);
   const runner = new JobRunner({
@@ -105,6 +118,7 @@ async function main(): Promise<void> {
 }
 
 export { submitJob } from './jobs';
+export { workflowStore };
 
 if (require.main === module) {
   main().catch((err) => {
