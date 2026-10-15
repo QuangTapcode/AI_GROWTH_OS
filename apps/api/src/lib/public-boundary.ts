@@ -27,6 +27,14 @@ const FORBIDDEN_PUBLIC_KEYS = new Set([
   "members",
   "oauth_token_encrypted",
   "safety_rules",
+  "preview_token",
+  "evidence",
+  "review_notes",
+  "context_snapshot_id",
+  "target_hash",
+  "invalidated_reason",
+  "invalidated_at",
+  "task_id",
 ]);
 
 /**

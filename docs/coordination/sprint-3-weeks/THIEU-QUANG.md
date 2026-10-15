@@ -36,7 +36,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Duyệt/reject có actor/version/hash; sửa/thu hồi invalidate approval; public read chỉ published snapshot và field allowlist.
 - **Phụ thuộc:** TQ-03, DU-04.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0 (24 routes), tsc --noEmit pass, vitest 46/46 pass · Evidence: apps/api/src/modules/approvals, apps/api/src/lib/public-boundary.ts, apps/api/tests/approvals/approvalsOcc.test.ts · Blocker: không.
 
 ### [ ] TQ-05 · D8 · M · Persistence lead và phân quyền
 
