@@ -4,6 +4,18 @@
 
 Growth Lead `opportunity.score`, `strategy.generate`, `brief.generate` dùng typed payload và campaign/task proposal `growth-lead-v1`; learning vẫn bootstrap. Schema bundle, backend plan validator và mock transaction/outbox có evidence local. Chưa mount HTTP route, chưa nối PostgreSQL/broker; public OpenAPI giữ nguyên. Consumer migration/version review trong [CR-003](changes/CR-003-growth-lead-plans.md).
 
+## 1.1.0 — 15/10/2026 — First Slice Freeze: Task, Artifact, Approval (TQ-01)
+
+- Đóng băng OpenAPI 3.1.0 contract (`contracts/schemas/openapi.json`) phiên bản 1.1.0:
+  - Workflow tasks: `/v1/workspaces/{workspace_id}/tasks`, `/v1/workspaces/{workspace_id}/tasks/{task_id}` (`WorkflowTask`, `WorkflowTaskCreate`).
+  - Content/Evidence artifacts: `/v1/workspaces/{workspace_id}/artifacts`, `/v1/workspaces/{workspace_id}/artifacts/{artifact_id}` (`Artifact`, `EvidenceRef`).
+  - Human review approvals: `/v1/workspaces/{workspace_id}/approvals`, `/v1/workspaces/{workspace_id}/approvals/{approval_id}/review` (`ApprovalRecord`, `ApprovalReviewRequest`).
+- Bổ sung synthetic canonical examples:
+  - `contracts/examples/task-run.json`: cấu trúc task chạy pipeline research với dependency và snapshot.
+  - `contracts/examples/artifact-evidence.json`: cấu trúc artifact chứa SHA-256 content hash và mảng evidence refs.
+  - `contracts/examples/approval-decision.json`: bản ghi phê duyệt với actor, target version/hash, và OCC audit trail.
+- Khớp nối hoàn toàn với AI internal 6-role contracts (`CR-002`) cho giai đoạn TQ-01 -> TQ-04 / MY-01.
+
 ## 1.0.0 — 06/10/2026 — Baseline Freeze W1
 
 - Đóng băng OpenAPI 3.1.0 contract (`contracts/schemas/openapi.json`) cho các endpoint tuần 1:

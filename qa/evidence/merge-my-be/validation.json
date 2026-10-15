@@ -1,0 +1,34 @@
+{
+  "client_date": "2026-10-16",
+  "target_branch": "main",
+  "source_ref": "origin/my_be",
+  "source_commit": "7005ab9",
+  "qq04_saved_commit": "e7d9690",
+  "scope": "staged merge tree plus documented compatibility fixes",
+  "tests": {
+    "ai": { "passed": 120, "failed": 0 },
+    "api_unit": { "passed": 67, "failed": 0 },
+    "worker_unit_and_recovery": { "passed": 48, "failed": 0 },
+    "postgres_integration": { "passed": 40, "failed": 0 },
+    "production_api_http_bootstrap": { "passed": 3, "failed": 0 },
+    "total_unique_tests": 278
+  },
+  "checks": {
+    "api_typecheck": "passed after next build refreshed stale generated types",
+    "api_build": "passed",
+    "worker_typecheck": "passed",
+    "worker_build": "passed",
+    "qq_suite_typecheck": "passed",
+    "worker_ai_http_smoke_typecheck": "passed",
+    "worker_ai_http_smoke": "passed with fake provider over real HTTP",
+    "postgres_migrations": ["001_initial_core_schema.sql", "002_workflow_content_ledger.sql"],
+    "postgres_cleanup": "passed",
+    "api_standalone_lint": "existing blocker: ESLint 8 does not export eslint/config"
+  },
+  "warnings": [
+    "API build readiness probe uses unconfigured fallback PostgreSQL password; integration credentials configured independently without persisting secrets",
+    "Vite CJS API deprecation",
+    "Starlette TestClient httpx deprecation"
+  ],
+  "not_claimed": ["QQ-04 PostgreSQL PlanRepository/outbox wiring", "live model quality", "production broker delivery", "reviewer acceptance", "remote push"]
+}

@@ -84,7 +84,7 @@ try {
       await connection.connect();
       await connection.query("BEGIN");
       const migrationDir = path.join(repo, "database/migrations");
-      const files = (await readdir(migrationDir)).filter(f => f.endsWith(".sql")).sort();
+      const files = (await readdir(migrationDir)).filter(f => f.endsWith(".sql") && !f.endsWith(".down.sql")).sort();
       if (files.length === 0) throw new Error("No committed SQL migrations found.");
       for (const file of files) await connection.query(await readFile(path.join(migrationDir, file), "utf8"));
       await connection.query("COMMIT");

@@ -1,0 +1,63 @@
+{
+  "synthetic": true,
+  "transport": "worker HttpAiAdapter -> real Uvicorn HTTP -> backend mock",
+  "model": "fake/w1-deterministic-1",
+  "storage": "temporary AI SQLite + in-memory business repository",
+  "checks": [
+    "research_typed_payload",
+    "growth_lead_typed_payload",
+    "prompt_and_synthetic_pins",
+    "ai_retry_same_artifact",
+    "backend_201_then_200",
+    "seo_only_outbox",
+    "social_dependency_blocked",
+    "foreign_tenant_rejected"
+  ],
+  "plan_artifact": {
+    "artifact_id": "5a049595-7beb-5329-9d13-f869fe79155d",
+    "workspace_id": "00000000-0000-4000-8000-000000000001",
+    "version": 1,
+    "content_hash": "91126a0ae4c612b0dbc2d9d44bc3676bef20971fff6bd83b88c5a4622fd9090b",
+    "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+    "role": "growth_lead",
+    "storage": "ai_run_store"
+  },
+  "accepted": {
+    "status": 201,
+    "body": {
+      "plan_id": "34a07672-b63f-5da8-aede-401e72987cc7",
+      "status": "accepted",
+      "synthetic": true,
+      "deduplicated": false,
+      "task_states": {
+        "592ab81f-ce98-519c-83ba-0a41d34a41ce": "ready",
+        "267ddddc-f2db-5473-bed7-1a81f8e44760": "blocked"
+      },
+      "outbox": [
+        {
+          "task_id": "592ab81f-ce98-519c-83ba-0a41d34a41ce",
+          "operation": "seo.local_draft"
+        }
+      ]
+    }
+  },
+  "duplicate": {
+    "status": 200,
+    "body": {
+      "plan_id": "34a07672-b63f-5da8-aede-401e72987cc7",
+      "status": "accepted",
+      "synthetic": true,
+      "deduplicated": true,
+      "task_states": {
+        "592ab81f-ce98-519c-83ba-0a41d34a41ce": "ready",
+        "267ddddc-f2db-5473-bed7-1a81f8e44760": "blocked"
+      },
+      "outbox": [
+        {
+          "task_id": "592ab81f-ce98-519c-83ba-0a41d34a41ce",
+          "operation": "seo.local_draft"
+        }
+      ]
+    }
+  }
+}

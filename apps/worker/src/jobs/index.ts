@@ -15,5 +15,5 @@ export {
   type OperationHandler,
   type JobRunOutcome,
 } from './JobRunner';
-export { buildOperationHandlers, type OperationHandlers } from './operations';
+export { buildOperationHandlers, WORKER_TO_AI_OPERATION, NON_AI_OPERATIONS, type OperationHandlers } from './operations';
 export { submitJob, queueNameForOperation, type SubmitJobInput } from './submit';

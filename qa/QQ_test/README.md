@@ -2,6 +2,8 @@
 
 Bộ này chạy lại các kịch bản đã kiểm tra khi tích hợp `thieuquang_be`/`my_be` vào `Quang-Quang`: database, workspace/member, phân quyền tenant, vòng đời source, lead, public content, integration stub và worker recovery. Mã test case nằm trong [TEST_CASES.md](TEST_CASES.md); kết quả baseline và lỗi cấu hình hiện tại ở [BASELINE.md](BASELINE.md).
 
+Cập nhật merge `my_be` 16/10/2026: DB suite có **40 tests**, thêm campaign/task dependencies, artifact scope và approval RBAC/hash/audit. Forward runner bỏ `.down.sql`. [Evidence mới](../../docs/coordination/sprint-3-weeks/MERGE-MY-BE.md) ghi kết quả hiện hành; các số đếm 34/29 bên dưới là baseline ban đầu. Smoke worker → Python HTTP → QQ-04 chạy riêng bằng `scripts/smoke-mybe-ai.ts`, xem lệnh trong evidence mới.
+
 ## Chạy nhanh
 
 Yêu cầu Node.js 24.14.1 (major 24), PostgreSQL với pgvector, và tài khoản local có quyền tạo database. Từ root repo:

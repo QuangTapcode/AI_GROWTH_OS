@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "schema_version": "1.1.0",
+  "id": "00000000-0000-4000-8000-000000000010",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "campaign_id": "00000000-0000-4000-8000-000000000020",
+  "role": "research",
+  "operation": "research.run",
+  "status": "completed",
+  "input_version": 1,
+  "context_snapshot_id": "00000000-0000-4000-8000-000000000030",
+  "dependencies": [],
+  "result_ref": "00000000-0000-4000-8000-000000000040",
+  "error": null,
+  "retry_count": 0,
+  "max_retries": 2,
+  "created_at": "2026-10-15T08:00:00.000Z",
+  "completed_at": "2026-10-15T08:00:22.000Z"
+}

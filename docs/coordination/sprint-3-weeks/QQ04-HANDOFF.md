@@ -2,6 +2,8 @@
 
 Ngày 15/10/2026. **Đã triển khai và local_verified với mock theo yêu cầu. Chờ Thiệu Quang + Thiệu review; chưa nghiệm thu tích hợp TQ-03.**
 
+**Cập nhật 16/10 sau merge `my_be`:** đã có campaign/task/artifact/approval API, PostgreSQL migration 002, worker HTTP adapter và workflow runner. Đã sửa payload routing và kiểm tra Research → Growth Lead qua HTTP thật (fake model) → backend mock. Những ghi chú “chưa có” dưới đây là baseline 15/10; hiện còn thiếu **adapter PostgreSQL PlanRepository + plan submission route/outbox/dependency artifact wiring của QQ-04**. Các API chung đã có chưa tự thay thế adapter này. Full API tests/typecheck/build đã passed sau merge; standalone lint còn lỗi config có sẵn. Chi tiết [merge report](MERGE-MY-BE.md).
+
 ## Đã có
 
 - Dedicated `opportunity.score`, `strategy.generate`, `brief.generate`: cùng một proposal contract/pipeline, prompt `growth-lead-v1`. `learning.analyze` không thuộc QQ-04, vẫn bootstrap.

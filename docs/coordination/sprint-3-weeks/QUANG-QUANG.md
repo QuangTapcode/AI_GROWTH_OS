@@ -36,7 +36,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Chọn cơ hội từ research; brief SEO và social; dependencies và artifact refs rõ; backend xác thực kế hoạch trước enqueue.
 - **Phụ thuộc:** QQ-03, TQ-03.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `local_verified` (QQ-04, mock) · PR/build: working tree, chưa commit · Evidence: [QQ04 handoff + phần còn thiếu](QQ04-HANDOFF.md), [AI mock](../../../qa/evidence/qq04/mock-report.json), [backend mock](../../../qa/evidence/qq04/backend-mock-report.json) · 120 AI tests + 21 QQ-04 backend tests đạt; chờ Thiệu Quang/Thiệu review. TQ-03 DB/API/outbox/worker chưa nối, dữ liệu mock có synthetic=true; chưa nghiệm thu tích hợp.
+- **Theo dõi:** `local_verified` (QQ-04, mock) · PR/build: QQ-04 commit `e7d9690`; đã tích hợp `my_be` local · Evidence: [QQ04 handoff + phần còn thiếu](QQ04-HANDOFF.md), [merge tests 16/10](MERGE-MY-BE.md), [AI mock](../../../qa/evidence/qq04/mock-report.json), [backend mock](../../../qa/evidence/qq04/backend-mock-report.json) · 120 AI tests + 67 API + 48 worker + 40 DB integration đạt; chờ Thiệu Quang/Thiệu review. API/runner nền đã có sau merge; QQ-04 còn cần PostgreSQL PlanRepository/outbox/dependency artifact wiring. Dữ liệu mock synthetic=true; chưa nghiệm thu tích hợp.
 
 ### [ ] QQ-05 · D8 · L · Xây SEO Worker và Content Marketing tối thiểu
 
