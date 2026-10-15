@@ -20,7 +20,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Bổ sung workflow/task dependency, version/hash, approval, publication và snapshot refs; tenant constraints/index; migration/rollback. Chia PR workflow và ledger. Không sửa migration đã áp dụng.
 - **Phụ thuộc:** TQ-01, DU-02.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: migration 002 UP & DOWN script sẵn sàng, migrate runner an toàn · Evidence: database/migrations/002_workflow_content_ledger.sql, 002_workflow_content_ledger.down.sql, apps/api/scripts/migrate.ts forward/down isolation · Blocker: không.
 
 ### [ ] TQ-03 · D5 · M · API campaign/task/artifact và handoff
 
