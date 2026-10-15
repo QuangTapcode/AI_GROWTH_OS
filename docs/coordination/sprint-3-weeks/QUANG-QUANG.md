@@ -36,7 +36,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Chọn cơ hội từ research; brief SEO và social; dependencies và artifact refs rõ; backend xác thực kế hoạch trước enqueue.
 - **Phụ thuộc:** QQ-03, TQ-03.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (QQ-04, mock) · PR/build: working tree, chưa commit · Evidence: [QQ04 handoff + phần còn thiếu](QQ04-HANDOFF.md), [AI mock](../../../qa/evidence/qq04/mock-report.json), [backend mock](../../../qa/evidence/qq04/backend-mock-report.json) · 120 AI tests + 21 QQ-04 backend tests đạt; chờ Thiệu Quang/Thiệu review. TQ-03 DB/API/outbox/worker chưa nối, dữ liệu mock có synthetic=true; chưa nghiệm thu tích hợp.
 
 ### [ ] QQ-05 · D8 · L · Xây SEO Worker và Content Marketing tối thiểu
 

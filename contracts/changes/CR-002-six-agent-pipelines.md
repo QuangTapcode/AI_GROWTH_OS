@@ -10,7 +10,7 @@ Caps thực thi: 2 LLM calls/job gồm repair/retry, budget persist qua restart;
 
 ## Contracts và quyền
 
-[Bundle JSON](../schemas/ai-six-role-contracts.json) chứa input/output schema, HTTP envelope, limits và role/tool matrix. Research và HTTP schemas được xuất từ Pydantic thực thi; schema của năm role khác là `design_review_candidate_not_active`, phục vụ QQ-04 trở đi. Không bật validators thiết kế vào các bootstrap handlers trước khi consumer chuyển đổi.
+[Bundle JSON](../schemas/ai-six-role-contracts.json) chứa input/output schema, HTTP envelope, limits và role/tool matrix. Research và HTTP schemas được xuất từ Pydantic thực thi; baseline QQ-01–03 giữ năm role khác ở `design_review_candidate_not_active`. Cập nhật QQ-04: ba Growth Lead planning operations đã có typed schema thực thi theo [CR-003](CR-003-growth-lead-plans.md); learning và bốn role còn lại vẫn bootstrap. Không bật validators thiết kế vào các bootstrap handlers trước khi consumer chuyển đổi.
 
 | Role | Input | Output chính | Tool scope đề xuất |
 | --- | --- | --- | --- |

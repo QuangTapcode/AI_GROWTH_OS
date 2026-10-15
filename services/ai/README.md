@@ -49,6 +49,7 @@ The AI schema normalizes these DB names to its internal names (`source_id`, `chu
 | `knowledge.answer` | `question`, `snapshot` | English answer + evidence (source/version/chunk/locator/quote) + warnings; thiếu giá/địa chỉ/availability → `missing_fact_keys`. |
 | `growth_map.suggest` | profile, approved facts, goal context | audiences/topics/channels/KPIs/goal suggestions, `applied=false`, `target=null`. |
 | `research.run` | profile/goal, approved snapshot, inventory | Research brief có URL/fetched_at/quote/fit/missing facts; handoff Growth Lead, prompt research-v1. |
+| `opportunity.score`, `strategy.generate`, `brief.generate` | profile/goal, pinned snapshot, research brief/artifact, CTA | Campaign proposal + SEO/social briefs, dependencies và refs; missing facts → blocked; prompt growth-lead-v1. [QQ-04](src/agents/growth_lead/README.md). |
 | Các operation Marketing còn lại | `payload` tự do | Bootstrap generic; chưa phải dedicated pipeline. |
 
 **Run bền vững:** khóa `job_id + operation + input_version`; run lưu ở `AI_RUN_STORE_PATH` (mặc định `services/ai/var/runs.sqlite3`, đã git-ignore). Restart → run dở thành `failed/RUN_INTERRUPTED/retryable`, worker gửi lại đúng request để chạy tiếp. Tối đa 2 LLM calls/job (kể cả repair, không reset khi retry/restart), 2 attempts/run, deadline tính từ lần accept đầu. Chỉ chạy **một process** uvicorn (concurrency AI = 1). Nơi lưu run chính thức còn chờ Mỹ chốt (CR-001).

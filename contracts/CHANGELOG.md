@@ -1,5 +1,9 @@
 # Contract changelog
 
+## 15/10/2026 — CR-003 QQ-04 implementation candidate
+
+Growth Lead `opportunity.score`, `strategy.generate`, `brief.generate` dùng typed payload và campaign/task proposal `growth-lead-v1`; learning vẫn bootstrap. Schema bundle, backend plan validator và mock transaction/outbox có evidence local. Chưa mount HTTP route, chưa nối PostgreSQL/broker; public OpenAPI giữ nguyên. Consumer migration/version review trong [CR-003](changes/CR-003-growth-lead-plans.md).
+
 ## 1.0.0 — 06/10/2026 — Baseline Freeze W1
 
 - Đóng băng OpenAPI 3.1.0 contract (`contracts/schemas/openapi.json`) cho các endpoint tuần 1:

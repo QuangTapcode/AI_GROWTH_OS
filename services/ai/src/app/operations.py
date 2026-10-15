@@ -17,6 +17,8 @@ from .bootstrap import GENERIC_SYSTEM, run_generic
 from ..agents.registry import AGENT_OPERATIONS
 from ..agents.research.pipeline import PROMPT_VERSION as RESEARCH_PROMPT, run_research, validate_research
 from ..agents.research.schemas import ResearchPayload
+from ..agents.growth_lead.pipeline import PROMPT_VERSION as LEAD_PROMPT, run_growth_lead, validate_growth_lead
+from ..agents.growth_lead.schemas import GrowthLeadPayload
 
 
 Validator = Callable[[JobRequest, Any, Settings], list[tuple[str, str]]]
@@ -34,6 +36,8 @@ class Operation:
 
 
 _DEDICATED = (
+    *(Operation(name, LEAD_PROMPT, run_growth_lead, GrowthLeadPayload, validate_growth_lead)
+      for name in ("opportunity.score", "strategy.generate", "brief.generate")),
     Operation("research.run", RESEARCH_PROMPT, run_research, ResearchPayload, validate_research),
     Operation("knowledge.ingest", INGEST_PROMPT, run_ingest, IngestPayload, validate_ingest, "embedding"),
     Operation("knowledge.answer", ANSWER_PROMPT, run_answer, AnswerPayload, validate_answer),
