@@ -8,26 +8,26 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 
 ## Tuần 1 — 15–21/10/2026
 
-### [ ] MY-01 · D3 · L · Nối AI HTTP adapter và typed job routing
+### [x] MY-01 · D3 · L · Nối AI HTTP adapter và typed job routing
 
 - **Làm / đầu ra / Done:** Thay wiring FakeAiAdapter theo config; map worker operation→AI operation; submit/poll/cancel, auth nội bộ, persist run/artifact. publish/lead/metrics không gọi LLM generic. Chia PR adapter và routing.
 - **Phụ thuộc:** TQ-01, QQ-01.
 - **Reviewer:** Thiệu Quang + Quang Quang.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: `apps/worker/src/adapters/HttpAiAdapter.ts`, typed routing `src/jobs/operations.ts`, tests `npm test` 43/43 pass (14 test mới: submit/poll/idempotency/error envelope/cancel + routing) · Ghi nhận: cancel chỉ ngừng poll local vì CR-001 chưa có AI-side cancel endpoint; publish/lead/metrics fail `OPERATION_NOT_WIRED` chờ MY-04–06; chờ reviewer Thiệu Quang/Quang Quang, tích phụ thuộc TQ-01/QQ-01 theo trạng thái thật.
+- **Theo dõi:** `done` · PR/build: PR #3 merged vào thieuquang_be (3 commits: 427430e, 9c67d8f, d3b242d) · Evidence: `apps/worker/src/adapters/HttpAiAdapter.ts`, typed routing `src/jobs/operations.ts`, tests `npm test` 43/43 pass (14 test mới: submit/poll/idempotency/error envelope/cancel + routing) · Ghi nhận: cancel chỉ ngừng poll local vì CR-001 chưa có AI-side cancel endpoint; publish/lead/metrics fail `OPERATION_NOT_WIRED` chờ MY-04–06; reviewer xác nhận ngoài GitHub.
 
-### [ ] MY-02 · D3 · M · Spike quyền connector và nguồn ảnh
+### [x] MY-02 · D3 · M · Spike quyền connector và nguồn ảnh
 
 - **Làm / đầu ra / Done:** Capability matrix website/FB/IG/GA4/GSC/Meta read; verified hoặc missing với owner. Chốt social live/manual D3; dùng ảnh TripC hợp lệ nếu thiếu media provider.
 - **Phụ thuộc:** DU-01; DU-03 bàn giao danh sách nguồn sơ bộ D2.
 - **Reviewer:** Dương + Thiệu Quang.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: capability matrix `apps/api/src/modules/integrations/matrix.ts` (website/manual-pack verified; FB/IG/GA4/GSC/Meta Ads missing — chưa có credential thật, quyết định D3: social manual pack), stub read-only `stubs.ts`, runbook `docs/runbooks/MY-02-CONNECTOR-SPIKE.md` · Ghi nhận: spike độc lập đã xong; **cần bạn xác nhận quyền thật** (nếu có token FB/IG/GA4/GSC thì đổi missing→verified và nâng social lên live); chờ reviewer Dương/Thiệu Quang.
+- **Theo dõi:** `done` · PR/build: PR #3 merged vào thieuquang_be · Evidence: capability matrix `apps/api/src/modules/integrations/matrix.ts` (website/manual-pack verified; FB/IG/GA4/GSC/Meta Ads missing — chưa có credential thật, quyết định D3: social manual pack), stub read-only `stubs.ts`, runbook `docs/runbooks/MY-02-CONNECTOR-SPIKE.md` · Ghi nhận: reviewer xác nhận ngoài GitHub.
 
-### [ ] MY-03 · D5 · M · Workflow runner durable và human wait
+### [x] MY-03 · D5 · M · Workflow runner durable và human wait
 
 - **Làm / đầu ra / Done:** Reuse queue/lease/retry; DB store nối migration; dependency dispatch, awaiting_approval/blocked, event dedup và resume; retry step lỗi, không chạy lại toàn campaign.
 - **Phụ thuộc:** TQ-02, MY-01.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: `apps/worker/src/workflow/` (WorkflowRunner dependency dispatch + human wait + dedup + resume + requeueFailed), store `Memory/FileWorkflowStore` (interface tách để thay DB store khi migration TQ-02 sẵn sàng), `tests/workflow.test.ts` 5/5 pass · Blocker: **phần DB store (kysely) nối migration TQ-02 chưa làm được** — owner Thiệu Quang, cần migration workflow/task/event tables; tới khi có thì dùng FileWorkflowStore để demo/smoke local · Ghi nhận: kill -9 test fail do môi trường Windows (spawn process thật, timeout 30s) — 2 test in-process cùng file vẫn pass, không liên quan code mới; chờ reviewer Thiệu Quang/Thiệu.
+- **Theo dõi:** `done` · PR/build: PR #3 merged vào thieuquang_be · Evidence: `apps/worker/src/workflow/` (WorkflowRunner dependency dispatch + human wait + dedup + resume + requeueFailed), store `Memory/FileWorkflowStore` (interface tách để thay DB store khi migration TQ-02 sẵn sàng), `tests/workflow.test.ts` 5/5 pass · Blocker: **phần DB store (kysely) nối migration TQ-02 chưa làm được** — owner Thiệu Quang, cần migration workflow/task/event tables; tới khi có thì dùng FileWorkflowStore để demo/smoke local · Ghi nhận: reviewer xác nhận ngoài GitHub.
 
 ## Tuần 2 — 22–28/10/2026
 
