@@ -13,7 +13,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Tái sử dụng workspace/source/RBAC/OCC; sửa lỗi build được tái hiện, auth server-side và tenant checks. Freeze contract/version/examples cho task/artifact/approval.
 - **Phụ thuộc:** DU-01.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0, tsc --noEmit pass, vitest 33/33 pass · Evidence: contracts 1.1.0 (openapi.json, 3 canonical examples: task-run, artifact-evidence, approval-decision), next.config.mjs fix, auth/tenant checks hardened · Blocker: không.
 
 ### [ ] TQ-02 · D4 · L · Migration workflow và content ledger tối thiểu
 

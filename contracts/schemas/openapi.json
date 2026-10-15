@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AI Growth OS — Public & Management API",
-    "version": "1.0.0",
-    "description": "Baseline API contract for Week 1 (M01-M03, Pilot Lead Form, Health & Operations). Owner: Thiệu Quang (BE Core)."
+    "version": "1.1.0",
+    "description": "Baseline API contract for Week 1 (M01-M03, Pilot Lead Form, Health & Operations) and First Slice Workflow/Ledger Contracts (Task, Artifact, Approval). Owner: Thiệu Quang (BE Core & Contracts Lead)."
   },
   "servers": [
     {
@@ -169,6 +169,126 @@
           "submission_id": { "type": "string", "format": "uuid" },
           "status": { "type": "string", "enum": ["persisted", "duplicate"] },
           "message": { "type": "string" }
+        }
+      },
+      "EvidenceRef": {
+        "type": "object",
+        "required": ["source_id", "source_version", "chunk_id", "locator", "quote"],
+        "properties": {
+          "source_id": { "type": "string", "format": "uuid" },
+          "source_version": { "type": "integer", "minimum": 1 },
+          "chunk_id": { "type": "string" },
+          "locator": { "type": "string" },
+          "quote": { "type": "string" },
+          "source_url": { "type": "string", "format": "uri", "nullable": true },
+          "license": { "type": "string", "nullable": true },
+          "attribution": { "type": "string", "nullable": true }
+        }
+      },
+      "WorkflowTask": {
+        "type": "object",
+        "required": ["id", "workspace_id", "role", "operation", "status", "input_version", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "campaign_id": { "type": "string", "format": "uuid", "nullable": true },
+          "role": {
+            "type": "string",
+            "enum": ["research", "growth_lead", "seo", "content", "community", "performance"]
+          },
+          "operation": { "type": "string", "example": "research.run" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "queued", "running", "completed", "failed", "awaiting_approval", "cancelled"]
+          },
+          "input_version": { "type": "integer", "minimum": 1 },
+          "context_snapshot_id": { "type": "string", "format": "uuid", "nullable": true },
+          "dependencies": {
+            "type": "array",
+            "items": { "type": "string", "format": "uuid" }
+          },
+          "result_ref": { "type": "string", "format": "uuid", "nullable": true },
+          "error": { "type": "object", "nullable": true },
+          "retry_count": { "type": "integer", "minimum": 0, "default": 0 },
+          "max_retries": { "type": "integer", "default": 2 },
+          "created_at": { "type": "string", "format": "date-time" },
+          "completed_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "WorkflowTaskCreate": {
+        "type": "object",
+        "required": ["role", "operation", "input_version"],
+        "properties": {
+          "campaign_id": { "type": "string", "format": "uuid" },
+          "role": {
+            "type": "string",
+            "enum": ["research", "growth_lead", "seo", "content", "community", "performance"]
+          },
+          "operation": { "type": "string", "example": "research.run" },
+          "input_version": { "type": "integer", "minimum": 1 },
+          "context_snapshot_id": { "type": "string", "format": "uuid" },
+          "dependencies": {
+            "type": "array",
+            "items": { "type": "string", "format": "uuid" }
+          },
+          "priority": { "type": "integer", "default": 3 }
+        }
+      },
+      "Artifact": {
+        "type": "object",
+        "required": ["id", "workspace_id", "version", "content_hash", "role", "operation", "artifact_type", "title", "payload", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "task_id": { "type": "string", "format": "uuid", "nullable": true },
+          "version": { "type": "integer", "minimum": 1 },
+          "content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "context_snapshot_id": { "type": "string", "format": "uuid", "nullable": true },
+          "role": {
+            "type": "string",
+            "enum": ["research", "growth_lead", "seo", "content", "community", "performance"]
+          },
+          "operation": { "type": "string", "example": "research.run" },
+          "artifact_type": { "type": "string", "example": "research_brief" },
+          "title": { "type": "string" },
+          "storage": { "type": "string", "enum": ["ai_run_store", "postgres_ledger"] },
+          "payload": { "type": "object" },
+          "evidence": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/EvidenceRef" }
+          },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApprovalRecord": {
+        "type": "object",
+        "required": ["id", "workspace_id", "target_type", "target_id", "target_version", "target_hash", "status", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "target_type": { "type": "string", "enum": ["source", "content", "task", "campaign", "artifact"] },
+          "target_id": { "type": "string", "format": "uuid" },
+          "target_version": { "type": "integer", "minimum": 1 },
+          "target_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revoked"] },
+          "decision": { "type": "string", "enum": ["approve", "reject", "revoke"], "nullable": true },
+          "actor_id": { "type": "string", "format": "uuid", "nullable": true },
+          "actor_role": { "type": "string", "enum": ["owner", "editor"], "nullable": true },
+          "review_note": { "type": "string", "nullable": true },
+          "invalidated_reason": { "type": "string", "nullable": true },
+          "invalidated_at": { "type": "string", "format": "date-time", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApprovalReviewRequest": {
+        "type": "object",
+        "required": ["decision", "expected_version", "expected_hash"],
+        "properties": {
+          "decision": { "type": "string", "enum": ["approve", "reject", "revoke"] },
+          "expected_version": { "type": "integer", "minimum": 1 },
+          "expected_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "review_note": { "type": "string" }
         }
       }
     },
@@ -394,6 +514,186 @@
           "200": { "description": "Review status updated" },
           "409": { "description": "Stale version conflict" },
           "403": { "description": "Permission denied" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/tasks": {
+      "get": {
+        "summary": "List workflow tasks in workspace",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "role", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of workflow tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/WorkflowTask" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "summary": "Enqueue a new workflow task (Owner or Editor)",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WorkflowTaskCreate" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workflow task enqueued",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorkflowTask" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "description": "Invalid task definition or missing dependencies" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/tasks/{task_id}": {
+      "get": {
+        "summary": "Get workflow task status and details",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task status and result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorkflowTask" }
+              }
+            }
+          },
+          "404": { "description": "Task not found" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/artifacts": {
+      "get": {
+        "summary": "List generated artifacts in workspace",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "role", "in": "query", "schema": { "type": "string" } },
+          { "name": "artifact_type", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of artifacts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/Artifact" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/artifacts/{artifact_id}": {
+      "get": {
+        "summary": "Get specific artifact details and evidence",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "artifact_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact payload and evidence",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Artifact" }
+              }
+            }
+          },
+          "404": { "description": "Artifact not found" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/approvals": {
+      "get": {
+        "summary": "List approval records and audit log",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "target_type", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of approvals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/ApprovalRecord" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/approvals/{approval_id}/review": {
+      "post": {
+        "summary": "Review approval target with OCC version and hash check (Owner only)",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "approval_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ApprovalReviewRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approval decision applied",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApprovalRecord" }
+              }
+            }
+          },
+          "409": { "description": "Version or hash mismatch (stale review conflict)" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
         }
       }
     },

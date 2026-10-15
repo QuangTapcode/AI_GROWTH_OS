@@ -49,7 +49,7 @@ export async function resolveTenantContext(
 
     // Lỗi cú pháp UUID hoặc database error
     if (err?.code === "22P02") {
-      throw new AppError(400, "BAD_REQUEST", "Invalid workspace UUID format");
+      throw new AppError(400, "BAD_REQUEST", "Invalid UUID parameter format");
     }
 
     console.error("Tenant resolution failed:", err);
