@@ -27,7 +27,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** CRUD tối thiểu + GET trạng thái/run output; context snapshot approved; validate task plan, enqueue qua transaction/outbox; reject unknown roles/tools.
 - **Phụ thuộc:** TQ-02, MY-01.
 - **Reviewer:** Mỹ + Quang Quang.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Quang Quang review) · PR/build: next build exit 0 (22 routes), tsc --noEmit pass, vitest 38/38 pass · Evidence: apps/api/src/modules/tasks, apps/api/src/modules/campaigns, apps/api/tests/tasks/tasksWorkflow.test.ts · Blocker: không.
 
 ## Tuần 2 — 22–28/10/2026
 
