@@ -16,6 +16,7 @@ from ..app.config import Settings
 from ..app.runtime import OperationOutcome, RunContext
 from ..app.schemas import ApprovedFact, EvidenceRef, GrowthMapPayload, JobRequest
 from ..guardrails.facts import unsupported_numbers
+from .context import context_problems, facts_from_snapshot
 
 
 PROMPT_VERSION = "growth-map-v1"
@@ -64,7 +65,10 @@ class LLMGrowthMap(BaseModel):
 def validate_growth_map(job: JobRequest, payload: GrowthMapPayload, settings: Settings) -> list[tuple[str, str]]:
     if payload.workspace_id != job.workspace_id:
         return [("TENANT_SCOPE_VIOLATION", "Payload workspace does not match the job workspace")]
-    return []
+    problems = context_problems(job, payload.business_profile, payload.goal_context, payload.snapshot)
+    if any(fact.workspace_id is not None and fact.workspace_id != job.workspace_id for fact in payload.approved_facts):
+        problems.append(("TENANT_SCOPE_VIOLATION", "Fact belongs to another workspace"))
+    return problems
 
 
 def _fake_map(payload: GrowthMapPayload, fact_keys: list[str]) -> dict:
@@ -107,9 +111,10 @@ async def run_growth_map(ctx: RunContext) -> OperationOutcome:
     warnings: list[str] = []
 
     approved = {(item.source_id, item.version) for item in job.approved_source_versions}
-    in_scope = [fact for fact in payload.approved_facts if (fact.source_id, fact.source_version) in approved]
-    if len(in_scope) < len(payload.approved_facts):
-        warnings.append(f"EXCLUDED_UNAPPROVED_FACTS:{len(payload.approved_facts) - len(in_scope)}")
+    supplied_facts = facts_from_snapshot(job, payload.snapshot) if payload.snapshot else payload.approved_facts
+    in_scope = [fact for fact in supplied_facts if (fact.source_id, fact.source_version) in approved]
+    if len(in_scope) < len(supplied_facts):
+        warnings.append(f"EXCLUDED_UNAPPROVED_FACTS:{len(supplied_facts) - len(in_scope)}")
     usable = {fact.key: fact for fact in in_scope if fact.value is not None and fact.value != ""}
     missing_facts = sorted({fact.key for fact in in_scope if fact.key not in usable})
 

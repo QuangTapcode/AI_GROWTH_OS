@@ -2,7 +2,7 @@
 
 Baseline thực thi: [kế hoạch 4 tuần ngày 05/10/2026](../sources/README.md) do người dùng cung cấp. PRD v1.0 là định hướng sản phẩm; mức chức năng/nghiệm thu pilot lấy theo bản kế hoạch mới.
 
-**M01–M16 được đánh số lại theo kế hoạch 4 tuần**, không dùng bảng M01–M30 cũ. Các tài liệu baseline cũ lưu tại `docs/sources/archive-8-weeks/` chỉ để tham khảo lịch sử. BA/PO chốt độ sâu pilot sau estimate ngày 2, không tự mở rộng thành full SaaS.
+**M01–M16 được đánh số lại theo kế hoạch 4 tuần**, không dùng bảng M01–M30 cũ. Các bản lưu baseline trùng đã xóa; phạm vi hiện hành theo kế hoạch 7 người/3 tuần. BA/PO chốt độ sâu pilot sau estimate ngày 2, không tự mở rộng thành full SaaS.
 
 ## 1. Module, lịch và acceptance tối thiểu
 

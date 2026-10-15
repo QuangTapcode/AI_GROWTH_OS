@@ -35,6 +35,14 @@ def snapshot_scope_problems(job: JobRequest, snapshot: KnowledgeSnapshot) -> lis
         problems.append(("TENANT_SCOPE_VIOLATION", f"Snapshot contains sources from another workspace: {foreign}"))
     if job.context_snapshot_id and snapshot.snapshot_id and job.context_snapshot_id != snapshot.snapshot_id:
         problems.append(("SNAPSHOT_MISMATCH", "payload.snapshot.snapshot_id does not match context_snapshot_id"))
+    for source in snapshot.sources:
+        for chunk in source.chunks:
+            if chunk.workspace_id is not None and chunk.workspace_id != job.workspace_id:
+                problems.append(("TENANT_SCOPE_VIOLATION", "Chunk workspace does not match the job workspace"))
+            if chunk.source_id is not None and chunk.source_id != source.source_id:
+                problems.append(("SOURCE_SCOPE_VIOLATION", "Chunk belongs to a different source"))
+            if chunk.source_version is not None and chunk.source_version != source.version:
+                problems.append(("SOURCE_VERSION_MISMATCH", "Chunk version differs from its source version"))
     return problems
 
 

@@ -30,7 +30,8 @@ from .operations import OPERATIONS, Operation
 from .providers import Provider, ProviderError, build_provider
 from .run_store import RunStore
 from .runtime import CallBudget, OperationError, RunContext
-from .schemas import SCHEMA_VERSION, AIResult, HealthResponse, JobRequest, RunStatus
+from .schemas import SCHEMA_VERSION, AIResult, HealthResponse, JobRequest, RunStatus, RunArtifact
+from ..agents.registry import AGENT_ROLES, ROLE_TOOLS, role_for_operation
 
 
 RUN_NAMESPACE = UUID("6f1c2d3e-8a4b-4c5d-9e6f-7a8b9c0d1e2f")
@@ -147,6 +148,17 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     prompt_version=operation.prompt_version,
                     input_version=job.input_version,
                     trace_id=job.trace_id,
+                    artifact=RunArtifact(
+                        artifact_id=uuid5(RUN_NAMESPACE, f"artifact:{run_id}"),
+                        workspace_id=job.workspace_id,
+                        version=job.input_version,
+                        content_hash=hashlib.sha256(json.dumps(
+                            {"result": outcome.result, "evidence": [x.model_dump(mode="json") for x in outcome.evidence]},
+                            sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+                        ).encode("utf-8")).hexdigest(),
+                        context_snapshot_id=job.context_snapshot_id,
+                        role=role_for_operation(job.operation),
+                    ),
                 )
                 store.complete(run_id, result)
                 log_event(
@@ -199,6 +211,18 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             if missing:
                 raise APIError(503, "MODEL_NOT_AVAILABLE", "Configured model is not pulled locally", {"missing": missing})
         return await healthz()
+
+    @app.get("/internal/v1/agents")
+    async def agent_contracts(_: None = Depends(require_internal_auth)) -> dict:
+        return {"schema_version": SCHEMA_VERSION, "concurrency": 1,
+                "max_provider_calls": settings.max_provider_calls,
+                "human_approval_required": True,
+                "roles": [{"id": key, "name": role.name, "tools": ROLE_TOOLS[key],
+                           "operations": [{"name": name, "status": "dedicated" if OPERATIONS[name].payload_model else "bootstrap",
+                                           "prompt_version": OPERATIONS[name].prompt_version,
+                                           "payload_schema": OPERATIONS[name].payload_model.model_json_schema() if OPERATIONS[name].payload_model else None}
+                                          for name in role.operations]}
+                          for key, role in AGENT_ROLES.items()]}
 
     @app.post("/internal/v1/runs", response_model=RunStatus, status_code=202)
     async def create_run(job: JobRequest, _: None = Depends(require_internal_auth)) -> JSONResponse:
