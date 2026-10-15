@@ -71,7 +71,7 @@ afterAll(async () => { await pool.end(); });
 describe("QQ BE merge — database", () => {
   it("QQ-DB-002: migrated tables and vector(768) match BE/AI boundary", async () => {
     const result = await query<{ name: string }>("SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public'");
-    expect(result.rows.map(row => row.name)).toEqual(expect.arrayContaining([
+expect(result.rows.map((row: { name: string }) => row.name)).toEqual(expect.arrayContaining([
       "users", "workspaces", "memberships", "business_profiles", "sources", "source_chunks", "source_facts", "growth_goals", "agent_tasks",
     ]));
     const column = await query<{ type: string }>(
