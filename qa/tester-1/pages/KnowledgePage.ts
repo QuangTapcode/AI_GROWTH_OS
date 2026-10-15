@@ -2,12 +2,12 @@ import { Page, expect } from '@playwright/test';
 
 export class KnowledgePage {
   readonly page: Page;
-  
+
   // Các nút và thành phần trên giao diện
   readonly uploadButton = 'button:has-text("Upload")';
   readonly fileInput = 'input[type="file"]';
   readonly submitButton = 'button:has-text("Submit")';
-  readonly sourceList = '.source-list-container'; 
+  readonly sourceList = '.source-list-container';
   readonly deleteButton = 'button:has-text("Delete")';
 
   constructor(page: Page) {

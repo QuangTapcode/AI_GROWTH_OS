@@ -36,7 +36,7 @@ Thứ tự cho một feature: **story/AC → contract → implementation song so
 - Contract PR không đi kèm thay đổi code lớn. BE merge sau khi provider và consumer bị tác động review.
 - Source PR chỉ sửa khu vực được phân công; root config/shared fixtures có PR riêng của đầu mối.
 - Unit/component tests ở cạnh source và do developer cập nhật. Tester duy trì suite độc lập dưới `qa`.
-- Cập nhật task riêng trong `tasks/` của role. PM/đầu mối tổng hợp TODO tổng để tránh cả đội cùng sửa file đó.
+- Cập nhật file cá nhân trong `docs/coordination/sprint-3-weeks/`. PM/đầu mối tổng hợp TODO tổng để tránh cả đội cùng sửa file đó.
 - Khi API thật chưa sẵn sàng, FE PR có thể merge với feature flag tắt; trạng thái task là `local_verified`, không phải `done`.
 
 ## 3. Contract có version và chuyển đổi an toàn
@@ -60,13 +60,13 @@ Schema migration cũng theo cách này: thêm nullable field/column trước, ba
 | --- | --- | --- |
 | FE | Lint, typecheck, UI tests, build, contract consumer tests | FE reviewer được chỉ định; UI/UX/QA1 khi phù hợp |
 | BE/worker/DB | Lint/typecheck, API/job tests, tenant/RLS, migration | BE reviewer được chỉ định, QA2; AI/FE cho boundary |
-| AI Python | Python lint/typing/pytest, schema/fake tests, frozen eval | Thanh kiểm chứng, BE review interface, Dương review facts |
+| AI Python | Python lint/typing/pytest, schema/fake tests, frozen eval | Thiệu kiểm chứng, BE review interface, Dương review facts |
 | Contract | OpenAPI/schema validate, breaking diff, examples + consumer checks | BE + mọi consumer bị ảnh hưởng |
 | Design | Specs/tokens validate và FE review | UI/UX + FE |
 | BA | Markdown links, traceability và AC review | PO/QA + owner kỹ thuật |
-| QA | Playwright/TypeScript lane 1; pytest/Python lane 2; suite config, smoke, evidence | Service owner + Dương; Thanh không tự tạo reviewer thứ hai |
+| QA | Playwright/TypeScript lane 1; pytest/Python lane 2; suite config, smoke, evidence | Service owner + Dương; Thiệu không tự tạo reviewer thứ hai |
 
-Tiến/Huyền peer-review FE; Thiệu Quang/Mỹ peer-review BE. Quang Quang kiêm AI/PM/PO nhưng kết quả AI cần Thanh kiểm chứng, BE review interface và Dương review facts/AC. Phân công theo [TEAM](docs/coordination/TEAM.md); review chéo không tự tăng capacity.
+Tiến phụ trách FE; Trường review UX và Thiệu kiểm E2E; Thiệu Quang/Mỹ peer-review BE. Quang Quang kiêm AI/PM/PO nhưng kết quả AI cần Thiệu kiểm chứng, BE review interface và Dương review facts/AC. Phân công theo [TEAM](docs/coordination/TEAM.md); review chéo không tự tăng capacity.
 
 CI dùng path filters để chạy nhanh, nhưng thay đổi contract phải chạy checks của mọi consumer; source change có ảnh hưởng boundary phải chạy integration subset. Trước merge checks phải chạy trên trạng thái đã kết hợp với `main` mới nhất; dùng merge queue nếu Git host hỗ trợ, nếu không thì đầu mối tuần tự merge và revalidate PR còn lại.
 

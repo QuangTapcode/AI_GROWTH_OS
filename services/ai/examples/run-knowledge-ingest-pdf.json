@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "job_id": "d595db30-9df2-55bf-a09d-30d902d50002",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "operation": "knowledge.ingest",
+  "input_version": 1,
+  "approved_source_versions": [],
+  "constraints": {
+    "language": "en",
+    "timeout_seconds": 600
+  },
+  "trace_id": "eval-example-ingest-pdf",
+  "synthetic": true,
+  "payload": {
+    "source": {
+      "source_id": "10000000-0000-4000-8000-000000000007",
+      "version": 1,
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "kind": "pdf",
+      "title": "Da Nang living guide (synthetic PDF)",
+      "label": "SRC-GUIDE-PDF-v1",
+      "content_base64": "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFs0IDAgUiA2IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago0IDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0gL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgMyAwIFIgPj4gPj4gL0NvbnRlbnRzIDUgMCBSID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMTg5ID4+CnN0cmVhbQpCVCAvRjEgMTEgVGYgNTYgNzYwIFRkIChTWU5USEVUSUMgRklYVFVSRSAtIERhIE5hbmcgbGl2aW5nIGd1aWRlKSBUaiBFVApCVCAvRjEgMTEgVGYgNTYgNzAwIFRkIChQYWdlIG9uZSBjb3ZlcnMgbmVpZ2hib3VyaG9vZHMuIFNvbiBUcmEgaXMgY2xvc2UgdG8gdGhlIGJlYWNoIGFuZCBwb3B1bGFyIHdpdGggZXhwYXRzLikgVGogRVQKZW5kc3RyZWFtCmVuZG9iago2IDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0gL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgMyAwIFIgPj4gPj4gL0NvbnRlbnRzIDcgMCBSID4+CmVuZG9iago3IDAgb2JqCjw8IC9MZW5ndGggMTE1ID4+CnN0cmVhbQpCVCAvRjEgMTEgVGYgNTYgNzYwIFRkIChQYWdlIHR3byBjb3ZlcnMgY293b3JraW5nLiBIYWkgQ2hhdSBoYXMgc2V2ZXJhbCBjb3dvcmtpbmcgc3BhY2VzIG5lYXIgdGhlIEhhbiBSaXZlci4pIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDgKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDEyMSAwMDAwMCBuIAowMDAwMDAwMTkxIDAwMDAwIG4gCjAwMDAwMDAzMTcgMDAwMDAgbiAKMDAwMDAwMDU1NyAwMDAwMCBuIAowMDAwMDAwNjgzIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgOCAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKODQ5CiUlRU9GCg=="
+    }
+  }
+}

@@ -27,14 +27,14 @@ def test_cross_tenant_cannot_read_goals():
 
     # Kịch bản tồi tệ: User A cố tình sửa URL để lấy trộm data của Workspace B
     endpoint = f"{BASE_URL}/workspaces/{WORKSPACE_B_ID}/goals"
-    
+
     try:
         response = requests.get(endpoint, headers=headers)
-        
+
         # BẮT BUỘC HTTP Status trả về phải là 403 (Forbidden) hoặc 404 (Not Found)
         # Nếu trả về 200 (OK), hệ thống đang bị thủng lỗ hổng lộ dữ liệu chéo!
         assert response.status_code in [403, 404], f"BÁO ĐỘNG LỘ DỮ LIỆU: API trả về status {response.status_code}"
-        
+
     except requests.exceptions.ConnectionError:
         # Tạm thời skip bài test nếu BE Thiệu Quang chưa bật server local
         pytest.skip("Server API chưa bật, tự động bỏ qua assertion.")
@@ -47,9 +47,9 @@ def test_viewer_role_cannot_delete_source():
         "Authorization": TOKEN_VIEWER_A,
         "Content-Type": "application/json"
     }
-    
+
     endpoint = f"{BASE_URL}/workspaces/{WORKSPACE_A_ID}/knowledge/source_123"
-    
+
     try:
         response = requests.delete(endpoint, headers=headers)
         # Quyền Viewer thực hiện hàm DELETE phải bị chặn (403)

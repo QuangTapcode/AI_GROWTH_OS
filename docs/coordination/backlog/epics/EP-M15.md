@@ -1,8 +1,8 @@
 # EP-M15 — Experiment Engine
 
 - Trạng thái: planned; chỉ scope/AC baseline, chưa code, chưa Ready trước estimate/contract/design.
-- Owner bàn giao: **Mỹ (BE)**. Reviewers: **Dương, Tiến, Huyền, Quang Quang, Thanh, Thiệu Quang**. Nghiệm thu: **Quang Quang (PO)**; **Dương** điều phối AC/UAT; **Thanh** cung cấp QA evidence.
-- Contributors: Thiệu Quang, Mỹ, Tiến, Huyền, Quang Quang, Dương, Trường, Thanh; vai trò: BE, FE, AI, BA, UI/UX, Tester 1, Tester 2. Thanh làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
+- Owner bàn giao: **Mỹ (BE)**. Reviewers: **Dương, Tiến, Huyền, Quang Quang, Thiệu, Thiệu Quang**. Nghiệm thu: **Quang Quang (PO)**; **Dương** điều phối AC/UAT; **Thiệu** cung cấp QA evidence.
+- Contributors: Thiệu Quang, Mỹ, Tiến, Huyền, Quang Quang, Dương, Trường, Thiệu; vai trò: BE, FE, AI, BA, UI/UX, Tester 1, Tester 2. Thiệu làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
 - Tuần: 4; ngày bắt đầu: 17; hạn mục tiêu: ngày 17 tính từ kickoff, chưa là ngày lịch.
 - Milestones: Ngày 17 one-page assignment/exposure/outcome; UAT ngày 19.
 - Effort: S/M/L theo [W1-PM-02](../../W1-PM-02.md); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.

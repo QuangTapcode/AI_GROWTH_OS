@@ -1,8 +1,8 @@
 # EP-FOUNDATION — Nền tảng dùng chung và tích hợp
 
 - Trạng thái: planned; chỉ scope/AC baseline, chưa code, chưa Ready trước estimate/contract/design.
-- Owner bàn giao: **Thiệu Quang (BE)**. Reviewers: **Tiến, Huyền, Quang Quang, Thanh, Mỹ**. Nghiệm thu: **Quang Quang (PO)**; **Dương** điều phối AC/UAT; **Thanh** cung cấp QA evidence.
-- Contributors: Thiệu Quang, Mỹ, Tiến, Huyền, Quang Quang, Dương, Trường, Thanh; vai trò: BE, FE, AI, BA, UI/UX, Tester 1, Tester 2. Thanh làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
+- Owner bàn giao: **Thiệu Quang (BE)**. Reviewers: **Tiến, Huyền, Quang Quang, Thiệu, Mỹ**. Nghiệm thu: **Quang Quang (PO)**; **Dương** điều phối AC/UAT; **Thiệu** cung cấp QA evidence.
+- Contributors: Thiệu Quang, Mỹ, Tiến, Huyền, Quang Quang, Dương, Trường, Thiệu; vai trò: BE, FE, AI, BA, UI/UX, Tester 1, Tester 2. Thiệu làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
 - Tuần: 1–4; ngày bắt đầu: 1; hạn mục tiêu: ngày 20 tính từ kickoff, chưa là ngày lịch.
 - Milestones: Ngày 2: quyết định/contracts/estimates; ngày 5: staging/CI/jobs/tracking; ngày 20: restore/rollback/handover.
 - Effort: S/M/L theo [W1-PM-02](../../W1-PM-02.md); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.
@@ -30,7 +30,7 @@
 
 ## Ngoài phạm vi epic
 
-- Thanh toán production/billing suite
+- Thiệu toán production/billing suite
 - Hệ đa agent độc lập, custom LLM hoặc Enterprise infrastructure
 
 ## Bàn giao và bằng chứng

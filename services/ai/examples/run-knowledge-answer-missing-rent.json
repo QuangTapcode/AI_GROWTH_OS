@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.0.0",
+  "job_id": "b2f414c8-c1e7-5751-a0c2-d2a91f352527",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "operation": "knowledge.answer",
+  "input_version": 1,
+  "approved_source_versions": [
+    {
+      "source_id": "10000000-0000-4000-8000-000000000003",
+      "version": 1
+    }
+  ],
+  "constraints": {
+    "language": "en",
+    "timeout_seconds": 600
+  },
+  "trace_id": "eval-example-answer-rent",
+  "synthetic": true,
+  "payload": {
+    "question": "What is the monthly rent?",
+    "snapshot": {
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "sources": [
+        {
+          "source_id": "10000000-0000-4000-8000-000000000003",
+          "version": 1,
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "status": "approved",
+          "deleted_at": null,
+          "title": "Example Residence (synthetic)",
+          "category": "housing",
+          "label": "SRC-HOUSING-v1",
+          "facts": [
+            {
+              "key": "residence_name",
+              "value": "Example Residence",
+              "verification": "verified",
+              "locator": "paragraph:2"
+            },
+            {
+              "key": "monthly_rent",
+              "value": null,
+              "unit": "VND/month",
+              "verification": "missing"
+            },
+            {
+              "key": "address",
+              "value": null,
+              "verification": "missing"
+            },
+            {
+              "key": "availability",
+              "value": null,
+              "verification": "missing"
+            }
+          ],
+          "chunks": [
+            {
+              "chunk_id": "SRC-HOUSING-v1-c1",
+              "text": "SYNTHETIC FIXTURE - not a real listing.",
+              "locator": "paragraph:1"
+            },
+            {
+              "chunk_id": "SRC-HOUSING-v1-c2",
+              "text": "Example Residence is a synthetic apartment building used to test the TripC knowledge base. It is described as being in the Son Tra area of Da Nang, close to My Khe beach.",
+              "locator": "paragraph:2"
+            },
+            {
+              "chunk_id": "SRC-HOUSING-v1-c3",
+              "text": "Units are fully furnished one-bedroom apartments with air conditioning, a kitchenette and a work desk. The building has a shared rooftop terrace and a small gym.",
+              "locator": "paragraph:3"
+            },
+            {
+              "chunk_id": "SRC-HOUSING-v1-c4",
+              "text": "The monthly rent has not been published by the provider. The street address has not been verified and is intentionally left blank.",
+              "locator": "paragraph:4"
+            },
+            {
+              "chunk_id": "SRC-HOUSING-v1-c5",
+              "text": "Leases are described as flexible. English-speaking staff can help new residents with registration paperwork.",
+              "locator": "paragraph:5"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

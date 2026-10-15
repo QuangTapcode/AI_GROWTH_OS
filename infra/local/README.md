@@ -22,7 +22,7 @@ Server là máy Windows hiện tại theo xác nhận người dùng; Docker và
 3. Mỹ dựng pg-boss worker, search instance/JSON/query/error probe; AI service có fake/live-local mode và bounded Ollama calls. Không bắt Python dùng TypeScript source types.
 4. Tiến/Huyền bootstrap hai Next.js apps và API client/contract mocks; BE core/public-published-content/form persistence với idempotency.
 5. Ghép staging thật, source/RAG/role/form tests, tracking; Quang Quang/Mỹ tạo GA4/GSC với owner/API access, Tiến gắn GA4/UTM. GSC verify cần URL/property ownership thật.
-6. Thanh kiểm chứng evidence ngày 5; publish/schedule M10 ngày 12; trước release thử restore/rollback và health monitoring. Không có kết quả thì ghi not_tested.
+6. Thiệu kiểm chứng evidence ngày 5; publish/schedule M10 ngày 12; trước release thử restore/rollback và health monitoring. Không có kết quả thì ghi not_tested.
 
 Nguồn: [Ollama local API](https://docs.ollama.com/api/introduction), [PostgreSQL](https://www.postgresql.org/docs/current/index.html), [pgvector](https://github.com/pgvector/pgvector), [SearXNG API](https://docs.searxng.org/dev/search_api.html), [pg-boss](https://github.com/timgit/pg-boss), [GA4 setup](https://support.google.com/analytics/answer/9304153?hl=en), [GSC ownership](https://support.google.com/webmasters/answer/9008080?hl=en).
 

@@ -2,7 +2,7 @@ import { Page, expect } from '@playwright/test';
 
 export class LoginPage {
   readonly page: Page;
-  
+
   // Định nghĩa các phần tử trên trang (Locators)
   readonly emailInput = 'input[name="email"]';
   readonly passwordInput = 'input[name="password"]';

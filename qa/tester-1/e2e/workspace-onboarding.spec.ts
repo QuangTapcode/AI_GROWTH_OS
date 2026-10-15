@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { LoginPage } from '../pages/LoginPage';
 
 test.describe('M01: Luồng Đăng nhập và Onboarding Workspace', () => {
-  
+
   test('Đăng nhập thành công bằng tài khoản Owner (TripC)', async ({ page }) => {
     // 1. Khởi tạo Page Object
     const loginPage = new LoginPage(page);
@@ -21,7 +21,7 @@ test.describe('M01: Luồng Đăng nhập và Onboarding Workspace', () => {
     const loginPage = new LoginPage(page);
   //  await loginPage.goto();
   //  await loginPage.login('wrong@email.com', 'wrongpass');
-    
+
     // Kiểm tra thông báo lỗi hiển thị
     // await loginPage.expectLoginFailure();
   });

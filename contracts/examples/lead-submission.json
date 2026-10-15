@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "schema_version": "1.0.0",
+  "request": {
+    "email": "alex.traveler@example.com",
+    "full_name": "Alex Smith",
+    "topic_interest": "housing",
+    "consent": true,
+    "utm_source": "google",
+    "utm_medium": "cpc",
+    "utm_campaign": "expat_housing_danang",
+    "variant_id": "cta_variant_a"
+  },
+  "response": {
+    "submission_id": "00000000-0000-4000-8000-000000000010",
+    "status": "persisted",
+    "message": "Thank you! Your information request has been received."
+  }
+}

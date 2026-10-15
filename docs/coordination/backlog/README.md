@@ -6,23 +6,23 @@
 
 | Epic | Owner bàn giao | Reviewers | Ngày bắt đầu → mục tiêu | Build dependencies |
 | --- | --- | --- | --- | --- |
-| [EP-FOUNDATION — Nền tảng dùng chung và tích hợp](epics/EP-FOUNDATION.md) | Thiệu Quang (BE) | Tiến, Huyền, Quang Quang, Thanh, Mỹ | 1 → 20 | Không |
-| [EP-M01 — Workspace](epics/EP-M01.md) | Thiệu Quang (BE) | Dương, Tiến, Huyền, Thanh, Mỹ | 1 → 5 | EP-FOUNDATION |
-| [EP-M02 — Business Knowledge Base](epics/EP-M02.md) | Quang Quang (AI) | Thiệu Quang, Mỹ, Dương, Thanh | 2 → 5 | EP-FOUNDATION, EP-M01 |
-| [EP-M03 — Growth Goal Manager](epics/EP-M03.md) | Mỹ (BE) | Dương, Tiến, Huyền, Thanh, Thiệu Quang | 2 → 5 | EP-FOUNDATION, EP-M01 |
-| [EP-M04 — Market Intelligence Engine](epics/EP-M04.md) | Quang Quang (AI) | Thiệu Quang, Mỹ, Dương, Thanh | 6 → 7 | EP-FOUNDATION, EP-M01, EP-M02, EP-M03 |
-| [EP-M05 — Opportunity Engine](epics/EP-M05.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thanh | 6 → 7 | EP-FOUNDATION, EP-M03, EP-M04 |
-| [EP-M06 — Growth Strategy Engine](epics/EP-M06.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thanh | 7 → 8 | EP-FOUNDATION, EP-M03, EP-M05 |
-| [EP-M07 — Content Intelligence Engine](epics/EP-M07.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thanh | 7 → 8 | EP-FOUNDATION, EP-M02, EP-M05, EP-M06 |
-| [EP-M08 — AI Content Factory](epics/EP-M08.md) | Quang Quang (AI) | Thiệu Quang, Mỹ, Tiến, Huyền, Dương, Thanh | 8 → 10 | EP-FOUNDATION, EP-M02, EP-M07 |
-| [EP-M09 — SEO Intelligence Engine](epics/EP-M09.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thanh | 9 → 15 | EP-FOUNDATION, EP-M07, EP-M08 |
-| [EP-M10 — Distribution Engine](epics/EP-M10.md) | Mỹ (BE) | Dương, Tiến, Huyền, Thanh, Thiệu Quang | 11 → 12 | EP-FOUNDATION, EP-M08, EP-M09 |
-| [EP-M11 — Community Growth Engine](epics/EP-M11.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thanh | 12 → 13 | EP-FOUNDATION, EP-M02, EP-M05, EP-M08, EP-M10 |
-| [EP-M12 — Traffic Engine](epics/EP-M12.md) | Mỹ (BE) | Dương, Tiến, Huyền, Thanh, Thiệu Quang | 1 → 13 | EP-FOUNDATION, EP-M03 |
-| [EP-M13 — Analytics Engine](epics/EP-M13.md) | Mỹ (BE) | Dương, Tiến, Huyền, Thanh, Thiệu Quang | 1 → 14 | EP-FOUNDATION, EP-M01, EP-M03 |
-| [EP-M14 — AI Growth Analyst](epics/EP-M14.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thanh | 16 → 16 | EP-FOUNDATION, EP-M03, EP-M06, EP-M13 |
-| [EP-M15 — Experiment Engine](epics/EP-M15.md) | Mỹ (BE) | Dương, Tiến, Huyền, Quang Quang, Thanh, Thiệu Quang | 17 → 17 | EP-FOUNDATION, EP-M08, EP-M10, EP-M12, EP-M13 |
-| [EP-M16 — Learning Engine](epics/EP-M16.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thanh | 18 → 18 | EP-FOUNDATION, EP-M06, EP-M08, EP-M13, EP-M14, EP-M15 |
+| [EP-FOUNDATION — Nền tảng dùng chung và tích hợp](epics/EP-FOUNDATION.md) | Thiệu Quang (BE) | Tiến, Huyền, Quang Quang, Thiệu, Mỹ | 1 → 20 | Không |
+| [EP-M01 — Workspace](epics/EP-M01.md) | Thiệu Quang (BE) | Dương, Tiến, Huyền, Thiệu, Mỹ | 1 → 5 | EP-FOUNDATION |
+| [EP-M02 — Business Knowledge Base](epics/EP-M02.md) | Quang Quang (AI) | Thiệu Quang, Mỹ, Dương, Thiệu | 2 → 5 | EP-FOUNDATION, EP-M01 |
+| [EP-M03 — Growth Goal Manager](epics/EP-M03.md) | Mỹ (BE) | Dương, Tiến, Huyền, Thiệu, Thiệu Quang | 2 → 5 | EP-FOUNDATION, EP-M01 |
+| [EP-M04 — Market Intelligence Engine](epics/EP-M04.md) | Quang Quang (AI) | Thiệu Quang, Mỹ, Dương, Thiệu | 6 → 7 | EP-FOUNDATION, EP-M01, EP-M02, EP-M03 |
+| [EP-M05 — Opportunity Engine](epics/EP-M05.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thiệu | 6 → 7 | EP-FOUNDATION, EP-M03, EP-M04 |
+| [EP-M06 — Growth Strategy Engine](epics/EP-M06.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thiệu | 7 → 8 | EP-FOUNDATION, EP-M03, EP-M05 |
+| [EP-M07 — Content Intelligence Engine](epics/EP-M07.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thiệu | 7 → 8 | EP-FOUNDATION, EP-M02, EP-M05, EP-M06 |
+| [EP-M08 — AI Content Factory](epics/EP-M08.md) | Quang Quang (AI) | Thiệu Quang, Mỹ, Tiến, Huyền, Dương, Thiệu | 8 → 10 | EP-FOUNDATION, EP-M02, EP-M07 |
+| [EP-M09 — SEO Intelligence Engine](epics/EP-M09.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thiệu | 9 → 15 | EP-FOUNDATION, EP-M07, EP-M08 |
+| [EP-M10 — Distribution Engine](epics/EP-M10.md) | Mỹ (BE) | Dương, Tiến, Huyền, Thiệu, Thiệu Quang | 11 → 12 | EP-FOUNDATION, EP-M08, EP-M09 |
+| [EP-M11 — Community Growth Engine](epics/EP-M11.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thiệu | 12 → 13 | EP-FOUNDATION, EP-M02, EP-M05, EP-M08, EP-M10 |
+| [EP-M12 — Traffic Engine](epics/EP-M12.md) | Mỹ (BE) | Dương, Tiến, Huyền, Thiệu, Thiệu Quang | 1 → 13 | EP-FOUNDATION, EP-M03 |
+| [EP-M13 — Analytics Engine](epics/EP-M13.md) | Mỹ (BE) | Dương, Tiến, Huyền, Thiệu, Thiệu Quang | 1 → 14 | EP-FOUNDATION, EP-M01, EP-M03 |
+| [EP-M14 — AI Growth Analyst](epics/EP-M14.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thiệu | 16 → 16 | EP-FOUNDATION, EP-M03, EP-M06, EP-M13 |
+| [EP-M15 — Experiment Engine](epics/EP-M15.md) | Mỹ (BE) | Dương, Tiến, Huyền, Quang Quang, Thiệu, Thiệu Quang | 17 → 17 | EP-FOUNDATION, EP-M08, EP-M10, EP-M12, EP-M13 |
+| [EP-M16 — Learning Engine](epics/EP-M16.md) | Quang Quang (AI) | Dương, Thiệu Quang, Mỹ, Thiệu | 18 → 18 | EP-FOUNDATION, EP-M06, EP-M08, EP-M13, EP-M14, EP-M15 |
 
 ## Quy tắc dependency và lịch
 
@@ -37,6 +37,6 @@
 
 Story Ready cần AC chi tiết/estimate/reviewer/contract/design/quyền dữ liệu. BA phân rã epic thành stories sau; effort tương đối/local budget/limits đã lập tại [W1-PM-02](../W1-PM-02.md), engineering estimates cần rà theo lát triển khai, probes/quyền thuộc W1-PM-03/W1-BE-04. Không coi epic file là feature đã xây hoặc PO đã nghiệm thu code.
 
-Đội thực tế 8 người; Quang Quang kiêm AI/PM/PO, Thanh là một Tester làm hai lane, hai FE và hai BE có phân vùng trong TEAM. Không dùng capacity kế hoạch 7 người + PM riêng để cam kết. Reviewer của từng epic đã có tên; khi chia task, code review cần owner chuyên môn theo đúng vùng file.
+Đội thực tế 8 người; Quang Quang kiêm AI/PM/PO, Thiệu là một Tester làm hai lane, hai FE và hai BE có phân vùng trong TEAM. Không dùng capacity kế hoạch 7 người + PM riêng để cam kết. Reviewer của từng epic đã có tên; khi chia task, code review cần owner chuyên môn theo đúng vùng file.
 
 Đổi module/AC/giới hạn pilot phải cập nhật registry + epic + SCOPE và decision record. Quality evidence gồm commit/environment/test IDs/source/schema/prompt/model/dataset versions; mock không thay staging/live connector evidence.

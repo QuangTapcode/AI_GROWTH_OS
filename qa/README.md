@@ -1,6 +1,10 @@
 # Tester — Hai lane trong pilot 4 tuần
 
-Thanh phụ trách hai lane: `tester-1/**` cho UI/nghiệp vụ/E2E/accessibility/UAT; `tester-2/**` cho API/data/contract/security/integration/performance/AI verification. Mỗi lane có suite và môi trường riêng.
+Thiệu phụ trách hai lane: `tester-1/**` cho UI/nghiệp vụ/E2E/accessibility/UAT; `tester-2/**` cho API/data/contract/security/integration/performance/AI verification. Mỗi lane có suite và môi trường riêng.
+
+## QQ_test — regression khi tích hợp BE
+
+[QQ_test](QQ_test/README.md) lưu automation và [test case](QQ_test/TEST_CASES.md) của Quang Quang dùng khi merge BE vào `Quang-Quang`: migration/PostgreSQL, workspace/member/tenant, source lifecycle, API response, lead/public content và worker retry/recovery. Suite có manifest/lockfile riêng, database tạm và evidence từng lần chạy. Xem [baseline](QQ_test/BASELINE.md) để phân biệt kết quả đạt với gate cấu hình hoặc coverage còn thiếu.
 
 ## Làm độc lập
 
@@ -26,4 +30,4 @@ Không còn blocker/critical trước release; mọi critical tenant/source/appr
 
 ## Roster và ngôn ngữ đã chốt
 
-Thanh phụ trách cả hai lane trong cùng capacity: lane 1 TypeScript/Playwright (qa/tester-1/, package/lockfile riêng); lane 2 Python/pytest/HTTP client/SQL (qa/tester-2/, pyproject/lockfile/venv riêng). BA Dương và service owner review suite/evidence; không giả định có Tester thứ hai. [TEAM](../docs/coordination/TEAM.md) quy định phân công.
+Thiệu phụ trách cả hai lane trong cùng capacity: lane 1 TypeScript/Playwright (qa/tester-1/, package/lockfile riêng); lane 2 Python/pytest/HTTP client/SQL (qa/tester-2/, pyproject/lockfile/venv riêng). BA Dương và service owner review suite/evidence; không giả định có Tester thứ hai. [TEAM](../docs/coordination/TEAM.md) quy định phân công.

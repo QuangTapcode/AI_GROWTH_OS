@@ -1,6 +1,6 @@
 # Pilot TripC — baseline đã chốt cho W1-PM-01
 
-Ngày 05/10/2026 · PM/PO/người nghiệm thu: **Quang Quang** · BA: **Dương** · QA: **Thanh**.
+Ngày 05/10/2026 · PM/PO/người nghiệm thu: **Quang Quang** · BA: **Dương** · QA: **Thiệu**.
 
 ## Quyết định từ người dùng
 
@@ -16,7 +16,7 @@ Ngày 05/10/2026 · PM/PO/người nghiệm thu: **Quang Quang** · BA: **Dươn
 | Publication | Con người duyệt content version/hash trước publish; sửa sau duyệt phải duyệt lại |
 | Primary conversion | **Gửi form nhận thông tin thành công**, thay Signup account của trao đổi trước |
 | Tracking | GA4 + Search Console + UTM, đo traffic/channel/content/campaign/conversion |
-| PM/PO/team | Roster tên tại [TEAM](TEAM.md); Quang Quang kiêm AI/PM/PO, Thanh làm hai lane QA |
+| PM/PO/team | Roster tên tại [TEAM](TEAM.md); Quang Quang kiêm AI/PM/PO, Thiệu làm hai lane QA |
 
 Lựa chọn WordPress trước đã được người dùng mở lại và thay bằng Next.js. Không triển khai WordPress adapter/hosting trong scope hiện tại.
 
@@ -25,7 +25,7 @@ Lựa chọn WordPress trước đã được người dùng mở lại và thay
 - Tiến: `apps/pilot/` với blog index, article page, landing page/form UX, public routes/meta/sitemap/tracking/experiment integration; package/lockfile riêng để không chung app quản trị.
 - Huyền: editor/approval/preview trong `apps/web/`, UI flows theo TEAM; Trường handoff blog/landing/form/success/error states.
 - Thiệu Quang: auth/role/contracts/DB policies và migration review; Mỹ: minimal CMS publication/scheduler/slug/version/idempotency, public published-content API, form persistence/events, GA4/GSC integration.
-- AI Quang Quang: English drafts/RAG/evidence/quality; human PO Quang Quang duyệt theo audit, Thanh kiểm chứng facts/critical cases độc lập.
+- AI Quang Quang: English drafts/RAG/evidence/quality; human PO Quang Quang duyệt theo audit, Thiệu kiểm chứng facts/critical cases độc lập.
 
 CMS chỉ cần draft→review→approve→published, content/meta/slug/version và lịch xuất bản theo M10; public API không lộ draft/evidence/private sources. Không xây một CMS thương mại đầy đủ. Một page pilot dùng experiment hai title/CTA variants.
 
@@ -43,7 +43,7 @@ GA4/GSC property/domain/history hiện chưa có đầu vào được cung cấp
 
 Nguồn được giao tự tìm và gợi ý: chọn seed corpus ở [SOURCES](SOURCES.md) gồm official tourism, direct housing/coworking/gym providers. [PILOT_DATASET.json](PILOT_DATASET.json) ghi URLs/status/provenance; đã khảo sát nguồn, **chưa crawl corpus hoặc duyệt facts thực tế**.
 
-Dataset chia bốn loại: business context TripC do PO xác nhận; external facts/research có nguồn và review; live pilot events/metrics khi website hoạt động; synthetic QA/eval riêng có nhãn. Tối thiểu 30 eval cases là đầu ra W1-AI-03 với Thanh, không phải task này đã xây.
+Dataset chia bốn loại: business context TripC do PO xác nhận; external facts/research có nguồn và review; live pilot events/metrics khi website hoạt động; synthetic QA/eval riêng có nhãn. Tối thiểu 30 eval cases là đầu ra W1-AI-03 với Thiệu, không phải task này đã xây.
 
 ## Dependencies và bàn giao
 

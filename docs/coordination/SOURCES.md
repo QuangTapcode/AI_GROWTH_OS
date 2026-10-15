@@ -38,3 +38,22 @@ M04 dùng một search/API provider được chọn ở W1-BE-03/W1-PM-02 để 
 - Website mới có thể chưa có Search Console performance data; no search clicks/delay phải hiện đúng missing/zero theo nguồn, không thay bằng data giả. Nguồn: [Search Console — newly added websites](https://support.google.com/webmasters/answer/96568?device=c&hl=en).
 
 Đây là corpus/measurement plan. Dữ liệu live và credentials/property IDs sẽ được tạo ở task triển khai, không nằm trong W1-PM-01.
+
+## Corpus RAG v1 — rà soát 06/10/2026
+
+Kết luận: không có bộ dữ liệu mở nào cho giá thuê/tình trạng còn phòng ở Đà Nẵng dùng thương mại được (portal và nền tảng đặt phòng cấm sao chép/scrape; Numbeo chỉ cho cá nhân; dataset Kaggle/Hugging Face là NC hoặc cũ; Inside Airbnb không có thành phố Việt Nam). Giá, giờ mở cửa và tình trạng còn phòng chỉ lấy từ fact sheet TripC hoặc đối tác có văn bản cho phép ([mẫu](../../services/ai/corpus/templates/README.md)). Phần ngữ cảnh dùng nguồn có license dưới đây, sinh bằng `python -m corpus.build` trong `services/ai/`.
+
+| Nguồn | License | Chủ đề | Trạng thái |
+| --- | --- | --- | --- |
+| Wikivoyage “Da Nang” | CC BY-SA 4.0 | Khu sống, ăn uống, đi lại, an toàn | Đã đưa vào corpus, bỏ giá; dùng tên quận cũ |
+| GOV.UK FCDO travel advice Vietnam | OGL v3.0 | Nhập cảnh, an toàn, y tế | Đã đưa vào corpus (5 phần, cập nhật 21/09/2026) |
+| OpenStreetMap (Overpass) | ODbL 1.0 | Gym, coworking (chỉ 3), chợ, y tế; gán phường 2025 | Đã đưa vào corpus; không có giờ/điện thoại; giữ tách khỏi dữ liệu TripC |
+| NQ 1659/NQ-UBTVQH15 | Văn bản pháp luật (không bảo hộ quyền tác giả) | 23 phường mới và đơn vị cũ | Đã đưa vào corpus + bảng alias; khoản 13–20 mới đối chiếu một nguồn |
+| Smartraveller (Úc), travel.state.gov (Mỹ) | CC BY / public domain | Thông tin thực tế cho người nước ngoài | Có thể thêm; bị chặn/timeout khi tải tự động ngày 06/10 |
+| Thống kê TP Đà Nẵng (CPI giá thuê) | Báo cáo hành chính | Xu hướng giá thuê (% , không có mức VND) | Chỉ làm ngữ cảnh, xin xác nhận trước khi lưu toàn văn |
+| danangfantasticity.com | Có bản quyền, chưa đọc được Terms | Sự kiện, ăn uống, lưu trú | Cần xin phép Trung tâm Xúc tiến Du lịch (W1-QQ-09) |
+| vietnam.travel | Cấm sao chép/lưu khi chưa có văn bản cho phép | Du lịch | Chỉ research |
+| Overture Maps / Foursquare OS Places | CDLA-Permissive-2.0 / Apache-2.0 | POI | Chỉ để khám phá (nhiều nhiễu, tên quận cũ) |
+| batdongsan, Nhà Tốt, Airbnb, Booking, Agoda, Facebook, Google Maps, Numbeo | Điều khoản cấm | Giá/tin đăng | **Tránh** |
+
+Từ 1/7/2025 Đà Nẵng sáp nhập Quảng Nam và bỏ cấp quận; hầu hết dữ liệu và câu hỏi người dùng vẫn dùng tên quận cũ, nên retrieval dùng [bảng alias](../../services/ai/data/danang_wards_2025.json). Corpus chưa phải source đã duyệt: BE ingest/persist (W1-MY-03/W1-MY-07), Dương review (W1-DU-06).
