@@ -2,7 +2,7 @@
 
 Owner: Mỹ (BE), Thiệu Quang peer-review; vùng sửa `apps/worker/**`. Package/lockfile và process riêng với API, job dài không nằm trong request web. W1-MY-01: đã có queue pg-boss baseline, job state/heartbeat/retry/kill-recovery + fake AI adapter. **MY-01 (D3): đã nối AI HTTP adapter (CR-001) và typed job routing** — xem mục riêng dưới đây.
 
-`src/jobs/`: `JobState` (status/attempt/deadline/progress/result_ref/provider_calls), `JobStore` (Memory + File durable), `RetryPolicy`, `Heartbeat`, `JobRunner` (claim→heartbeat→persist→completed; timeout; recoverStale), `QueueConfig` (pg-boss v8), `operations` (typed routing), `submit`. `src/adapters/`: `AiAdapter` (Fake + Http), `QueueAdapter` (PgBoss/Memory), `StorageAdapter` (Memory/File result_ref); CMS/GA4/GSC placeholder. `tests/` và `tasks/` do BE quản.
+`src/jobs/`: `JobState` (status/attempt/deadline/progress/result_ref/provider_calls), `JobStore` (Memory + File durable), `RetryPolicy`, `Heartbeat`, `JobRunner` (claim→heartbeat→persist→completed; timeout; recoverStale), `QueueConfig` (pg-boss v8), `operations` (typed routing), `submit`. `src/adapters/`: `AiAdapter` (Fake + Http), `QueueAdapter` (PgBoss/Memory), `StorageAdapter` (Memory/File result_ref); CMS/GA4/GSC placeholder. `src/workflow/`: `WorkflowRunner` (dependency dispatch + human wait + dedup + resume + requeueFailed), `WorkflowStore` (Memory + File), `DbWorkflowStore` (Postgres, nối migration 002). `tests/` và `tasks/` do BE quản.
 
 ## AI HTTP adapter và typed routing (MY-01)
 
@@ -14,6 +14,13 @@ Owner: Mỹ (BE), Thiệu Quang peer-review; vùng sửa `apps/worker/**`. Packa
 - Env: `AI_SERVICE_BASE_URL`, `INTERNAL_AI_AUTH_TOKEN`, `AI_HTTP_POLL_INTERVAL_MS` (1000), `AI_HTTP_POLL_TIMEOUT_MS` (600000), `AI_HTTP_REQUEST_TIMEOUT_MS` (30000).
 - Job result của operation AI-backed gồm `ai_run_id` + `artifact` (CR-002) persist qua `result_ref`.
 - Test: `tests/httpAiAdapter.test.ts` (submit/poll/idempotency/error envelope/cancel, stub fetch — không cần service thật), `tests/operationsRouting.test.ts` (mapping + không-LLM ops). Chạy: `npm test`.
+
+## Workflow runner durable (MY-03 — hoàn thiện tuần 1)
+
+- `WorkflowRunner` (`src/workflow/WorkflowRunner.ts`): dependency dispatch đúng thứ tự DAG, dừng ở human wait (`awaiting_approval`), event dedup exactly-once, `resume()` sau restart chỉ chạy step cần, `requeueFailed()` retry step lỗi không chạy lại toàn campaign.
+- `DbWorkflowStore` (`src/workflow/DbWorkflowStore.ts`, mới): pg Pool raw SQL theo pattern `apps/api/src/lib/db.ts`, nối migration 002 của TQ-02 — Workflow → hàng `workflow_tasks` operation=`__workflow__`; Task → hàng `workflow_tasks` + cạnh `task_dependencies` (đọc dependencies từ bảng, nguồn sự thật cho dispatch); Event → hàng `content_artifacts` (`artifact_type='workflow_event'`, content_hash = sha256(workflow_id|dedup_key), dedup read-before-write trong transaction vì 002 chưa có unique (workspace_id, content_hash)). `'blocked'` hạ xuống `'failed'` + error_code=`DEPENDENCY_FAILED` (map ngược khi đọc) vì CHECK của 002 không có `'blocked'`.
+- Test: `tests/workflow.test.ts` 5/5 (Memory/File store), `tests/dbWorkflow.test.ts` (tích hợp Postgres thật, tự skip khi không có DB — cần `DATABASE_URL` trỏ Postgres đã migrate 001+002).
+- Hạn chế môi trường hiện tại: Docker Desktop chưa chạy trên máy Mỹ nên evidence DB thật + live run MY-01 chưa có — chạy lại `npx vitest run tests/dbWorkflow.test.ts` và smoke `AI_PROVIDER_MODE=live` khi có Postgres + AI service.
 
 Giới hạn: chỉ 1 AI process (concurrency 1); workspace_id phải là UUID thật từ BE — test nội bộ dùng FakeAiAdapter; publish/lead/metrics chờ MY-04–06, chưa có side effect.
 

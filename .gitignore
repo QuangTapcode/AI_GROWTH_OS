@@ -22,6 +22,7 @@ __pycache__/
 *.log
 test-results/
 playwright-report/
+.vite/
 .DS_Store
 Thumbs.db
 

@@ -27,7 +27,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Reuse queue/lease/retry; DB store nối migration; dependency dispatch, awaiting_approval/blocked, event dedup và resume; retry step lỗi, không chạy lại toàn campaign.
 - **Phụ thuộc:** TQ-02, MY-01.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `done` · PR/build: PR #3 merged vào thieuquang_be · Evidence: `apps/worker/src/workflow/` (WorkflowRunner dependency dispatch + human wait + dedup + resume + requeueFailed), store `Memory/FileWorkflowStore` (interface tách để thay DB store khi migration TQ-02 sẵn sàng), `tests/workflow.test.ts` 5/5 pass · Blocker: **phần DB store (kysely) nối migration TQ-02 chưa làm được** — owner Thiệu Quang, cần migration workflow/task/event tables; tới khi có thì dùng FileWorkflowStore để demo/smoke local · Ghi nhận: reviewer xác nhận ngoài GitHub.
+- **Theo dõi:** `done` · PR/build: PR #3 merged vào thieuquang_be · Evidence: `apps/worker/src/workflow/` (WorkflowRunner dependency dispatch + human wait + dedup + resume + requeueFailed), `DbWorkflowStore` (pg Pool theo pattern API, nối migration 002: marker workflow/task/dependencies/events, dedup read-before-write), store `Memory/FileWorkflowStore`, `tests/workflow.test.ts` 5/5 pass, `tests/dbWorkflow.test.ts` (pass trên Postgres thật localhost:15432, migration 001+002 áp dụng) · Blocker đã gỡ: TQ-02 merged (42504f1). · Ghi nhận: reviewer xác nhận ngoài GitHub.
 
 ## Tuần 2 — 22–28/10/2026
 

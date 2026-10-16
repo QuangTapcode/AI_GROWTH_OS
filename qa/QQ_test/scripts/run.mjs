@@ -97,6 +97,10 @@ try {
     ok = await runStage("be-integration", suite, vitestArgs(suite, [], "be-integration"), {
       DATABASE_URL: url.href, QQ_TEST_DATABASE: name, NODE_ENV: "test",
     }) && ok;
+    const worker = path.join(repo, "apps/worker");
+    ok = await runStage("worker-db", worker, vitestArgs(worker, ["tests/dbWorkflow.test.ts"], "worker-db"), {
+      DATABASE_URL: url.href, QQ_TEST_DATABASE: name, NODE_ENV: "test",
+    }) && ok;
   }
   if (mode === "--checks") {
     const api = path.join(repo, "apps/api");
