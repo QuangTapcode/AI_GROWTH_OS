@@ -26,7 +26,7 @@ Server là máy Windows hiện tại theo xác nhận người dùng; Docker và
 
 Nguồn: [Ollama local API](https://docs.ollama.com/api/introduction), [PostgreSQL](https://www.postgresql.org/docs/current/index.html), [pgvector](https://github.com/pgvector/pgvector), [SearXNG API](https://docs.searxng.org/dev/search_api.html), [pg-boss](https://github.com/timgit/pg-boss), [GA4 setup](https://support.google.com/analytics/answer/9304153?hl=en), [GSC ownership](https://support.google.com/webmasters/answer/9008080?hl=en).
 
-[PM plan](../../docs/coordination/W1-PM-02.md) · [access/blockers](../../docs/coordination/W1-PM-03.md) · [limits](../../docs/coordination/PILOT_LIMITS.md).
+PM plan (tài liệu cũ đã xóa) · access/blockers (tài liệu cũ đã xóa) · [limits](../../docs/coordination/PILOT_LIMITS.md).
 
 
 ## Chạy local dependencies

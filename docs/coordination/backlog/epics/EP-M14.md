@@ -5,7 +5,7 @@
 - Contributors: Quang Quang, Thiệu Quang, Mỹ, Tiến, Huyền, Dương, Trường, Thiệu; vai trò: AI, BE, FE, BA, UI/UX, Tester 1, Tester 2. Thiệu làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
 - Tuần: 4; ngày bắt đầu: 16; hạn mục tiêu: ngày 16 tính từ kickoff, chưa là ngày lịch.
 - Milestones: Ngày 16 integrated report; UAT ngày 19.
-- Effort: S/M/L theo [W1-PM-02](../../W1-PM-02.md); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.
+- Effort: S/M/L theo W1-PM-02 (tài liệu cũ đã xóa); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.
 - Tasks liên quan: W4-AI-01, W4-BE-01, W4-FE-01, W4-QA1-01, W4-QA2-01; chi tiết trong [TODO](../../../../TODO.md).
 
 ## Phụ thuộc và ranh giới

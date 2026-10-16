@@ -5,7 +5,7 @@
 - Contributors: Thiệu Quang, Mỹ, Tiến, Huyền, Quang Quang, Dương, Trường, Thiệu; vai trò: BE, FE, AI, BA, UI/UX, Tester 1, Tester 2. Thiệu làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
 - Tuần: 3; ngày bắt đầu: 11; hạn mục tiêu: ngày 12 tính từ kickoff, chưa là ngày lịch.
 - Milestones: Ngày 11 approval; ngày 12 CMS publish thật; regression ngày 15.
-- Effort: S/M/L theo [W1-PM-02](../../W1-PM-02.md); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.
+- Effort: S/M/L theo W1-PM-02 (tài liệu cũ đã xóa); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.
 - Tasks liên quan: W3-BE-02, W3-FE-01, W3-AI-02, W3-QA1-01, W3-QA2-01; chi tiết trong [TODO](../../../../TODO.md).
 
 ## Phụ thuộc và ranh giới
