@@ -13,6 +13,7 @@ export {
   FileWorkflowStore,
   type WorkflowStore,
 } from './WorkflowStore';
+export { DbWorkflowStore } from './DbWorkflowStore';
 export {
   WorkflowRunner,
   type WorkflowRunnerOptions,
