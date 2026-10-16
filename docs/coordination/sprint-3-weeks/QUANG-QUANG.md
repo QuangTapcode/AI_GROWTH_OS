@@ -13,21 +13,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Duyệt phạm vi với Dương; chốt schema input/output, role/tool matrix, budget và một LLM job tại một thời điểm. Có decision và estimate sau D2.
 - **Phụ thuộc:** DU-01, TQ-01.
 - **Reviewer:** Dương + Mỹ.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [CR-002](../../../contracts/changes/CR-002-six-agent-pipelines.md), [handoff](QQ01-03-HANDOFF.md) · Chờ Dương/Mỹ review baseline/schema/estimate; chưa ghi nhận approval.
+- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [CR-002](../../../contracts/changes/CR-002-six-agent-pipelines.md), [handoff](bao-cao/2026-10-14-QQ01-03-HANDOFF.md) · Chờ Dương/Mỹ review baseline/schema/estimate; chưa ghi nhận approval.
 
 ### [ ] QQ-02 · D4 · M · Nối knowledge snapshot và registry với một AI run thật
 
 - **Làm / đầu ra / Done:** Tái sử dụng ingest/answer/growth_map; input chỉ chứa nguồn approved đúng workspace/version; run có artifact, evidence và model/prompt version.
 - **Phụ thuộc:** TQ-02, MY-01.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [live HTTP + persistence](../../../qa/evidence/qq01-03/live-report.json), [handoff](QQ01-03-HANDOFF.md) · AI boundary đã đạt; MY-01/TQ-02 còn cần nối worker/business DB, không tự tick dependency.
+- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [live HTTP + persistence](../../../qa/evidence/qq01-03/live-report.json), [handoff](bao-cao/2026-10-14-QQ01-03-HANDOFF.md) · AI boundary đã đạt; MY-01/TQ-02 còn cần nối worker/business DB, không tự tick dependency.
 
 ### [ ] QQ-03 · D5 · M · Xây Research & Trend tối thiểu
 
 - **Làm / đầu ra / Done:** research.run có handler/schema riêng; brief có URL, fetched_at, audience/offer fit và missing facts; handoff cho Growth Lead.
 - **Phụ thuộc:** QQ-02, DU-02.
 - **Reviewer:** Dương + Thiệu.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [Research pipeline](../../../services/ai/src/agents/research/pipeline.py), [tests/live](QQ01-03-HANDOFF.md) · Dedicated handler/schema/prompt và brief live đã có; chờ Dương/Thiệu review, checkbox giữ trống.
+- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [Research pipeline](../../../services/ai/src/agents/research/pipeline.py), [tests/live](bao-cao/2026-10-14-QQ01-03-HANDOFF.md) · Dedicated handler/schema/prompt và brief live đã có; chờ Dương/Thiệu review, checkbox giữ trống.
 
 ## Tuần 2 — 22–28/10/2026
 
@@ -36,7 +36,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Chọn cơ hội từ research; brief SEO và social; dependencies và artifact refs rõ; backend xác thực kế hoạch trước enqueue.
 - **Phụ thuộc:** QQ-03, TQ-03.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `local_verified` (QQ-04, mock) · PR/build: QQ-04 commit `e7d9690`; đã tích hợp `my_be` local · Evidence: [QQ04 handoff + phần còn thiếu](QQ04-HANDOFF.md), [merge tests 16/10](MERGE-MY-BE.md), [AI mock](../../../qa/evidence/qq04/mock-report.json), [backend mock](../../../qa/evidence/qq04/backend-mock-report.json) · 120 AI tests + 67 API + 48 worker + 40 DB integration đạt; chờ Thiệu Quang/Thiệu review. API/runner nền đã có sau merge; QQ-04 còn cần PostgreSQL PlanRepository/outbox/dependency artifact wiring. Dữ liệu mock synthetic=true; chưa nghiệm thu tích hợp.
+- **Theo dõi:** `local_verified` (QQ-04, mock) · PR/build: QQ-04 commit `e7d9690`; đã tích hợp `my_be` local · Evidence: [QQ04 handoff + phần còn thiếu](bao-cao/2026-10-15-QQ04-HANDOFF.md), [merge tests 16/10](bao-cao/2026-10-16-MERGE-MY-BE.md), [AI mock](../../../qa/evidence/qq04/mock-report.json), [backend mock](../../../qa/evidence/qq04/backend-mock-report.json) · 120 AI tests + 67 API + 48 worker + 40 DB integration đạt; chờ Thiệu Quang/Thiệu review. API/runner nền đã có sau merge; QQ-04 còn cần PostgreSQL PlanRepository/outbox/dependency artifact wiring. Dữ liệu mock synthetic=true; chưa nghiệm thu tích hợp.
 
 ### [ ] QQ-05 · D8 · L · Xây SEO Worker và Content Marketing tối thiểu
 

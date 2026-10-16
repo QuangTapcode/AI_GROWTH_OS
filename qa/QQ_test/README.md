@@ -2,9 +2,9 @@
 
 Bộ này chạy lại các kịch bản đã kiểm tra khi tích hợp `thieuquang_be`/`my_be` vào `Quang-Quang`: database, workspace/member, phân quyền tenant, vòng đời source, lead, public content, integration stub và worker recovery. Mã test case nằm trong [TEST_CASES.md](TEST_CASES.md); kết quả baseline và lỗi cấu hình hiện tại ở [BASELINE.md](BASELINE.md).
 
-Cập nhật merge `my_be` 16/10/2026: DB suite có **40 tests**, thêm campaign/task dependencies, artifact scope và approval RBAC/hash/audit. Forward runner bỏ `.down.sql`. [Evidence mới](../../docs/coordination/sprint-3-weeks/MERGE-MY-BE.md) ghi kết quả hiện hành; các số đếm 34/29 bên dưới là baseline ban đầu. Smoke worker → Python HTTP → QQ-04 chạy riêng bằng `scripts/smoke-mybe-ai.ts`, xem lệnh trong evidence mới.
+Cập nhật merge `my_be` 16/10/2026: DB suite có **40 tests**, thêm campaign/task dependencies, artifact scope và approval RBAC/hash/audit. Forward runner bỏ `.down.sql`. [Evidence mới](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-16-MERGE-MY-BE.md) ghi kết quả hiện hành; các số đếm 34/29 bên dưới là baseline ban đầu. Smoke worker → Python HTTP → QQ-04 chạy riêng bằng `scripts/smoke-mybe-ai.ts`, xem lệnh trong evidence mới.
 
-Sau tích hợp PR #2/#4, DB runner chạy thêm `apps/worker/tests/dbWorkflow.test.ts` trên cùng database tạm đã migrate: **40 API integration + 1 worker PostgreSQL test**. Khi đã cấp `DATABASE_URL`, test DB phải fail nếu không kết nối được. [Review/evidence PR](../../docs/coordination/sprint-3-weeks/MERGE-PR2-PR4.md).
+Sau tích hợp PR #2/#4, DB runner chạy thêm `apps/worker/tests/dbWorkflow.test.ts` trên cùng database tạm đã migrate: **40 API integration + 1 worker PostgreSQL test**. Khi đã cấp `DATABASE_URL`, test DB phải fail nếu không kết nối được. [Review/evidence PR](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-16-MERGE-PR2-PR4.md).
 
 ## Chạy nhanh
 

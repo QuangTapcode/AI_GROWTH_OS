@@ -49,6 +49,8 @@ Critical path: DU-01 → TQ-01 → TQ-02/MY-01 → TQ-03/MY-03 → QQ-03/QQ-04 �
 
 ## Tái sử dụng và nguồn chuẩn
 
-[Kiến trúc/cấu trúc mới](../../architecture/SIX-AGENT-RESTRUCTURE.md) · [Bản đồ tái sử dụng và task cũ](REUSE-MAP.md) · [Roster](../TEAM.md) · [TODO tổng](../../../TODO.md).
+Thư mục này giữ bảy file nhiệm vụ cá nhân và README kế hoạch chung. Báo cáo, biên bản, handoff và bản đồ tham chiếu nằm trong [bao-cao/](bao-cao/), đặt tên `YYYY-MM-DD-TEN-BAO-CAO.md` theo ngày lập báo cáo để dễ sắp xếp và theo dõi.
+
+[Kiến trúc/cấu trúc mới](../../architecture/SIX-AGENT-RESTRUCTURE.md) · [Bản đồ tái sử dụng và task cũ](bao-cao/2026-10-14-REUSE-MAP.md) · [Roster](../TEAM.md) · [TODO tổng](../../../TODO.md).
 
 Mỗi task trong 7 file cá nhân là nguồn trạng thái chi tiết duy nhất; TODO tổng chỉ giữ gate để tránh cập nhật hai bảng khác nhau.

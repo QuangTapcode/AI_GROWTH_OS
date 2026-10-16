@@ -8,7 +8,7 @@ Nền tảng điều phối 6 agent Marketing cho TripC: Research → Growth Lea
 
 1. Mở [TODO tổng](TODO.md) và [kế hoạch 3 tuần + TODO từng người](docs/coordination/sprint-3-weeks/README.md).
 2. Đọc [roster/quyền sửa](docs/coordination/TEAM.md), [cấu trúc và data flow](docs/architecture/SIX-AGENT-RESTRUCTURE.md).
-3. Tra [bản đồ tái sử dụng](docs/coordination/sprint-3-weeks/REUSE-MAP.md), chọn task rồi chốt contract/AC với consumer trước code.
+3. Tra [bản đồ tái sử dụng](docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-REUSE-MAP.md), chọn task rồi chốt contract/AC với consumer trước code.
 4. Handoff có task ID, PR/build, schema/version và evidence. Mock/local khác tích hợp/live; Done cần reviewer xác nhận.
 
 ## Các package
@@ -38,4 +38,4 @@ Từ PowerShell ở repo, launcher hiện có:
 
 ## Tài liệu thực thi
 
-[Kế hoạch 7 người/3 tuần](docs/coordination/sprint-3-weeks/README.md) là baseline hiện hành. Các checklist/bản lưu trùng đã được xóa theo yêu cầu ngày 14/10; [biên bản dọn dẹp](docs/coordination/sprint-3-weeks/CLEANUP.md) ghi phạm vi. Audit, tài liệu nguồn và đặc tả còn dùng được tiếp tục làm căn cứ kỹ thuật.
+[Kế hoạch 7 người/3 tuần](docs/coordination/sprint-3-weeks/README.md) là baseline hiện hành. Các checklist/bản lưu trùng đã được xóa theo yêu cầu ngày 14/10; [biên bản dọn dẹp](docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-CLEANUP.md) ghi phạm vi. Audit, tài liệu nguồn và đặc tả còn dùng được tiếp tục làm căn cứ kỹ thuật.

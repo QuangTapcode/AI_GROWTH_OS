@@ -35,4 +35,4 @@ Plan có đúng hai task: SEO draft không dependency, social draft phụ thuộ
 
 Backend module: `apps/api/src/modules/campaignPlans/`. `submitCampaignPlan` chỉ nhận artifact ref, tải content từ repository tin cậy và validate toàn plan trước `accept`. Mock bị chặn mặc định, demo mới bật `allowSynthetic: true`. Human approval vẫn bắt buộc trước publish.
 
-[Bàn giao, evidence và phần còn thiếu](../../../../../docs/coordination/sprint-3-weeks/QQ04-HANDOFF.md).
+[Bàn giao, evidence và phần còn thiếu](../../../../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-15-QQ04-HANDOFF.md).

@@ -16,10 +16,10 @@ Chỉ có conflict `contracts/CHANGELOG.md`; đã giữ cả CR-003 và contract
 | API typecheck + production build | **Passed**; build tái tạo `.next` types phù hợp Next 14 |
 | Worker typecheck + build | **Passed** |
 | QQ test suite + HTTP smoke script TypeScript | **Passed** |
-| Worker → AI HTTP → backend QQ-04 | **Passed**, [8 checks và artifact](../../../qa/evidence/merge-my-be/worker-ai-http.json) |
+| Worker → AI HTTP → backend QQ-04 | **Passed**, [8 checks và artifact](../../../../qa/evidence/merge-my-be/worker-ai-http.json) |
 | API standalone lint | **Blocked bởi config có sẵn**: ESLint 8.57.1 không export `eslint/config`, trong khi `eslint.config.mjs` import API đó |
 
-Tổng **278 assertions/tests** ở năm nhóm test, không tính smoke HTTP. Không tính lại các case được runner gọi nhiều lần. [Summary](../../../qa/evidence/merge-my-be/validation.json), [DB evidence](../../../qa/evidence/merge-my-be/postgres-summary.json).
+Tổng **278 assertions/tests** ở năm nhóm test, không tính smoke HTTP. Không tính lại các case được runner gọi nhiều lần. [Summary](../../../../qa/evidence/merge-my-be/validation.json), [DB evidence](../../../../qa/evidence/merge-my-be/postgres-summary.json).
 
 Production build thành công nhưng lúc prerender readiness có warning password của fallback DB user `postgres`; không thay credential local. DB integration dùng credential từ `infra/local/.env` trong bộ nhớ, không ghi secret vào evidence/git. Hai lần chạy integration cuối dùng database `qq_test_*` độc lập và cleanup passed; không migrate database ứng dụng.
 

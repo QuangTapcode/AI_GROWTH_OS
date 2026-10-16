@@ -1,6 +1,6 @@
 # CR-003 — Growth Lead planning, QQ-04
 
-Ngày 15/10/2026. Implementation candidate, local_verified với mock; chờ Thiệu Quang + Thiệu review. [Bàn giao và evidence](../../docs/coordination/sprint-3-weeks/QQ04-HANDOFF.md).
+Ngày 15/10/2026. Implementation candidate, local_verified với mock; chờ Thiệu Quang + Thiệu review. [Bàn giao và evidence](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-15-QQ04-HANDOFF.md).
 
 ## Thay đổi
 

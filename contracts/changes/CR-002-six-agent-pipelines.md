@@ -52,6 +52,6 @@ M là effort tương đối, không phải thời gian đo; giữ một task ch�
 
 ## Kiểm tra
 
-104 AI tests đạt ở vòng triển khai. Live smoke có 4 operation completed, Research 1 LLM call, idempotent retry và artifact qua restart đạt. [Handoff/evidence](../../docs/coordination/sprint-3-weeks/QQ01-03-HANDOFF.md).
+104 AI tests đạt ở vòng triển khai. Live smoke có 4 operation completed, Research 1 LLM call, idempotent retry và artifact qua restart đạt. [Handoff/evidence](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-QQ01-03-HANDOFF.md).
 
 Smoke dùng process/token/SQLite riêng, nguồn công khai và profile/approval TEST. Không coi đây là nguồn production được duyệt, integrated business DB hoặc actual demo dashboard. Backend cần review version bump cho typed Research input trước release; OpenAPI public không tự được coi là đã cập nhật.

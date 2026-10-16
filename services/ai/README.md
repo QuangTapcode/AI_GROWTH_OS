@@ -94,6 +94,6 @@ Baseline W1-PM-02: Ollama local đã smoke trên workstation, qwen3:4b-instruct 
 
 ## QQ-01–03: bàn giao trước review
 
-[CR-002](../../contracts/changes/CR-002-six-agent-pipelines.md) · [Handoff/evidence](../../docs/coordination/sprint-3-weeks/QQ01-03-HANDOFF.md). Registry: `GET /internal/v1/agents` (internal bearer auth). Mọi run mới persist artifact ID/hash/version trong AI store; snapshot-sourced Growth Map chỉ dùng facts verified. `research.run` yêu cầu payload typed; consumer cũ cần migrate.
+[CR-002](../../contracts/changes/CR-002-six-agent-pipelines.md) · [Handoff/evidence](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-QQ01-03-HANDOFF.md). Registry: `GET /internal/v1/agents` (internal bearer auth). Mọi run mới persist artifact ID/hash/version trong AI store; snapshot-sourced Growth Map chỉ dùng facts verified. `research.run` yêu cầu payload typed; consumer cũ cần migrate.
 
 Live HTTP smoke độc lập: `python services/ai/scripts/smoke_qq01_03.py --mode live` từ repo root, dùng process/store/token riêng và TEST approval/profile, không ghi business DB.
