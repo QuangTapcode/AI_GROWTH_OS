@@ -19,8 +19,23 @@ import {
   queueNameForOperation,
 } from './jobs';
 import { PgBossQueue, type QueueTransport } from './adapters/QueueAdapter';
-import { FakeAiAdapter } from './adapters/AiAdapter';
+import { FakeAiAdapter, type AiAdapter } from './adapters/AiAdapter';
+import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { FileResultStorage } from './adapters/StorageAdapter';
+
+/** Chọn AI adapter theo config: fake (mặc định) | live (HTTP CR-001). */
+function buildAiAdapter(cfg: ReturnType<typeof env>): AiAdapter {
+  if (cfg.AI_PROVIDER_MODE === 'live') {
+    return new HttpAiAdapter({
+      baseUrl: cfg.AI_SERVICE_BASE_URL,
+      token: cfg.INTERNAL_AI_AUTH_TOKEN || undefined,
+      pollIntervalMs: cfg.AI_HTTP_POLL_INTERVAL_MS,
+      pollTimeoutMs: cfg.AI_HTTP_POLL_TIMEOUT_MS,
+      requestTimeoutMs: cfg.AI_HTTP_REQUEST_TIMEOUT_MS,
+    });
+  }
+  return new FakeAiAdapter();
+}
 
 async function main(): Promise<void> {
   const cfg = env();
@@ -29,7 +44,7 @@ async function main(): Promise<void> {
   const runner = new JobRunner({
     store,
     storage,
-    ai: new FakeAiAdapter(),
+    ai: buildAiAdapter(cfg),
     handlers: buildOperationHandlers(),
     heartbeatIntervalMs: cfg.HEARTBEAT_INTERVAL_MS,
     leaseTtlMs: cfg.HEARTBEAT_TTL_MS,

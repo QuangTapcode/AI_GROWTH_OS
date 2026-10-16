@@ -27,8 +27,11 @@ export {
   syncMetrics,
   runSync,
   supportMatrix,
+  socialChannelDecision,
   type IntegrationConnectionStatus,
   type OwnershipProbeResult,
   type MetricSyncResult,
   type SyncJobResult,
+  type ChannelMode,
+  type ChannelDecision,
 } from './stubs';

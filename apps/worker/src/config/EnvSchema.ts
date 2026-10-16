@@ -31,6 +31,13 @@ export const EnvSchema = z.object({
   // Integration mode (fake adapters for local)
   INTEGRATION_MODE: z.enum(['fake', 'production']).default('fake'),
   AI_PROVIDER_MODE: z.enum(['fake', 'live']).default('fake'),
+  // AI HTTP adapter (MY-01) — chỉ dùng khi AI_PROVIDER_MODE=live
+  AI_SERVICE_BASE_URL: z.string().default('http://127.0.0.1:5000'),
+  INTERNAL_AI_AUTH_TOKEN: z.string().default(''),
+  AI_HTTP_POLL_INTERVAL_MS: z.coerce.number().default(1_000),
+  /** Poll tối đa một run; AI run cap theo PILOT_LIMITS là 600s */
+  AI_HTTP_POLL_TIMEOUT_MS: z.coerce.number().default(600_000),
+  AI_HTTP_REQUEST_TIMEOUT_MS: z.coerce.number().default(30_000),
 });
 
 export type EnvSchemaType = z.infer<typeof EnvSchema>;

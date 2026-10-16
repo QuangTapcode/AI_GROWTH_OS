@@ -5,7 +5,14 @@ import { z } from 'zod';
  * Status nhất quán với contracts: not_connected + missing_reason,
  * KHÔNG bịa property/live metrics.
  */
-export const providerSchema = z.enum(['ga4', 'gsc']);
+export const providerSchema = z.enum([
+  'ga4',
+  'gsc',
+  'facebook_page',
+  'instagram_business',
+  'meta_ads',
+  'website_cms',
+]);
 export type IntegrationProvider = z.infer<typeof providerSchema>;
 
 export const connectionStatusSchema = z.enum(['not_connected', 'connecting', 'connected', 'error', 'revoked']);
@@ -21,6 +28,10 @@ export const missingReasonSchema = z.enum([
   'PROPERTY_NOT_VERIFIED',
   'PROBE_REQUIRES_CONNECTED_ACCOUNT',
   'SYNC_NOT_RUN_YET',
+  'FACEBOOK_PAGE_PERMISSION_MISSING',
+  'INSTAGRAM_ACCOUNT_NOT_LINKED',
+  'META_ADS_ACCESS_MISSING',
+  'CMS_NOT_PUBLISHED',
 ]);
 export type MissingReason = z.infer<typeof missingReasonSchema>;
 
