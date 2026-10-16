@@ -27,6 +27,30 @@ export class AppError extends Error {
     }
 }
 
+export class NotFoundError extends AppError {
+    constructor(message = "Resource not found") {
+        super(404, "NOT_FOUND", message);
+    }
+}
+
+export class ForbiddenError extends AppError {
+    constructor(message = "Forbidden") {
+        super(403, "FORBIDDEN", message);
+    }
+}
+
+export class ConflictError extends AppError {
+    constructor(message = "Conflict") {
+        super(409, "CONFLICT", message);
+    }
+}
+
+export class ValidationError extends AppError {
+    constructor(message = "Validation failed", fieldErrors?: FieldErrors) {
+        super(422, "VALIDATION_ERROR", message, fieldErrors);
+    }
+}
+
 export function createErrorResponse(
     statusCode: number,
     code: string,

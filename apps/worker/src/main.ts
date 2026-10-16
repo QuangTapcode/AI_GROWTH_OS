@@ -19,17 +19,45 @@ import {
   queueNameForOperation,
 } from './jobs';
 import { PgBossQueue, type QueueTransport } from './adapters/QueueAdapter';
-import { FakeAiAdapter } from './adapters/AiAdapter';
+import { FakeAiAdapter, type AiAdapter } from './adapters/AiAdapter';
+import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { FileResultStorage } from './adapters/StorageAdapter';
+import { DbWorkflowStore } from './workflow';
+
+/** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
+let workflowStore: DbWorkflowStore | null = null;
+
+/** Chọn AI adapter theo config: fake (mặc định) | live (HTTP CR-001). */
+function buildAiAdapter(cfg: ReturnType<typeof env>): AiAdapter {
+  if (cfg.AI_PROVIDER_MODE === 'live') {
+    return new HttpAiAdapter({
+      baseUrl: cfg.AI_SERVICE_BASE_URL,
+      token: cfg.INTERNAL_AI_AUTH_TOKEN || undefined,
+      pollIntervalMs: cfg.AI_HTTP_POLL_INTERVAL_MS,
+      pollTimeoutMs: cfg.AI_HTTP_POLL_TIMEOUT_MS,
+      requestTimeoutMs: cfg.AI_HTTP_REQUEST_TIMEOUT_MS,
+    });
+  }
+  return new FakeAiAdapter();
+}
 
 async function main(): Promise<void> {
   const cfg = env();
+  // Wire DbWorkflowStore (MY-03): verify Postgres connection at startup.
+  workflowStore = new DbWorkflowStore();
+  try {
+    await workflowStore.getWorkflow('__worker_probe__');
+    console.log('[worker] DbWorkflowStore connected OK');
+  } catch (err) {
+    console.warn('[worker] DbWorkflowStore not available:', err);
+  }
+
   const store = new FileJobStore(cfg.WORKER_STATE_DIR);
   const storage = new FileResultStorage(cfg.WORKER_STATE_DIR);
   const runner = new JobRunner({
     store,
     storage,
-    ai: new FakeAiAdapter(),
+    ai: buildAiAdapter(cfg),
     handlers: buildOperationHandlers(),
     heartbeatIntervalMs: cfg.HEARTBEAT_INTERVAL_MS,
     leaseTtlMs: cfg.HEARTBEAT_TTL_MS,
@@ -90,6 +118,7 @@ async function main(): Promise<void> {
 }
 
 export { submitJob } from './jobs';
+export { workflowStore };
 
 if (require.main === module) {
   main().catch((err) => {
