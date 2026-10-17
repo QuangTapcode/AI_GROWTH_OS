@@ -1,4 +1,4 @@
-import { query } from "@/lib/db";
+import { query } from "../../lib/db";
 import { CreateApprovalInput, ReviewApprovalInput } from "./schemas";
 
 export interface ApprovalRow {

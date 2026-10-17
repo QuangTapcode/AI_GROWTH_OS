@@ -31,6 +31,7 @@ export const createLeadBodySchema = z
     email: z.string().trim().email(),
     name: z.string().trim().min(1).max(120),
     interest_topic: z.string().trim().min(1).max(64),
+    phone_number: z.string().trim().max(50).optional(),
     consent: leadConsentSchema,
     context: leadContextSchema.optional(),
   })
@@ -38,6 +39,33 @@ export const createLeadBodySchema = z
 
 export type CreateLeadBody = z.infer<typeof createLeadBodySchema>;
 export type LeadContext = z.infer<typeof leadContextSchema>;
+
+export const leadStatusSchema = z.enum([
+  'New',
+  'Assigned',
+  'Contacted',
+  'Converted',
+  'Archived',
+]);
+export type LeadStatus = z.infer<typeof leadStatusSchema>;
+
+export const updateLeadBodySchema = z
+  .object({
+    lead_status: leadStatusSchema.optional(),
+    lead_owner: z.string().uuid().nullable().optional(),
+    notes: z.string().max(4000).optional(),
+  })
+  .strict();
+export type UpdateLeadBody = z.infer<typeof updateLeadBodySchema>;
+
+export const listLeadsQuerySchema = z.object({
+  lead_status: leadStatusSchema.optional(),
+  lead_owner: z.string().optional(),
+  search: z.string().optional(),
+  limit: z.coerce.number().min(1).max(100).default(50).optional(),
+  offset: z.coerce.number().min(0).default(0).optional(),
+});
+export type ListLeadsQuery = z.infer<typeof listLeadsQuerySchema>;
 
 /** Header Idempotency-Key bắt buộc (contracts §5: scope theo action/site). */
 export const idempotencyKeySchema = z.string().trim().min(1).max(200);

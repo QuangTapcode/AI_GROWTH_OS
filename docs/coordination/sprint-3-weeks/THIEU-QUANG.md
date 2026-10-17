@@ -43,14 +43,14 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Migration/repository PostgreSQL thay in-memory; idempotency + contact dedup trong workspace; owner/status/note và source/UTM; transaction không báo success khi chưa commit.
 - **Phụ thuộc:** TQ-02, DU-05.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0 (27 routes), tsc --noEmit pass, vitest 50/50 pass · Evidence: database/migrations/003_leads_persistence.sql, 003_leads_persistence.down.sql, apps/api/src/modules/leads/repository.ts (Postgres + In-Memory), apps/api/src/modules/leads/workspace.ts, apps/api/tests/leads/leadsWorkspace.test.ts · Blocker: không.
 
 ### [ ] TQ-06 · D10 · M · Tool gateway và connector authorization
 
 - **Làm / đầu ra / Done:** Enforce workspace/role/tool/account/approval tại executor; tách read/draft/publish; ads mutation không được expose; audit denial và execution.
 - **Phụ thuộc:** TQ-04, MY-05.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0 (28 routes), tsc --noEmit pass, vitest 60/60 pass · Evidence: apps/api/src/modules/integrations/gateway.ts, apps/api/src/app/v1/workspaces/[workspace_id]/tools/execute, apps/api/tests/integrations/toolGateway.test.ts, contracts/schemas/openapi.json · Blocker: không.
 
 ## Tuần 3 — 29/10–04/11/2026
 
@@ -59,21 +59,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Đọc snapshot thật, missing reason, time range/timezone/currency; exceptions có owner; outbox/dedup và atomic transitions cho task vòng tiếp.
 - **Phụ thuộc:** TQ-06, MY-07.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0 (32 routes), tsc --noEmit pass, vitest 66/66 pass · Evidence: database/migrations/004_reports_exceptions_outbox.sql, 004_reports_exceptions_outbox.down.sql, apps/api/src/modules/reports/, apps/api/src/app/v1/workspaces/[workspace_id]/reports, exceptions, outbox, apps/api/tests/reports/reportsConsistency.test.ts, contracts/schemas/openapi.json · Blocker: không.
 
 ### [ ] TQ-08 · D13 · M · Hardening auth/tenant/version và migration
 
 - **Làm / đầu ra / Done:** Sửa defects QA; kiểm cross-tenant cả relation IDs, concurrent approval và source revoke; rollback/restore trên dữ liệu thử có evidence.
 - **Phụ thuộc:** TH-07, TQ-07.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0 (32 routes), tsc --noEmit pass, vitest 72/72 pass (api) & 48/48 pass (worker) · Evidence: apps/api/src/modules/approvals/service.ts (chặn 409 APPROVAL_ALREADY_REVIEWED, cascade SOURCE_REVOKED), apps/api/tests/hardening/securityTenantHardening.test.ts (cross-tenant relation isolation, concurrent approval conflicts, migration UP/DOWN integrity) · Blocker: không.
 
 ### [ ] TQ-09 · D15 · M · Release configuration và bàn giao API/DB
 
 - **Làm / đầu ra / Done:** CI/checks đúng scope, env mẫu, migrations và OpenAPI khớp; deploy candidate, health/rollback và giới hạn auth; không release khi còn critical blocker.
 - **Phụ thuộc:** TQ-08, TH-08.
 - **Reviewer:** Mỹ + Quang Quang.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Quang Quang review) · PR/build: next build exit 0 (32 routes), tsc --noEmit pass, vitest 72/72 pass (api) & 48/48 pass (worker) · Evidence: contracts/schemas/openapi.json (OpenAPI 1.1.0 khớp 20 path specs cho toàn bộ 32 endpoints), root .env.example, apps/api/.env.example (chuẩn hóa toàn bộ biến môi trường, health/readyz checks, security headers), migrations 001..004 đầy đủ UP & DOWN · Blocker: không.
 
 ## Khi trễ
 
