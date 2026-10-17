@@ -33,3 +33,21 @@ footer { margin-top: 36px; display: flex; justify-content: space-between; gap: 2
   .hero { margin-top: 40px; }
   .connection-card { align-items: flex-start; flex-direction: column; }
 }
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes floatReverse {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(6px); }
+}
+
+.animate-float-slow {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: floatReverse 6s ease-in-out infinite;
+}
