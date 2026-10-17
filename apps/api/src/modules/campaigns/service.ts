@@ -1,6 +1,6 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
+import { AppError } from "../../lib/errors";
+import { AuthUser } from "../../lib/auth";
+import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import { createCampaignSchema, CreateCampaignInput } from "./schemas";
 import * as repo from "./repository";
 

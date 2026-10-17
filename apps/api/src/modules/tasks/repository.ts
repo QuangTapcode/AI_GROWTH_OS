@@ -1,4 +1,4 @@
-import pool, { query } from "@/lib/db";
+import pool, { query } from "../../lib/db";
 import { CreateWorkflowTaskInput, UpdateTaskStatusInput, CreateArtifactInput } from "./schemas";
 
 export interface WorkflowTaskRow {

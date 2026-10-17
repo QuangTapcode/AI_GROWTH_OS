@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { InMemoryLeadRepository } from '../../src/modules/leads/repository';
@@ -349,6 +349,160 @@ describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
         expect(res.deduplicated).toBe(true);
         expect(res.submission_id).toBe('existing-race-lead-id');
       }
+    });
+  });
+
+  describe('5. Nitpick Audit Remediation (6 Additional Flaws Fixed)', () => {
+    it('Fix 1: handleApiError chuyển đổi ZodError thành 422 VALIDATION_FAILED thay vì 500', async () => {
+      const { handleApiError } = await import('../../src/lib/errors');
+      const { z } = await import('zod');
+
+      const dummySchema = z.object({
+        email: z.string().email(),
+        count: z.number().min(1),
+      });
+
+      try {
+        dummySchema.parse({ email: 'not-an-email', count: 0 });
+        expect.unreachable('Should have thrown ZodError');
+      } catch (err) {
+        const response: any = handleApiError(err);
+        expect(response.status).toBe(422);
+      }
+    });
+
+    it('Fix 5: Chặn đứng việc đảo ngược trạng thái task đã hoàn thành (terminal state: completed -> running)', async () => {
+      const { updateWorkspaceTaskStatus } = await import('../../src/modules/tasks/service');
+      const taskRepo = await import('../../src/modules/tasks/repository');
+      const tenant = await import('../../src/lib/tenant');
+
+      // Mock resolveTenantContext và getTaskById
+      vi.spyOn(tenant, 'resolveTenantContext').mockResolvedValue({
+        user: { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+        workspaceId: WORKSPACE_A,
+        role: 'owner',
+      });
+      vi.spyOn(taskRepo, 'getTaskById').mockResolvedValue({
+        id: 'task-completed-001',
+        workspace_id: WORKSPACE_A,
+        status: 'completed',
+        role: 'content',
+        operation: 'generate_post',
+      } as any);
+
+      try {
+        await updateWorkspaceTaskStatus(
+          { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+          WORKSPACE_A,
+          'task-completed-001',
+          { status: 'running' }
+        );
+        expect.unreachable('Should have thrown AppError for invalid state transition');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(409);
+        expect(err.code).toBe('INVALID_STATE_TRANSITION');
+        expect(err.message).toContain("Cannot transition task from terminal status 'completed'");
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('Fix 4: Chặn tạo Approval ma - Từ chối target_id không tồn tại trong workspace (404 NOT_FOUND)', async () => {
+      const { createWorkspaceApproval } = await import('../../src/modules/approvals/service');
+      const approvalsRepo = await import('../../src/modules/approvals/repository');
+      const tenant = await import('../../src/lib/tenant');
+
+      vi.spyOn(tenant, 'resolveTenantContext').mockResolvedValue({
+        user: { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+        workspaceId: WORKSPACE_A,
+        role: 'owner',
+      });
+      vi.spyOn(approvalsRepo, 'getTargetInfo').mockResolvedValue(null);
+
+      const phantomApproval = {
+        target_type: 'content' as const,
+        target_id: '00000000-0000-4000-8000-000000009999',
+        target_version: 1,
+        target_hash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+      };
+
+      try {
+        await createWorkspaceApproval(
+          { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+          WORKSPACE_A,
+          phantomApproval
+        );
+        expect.unreachable('Should have thrown AppError 404 for phantom target');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(404);
+        expect(err.code).toBe('NOT_FOUND');
+        expect(err.message).toContain('does not exist in this workspace');
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('Fix 3: Khi soft delete source, cascade invalidation toàn bộ approvals liên quan', async () => {
+      const { deleteWorkspaceSource } = await import('../../src/modules/sources/service');
+      const sourcesRepo = await import('../../src/modules/sources/repository');
+      const approvalsRepo = await import('../../src/modules/approvals/repository');
+      const tenant = await import('../../src/lib/tenant');
+
+      let invalidatedCount = 0;
+      let invalidatedTargetId = '';
+      let invalidatedReason = '';
+
+      vi.spyOn(tenant, 'resolveTenantContext').mockResolvedValue({
+        user: { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+        workspaceId: WORKSPACE_A,
+        role: 'owner',
+      });
+      vi.spyOn(sourcesRepo, 'getSourceById').mockResolvedValue({
+        id: 'source-del-001',
+        workspace_id: WORKSPACE_A,
+        status: 'approved',
+      } as any);
+      vi.spyOn(sourcesRepo, 'softDeleteSource').mockResolvedValue(undefined);
+      vi.spyOn(approvalsRepo, 'invalidateApprovalsForTarget').mockImplementation(async (wsId, type, id, reason) => {
+        invalidatedCount++;
+        invalidatedTargetId = id;
+        invalidatedReason = reason || '';
+        return 1;
+      });
+
+      try {
+        const res = await deleteWorkspaceSource(
+          { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+          WORKSPACE_A,
+          'source-del-001'
+        );
+        expect(res.success).toBe(true);
+        expect(invalidatedCount).toBe(1);
+        expect(invalidatedTargetId).toBe('source-del-001');
+        expect(invalidatedReason).toBe('SOURCE_DELETED');
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('Fix 6: listLeadsQuerySchema từ chối chuỗi không phải UUID cho lead_owner', async () => {
+      const { listLeadsQuerySchema } = await import('../../src/modules/leads/schemas');
+
+      const invalidQuery = {
+        lead_owner: 'not-a-valid-uuid',
+      };
+
+      const parseResult = listLeadsQuerySchema.safeParse(invalidQuery);
+      expect(parseResult.success).toBe(false);
+      if (!parseResult.success) {
+        expect(parseResult.error.issues.some((i) => i.path.includes('lead_owner'))).toBe(true);
+      }
+
+      const validQuery = {
+        lead_owner: USER_A,
+      };
+      const validResult = listLeadsQuerySchema.safeParse(validQuery);
+      expect(validResult.success).toBe(true);
     });
   });
 });

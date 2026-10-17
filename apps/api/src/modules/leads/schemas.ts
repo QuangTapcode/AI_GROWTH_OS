@@ -60,7 +60,7 @@ export type UpdateLeadBody = z.infer<typeof updateLeadBodySchema>;
 
 export const listLeadsQuerySchema = z.object({
   lead_status: leadStatusSchema.optional(),
-  lead_owner: z.string().optional(),
+  lead_owner: z.string().uuid("lead_owner must be a valid UUID format").optional(),
   search: z.string().optional(),
   limit: z.coerce.number().min(1).max(100).default(50).optional(),
   offset: z.coerce.number().min(0).default(0).optional(),

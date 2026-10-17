@@ -1,4 +1,4 @@
-import { query } from "@/lib/db";
+import { query } from "../../lib/db";
 import { CreateCampaignInput } from "./schemas";
 
 export interface CampaignRow {

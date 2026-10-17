@@ -1,4 +1,4 @@
-import { query } from "@/lib/db";
+import { query } from "../../lib/db";
 import { CreateSourceInput } from "./schemas";
 
 export interface SourceRow {

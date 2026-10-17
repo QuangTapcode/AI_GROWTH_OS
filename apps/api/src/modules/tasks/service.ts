@@ -1,6 +1,6 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
+import { AppError } from "../../lib/errors";
+import { AuthUser } from "../../lib/auth";
+import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import {
   createWorkflowTaskSchema,
   updateTaskStatusSchema,
@@ -98,6 +98,19 @@ export async function updateWorkspaceTaskStatus(
   const existingTask = await repo.getTaskById(workspaceId, taskId);
   if (!existingTask) {
     throw new AppError(404, "NOT_FOUND", "Workflow task not found");
+  }
+
+  // Chặn đứng việc đảo ngược trạng thái nếu task đã rơi vào terminal status ('completed', 'cancelled')
+  const TERMINAL_STATUSES = ["completed", "cancelled"];
+  if (
+    TERMINAL_STATUSES.includes(existingTask.status) &&
+    parseResult.data.status !== existingTask.status
+  ) {
+    throw new AppError(
+      409,
+      "INVALID_STATE_TRANSITION",
+      `Cannot transition task from terminal status '${existingTask.status}' to '${parseResult.data.status}'`
+    );
   }
 
   const updatedTask = await repo.updateTaskStatus(workspaceId, taskId, parseResult.data);

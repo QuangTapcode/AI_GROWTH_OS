@@ -1,4 +1,4 @@
-import { query } from "../../lib/db";
+import { query, withTransaction } from "../../lib/db";
 import { CreateApprovalInput, ReviewApprovalInput } from "./schemas";
 
 export interface ApprovalRow {
@@ -133,6 +133,69 @@ export async function getTargetInfo(
   }
 
   return null;
+}
+
+export async function executeApprovalReviewTransaction(
+  workspaceId: string,
+  approvalId: string,
+  input: ReviewApprovalInput,
+  actorId: string,
+  actorRole: string,
+  targetType: string,
+  targetId: string
+): Promise<ApprovalRow> {
+  return withTransaction(async (client) => {
+    const nextStatus = input.decision === "approve" ? "approved" : input.decision === "reject" ? "rejected" : "revoked";
+
+    const sql = `
+      UPDATE approvals
+      SET status = $1,
+          decision = $2,
+          actor_id = $3,
+          actor_role = $4,
+          review_note = COALESCE($5, review_note),
+          updated_at = NOW()
+      WHERE workspace_id = $6 AND id = $7
+      RETURNING *
+    `;
+    const approvalRes = await client.query<ApprovalRow>(sql, [
+      nextStatus,
+      input.decision,
+      actorId,
+      actorRole,
+      input.review_note || null,
+      workspaceId,
+      approvalId,
+    ]);
+
+    if (targetType === "content") {
+      if (input.decision === "approve") {
+        await client.query(
+          `UPDATE contents 
+           SET status = 'approved', approved_by = $1, updated_at = NOW() 
+           WHERE workspace_id = $2 AND id = $3`,
+          [actorId, workspaceId, targetId]
+        );
+      } else {
+        await client.query(
+          `UPDATE contents 
+           SET status = 'draft', approved_by = NULL, published_at = NULL, updated_at = NOW() 
+           WHERE workspace_id = $2 AND id = $3`,
+          [workspaceId, targetId]
+        );
+      }
+    } else if (targetType === "source") {
+      const sourceStatus = input.decision === "approve" ? "approved" : input.decision === "reject" ? "rejected" : "revoked";
+      await client.query(
+        `UPDATE sources 
+         SET status = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW() 
+         WHERE workspace_id = $3 AND id = $4`,
+        [sourceStatus, actorId, workspaceId, targetId]
+      );
+    }
+
+    return approvalRes.rows[0];
+  });
 }
 
 export async function applyApprovalReview(

@@ -1,6 +1,6 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
+import { AppError } from "../../lib/errors";
+import { AuthUser } from "../../lib/auth";
+import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import {
   createSourceSchema,
   reviewSourceSchema,
@@ -8,6 +8,7 @@ import {
   ReviewSourceInput,
 } from "./schemas";
 import * as repo from "./repository";
+import { invalidateApprovalsForTarget } from "../approvals/repository";
 
 export async function listWorkspaceSources(
   user: AuthUser,
@@ -121,5 +122,6 @@ export async function deleteWorkspaceSource(
   }
 
   await repo.softDeleteSource(workspaceId, sourceId);
+  await invalidateApprovalsForTarget(workspaceId, "source", sourceId, "SOURCE_DELETED");
   return { success: true, message: "Source deleted successfully" };
 }

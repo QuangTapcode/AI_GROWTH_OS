@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
+import { ZodError } from "zod";
 
 export interface FieldErrors {
     [field: string]: string[];
@@ -73,27 +74,43 @@ export function createErrorResponse(
     );
 }
 
-
 export function handleApiError(err: unknown, requestId: string = uuidv4()): NextResponse<ApiErrorResponse> {
-        if (err instanceof AppError) {
-            return createErrorResponse(
-                err.statusCode,
-                err.code,
-                err.message,
-                err.fieldErrors,
-                err.detail,
-                requestId
-            );
-        }
-    
-        //Lỗi không lường trước (Internal Server Error)
-        console.error(`[${requestId}] Unhandled Error`, err);
+    if (err instanceof AppError) {
         return createErrorResponse(
-            500,
-            "INTERNAL_ERROR",
-            "An unexpected error occurred.",
-            undefined,
+            err.statusCode,
+            err.code,
+            err.message,
+            err.fieldErrors,
+            err.detail,
+            requestId
+        );
+    }
+
+    if (err instanceof ZodError) {
+        const fieldErrors: FieldErrors = {};
+        for (const issue of err.issues) {
+            const field = issue.path.join(".") || "(root)";
+            fieldErrors[field] = fieldErrors[field] || [];
+            fieldErrors[field].push(issue.message);
+        }
+        return createErrorResponse(
+            422,
+            "VALIDATION_FAILED",
+            "Invalid request parameters or payload",
+            fieldErrors,
             undefined,
             requestId
         );
+    }
+
+    // Lỗi không lường trước (Internal Server Error)
+    console.error(`[${requestId}] Unhandled Error`, err);
+    return createErrorResponse(
+        500,
+        "INTERNAL_ERROR",
+        "An unexpected error occurred.",
+        undefined,
+        undefined,
+        requestId
+    );
 }

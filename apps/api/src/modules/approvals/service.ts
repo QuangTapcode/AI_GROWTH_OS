@@ -1,6 +1,6 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
+import { AppError } from "../../lib/errors";
+import { AuthUser } from "../../lib/auth";
+import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import {
   reviewApprovalSchema,
   createApprovalSchema,
@@ -72,22 +72,15 @@ export async function reviewWorkspaceApproval(
     );
   }
 
-  // 7. Áp dụng quyết định phê duyệt
-  const updatedApproval = await repo.applyApprovalReview(
+  // 7 & 8. Áp dụng quyết định phê duyệt và cập nhật trạng thái đối tượng đích trong cùng 1 transaction nguyên tử
+  const updatedApproval = await repo.executeApprovalReviewTransaction(
     workspaceId,
     approvalId,
     input,
     user.id,
-    tenantCtx.role
-  );
-
-  // 8. Cập nhật trạng thái của đối tượng đích
-  await repo.updateTargetApprovalStatus(
-    workspaceId,
+    tenantCtx.role,
     approval.target_type,
-    approval.target_id,
-    input.decision,
-    user.id
+    approval.target_id
   );
 
   // 8.1. Thu hồi nguồn (Source Revoke Invalidation Cascade)
@@ -123,6 +116,17 @@ export async function createWorkspaceApproval(
   }
 
   const input: CreateApprovalInput = parseResult.data;
+
+  // Kiểm tra sự tồn tại của đối tượng đích trong workspace (chống approval ma / cross-tenant dangling)
+  const target = await repo.getTargetInfo(workspaceId, input.target_type, input.target_id);
+  if (!target) {
+    throw new AppError(
+      404,
+      "NOT_FOUND",
+      `Approval target '${input.target_type}:${input.target_id}' does not exist in this workspace`
+    );
+  }
+
   const approval = await repo.createApprovalRecord(workspaceId, input);
   return approval;
 }
