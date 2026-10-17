@@ -1103,4 +1103,113 @@ describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
       }
     });
   });
+
+  describe('9. Public API Boundary & Error Sanitization Hardening', () => {
+    it('Public Landing Route Handler: bọc try/catch qua handleApiError, chặn đứng stack trace khi unhandled exception xảy ra', async () => {
+      const publicService = await import('../../src/lib/public-service');
+      const { GET: getLandingHandler } = await import('../../src/app/public/v1/sites/[site_id]/landing/route');
+      const { NextRequest } = await import('next/server');
+
+      // Giả lập unhandled internal crash (ví dụ TypeError hoặc OOM)
+      vi.spyOn(publicService.publicContentRoutes, 'handleGetLanding').mockRejectedValue(
+        new Error('Unexpected memory fault inside repository: /app/internal/secrets.ts:88')
+      );
+
+      const req = new NextRequest('http://localhost:3000/public/v1/sites/tripc-pilot/landing');
+      const res = await getLandingHandler(req, { params: { site_id: 'tripc-pilot' } });
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.message).toBe('An unexpected error occurred.');
+      // Tuyệt đối không để lộ stack trace hay đường dẫn file internal
+      expect(JSON.stringify(body)).not.toContain('/app/internal/secrets.ts');
+      expect(JSON.stringify(body)).not.toContain('Unexpected memory fault');
+      expect(body.error.request_id).toBeDefined();
+
+      vi.restoreAllMocks();
+    });
+
+    it('Public Leads Route Handler: bọc try/catch qua handleApiError, chuẩn hóa 500 JSON envelope', async () => {
+      const publicService = await import('../../src/lib/public-service');
+      const { POST: postLeadsHandler } = await import('../../src/app/public/v1/sites/[site_id]/leads/route');
+      const { NextRequest } = await import('next/server');
+
+      // Giả lập database crash chưa được bọc
+      vi.spyOn(publicService.leadRoutes, 'handleCreateLead').mockRejectedValue(
+        new Error('PostgreSQL connection drop: query SELECT * FROM pg_catalog')
+      );
+
+      const req = new NextRequest('http://localhost:3000/public/v1/sites/tripc-pilot/leads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'test@tripc.vn' }),
+      });
+      const res = await postLeadsHandler(req, { params: { site_id: 'tripc-pilot' } });
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.message).toBe('An unexpected error occurred.');
+      expect(JSON.stringify(body)).not.toContain('pg_catalog');
+
+      vi.restoreAllMocks();
+    });
+
+    it('Public Boundary DTO: toPublicPost và toPublicMeta lọc sạch PII và internal keys theo allowlist', async () => {
+      const { toPublicPost } = await import('../../src/modules/publicContent/dto');
+
+      const rawPost: any = {
+        id: 'post-test-001',
+        kind: 'post',
+        site_id: 'tripc-pilot',
+        workspace_id: WORKSPACE_A,
+        status: 'published',
+        title: 'Safe Public Post',
+        slug: 'safe-public-post',
+        body: 'Safe body content',
+        published_at: '2026-10-17T00:00:00Z',
+        // Internal & sensitive fields:
+        author_email: 'author@tripc.vn',
+        member_id: 'mem-123',
+        review_notes: 'Secret internal review note',
+        evidence: [{ fact: 'classified evidence' }],
+        source_refs: [{ src: 'secret source' }],
+        preview_token: 'secret-token-xyz',
+        meta: {
+          description: 'Valid SEO description',
+          locale: 'vi',
+          tags: ['travel', 'danang'],
+          og_image: 'https://cdn.tripc.vn/og.png',
+          // Malicious / internal metadata:
+          internal_score: 99.8,
+          workspace_id: WORKSPACE_A,
+          created_by_user_id: USER_A,
+        },
+      };
+
+      const dto = toPublicPost(rawPost);
+      expect(dto).not.toBeNull();
+      expect(dto?.title).toBe('Safe Public Post');
+      expect(dto?.slug).toBe('safe-public-post');
+      expect(dto?.body).toBe('Safe body content');
+      expect(dto?.published_at).toBe('2026-10-17T00:00:00Z');
+
+      // Kiểm tra toPublicMeta chỉ giữ đúng 4 keys allowlist
+      expect(dto?.meta.description).toBe('Valid SEO description');
+      expect(dto?.meta.locale).toBe('vi');
+      expect(dto?.meta.tags).toEqual(['travel', 'danang']);
+      expect(dto?.meta.og_image).toBe('https://cdn.tripc.vn/og.png');
+
+      const serialized = JSON.stringify(dto);
+      expect(serialized).not.toContain('author@tripc.vn');
+      expect(serialized).not.toContain('mem-123');
+      expect(serialized).not.toContain('Secret internal review note');
+      expect(serialized).not.toContain('classified evidence');
+      expect(serialized).not.toContain('secret-token-xyz');
+      expect(serialized).not.toContain('internal_score');
+      expect(serialized).not.toContain(WORKSPACE_A);
+      expect(serialized).not.toContain(USER_A);
+    });
+  });
 });
