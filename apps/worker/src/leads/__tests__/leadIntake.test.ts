@@ -10,7 +10,9 @@ describe('LeadIntakeService', () => {
   let service: LeadIntakeService;
 
   beforeEach(() => {
-    service = new LeadIntakeService();
+    // null tường minh: luôn in-memory, không phụ thuộc DATABASE_URL của môi trường
+    // (test PG thật nằm ở tests/pgLeadStore.test.ts).
+    service = new LeadIntakeService(null);
   });
 
   it('should create a new lead with valid input', async () => {

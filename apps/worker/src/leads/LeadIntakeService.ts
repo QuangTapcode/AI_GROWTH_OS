@@ -70,8 +70,9 @@ export class LeadIntakeService {
   private pgStore: LeadStore | null;
 
   constructor(store?: LeadStore | null) {
-    // null/undefined → in-memory; truyền PgLeadStore (hoặc auto từ DATABASE_URL) → PG
-    this.pgStore = store ?? autoPgStore();
+    // undefined → auto (PG nếu có DATABASE_URL, không thì in-memory);
+    // null tường minh → in-memory (test không phụ thuộc môi trường).
+    this.pgStore = store === undefined ? autoPgStore() : store;
   }
 
   /**
@@ -130,7 +131,9 @@ export class LeadIntakeService {
           updatedAt: now,
         };
         const saved = await this.pgStore.insertLead(lead);
-        return { success: true, lead: saved, duplicate: false };
+        // Race 23505: insertLead trả row đã commit của request thắng → duplicate.
+        const duplicate = saved.leadId !== lead.leadId;
+        return { success: true, lead: saved, duplicate };
       } catch (err) {
         // PG fail (VD thiếu bảng/workspace) → rớt về in-memory để không mất lead local?
         // KHÔNG: báo lỗi rõ để caller biết chưa persist (đúng TQ-05: chưa commit = chưa success).

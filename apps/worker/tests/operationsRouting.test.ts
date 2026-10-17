@@ -118,8 +118,34 @@ describe('Typed job routing (MY-01)', () => {
       operation: 'lead',
       payload: { contactEmail: 'a@b.com', utmSource: 'fb', utmMedium: 'social', utmCampaign: 'c', consent: true },
     });
-    const leadRes = (await handlers.lead(makeCtx(leadJob, noAi))) as { duplicate: boolean };
-    expect(leadRes.duplicate).toBe(false);
+    // Khi dev set DATABASE_URL, lead handler dùng PG thật (autoPgStore) —
+    // seed workspace WS_ID tạm để FK không fail (cleanup sau test).
+    const url = process.env['DATABASE_URL'];
+    let seededPool: { query: (q: string, p?: unknown[]) => Promise<unknown>; end: () => Promise<void> } | null = null;
+    if (url) {
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 4000 });
+      try {
+        await pool.query('SELECT 1');
+        await pool.query(
+          `INSERT INTO workspaces (id, name, slug) VALUES ($1, 'routing-test', $2)
+           ON CONFLICT (id) DO NOTHING`,
+          [WS_ID, `routing-test-${WS_ID}`],
+        );
+        seededPool = pool;
+      } catch {
+        await pool.end().catch(() => {});
+      }
+    }
+    try {
+      const leadRes = (await handlers.lead(makeCtx(leadJob, noAi))) as { duplicate: boolean };
+      expect(leadRes.duplicate).toBe(false);
+    } finally {
+      if (seededPool) {
+        await seededPool.query('DELETE FROM workspaces WHERE id = $1', [WS_ID]);
+        await seededPool.end();
+      }
+    }
 
     const metricsJob = createJobState({ workspace_id: WS_ID, organization_id: 'org-1', operation: 'metrics' });
     const metRes = (await handlers.metrics(makeCtx(metricsJob, noAi))) as { allMissing: boolean };

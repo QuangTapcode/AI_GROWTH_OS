@@ -143,11 +143,18 @@ describe('kill -9 process thật (W1-MY-01)', () => {
       child.stderr.on('data', (d) => (childOutput += String(d)));
 
       try {
-        // Đợi fixture claim job + ghi progress 30 + tốn 1 provider call
+        // Đợi fixture claim job + ghi progress 30 + tốn 1 provider call.
+        // Windows: spawn tsx cold start chậm → timeout 60s; nếu child chết sớm
+        // (exit != null) fail ngay kèm output thay vì đợi vô hạn rồi timeout mơ hồ.
         await waitFor(async () => {
+          if (child.exitCode !== null || child.signalCode !== null) {
+            throw new Error(
+              `killWorker fixture exited early (code=${child.exitCode}, signal=${child.signalCode})\n${childOutput}`,
+            );
+          }
           const j = await store.get(job.id);
           return !!j && j.status === 'running' && j.progress_percent >= 30 && j.provider_calls === 1;
-        }, 30_000);
+        }, 60_000, 100);
 
         // Giết process như worker bị kill thật — không có cleanup nào chạy
         child.kill('SIGKILL');
@@ -210,6 +217,6 @@ describe('kill -9 process thật (W1-MY-01)', () => {
         await rm(dir, { recursive: true, force: true });
       }
     },
-    60_000,
+    90_000,
   );
 });

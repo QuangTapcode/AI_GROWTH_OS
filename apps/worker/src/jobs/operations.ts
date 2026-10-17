@@ -2,6 +2,7 @@ import type { JobOperator } from './JobState';
 import type { OperationHandler } from './JobRunner';
 import { PermanentJobError } from './JobRunner';
 import { PublishJobProcessor } from '../publish/PublishJobProcessor.js';
+import { createGatewayCheck } from '../publish/GatewayRecheckClient.js';
 import { defaultRegistry } from '../publish/CmsPublisher.js';
 import { LeadIntakeService } from '../leads/LeadIntakeService.js';
 import { MetricsIngestionStub } from '../metrics/MetricsIngestionStub.js';
@@ -122,6 +123,8 @@ function createWiredHandler(operation: 'publish' | 'lead' | 'metrics' | 'integra
           channel,
           version,
         );
+      // MY-05: recheck gateway TQ-06 tại execution (có API_BASE_URL mới bật).
+      const gatewayCheck = createGatewayCheck();
       const result = await processor.publish({
         jobId: ctx.job.id,
         workspaceId: ctx.job.workspace_id,
@@ -138,6 +141,8 @@ function createWiredHandler(operation: 'publish' | 'lead' | 'metrics' | 'integra
         utmCampaign: payload['utmCampaign'] as string | undefined,
         expectedVersion: version,
         contentHash: String(payload['contentHash'] ?? ''),
+        approvalId: payload['approvalId'] as string | undefined,
+        ...(gatewayCheck ? { gatewayCheck } : {}),
       });
       await ctx.progress(90);
       if (!result.success) {

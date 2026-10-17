@@ -85,6 +85,15 @@ export class PgLeadStore implements LeadStore {
       return mapRow(saved.rows[0]);
     } catch (e) {
       try { await client.query('ROLLBACK'); } catch { /* noop */ }
+      // Race: 2 request song song cùng qua read-before-write → INSERT thứ hai vướng
+      // uq_leads_workspace_idempotency (23505). Trả row đã commit thay vì fail.
+      if (typeof e === 'object' && e !== null && (e as { code?: string }).code === '23505') {
+        const ex = await this.pool.query(
+          'SELECT * FROM leads WHERE workspace_id = $1 AND idempotency_key = $2 LIMIT 1',
+          [lead.workspaceId, lead.idempotencyKey],
+        );
+        if (ex.rows.length > 0) return mapRow(ex.rows[0]);
+      }
       throw e;
     } finally {
       client.release();
