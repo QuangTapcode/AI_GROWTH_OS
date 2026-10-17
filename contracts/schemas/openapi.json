@@ -290,6 +290,36 @@
           "expected_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
           "review_note": { "type": "string" }
         }
+      },
+      "WorkspaceLeadRecord": {
+        "type": "object",
+        "required": ["id", "site_id", "workspace_id", "email", "name", "interest_topic", "lead_status", "captured_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "site_id": { "type": "string" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "name": { "type": "string" },
+          "phone_number": { "type": "string", "nullable": true },
+          "interest_topic": { "type": "string" },
+          "lead_status": { "type": "string", "enum": ["New", "Assigned", "Contacted", "Converted", "Archived"] },
+          "lead_owner": { "type": "string", "format": "uuid", "nullable": true },
+          "notes": { "type": "string", "nullable": true },
+          "utm_source": { "type": "string", "nullable": true },
+          "utm_medium": { "type": "string", "nullable": true },
+          "utm_campaign": { "type": "string", "nullable": true },
+          "utm_content": { "type": "string", "nullable": true },
+          "captured_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UpdateWorkspaceLeadRequest": {
+        "type": "object",
+        "properties": {
+          "lead_status": { "type": "string", "enum": ["New", "Assigned", "Contacted", "Converted", "Archived"] },
+          "lead_owner": { "type": "string", "format": "uuid", "nullable": true },
+          "notes": { "type": "string" }
+        }
       }
     },
     "responses": {
@@ -722,6 +752,90 @@
             }
           },
           "422": { "description": "Validation error (invalid email or missing consent)" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/leads": {
+      "get": {
+        "summary": "List leads in workspace (sales handoff & pipeline)",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "lead_status", "in": "query", "schema": { "type": "string", "enum": ["New", "Assigned", "Contacted", "Converted", "Archived"] } },
+          { "name": "lead_owner", "in": "query", "schema": { "type": "string" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of workspace leads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/WorkspaceLeadRecord" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/leads/{lead_id}": {
+      "get": {
+        "summary": "Get workspace lead detail by ID",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "lead_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace lead details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorkspaceLeadRecord" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "description": "Lead not found in this workspace" }
+        }
+      },
+      "patch": {
+        "summary": "Update lead status, sales owner, or advisory notes",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "lead_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateWorkspaceLeadRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated lead record",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorkspaceLeadRecord" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "description": "Validation error in update payload" }
         }
       }
     }

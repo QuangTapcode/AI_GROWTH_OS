@@ -1,5 +1,13 @@
 import { v4 as uuid } from 'uuid';
-import { createLeadBodySchema, idempotencyKeySchema, zodFieldErrors, type LeadContext } from './schemas';
+import {
+  createLeadBodySchema,
+  idempotencyKeySchema,
+  zodFieldErrors,
+  type CreateLeadBody,
+  type LeadContext,
+  type ListLeadsQuery,
+  type UpdateLeadBody,
+} from './schemas';
 import { newSubmissionId, type LeadRecord, type LeadRepository } from './repository';
 import { resolveSite } from '../../lib/sites';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
@@ -7,13 +15,14 @@ import { assertNoPiiInParams, type AnalyticsSink } from '../../lib/analytics';
 import type { FieldError } from '../../lib/http';
 
 /**
- * W1-MY-04 — submitLead service.
- * Quy tắc (EXAMPLES.md §4):
+ * W1-MY-04 + TQ-05 — submitLead service & Workspace Leads Management.
+ * Quy tắc (EXAMPLES.md §4 + DU-05):
  * - validate consent/email → 422; site không tồn tại → 404.
  * - cùng key + cùng payload → 200 cùng submission_id, deduplicated=true (không row mới).
  * - cùng key + khác payload → 409, không tạo record khác.
  * - 201 chỉ SAU transaction commit; commit fail → 500, 0 row, 0 event.
  * - analytics event (allowlist, không PII) chỉ ghi SAU commit success.
+ * - contact deduplication: kiểm tra email trong workspace; ghi nhận liên hệ mới gắn thẻ contact cũ.
  */
 export interface SubmitLeadDeps {
   repo: LeadRepository;
@@ -71,6 +80,9 @@ export async function submitLead(deps: SubmitLeadDeps, req: SubmitLeadRequest): 
         return { kind: 'duplicate' as const, submission_id: existing.id, deduplicated: true as const };
       }
 
+      // Check contact dedup trong workspace
+      const existingContact = await tx.findByContact(site.workspace_id, body.email);
+
       const record: LeadRecord = {
         id: newSubmissionId(),
         site_id: site.site_id,
@@ -78,12 +90,22 @@ export async function submitLead(deps: SubmitLeadDeps, req: SubmitLeadRequest): 
         organization_id: site.organization_id,
         email: body.email,
         name: body.name,
+        phone_number: body.phone_number ?? null,
         interest_topic: body.interest_topic,
         consent_accepted: body.consent.accepted,
         consent_policy_version: body.consent.policy_version,
         context: (body.context ?? {}) as LeadContext,
+        utm_source: body.context?.utm_source ?? null,
+        utm_medium: body.context?.utm_medium ?? null,
+        utm_campaign: body.context?.utm_campaign ?? null,
+        utm_content: body.context?.utm_content ?? null,
         idempotency_key: key.data,
         payload_hash: payloadHash,
+        lead_status: 'New',
+        lead_owner: null,
+        notes: existingContact ? `Returning contact in workspace (previous lead: ${existingContact.id})` : null,
+        captured_at: now,
+        updated_at: now,
         created_at: now,
       };
       await tx.insertLead(record);
@@ -95,7 +117,7 @@ export async function submitLead(deps: SubmitLeadDeps, req: SubmitLeadRequest): 
   }
 
   if (outcome.kind === 'created') {
-    // Conversion = server đã persist; event chỉ携带 allowlist (không email/name)
+    // Conversion = server đã persist; event chỉ mang allowlist (không email/name)
     const params: Record<string, unknown> = {
       event_id: outcome.submission_id,
       ...(body.context?.content_id ? { content_id: body.context.content_id } : {}),
@@ -112,4 +134,32 @@ export async function submitLead(deps: SubmitLeadDeps, req: SubmitLeadRequest): 
   }
 
   return outcome;
+}
+
+/**
+ * Workspace Lead Queries & Mutations (TQ-05: Phân quyền & Sales Handoff)
+ */
+export async function listWorkspaceLeads(
+  deps: { repo: LeadRepository },
+  workspaceId: string,
+  filter?: ListLeadsQuery
+): Promise<{ items: LeadRecord[]; total: number }> {
+  return deps.repo.listByWorkspace(workspaceId, filter);
+}
+
+export async function getWorkspaceLead(
+  deps: { repo: LeadRepository },
+  workspaceId: string,
+  leadId: string
+): Promise<LeadRecord | null> {
+  return deps.repo.findById(leadId, workspaceId);
+}
+
+export async function updateWorkspaceLead(
+  deps: { repo: LeadRepository },
+  workspaceId: string,
+  leadId: string,
+  patch: UpdateLeadBody
+): Promise<LeadRecord | null> {
+  return deps.repo.updateLead(workspaceId, leadId, patch);
 }

@@ -43,7 +43,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Migration/repository PostgreSQL thay in-memory; idempotency + contact dedup trong workspace; owner/status/note và source/UTM; transaction không báo success khi chưa commit.
 - **Phụ thuộc:** TQ-02, DU-05.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0 (27 routes), tsc --noEmit pass, vitest 50/50 pass · Evidence: database/migrations/003_leads_persistence.sql, 003_leads_persistence.down.sql, apps/api/src/modules/leads/repository.ts (Postgres + In-Memory), apps/api/src/modules/leads/workspace.ts, apps/api/tests/leads/leadsWorkspace.test.ts · Blocker: không.
 
 ### [ ] TQ-06 · D10 · M · Tool gateway và connector authorization
 

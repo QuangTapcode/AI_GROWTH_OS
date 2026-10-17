@@ -55,12 +55,18 @@ export function probeOwnership(
   provider: IntegrationProvider,
   siteOrProperty: string,
 ): OwnershipProbeResult {
+  const verifyRow = matrixFor(provider).find(
+    (r) => r.capability === 'verify_site_ownership' || r.probe === 'site_verification',
+  );
   return {
     provider,
     site_or_property: siteOrProperty,
     status: 'not_connected',
     checked: false,
-    missing_reason: matrixFor(provider)[0]?.default_missing_reason ?? 'PROBE_REQUIRES_CONNECTED_ACCOUNT',
+    missing_reason:
+      verifyRow?.default_missing_reason ??
+      matrixFor(provider)[0]?.default_missing_reason ??
+      'PROBE_REQUIRES_CONNECTED_ACCOUNT',
     verified: null,
   };
 }

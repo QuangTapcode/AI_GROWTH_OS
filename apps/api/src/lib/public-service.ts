@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createLeadRoutes,
   InMemoryLeadRepository,
+  PostgresLeadRepository,
   type LeadRoutes,
 } from "@/modules/leads";
 import {
@@ -18,7 +19,9 @@ import { MemoryAnalyticsSink } from "./analytics";
 import type { HttpResult } from "./http";
 
 // Singleton instances for development and local testing
-export const globalLeadRepo = new InMemoryLeadRepository();
+export const globalLeadRepo = process.env.DATABASE_URL
+  ? new PostgresLeadRepository()
+  : new InMemoryLeadRepository();
 export const globalAnalyticsSink = new MemoryAnalyticsSink();
 export const globalPublicContentRepo = new InMemoryPublicContentRepository();
 
