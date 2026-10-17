@@ -103,6 +103,39 @@ export function handleApiError(err: unknown, requestId: string = uuidv4()): Next
         );
     }
 
+    // Bắt và chuẩn hóa các mã lỗi thường gặp từ Database Driver (PostgreSQL)
+    const dbErrCode = (err as any)?.code;
+    if (dbErrCode === "22P02") {
+        return createErrorResponse(
+            400,
+            "BAD_REQUEST",
+            "Invalid parameter format or UUID syntax",
+            undefined,
+            undefined,
+            requestId
+        );
+    }
+    if (dbErrCode === "23503") {
+        return createErrorResponse(
+            422,
+            "FOREIGN_KEY_VIOLATION",
+            "Referenced foreign entity does not exist",
+            undefined,
+            undefined,
+            requestId
+        );
+    }
+    if (dbErrCode === "23505") {
+        return createErrorResponse(
+            409,
+            "CONFLICT",
+            "Resource already exists",
+            undefined,
+            undefined,
+            requestId
+        );
+    }
+
     // Lỗi không lường trước (Internal Server Error)
     console.error(`[${requestId}] Unhandled Error`, err);
     return createErrorResponse(

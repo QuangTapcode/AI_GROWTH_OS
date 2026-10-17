@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import { AppError } from '../../lib/errors';
 import type { IntegrationProvider } from './types';
 import { INTEGRATION_MATRIX, serverEnvKeys } from './matrix';
@@ -28,6 +29,31 @@ export type AgentRole =
   | 'owner'
   | 'editor'
   | 'viewer';
+
+export const executeToolSchema = z.object({
+  actor_role: z.enum([
+    'research',
+    'growth_lead',
+    'seo',
+    'content',
+    'community',
+    'performance',
+    'owner',
+    'editor',
+    'viewer',
+  ]).optional(),
+  provider: z.string({ required_error: 'provider is required' }).min(1, 'provider cannot be empty'),
+  capability: z.string({ required_error: 'capability is required' }).min(1, 'capability cannot be empty'),
+  action_type: z.enum(['read', 'draft', 'publish'], {
+    errorMap: () => ({ message: "action_type must be one of: 'read', 'draft', 'publish'" }),
+  }),
+  params: z.record(z.unknown()).default({}),
+  approval_id: z.string().uuid('Invalid approval_id UUID format').optional(),
+  expected_version: z.number().int().min(1).optional(),
+  expected_hash: z.string().regex(/^[a-f0-9]{64}$/, 'expected_hash must be a 64-character SHA-256 hex string').optional(),
+});
+
+export type ExecuteToolInput = z.infer<typeof executeToolSchema>;
 
 export interface ToolExecutionRequest {
   workspace_id: string;
@@ -215,7 +241,7 @@ export async function authorizeToolExecution(
   }
 
   // 1. STRICT ADS GUARD: Meta Ads & Google Ads tuyệt đối cấm mọi mutation
-  if (req.provider === 'meta_ads' || req.capability.toLowerCase().includes('ads_mutation')) {
+  if (req.provider === 'meta_ads' || (req.capability && typeof req.capability === 'string' && req.capability.toLowerCase().includes('ads_mutation'))) {
     if (req.action_type !== 'read' || req.capability !== 'read_ads_insights') {
       const denialReason =
         'ADS_MUTATIONS_FORBIDDEN: Direct mutations of advertising campaigns, ad sets, budgets or ad creatives are strictly prohibited to prevent unauthorized expenditure.';

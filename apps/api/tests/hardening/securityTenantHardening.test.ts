@@ -505,4 +505,183 @@ describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
       expect(validResult.success).toBe(true);
     });
   });
+
+  describe('6. Deep Audit Hardening (6 Additional Vulnerabilities Fixed)', () => {
+    it('Audit Fix 1: Chặn đứng Cross-Tenant Campaign Injection trong createWorkspaceTask', async () => {
+      const { createWorkspaceTask } = await import('../../src/modules/tasks/service');
+      const campaignsRepo = await import('../../src/modules/campaigns/repository');
+      const tenant = await import('../../src/lib/tenant');
+
+      vi.spyOn(tenant, 'resolveTenantContext').mockResolvedValue({
+        user: { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+        workspaceId: WORKSPACE_A,
+        role: 'owner',
+      });
+      // Campaign không tồn tại trong workspace A (hoặc thuộc workspace B) -> trả về null
+      vi.spyOn(campaignsRepo, 'getCampaignById').mockResolvedValue(null);
+
+      try {
+        await createWorkspaceTask(
+          { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+          WORKSPACE_A,
+          {
+            campaign_id: '00000000-0000-4000-8000-000000008888',
+            role: 'content',
+            operation: 'generate_post',
+            priority: 3,
+            input_version: 1,
+          }
+        );
+        expect.unreachable('Should have thrown AppError 422 for foreign/missing campaign_id');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(422);
+        expect(err.code).toBe('INVALID_CAMPAIGN_REF');
+        expect(err.message).toContain('does not exist in this workspace');
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('Audit Fix 2: executeToolSchema từ chối payload thiếu capability/provider và ngăn chặn DoS crash', async () => {
+      const { executeToolSchema } = await import('../../src/modules/integrations/gateway');
+
+      // Payload rỗng {}
+      const emptyResult = executeToolSchema.safeParse({});
+      expect(emptyResult.success).toBe(false);
+      if (!emptyResult.success) {
+        const issues = emptyResult.error.issues;
+        expect(issues.some((i) => i.path.includes('provider'))).toBe(true);
+        expect(issues.some((i) => i.path.includes('capability'))).toBe(true);
+        expect(issues.some((i) => i.path.includes('action_type'))).toBe(true);
+      }
+
+      // approval_id không phải UUID
+      const invalidApprovalResult = executeToolSchema.safeParse({
+        provider: 'wordpress',
+        capability: 'cms_posts_create',
+        action_type: 'publish',
+        approval_id: 'not-a-valid-uuid',
+      });
+      expect(invalidApprovalResult.success).toBe(false);
+    });
+
+    it('Audit Fix 3: Chặn đứng Workspace Lockout - Không cho phép giáng cấp Owner duy nhất còn lại', async () => {
+      const { addWorkspaceMember } = await import('../../src/modules/workspaces/service');
+      const workspacesRepo = await import('../../src/modules/workspaces/repository');
+      const tenant = await import('../../src/lib/tenant');
+
+      vi.spyOn(tenant, 'resolveTenantContext').mockResolvedValue({
+        user: { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+        workspaceId: WORKSPACE_A,
+        role: 'owner',
+      });
+      vi.spyOn(workspacesRepo, 'findOrCreateUserByEmail').mockResolvedValue({
+        id: USER_A,
+        email: 'owner@tripc.local',
+        full_name: 'Owner',
+      });
+      vi.spyOn(workspacesRepo, 'listMembers').mockResolvedValue([
+        {
+          id: 'mem-1',
+          workspace_id: WORKSPACE_A,
+          user_id: USER_A,
+          role: 'owner',
+          status: 'active',
+          email: 'owner@tripc.local',
+          full_name: 'Owner',
+          avatar_url: undefined,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ]);
+      // Chỉ còn 1 Owner duy nhất
+      vi.spyOn(workspacesRepo, 'countActiveOwners').mockResolvedValue(1);
+
+      try {
+        await addWorkspaceMember(
+          { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+          WORKSPACE_A,
+          {
+            email: 'owner@tripc.local',
+            role: 'viewer', // cố gắng tự hạ cấp về viewer
+          }
+        );
+        expect.unreachable('Should have thrown AppError for downgrading the last owner');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(400);
+        expect(err.code).toBe('CANNOT_DOWNGRADE_LAST_OWNER');
+        expect(err.message).toContain('Cannot downgrade the last owner of a workspace');
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('Audit Fix 4: handleApiError chuyển đổi chuẩn xác mã lỗi PostgreSQL (22P02, 23503, 23505)', async () => {
+      const { handleApiError } = await import('../../src/lib/errors');
+
+      // 22P02: Cú pháp tham số/UUID không hợp lệ -> 400 BAD_REQUEST
+      const syntaxErr: any = new Error('invalid input syntax for type uuid: "abc"');
+      syntaxErr.code = '22P02';
+      const syntaxRes: any = handleApiError(syntaxErr);
+      expect(syntaxRes.status).toBe(400);
+
+      // 23503: Vi phạm foreign key -> 422 FOREIGN_KEY_VIOLATION
+      const fkErr: any = new Error('insert or update violates foreign key constraint');
+      fkErr.code = '23503';
+      const fkRes: any = handleApiError(fkErr);
+      expect(fkRes.status).toBe(422);
+
+      // 23505: Vi phạm unique constraint -> 409 CONFLICT
+      const uniqueErr: any = new Error('duplicate key value violates unique constraint');
+      uniqueErr.code = '23505';
+      const uniqueRes: any = handleApiError(uniqueErr);
+      expect(uniqueRes.status).toBe(409);
+    });
+
+    it('Audit Fix 5: listExceptionsQuerySchema từ chối assigned_owner không đúng định dạng UUID', async () => {
+      const { listExceptionsQuerySchema } = await import('../../src/modules/reports/schemas');
+
+      const invalidQuery = {
+        assigned_owner: 'not-a-uuid',
+      };
+      const res = listExceptionsQuerySchema.safeParse(invalidQuery);
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.error.issues.some((i) => i.path.includes('assigned_owner'))).toBe(true);
+      }
+
+      const validQuery = {
+        assigned_owner: USER_A,
+      };
+      const validRes = listExceptionsQuerySchema.safeParse(validQuery);
+      expect(validRes.success).toBe(true);
+    });
+
+    it('Audit Fix 6: persistRagPayloadSchema kiểm tra nghiêm ngặt cấu trúc vector chunk và fact', async () => {
+      const { persistRagPayloadSchema } = await import('../../src/modules/sources/rag');
+
+      // Thiếu chunks -> lỗi validation
+      const invalidPayload = {
+        source_version: 1,
+        chunks: [],
+      };
+      const res = persistRagPayloadSchema.safeParse(invalidPayload);
+      expect(res.success).toBe(false);
+
+      // Đúng chuẩn
+      const validPayload = {
+        source_version: 1,
+        content_hash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+        chunks: [
+          {
+            chunk_index: 0,
+            text_content: 'Test content for RAG persistence',
+            model: 'embeddinggemma',
+          },
+        ],
+      };
+      const validRes = persistRagPayloadSchema.safeParse(validPayload);
+      expect(validRes.success).toBe(true);
+    });
+  });
 });

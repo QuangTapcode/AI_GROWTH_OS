@@ -10,6 +10,7 @@ import {
   CreateArtifactInput,
 } from "./schemas";
 import * as repo from "./repository";
+import { getCampaignById } from "../campaigns/repository";
 
 export async function createWorkspaceTask(
   user: AuthUser,
@@ -32,6 +33,18 @@ export async function createWorkspaceTask(
   }
 
   const input: CreateWorkflowTaskInput = parseResult.data;
+
+  // Xác thực campaign nếu có: Phải tồn tại và thuộc đúng workspace này (chống Cross-Tenant Campaign Injection)
+  if (input.campaign_id) {
+    const campaign = await getCampaignById(workspaceId, input.campaign_id);
+    if (!campaign) {
+      throw new AppError(
+        422,
+        "INVALID_CAMPAIGN_REF",
+        `Referenced campaign '${input.campaign_id}' does not exist in this workspace`
+      );
+    }
+  }
 
   // Xác thực các task dependency: Nếu có dependency, chúng phải tồn tại và thuộc cùng workspace này
   if (input.dependencies && input.dependencies.length > 0) {

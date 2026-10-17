@@ -58,7 +58,7 @@ export type UpdateExceptionInput = z.infer<typeof updateExceptionSchema>;
 export const listExceptionsQuerySchema = z.object({
   status: exceptionStatusSchema.optional(),
   severity: exceptionSeveritySchema.optional(),
-  assigned_owner: z.string().optional(),
+  assigned_owner: z.string().uuid("assigned_owner must be a valid UUID").optional(),
   limit: z.coerce.number().min(1).max(100).default(50).optional(),
 });
 export type ListExceptionsQuery = z.infer<typeof listExceptionsQuerySchema>;
