@@ -4,10 +4,6 @@ import {
   MemoryToolAuditSink,
   type ToolExecutionRequest,
 } from '../../src/modules/integrations/gateway';
-import {
-  saveApprovalRecord,
-  saveMockTargetInfo,
-} from '../../src/modules/approvals/repository';
 import { sha256Hex } from '../../src/lib/hash';
 
 /**
@@ -19,9 +15,17 @@ const ACTOR_ID = '11111111-1111-1111-1111-111111111111';
 
 describe('TQ-06: Tool Gateway and Connector Authorization', () => {
   let auditSink: MemoryToolAuditSink;
+  const mockApprovals = new Map<string, any>();
+
+  const mockApprovalGetter = async (wsId: string, appId: string) => {
+    const rec = mockApprovals.get(appId);
+    if (!rec || rec.workspace_id !== wsId) return null;
+    return rec;
+  };
 
   beforeEach(() => {
     auditSink = new MemoryToolAuditSink();
+    mockApprovals.clear();
   });
 
   describe('1. Strict Ads Mutation Guard', () => {
@@ -36,9 +40,9 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         params: { daily_budget: 1000000, campaign_name: 'Expat Summer' },
       };
 
-      await expect(authorizeToolExecution(mutationReq, auditSink)).rejects.toThrowError(
-        /ADS_MUTATIONS_FORBIDDEN/
-      );
+      await expect(
+        authorizeToolExecution(mutationReq, auditSink, mockApprovalGetter)
+      ).rejects.toThrowError(/ADS_MUTATIONS_FORBIDDEN/);
 
       // Verify audit log ghi nhận denial
       const logs = await auditSink.listByWorkspace(WORKSPACE_ID);
@@ -58,7 +62,7 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         params: { date_range: 'last_7_days' },
       };
 
-      const result = await authorizeToolExecution(readReq, auditSink);
+      const result = await authorizeToolExecution(readReq, auditSink, mockApprovalGetter);
       expect(result.authorized).toBe(true);
 
       const logs = await auditSink.listByWorkspace(WORKSPACE_ID);
@@ -78,9 +82,9 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         action_type: 'draft',
       };
 
-      await expect(authorizeToolExecution(draftReq, auditSink)).rejects.toThrowError(
-        /ROLE_UNAUTHORIZED/
-      );
+      await expect(
+        authorizeToolExecution(draftReq, auditSink, mockApprovalGetter)
+      ).rejects.toThrowError(/ROLE_UNAUTHORIZED/);
 
       const logs = await auditSink.listByWorkspace(WORKSPACE_ID);
       expect(logs[0].status).toBe('denied');
@@ -97,7 +101,7 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         action_type: 'read',
       };
 
-      const result = await authorizeToolExecution(gscReq, auditSink);
+      const result = await authorizeToolExecution(gscReq, auditSink, mockApprovalGetter);
       expect(result.authorized).toBe(true);
     });
 
@@ -112,9 +116,9 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         approval_id: 'some-id',
       };
 
-      await expect(authorizeToolExecution(publishReq, auditSink)).rejects.toThrowError(
-        /ROLE_UNAUTHORIZED/
-      );
+      await expect(
+        authorizeToolExecution(publishReq, auditSink, mockApprovalGetter)
+      ).rejects.toThrowError(/ROLE_UNAUTHORIZED/);
     });
   });
 
@@ -129,14 +133,14 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         action_type: 'publish',
       };
 
-      await expect(authorizeToolExecution(publishReq, auditSink)).rejects.toThrowError(
-        /PUBLISH_REQUIRES_APPROVAL/
-      );
+      await expect(
+        authorizeToolExecution(publishReq, auditSink, mockApprovalGetter)
+      ).rejects.toThrowError(/PUBLISH_REQUIRES_APPROVAL/);
     });
 
     it('approval chưa duyệt (pending) → từ chối xuất bản', async () => {
       const approvalId = 'approval-pending-001';
-      saveApprovalRecord({
+      mockApprovals.set(approvalId, {
         id: approvalId,
         workspace_id: WORKSPACE_ID,
         target_type: 'content',
@@ -158,14 +162,14 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         approval_id: approvalId,
       };
 
-      await expect(authorizeToolExecution(publishReq, auditSink)).rejects.toThrowError(
-        /APPROVAL_NOT_GRANTED/
-      );
+      await expect(
+        authorizeToolExecution(publishReq, auditSink, mockApprovalGetter)
+      ).rejects.toThrowError(/APPROVAL_NOT_GRANTED/);
     });
 
     it('approval bị lệch version cũ (stale version) → 409 CONFLICT', async () => {
       const approvalId = 'approval-stale-002';
-      saveApprovalRecord({
+      mockApprovals.set(approvalId, {
         id: approvalId,
         workspace_id: WORKSPACE_ID,
         target_type: 'content',
@@ -177,7 +181,7 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         updated_at: new Date(),
       });
 
-      // Nhưng khi gọi executor, content đã bị sửa lên version 2
+      // Khi gọi executor, content đã bị sửa lên version 2
       const publishReq: ToolExecutionRequest = {
         workspace_id: WORKSPACE_ID,
         actor_id: ACTOR_ID,
@@ -189,15 +193,15 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         expected_version: 2, // version mismatch!
       };
 
-      await expect(authorizeToolExecution(publishReq, auditSink)).rejects.toThrowError(
-        /VERSION_MISMATCH/
-      );
+      await expect(
+        authorizeToolExecution(publishReq, auditSink, mockApprovalGetter)
+      ).rejects.toThrowError(/VERSION_MISMATCH/);
     });
 
     it('approval hợp lệ và khớp đúng version/hash → Cho phép xuất bản thành công', async () => {
       const approvalId = 'approval-valid-003';
       const hash = sha256Hex('content-v2-approved');
-      saveApprovalRecord({
+      mockApprovals.set(approvalId, {
         id: approvalId,
         workspace_id: WORKSPACE_ID,
         target_type: 'content',
@@ -221,7 +225,7 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         expected_hash: hash,
       };
 
-      const result = await authorizeToolExecution(publishReq, auditSink);
+      const result = await authorizeToolExecution(publishReq, auditSink, mockApprovalGetter);
       expect(result.authorized).toBe(true);
 
       const logs = await auditSink.listByWorkspace(WORKSPACE_ID);
@@ -246,7 +250,7 @@ describe('TQ-06: Tool Gateway and Connector Authorization', () => {
         },
       };
 
-      await authorizeToolExecution(readReq, auditSink);
+      await authorizeToolExecution(readReq, auditSink, mockApprovalGetter);
       const logs = await auditSink.listByWorkspace(WORKSPACE_ID);
       expect(logs).toHaveLength(1);
 

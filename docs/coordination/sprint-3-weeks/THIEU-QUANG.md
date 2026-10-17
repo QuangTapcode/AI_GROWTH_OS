@@ -50,7 +50,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Enforce workspace/role/tool/account/approval tại executor; tách read/draft/publish; ads mutation không được expose; audit denial và execution.
 - **Phụ thuộc:** TQ-04, MY-05.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0 (28 routes), tsc --noEmit pass, vitest 60/60 pass · Evidence: apps/api/src/modules/integrations/gateway.ts, apps/api/src/app/v1/workspaces/[workspace_id]/tools/execute, apps/api/tests/integrations/toolGateway.test.ts, contracts/schemas/openapi.json · Blocker: không.
 
 ## Tuần 3 — 29/10–04/11/2026
 

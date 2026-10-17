@@ -147,6 +147,17 @@ function isRoleAuthorizedForAction(role: AgentRole, actionType: ActionType, capa
   return false;
 }
 
+export type ApprovalGetter = (
+  workspaceId: string,
+  approvalId: string
+) => Promise<{
+  id: string;
+  workspace_id: string;
+  status: string;
+  target_version?: number;
+  target_hash?: string;
+} | null>;
+
 export interface AuthorizeResult {
   authorized: boolean;
   audit_id: string;
@@ -158,7 +169,8 @@ export interface AuthorizeResult {
  */
 export async function authorizeToolExecution(
   req: ToolExecutionRequest,
-  auditSink: ToolAuditSink = globalToolAuditSink
+  auditSink: ToolAuditSink = globalToolAuditSink,
+  approvalGetter: ApprovalGetter = getApprovalById
 ): Promise<AuthorizeResult> {
   const auditId = randomUUID();
   const paramsSummary = sanitizeParams(req.params);
@@ -246,7 +258,7 @@ export async function authorizeToolExecution(
       throw new AppError(403, 'FORBIDDEN', denialReason);
     }
 
-    const approval = await getApprovalById(req.workspace_id, req.approval_id);
+    const approval = await approvalGetter(req.workspace_id, req.approval_id);
     if (!approval) {
       const denialReason = `APPROVAL_NOT_FOUND: Approval '${req.approval_id}' not found in workspace`;
       await auditSink.record({

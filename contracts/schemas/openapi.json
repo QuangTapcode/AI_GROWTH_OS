@@ -320,6 +320,37 @@
           "lead_owner": { "type": "string", "format": "uuid", "nullable": true },
           "notes": { "type": "string" }
         }
+      },
+      "ToolExecutionRequest": {
+        "type": "object",
+        "required": ["provider", "capability", "action_type"],
+        "properties": {
+          "actor_role": { "type": "string", "enum": ["research", "growth_lead", "seo", "content", "community", "performance", "owner", "editor", "viewer"] },
+          "provider": { "type": "string", "enum": ["ga4", "gsc", "facebook_page", "instagram_business", "meta_ads", "website_cms"] },
+          "capability": { "type": "string" },
+          "action_type": { "type": "string", "enum": ["read", "draft", "publish"] },
+          "params": { "type": "object" },
+          "approval_id": { "type": "string", "format": "uuid" },
+          "expected_version": { "type": "integer", "minimum": 1 },
+          "expected_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      },
+      "ToolAuditLog": {
+        "type": "object",
+        "required": ["id", "workspace_id", "actor_id", "actor_role", "provider", "capability", "action_type", "status", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "actor_id": { "type": "string", "format": "uuid" },
+          "actor_role": { "type": "string" },
+          "provider": { "type": "string" },
+          "capability": { "type": "string" },
+          "action_type": { "type": "string", "enum": ["read", "draft", "publish"] },
+          "status": { "type": "string", "enum": ["granted", "denied"] },
+          "denial_reason": { "type": "string", "nullable": true },
+          "approval_id": { "type": "string", "format": "uuid", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
       }
     },
     "responses": {
@@ -836,6 +867,70 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "422": { "description": "Validation error in update payload" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/tools/execute": {
+      "post": {
+        "summary": "Authorize and execute an external tool/connector through the Security Gateway",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ToolExecutionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool authorized and executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "audit_id": { "type": "string", "format": "uuid" },
+                    "status": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Unsupported capability" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "Role unauthorized, approval not granted, or ads mutation forbidden" },
+          "404": { "description": "Approval record not found" },
+          "409": { "description": "Version or hash mismatch with approval" }
+        }
+      },
+      "get": {
+        "summary": "List audit logs of tool executions and denials in workspace",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of tool execution audit entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/ToolAuditLog" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
         }
       }
     }
