@@ -36,21 +36,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Executor gọi CMS thật, lưu immutable snapshot/publication; social live theo capability hoặc manual pack có nhãn; caption/ảnh/UTM đúng version.
 - **Phụ thuộc:** TQ-04 (contract D6, tích hợp D7), MY-02.
 - **Reviewer:** Thiệu Quang + Tiến.
-- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Tiến review) · PR/build: worker tsc sạch, vitest `src/publish 6+7 tests` pass, routing `operationsRouting 4/4` pass · Evidence: `apps/worker/src/publish/CmsPublisher.ts` (MockCmsPublisher + PublisherRegistry + defaultRegistry), `PublishJobProcessor.ts` (idempotency `publish:ws:content:channel:version`, timeout→reconcile trước retry, manual pack), `ManualPackGenerator.ts` (pack FB/IG label `manual-pack` + UTM), wiring `src/jobs/operations.ts createWiredHandler('publish')` · Blocker: CMS thật + immutable snapshot/publication BE (TQ-04) để đạt `integrated`.
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Tiến review) · PR/build: worker tsc sạch, vitest `src/publish 8 tests` pass, routing `operationsRouting 4/4` pass · Evidence: `apps/worker/src/publish/CmsPublisher.ts` (MockCmsPublisher + PublisherRegistry + defaultRegistry), `PublishJobProcessor.ts` (idempotency `publish:ws:content:channel:version`, timeout→reconcile trước retry, manual pack), `ManualPackGenerator.ts` (pack FB/IG label `manual-pack` + UTM), wiring `src/jobs/operations.ts createWiredHandler('publish')` · Blocker: CMS thật (`PILOT_CMS_API_KEY`/`CMS_BASE_URL` chưa có trong env) + immutable snapshot/publication BE (TQ-04) để đạt `integrated`.
 
 ### [ ] MY-05 · D9 · M · Scheduled publish/reconcile và invalidation
 
 - **Làm / đầu ra / Done:** Lưu UTC + timezone; recheck approval/source/account tại execution; timeout đối soát trước retry; không tạo hai bài cùng idempotency key.
 - **Phụ thuộc:** MY-04, TQ-04; gateway contract được TQ bàn giao D7 trong TQ-04.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Thiệu review) · PR/build: worker tsc sạch, `reconciliation.test.ts 7/7` pass · Evidence: `apps/worker/src/reconcile/ReconciliationService.ts` (duplicate_prevented/retry_allowed/still_unknown, UTC ISO, retry cap 2, recoverable filter), `PublishJobProcessor` reconcile path, gateway TQ-06 `tools/execute` đã merge · Blocker: recheck approval/version/hash tại execution qua gateway TQ-06 + schedule BE để đạt `integrated`.
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Thiệu review) · PR/build: worker tsc sạch, `reconciliation.test.ts 7/7` + `publishProcessor 8 tests` pass · Evidence: `apps/worker/src/reconcile/ReconciliationService.ts` (duplicate_prevented/retry_allowed/still_unknown, UTC ISO, retry cap 2, recoverable filter), `PublishJobProcessor` reconcile path + `PublishContext.gatewayCheck` recheck approval/version/hash tại execution (fail fast `GATEWAY_DENIED`, 2 test mới), gateway TQ-06 `tools/execute` đã merge · Blocker: schedule BE + nối `gatewayCheck` thật với gateway executor TQ-06 (worker đang truyền seam) để đạt `integrated`.
 
 ### [ ] MY-06 · D10 · M · Community intake và metrics ingestion
 
 - **Làm / đầu ra / Done:** Form/webhook supported có dedup; lead DB/owner handoff; GA4/GSC/Meta snapshots khi có quyền, nếu thiếu ghi missing; reply chỉ gửi sau duyệt và đúng quyền.
 - **Phụ thuộc:** TQ-05, MY-02.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Thiệu review) · PR/build: worker tsc sạch, `leadIntake 9 tests + metricsStub 5 tests` pass, API `vitest 72/72` (TQ-05) · Evidence: `apps/worker/src/leads/LeadIntakeService.ts` (validate email/UTM/consent, key `lead:ws:hash`, dedup, status/owner), `src/metrics/MetricsIngestionStub.ts` (`insufficient_data`, hourly dedup event), wiring `operations.ts createWiredHandler('lead'/'metrics')`, TQ-05 `modules/leads/` PG + migration 003 đã merge · Blocker: nối worker intake → PG repository TQ-05 (thay in-memory) + reply approval flow để đạt `integrated`.
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Thiệu review) · PR/build: worker tsc sạch, `leadIntake 9 tests + metricsStub 5 tests` pass, API `vitest 72/72` (TQ-05), PG smoke `tasks/pgLeadSmoke.ts` chạy thật trên Postgres 003 · Evidence: `apps/worker/src/leads/LeadIntakeService.ts` (validate email/UTM/consent, key `lead:ws:hash`, dedup, status/owner), **`PgLeadStore.ts` (mới: raw SQL pg Pool theo pattern `DbWorkflowStore`, transaction BEGIN/ROLLBACK/COMMIT, `autoPgStore()` đọc `DATABASE_URL` → PG, không thì in-memory)**, smoke `dedup_ok:true` cùng leadId + row trong bảng `leads`, `src/metrics/MetricsIngestionStub.ts` (`insufficient_data`, hourly dedup event), wiring `operations.ts createWiredHandler('lead'/'metrics')`, TQ-05 `modules/leads/` PG + migration 003 đã merge · Blocker: reply approval flow (chờ QQ-06) để đạt `integrated` — persistence PG đã xong.
 
 ## Tuần 3 — 29/10–04/11/2026
 

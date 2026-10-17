@@ -101,6 +101,39 @@ describe('PublishJobProcessor', () => {
     expect(processor.isScheduledInFuture(future)).toBe(true);
     expect(processor.isScheduledInFuture(past)).toBe(false);
   });
+
+  it('should fail fast when gateway denies at execution (MY-05 recheck)', async () => {
+    const result = await processor.publish({
+      jobId: 'job_gw',
+      workspaceId: 'ws_1',
+      contentId: 'content_gw',
+      channel: 'Website',
+      scheduledAt: new Date(Date.now() + 60000),
+      idempotencyKey: 'publish:ws_1:content_gw:Website:1',
+      bodyMarkdown: '# Hello',
+      expectedVersion: 1,
+      contentHash: 'abc123',
+      gatewayCheck: async () => ({ authorized: false, denialReason: 'APPROVAL_NOT_GRANTED' }),
+    });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('GATEWAY_DENIED');
+  });
+
+  it('should publish when gateway allows at execution', async () => {
+    const result = await processor.publish({
+      jobId: 'job_gw2',
+      workspaceId: 'ws_1',
+      contentId: 'content_gw2',
+      channel: 'Website',
+      scheduledAt: new Date(Date.now() + 60000),
+      idempotencyKey: 'publish:ws_1:content_gw2:Website:1',
+      bodyMarkdown: '# Hello',
+      expectedVersion: 1,
+      contentHash: 'abc123',
+      gatewayCheck: async () => ({ authorized: true }),
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('ManualPackGenerator', () => {

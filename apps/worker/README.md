@@ -22,7 +22,14 @@ Owner: Mỹ (BE), Thiệu Quang peer-review; vùng sửa `apps/worker/**`. Packa
 - Test: `tests/workflow.test.ts` 5/5 (Memory/File store), `tests/dbWorkflow.test.ts` (tích hợp Postgres thật, tự skip khi không có DB — cần `DATABASE_URL` trỏ Postgres đã migrate 001+002).
 - Hạn chế môi trường hiện tại: Docker Desktop chưa chạy trên máy Mỹ nên evidence DB thật + live run MY-01 chưa có — chạy lại `npx vitest run tests/dbWorkflow.test.ts` và smoke `AI_PROVIDER_MODE=live` khi có Postgres + AI service.
 
-Giới hạn: chỉ 1 AI process (concurrency 1); workspace_id phải là UUID thật từ BE — test nội bộ dùng FakeAiAdapter; publish/lead/metrics chờ MY-04–06, chưa có side effect.
+Giới hạn: chỉ 1 AI process (concurrency 1); workspace_id phải là UUID thật từ BE — test nội bộ dùng FakeAiAdapter; publish/lead/metrics đã wiring executor, còn `ingest_revoke/ingest_delete` chờ snapshot scoping (TQ-02).
+
+## Lead persistence PG (MY-06 — thay in-memory)
+
+- `src/leads/PgLeadStore.ts` (mới): implements `LeadStore` bằng pg Pool raw SQL theo pattern `DbWorkflowStore`, bảng `leads` (migration 003). `insertLead` chạy transaction `BEGIN` → check idempotency read-before-write → `INSERT` → `COMMIT`, lỗi giữa chừng `ROLLBACK` (không half-write). `findByKey/listByWorkspace/updateStatus` cùng DB. `close()` kết thúc Pool.
+- `LeadIntakeService(pgStore?)`: nếu truyền store thì dùng PG, ngược lại `autoPgStore()` — có `DATABASE_URL` thì tự tạo `PgLeadStore`, không thì in-memory như cũ. Test cũ không set `DATABASE_URL` nên vẫn in-memory, không đổi hành vi.
+- Smoke PG thật (tay, không CI): `cd apps/worker && DATABASE_URL=... npx tsx tasks/pgLeadSmoke.ts` → intake 2 lần cùng payload: lần 2 `duplicate=true`, cùng `leadId`, row trong `leads`. Cần workspace UUID có thật (FK `workspace_id` → `workspaces.id`); thiếu FK thì intake trả `LEAD_PERSIST_FAILED`.
+- Env: `DATABASE_URL` (Postgres đã migrate 001–004).
 
 ## Chạy & kiểm thử (W1-MY-01)
 

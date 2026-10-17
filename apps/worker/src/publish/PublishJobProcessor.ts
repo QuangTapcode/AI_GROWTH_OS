@@ -32,6 +32,15 @@ export interface PublishContext {
   utmCampaign?: string;
   expectedVersion: number;
   contentHash: string;
+  /** TQ-06 gateway recheck tại execution (MY-05): approval/version/hash. */
+  approvalId?: string;
+  gatewayCheck?: (req: {
+    workspaceId: string;
+    channel: string;
+    approvalId?: string;
+    expectedVersion: number;
+    expectedHash: string;
+  }) => Promise<{ authorized: boolean; denialReason?: string }>;
 }
 
 export class PublishJobProcessor {
@@ -53,6 +62,25 @@ export class PublishJobProcessor {
    * - If CMS returns idempotency conflict → return cached result.
    */
   async publish(ctx: PublishContext): Promise<CmsPublishResult & { manualPack?: ManualPack }> {
+    // MY-05: recheck approval/source/account tại execution qua gateway TQ-06.
+    // Thiếu approval cho publish → fail fast, không gọi CMS.
+    if (ctx.gatewayCheck) {
+      const gate = await ctx.gatewayCheck({
+        workspaceId: ctx.workspaceId,
+        channel: ctx.channel,
+        approvalId: ctx.approvalId,
+        expectedVersion: ctx.expectedVersion,
+        expectedHash: ctx.contentHash,
+      });
+      if (!gate.authorized) {
+        return {
+          success: false,
+          errorCode: 'GATEWAY_DENIED',
+          errorMessage: gate.denialReason ?? 'Gateway denied publish at execution time',
+        };
+      }
+    }
+
     const publisher = this.registry.get(ctx.channel);
     if (!publisher) {
       throw new Error(`No publisher registered for channel ${ctx.channel}`);

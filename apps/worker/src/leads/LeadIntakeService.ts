@@ -1,10 +1,17 @@
 /**
- * Lead intake service — validation, dedup, and DB-ready payload (preparation for MY-06).
+ * Lead intake service — validation, dedup, and PostgreSQL persistence (MY-06).
  *
- * Independent of other pending tasks. When TQ-05 migration/repository is ready,
- * replace in-memory store with PostgreSQL repository. Until then, this module
- * validates input, generates idempotency keys, and detects duplicate leads.
+ * - Mặc định in-memory (giữ test cũ xanh, không cần DB).
+ * - Khi có DATABASE_URL (hoặc truyền store PG), persist vào bảng `leads`
+ *   của migration 003: dedup theo (workspace_id, idempotency_key) unique,
+ *   contact dedup theo email trong workspace, transaction commit mới success.
+ * - Worker KHÔNG import code từ apps/api (giữ runtime TS riêng theo TEAM);
+ *   PG store ở đây dùng pg Pool raw SQL theo pattern DbWorkflowStore.
  */
+
+import { randomUUID } from 'node:crypto';
+import { autoPgStore } from './PgLeadStore.js';
+import type { LeadStore } from './PgLeadStore.js';
 
 export interface LeadInput {
   workspaceId: string;
@@ -59,7 +66,13 @@ export function generateLeadIdempotencyKey(input: LeadInput): string {
 }
 
 export class LeadIntakeService {
-  private leads = new Map<string, LeadRecord>(); // key = idempotencyKey
+  private leads = new Map<string, LeadRecord>(); // key = idempotencyKey (fallback khi chưa có PG)
+  private pgStore: LeadStore | null;
+
+  constructor(store?: LeadStore | null) {
+    // null/undefined → in-memory; truyền PgLeadStore (hoặc auto từ DATABASE_URL) → PG
+    this.pgStore = store ?? autoPgStore();
+  }
 
   /**
    * Intake a new lead. Validates input, checks dedup, returns record or conflict.
@@ -93,7 +106,43 @@ export class LeadIntakeService {
 
     const idempotencyKey = generateLeadIdempotencyKey(input);
 
-    // Dedup check: same key already exists → return existing record (not error)
+    // PG path: dedup trong transaction, commit mới success (TQ-05 semantics)
+    if (this.pgStore) {
+      try {
+        const existing = await this.pgStore.findByKey(input.workspaceId, idempotencyKey);
+        if (existing) {
+          return { success: true, lead: existing, duplicate: true };
+        }
+        const now = new Date();
+        const lead: LeadRecord = {
+          leadId: randomUUID(),
+          workspaceId: input.workspaceId,
+          idempotencyKey,
+          contactName: input.contactName,
+          contactEmail: input.contactEmail,
+          phoneNumber: input.phoneNumber,
+          utmSource: input.utmSource,
+          utmMedium: input.utmMedium,
+          utmCampaign: input.utmCampaign,
+          leadStatus: 'New',
+          capturedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        };
+        const saved = await this.pgStore.insertLead(lead);
+        return { success: true, lead: saved, duplicate: false };
+      } catch (err) {
+        // PG fail (VD thiếu bảng/workspace) → rớt về in-memory để không mất lead local?
+        // KHÔNG: báo lỗi rõ để caller biết chưa persist (đúng TQ-05: chưa commit = chưa success).
+        return {
+          success: false,
+          errorCode: 'LEAD_PERSIST_FAILED',
+          errorMessage: err instanceof Error ? err.message.slice(0, 300) : 'lead persist failed',
+        };
+      }
+    }
+
+    // In-memory fallback (không DB): dedup theo key
     const existing = this.leads.get(idempotencyKey);
     if (existing) {
       return {
@@ -103,7 +152,7 @@ export class LeadIntakeService {
       };
     }
 
-    // Create new lead (in production: INSERT into PostgreSQL within transaction)
+    // Create new lead (in-memory)
     const now = new Date();
     const lead: LeadRecord = {
       leadId: `lead_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -131,7 +180,7 @@ export class LeadIntakeService {
   }
 
   /**
-   * Look up lead by idempotency key.
+   * Look up lead by idempotency key (memory path; PG path dùng store trực tiếp).
    */
   findByIdempotencyKey(workspaceId: string, idempotencyKey: string): LeadRecord | undefined {
     const lead = this.leads.get(idempotencyKey);
@@ -142,14 +191,20 @@ export class LeadIntakeService {
   }
 
   /**
-   * List all leads for a workspace.
+   * List all leads for a workspace (memory path).
    */
   listForWorkspace(workspaceId: string): LeadRecord[] {
     return Array.from(this.leads.values()).filter((l) => l.workspaceId === workspaceId);
   }
 
+  /** PG-aware list (integrated path). */
+  async listLeads(workspaceId: string): Promise<LeadRecord[]> {
+    if (this.pgStore) return this.pgStore.listByWorkspace(workspaceId);
+    return this.listForWorkspace(workspaceId);
+  }
+
   /**
-   * Update lead status (owner handoff).
+   * Update lead status (owner handoff). PG path update DB, memory update map.
    */
   async updateStatus(
     workspaceId: string,
@@ -157,6 +212,13 @@ export class LeadIntakeService {
     status: 'New' | 'Assigned' | 'Contacted' | 'Converted',
     ownerId?: string
   ): Promise<LeadRecord | null> {
+    if (this.pgStore) {
+      try {
+        return await this.pgStore.updateStatus(workspaceId, leadId, status, ownerId);
+      } catch {
+        return null;
+      }
+    }
     const lead = Array.from(this.leads.values()).find((l) => l.leadId === leadId && l.workspaceId === workspaceId);
     if (!lead) {
       return null;
