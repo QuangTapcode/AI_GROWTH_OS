@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   color-scheme: light;
   --ink: #142b37;
@@ -31,4 +33,3 @@ footer { margin-top: 36px; display: flex; justify-content: space-between; gap: 2
   .hero { margin-top: 40px; }
   .connection-card { align-items: flex-start; flex-direction: column; }
 }
-
