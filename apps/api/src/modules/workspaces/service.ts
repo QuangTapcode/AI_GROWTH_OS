@@ -1,7 +1,7 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
-import { withTransaction } from "@/lib/db";
+import { AppError } from "../../lib/errors";
+import { AuthUser } from "../../lib/auth";
+import { resolveTenantContext, requireRole } from "../../lib/tenant";
+import { withTransaction } from "../../lib/db";
 import {
   createWorkspaceSchema,
   addMemberSchema,
@@ -102,6 +102,22 @@ export async function addWorkspaceMember(
 
   // Lấy hoặc tạo tài khoản user theo email
   const targetUser = await repo.findOrCreateUserByEmail(input.email, input.full_name);
+
+  // Chặn đứng Workspace Lockout: Không cho phép hạ cấp Owner duy nhất còn lại của workspace
+  if (input.role !== "owner") {
+    const existingMembers = await repo.listMembers(workspaceId);
+    const existingTarget = existingMembers.find((m) => m.user_id === targetUser.id);
+    if (existingTarget && existingTarget.role === "owner") {
+      const ownerCount = await repo.countActiveOwners(workspaceId);
+      if (ownerCount <= 1) {
+        throw new AppError(
+          400,
+          "CANNOT_DOWNGRADE_LAST_OWNER",
+          "Cannot downgrade the last owner of a workspace"
+        );
+      }
+    }
+  }
 
   // Thêm hoặc cập nhật membership
   await repo.addOrUpdateMembership(workspaceId, targetUser.id, input.role);

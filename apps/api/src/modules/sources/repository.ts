@@ -1,5 +1,8 @@
-import { query } from "@/lib/db";
-import { CreateSourceInput } from "./schemas";
+import type { PoolClient } from "pg";
+import { query, withTransaction } from "../../lib/db";
+import { AppError } from "../../lib/errors";
+import { CreateSourceInput, ReviewSourceInput } from "./schemas";
+import { invalidateApprovalsForTarget } from "../approvals/repository";
 
 export interface SourceRow {
   id: string;
@@ -85,9 +88,11 @@ export async function updateSourceReview(
   workspaceId: string,
   sourceId: string,
   decision: "approved" | "rejected" | "revoked",
-  reviewerId: string
+  reviewerId: string,
+  expectedVersion?: number,
+  client?: PoolClient
 ): Promise<SourceRow> {
-  const sql = `
+  let sql = `
     UPDATE sources
     SET status = $1,
         version = version + 1,
@@ -95,22 +100,90 @@ export async function updateSourceReview(
         reviewed_at = NOW(),
         updated_at = NOW()
     WHERE workspace_id = $3 AND id = $4
-    RETURNING *
   `;
-  const res = await query<SourceRow>(sql, [decision, reviewerId, workspaceId, sourceId]);
+  const params: any[] = [decision, reviewerId, workspaceId, sourceId];
+  if (expectedVersion !== undefined) {
+    params.push(expectedVersion);
+    sql += ` AND version = $${params.length}`;
+  }
+  sql += ` RETURNING *`;
+  const runQuery = client
+    ? <T extends import("pg").QueryResultRow = any>(text: string, p?: any[]) => client.query<T>(text, p)
+    : query;
+  const res = await runQuery<SourceRow>(sql, params);
+  if (res.rows.length === 0) {
+    throw new AppError(409, "VERSION_CONFLICT", "Source version conflict or source not found");
+  }
   return res.rows[0];
 }
 
 export async function softDeleteSource(
   workspaceId: string,
-  sourceId: string
+  sourceId: string,
+  client?: PoolClient
 ): Promise<void> {
   const sql = `
     UPDATE sources
     SET status = 'deleted',
         deleted_at = NOW(),
         updated_at = NOW()
-    WHERE workspace_id = $1 AND id = $2
+    WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL
   `;
-  await query(sql, [workspaceId, sourceId]);
+  if (client) {
+    await client.query(sql, [workspaceId, sourceId]);
+  } else {
+    await query(sql, [workspaceId, sourceId]);
+  }
+}
+
+export async function executeSourceReviewTransaction(
+  workspaceId: string,
+  sourceId: string,
+  input: ReviewSourceInput,
+  reviewerId: string
+): Promise<SourceRow> {
+  return withTransaction(async (client) => {
+    // 1. SELECT ... FOR UPDATE trên bản ghi nguồn
+    const checkRes = await client.query<SourceRow>(
+      `SELECT * FROM sources WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL FOR UPDATE`,
+      [workspaceId, sourceId]
+    );
+    const source = checkRes.rows[0];
+    if (!source) {
+      throw new AppError(404, "NOT_FOUND", "Source not found");
+    }
+
+    // 2. OCC Version check
+    if (source.version !== input.expected_version) {
+      throw new AppError(
+        409,
+        "VERSION_CONFLICT",
+        `Stale version conflict. Current version is ${source.version}, but expected ${input.expected_version}. Please reload.`
+      );
+    }
+
+    // 3. Atomic conditional update
+    const updateRes = await client.query<SourceRow>(
+      `UPDATE sources
+       SET status = $1,
+           version = version + 1,
+           reviewed_by = $2,
+           reviewed_at = NOW(),
+           updated_at = NOW()
+       WHERE workspace_id = $3 AND id = $4 AND version = $5
+       RETURNING *`,
+      [input.decision, reviewerId, workspaceId, sourceId, input.expected_version]
+    );
+
+    if (updateRes.rows.length === 0) {
+      throw new AppError(409, "VERSION_CONFLICT", "Source version changed concurrently during review");
+    }
+
+    // 4. Cascade invalidation if revoked
+    if (input.decision === "revoked") {
+      await invalidateApprovalsForTarget(workspaceId, "source", sourceId, "SOURCE_REVOKED", client);
+    }
+
+    return updateRes.rows[0];
+  });
 }

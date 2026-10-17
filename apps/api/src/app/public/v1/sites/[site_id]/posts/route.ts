@@ -3,13 +3,18 @@ import {
   publicContentRoutes,
   toPublicHttpRequest,
   toNextResponse,
-} from "@/lib/public-service";
+} from "../../../../../../lib/public-service";
+import { handleApiError } from "../../../../../../lib/errors";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { site_id: string } }
 ) {
-  const publicReq = await toPublicHttpRequest(req, params);
-  const result = await publicContentRoutes.handleListPosts(publicReq);
-  return toNextResponse(result);
+  try {
+    const publicReq = await toPublicHttpRequest(req, params);
+    const result = await publicContentRoutes.handleListPosts(publicReq);
+    return toNextResponse(result);
+  } catch (err) {
+    return handleApiError(err);
+  }
 }

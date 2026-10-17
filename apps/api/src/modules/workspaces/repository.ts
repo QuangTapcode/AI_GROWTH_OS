@@ -1,7 +1,7 @@
 import { PoolClient } from "pg";
-import { query } from "@/lib/db";
+import { query } from "../../lib/db";
 import { CreateWorkspaceInput } from "./schemas";
-import { Role } from "@/lib/tenant";
+import { Role } from "../../lib/tenant";
 
 export interface WorkspaceRow {
   id: string;

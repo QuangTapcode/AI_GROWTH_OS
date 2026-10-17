@@ -1,4 +1,4 @@
-import pool, { query } from "@/lib/db";
+import pool, { query } from "../../lib/db";
 import { CreateWorkflowTaskInput, UpdateTaskStatusInput, CreateArtifactInput } from "./schemas";
 
 export interface WorkflowTaskRow {
@@ -103,7 +103,7 @@ export async function listTasks(
            COALESCE(
              (SELECT json_agg(td.depends_on_task_id) 
               FROM task_dependencies td 
-              WHERE td.task_id = t.id), 
+              WHERE td.task_id = t.id AND td.workspace_id = t.workspace_id), 
              '[]'::json
            ) as dependencies
     FROM workflow_tasks t
@@ -140,7 +140,7 @@ export async function getTaskById(
            COALESCE(
              (SELECT json_agg(td.depends_on_task_id) 
               FROM task_dependencies td 
-              WHERE td.task_id = t.id), 
+              WHERE td.task_id = t.id AND td.workspace_id = t.workspace_id), 
              '[]'::json
            ) as dependencies
     FROM workflow_tasks t

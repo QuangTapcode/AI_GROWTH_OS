@@ -8,10 +8,10 @@
  */
 
 import { z } from "zod";
-import pool, { withTransaction } from "@/lib/db";
-import { NotFoundError, ConflictError, ValidationError } from "@/lib/errors";
-import { requireWorkspaceAccess } from "@/lib/tenant";
-import { AuthenticatedUser } from "@/lib/auth";
+import pool, { withTransaction } from "../../lib/db";
+import { NotFoundError, ConflictError, ValidationError } from "../../lib/errors";
+import { requireWorkspaceAccess } from "../../lib/tenant";
+import { AuthenticatedUser } from "../../lib/auth";
 
 export const ragChunkInputSchema = z.object({
   chunk_index: z.number().int().nonnegative(),

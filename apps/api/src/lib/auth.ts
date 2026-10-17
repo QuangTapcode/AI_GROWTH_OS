@@ -30,6 +30,37 @@ export function authenticateUser(req: NextRequest): AuthUser {
     throw new AppError(401, "UNAUTHORIZED", "Empty authentication token");
   }
 
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // CHẶN ĐỨNG DEV TOKENS TRÊN PRODUCTION:
+  if (isProduction && process.env.ALLOW_INSECURE_DEV_AUTH !== "true") {
+    if (
+      token.startsWith("dev_user_") ||
+      token === "owner" ||
+      token === "dev_owner" ||
+      token === "editor" ||
+      token === "dev_editor" ||
+      token === "viewer" ||
+      token === "dev_viewer"
+    ) {
+      throw new AppError(
+        401,
+        "UNAUTHORIZED",
+        "Dev tokens are strictly forbidden in production environment"
+      );
+    }
+
+    if (UUID_REGEX.test(token)) {
+      throw new AppError(
+        401,
+        "UNAUTHORIZED",
+        "Unsigned raw UUID tokens are forbidden in production. Signed JWT/OAuth token required"
+      );
+    }
+
+    throw new AppError(401, "UNAUTHORIZED", "Invalid production authentication token format");
+  }
+
   // Token giả lập cho dev/testing định dạng: "dev_user_<uuid>_<role>" hoặc "dev_user_<uuid>"
   if (token.startsWith("dev_user_")) {
     const parts = token.split("_");

@@ -54,7 +54,7 @@ describe('GA4/GSC connection stubs (W1-MY-06)', () => {
       status: 'not_connected',
       checked: false,
       verified: null,
-      missing_reason: 'GOOGLE_CREDENTIALS_NOT_CONFIGURED',
+      missing_reason: 'PROPERTY_NOT_VERIFIED',
     });
     const ga4Probe = probeOwnership('ga4', 'properties/123456');
     expect(ga4Probe.checked).toBe(false);

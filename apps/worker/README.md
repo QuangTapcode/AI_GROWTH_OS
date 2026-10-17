@@ -10,7 +10,7 @@ Owner: Mỹ (BE), Thiệu Quang peer-review; vùng sửa `apps/worker/**`. Packa
 - Idempotency theo CR-001: worker resend **cùng request** (không nhúng attempt) → AI service resume run cũ; khóa định danh là `job_id + operation + input_version`.
 - Phân loại lỗi: envelope 4xx (INVALID_PAYLOAD, IDEMPOTENCY_CONFLICT, UNAUTHORIZED…) → permanent (không retry, `error_code` giữ mã AI); 429/5xx/network/poll-timeout → retryable; run failed đọc cờ `retryable` từ AI service. Lỗi ghi vào `JobState.error_code`.
 - Cancel: contract chưa có AI-side cancel endpoint → `HttpAiAdapter.cancel(runId)` ngừng poll local (`RUN_CANCELLED`); run vẫn hoàn tất bên AI và nằm trong AI run store.
-- Typed routing (`src/jobs/operations.ts`): `ingest→knowledge.ingest`, `research→research.run`, `score→opportunity.score`, `strategy→strategy.generate`, `content→content.generate`. **publish/lead/metrics/integrations/ingest_revoke/ingest_delete không gọi LLM** — fail `OPERATION_NOT_WIRED` chờ wiring executor/integration (MY-02/04/05/06, TQ-02), không fake kết quả.
+- Typed routing (`src/jobs/operations.ts`): `ingest→knowledge.ingest`, `research→research.run`, `score→opportunity.score`, `strategy→strategy.generate`, `content→content.generate`. **publish/lead/metrics/integrations đã wiring executor (MY-04/05/06)** — publish qua `PublishJobProcessor + defaultRegistry (MockCmsPublisher)`, lead qua `LeadIntakeService`, metrics qua `MetricsIngestionStub (insufficient_data)`, integrations passthrough manual/insufficient; chỉ `ingest_revoke/ingest_delete` còn fail `OPERATION_NOT_WIRED` chờ snapshot scoping (TQ-02).
 - Env: `AI_SERVICE_BASE_URL`, `INTERNAL_AI_AUTH_TOKEN`, `AI_HTTP_POLL_INTERVAL_MS` (1000), `AI_HTTP_POLL_TIMEOUT_MS` (600000), `AI_HTTP_REQUEST_TIMEOUT_MS` (30000).
 - Job result của operation AI-backed gồm `ai_run_id` + `artifact` (CR-002) persist qua `result_ref`.
 - Test: `tests/httpAiAdapter.test.ts` (submit/poll/idempotency/error envelope/cancel, stub fetch — không cần service thật), `tests/operationsRouting.test.ts` (mapping + không-LLM ops). Chạy: `npm test`.
@@ -22,7 +22,28 @@ Owner: Mỹ (BE), Thiệu Quang peer-review; vùng sửa `apps/worker/**`. Packa
 - Test: `tests/workflow.test.ts` 5/5 (Memory/File store), `tests/dbWorkflow.test.ts` (tích hợp Postgres thật, tự skip khi không có DB — cần `DATABASE_URL` trỏ Postgres đã migrate 001+002).
 - Hạn chế môi trường hiện tại: Docker Desktop chưa chạy trên máy Mỹ nên evidence DB thật + live run MY-01 chưa có — chạy lại `npx vitest run tests/dbWorkflow.test.ts` và smoke `AI_PROVIDER_MODE=live` khi có Postgres + AI service.
 
-Giới hạn: chỉ 1 AI process (concurrency 1); workspace_id phải là UUID thật từ BE — test nội bộ dùng FakeAiAdapter; publish/lead/metrics chờ MY-04–06, chưa có side effect.
+Giới hạn: chỉ 1 AI process (concurrency 1); workspace_id phải là UUID thật từ BE — test nội bộ dùng FakeAiAdapter; publish/lead/metrics đã wiring executor, còn `ingest_revoke/ingest_delete` chờ snapshot scoping (TQ-02).
+
+## Lead persistence PG (MY-06 — thay in-memory)
+
+- `src/leads/PgLeadStore.ts` (mới): implements `LeadStore` bằng pg Pool raw SQL theo pattern `DbWorkflowStore`, bảng `leads` (migration 003). `insertLead` chạy transaction `BEGIN` → check idempotency read-before-write → `INSERT` → `COMMIT`, lỗi giữa chừng `ROLLBACK` (không half-write). `findByKey/listByWorkspace/updateStatus` cùng DB. `close()` kết thúc Pool.
+- `LeadIntakeService(pgStore?)`: nếu truyền store thì dùng PG, ngược lại `autoPgStore()` — có `DATABASE_URL` thì tự tạo `PgLeadStore`, không thì in-memory như cũ. Test cũ không set `DATABASE_URL` nên vẫn in-memory, không đổi hành vi.
+- Smoke PG thật (tay, không CI): `cd apps/worker && DATABASE_URL=... npx tsx tasks/pgLeadSmoke.ts` → intake 2 lần cùng payload: lần 2 `duplicate=true`, cùng `leadId`, row trong `leads`. Cần workspace UUID có thật (FK `workspace_id` → `workspaces.id`); thiếu FK thì intake trả `LEAD_PERSIST_FAILED`.
+- Test tích hợp gating (CI-local): `tests/pgLeadStore.test.ts` — tự skip khi không kết nối được Postgres (mặc định `:15432`). Chạy: `DATABASE_URL=... npx vitest run tests/pgLeadStore.test.ts`. Bao roundtrip intake/dedup/list/updateStatus, **race 2 request song song** (unique constraint `uq_leads_workspace_idempotency` chặn, `insertLead` bắt `23505` trả row đã commit → `duplicate=true`), và persist-fail không half-write.
+- Env: `DATABASE_URL` (Postgres đã migrate 001–004).
+
+## Gateway recheck qua HTTP (MY-05 — nối TQ-06)
+
+- `src/publish/GatewayRecheckClient.ts` (mới): `createGatewayCheck()` trả seam `gatewayCheck` cho `PublishJobProcessor` — `POST {API_BASE_URL}/v1/workspaces/{ws}/tools/execute` với `Authorization: Bearer {WORKER_GATEWAY_TOKEN}` (mặc định `dev_owner`), timeout `GATEWAY_REQUEST_TIMEOUT_MS` (5000ms).
+- Channel → provider/capability theo matrix: Website/Newsletter → `website_cms/publish_cms_post`; Facebook → `facebook_page/publish_page_post`; Instagram → `instagram_business/publish_ig_media`. Luôn `action_type=publish` kèm `approval_id` + `expected_version/hash`.
+- **Fail-closed**: HTTP 4xx/5xx/network → deny (`GATEWAY_UNREACHABLE`/lý do từ envelope lỗi) → publish trả `GATEWAY_DENIED`, không gọi CMS. Thiếu `API_BASE_URL` → `null` → bỏ qua recheck (hành vi cũ, test không đổi).
+- Wiring: `operations.ts` handler `publish` tự tạo `gatewayCheck` khi env có `API_BASE_URL`; job payload có `approvalId` để truyền xuống.
+- Test stub fetch: `src/publish/__tests__/gatewayRecheckClient.test.ts` (5 test, không mở socket).
+
+## MY-08 drill (một phần trên PG thật)
+
+- `tests/my08DrillPg.test.ts` (gating, tự skip khi không có Postgres): (1) queue backlog — worker mới `resume` từ PG drain workflow dở dang (t1/t2 completed bền, t3 awaiting_approval, event dedup); (2) revoked connector — gateway deny → publish fail fast `GATEWAY_DENIED`, CMS không được gọi.
+- Còn chờ TH-07: kill process thật + CMS timeout E2E.
 
 ## Chạy & kiểm thử (W1-MY-01)
 
