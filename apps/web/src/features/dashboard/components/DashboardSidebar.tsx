@@ -1,22 +1,87 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+
+export interface WorkspaceItem {
+  id: string;
+  name: string;
+  subtitle: string;
+  initials: string;
+  avatarBg: string;
+  tag?: string;
+}
+
+export const DEFAULT_WORKSPACES: WorkspaceItem[] = [
+  {
+    id: "tripc",
+    name: "TripC",
+    subtitle: "Growth workspace",
+    initials: "T",
+    avatarBg: "bg-blue-500",
+    tag: "Active",
+  },
+  {
+    id: "ecotravel",
+    name: "EcoTravel Vietnam",
+    subtitle: "Ecotourism & Local Tours",
+    initials: "E",
+    avatarBg: "bg-emerald-500",
+    tag: "Production",
+  },
+  {
+    id: "danang-gourmet",
+    name: "Danang Gourmet Hub",
+    subtitle: "Culinary & Food Tourism",
+    initials: "D",
+    avatarBg: "bg-amber-500",
+    tag: "Staging",
+  },
+];
 
 interface DashboardSidebarProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
+  selectedWorkspace?: WorkspaceItem;
+  onWorkspaceChange?: (workspace: WorkspaceItem) => void;
 }
 
 export default function DashboardSidebar({
   activeTab = "overview",
   onTabChange,
+  selectedWorkspace = DEFAULT_WORKSPACES[0],
+  onWorkspaceChange,
 }: DashboardSidebarProps) {
   const [currentTab, setCurrentTab] = useState(activeTab);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const handleNav = (tabId: string) => {
     setCurrentTab(tabId);
     if (onTabChange) onTabChange(tabId);
+  };
+
+  const handleSelectWorkspace = (ws: WorkspaceItem) => {
+    if (onWorkspaceChange) {
+      onWorkspaceChange(ws);
+    }
+    setIsDropdownOpen(false);
   };
 
   const navItems = [
@@ -33,7 +98,15 @@ export default function DashboardSidebar({
       id: "workflows",
       label: "Workflows & Tasks",
       icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <rect x="3" y="3" width="7" height="7" rx="1" />
           <rect x="14" y="3" width="7" height="7" rx="1" />
           <rect x="14" y="14" width="7" height="7" rx="1" />
@@ -45,7 +118,15 @@ export default function DashboardSidebar({
       id: "artifacts",
       label: "Artifacts",
       icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
           <polyline points="14 2 14 8 20 8" />
           <line x1="16" y1="13" x2="8" y2="13" />
@@ -59,7 +140,15 @@ export default function DashboardSidebar({
       label: "Review Queue",
       badge: 4,
       icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M9 11l3 3L22 4" />
           <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
         </svg>
@@ -69,7 +158,15 @@ export default function DashboardSidebar({
       id: "distribution",
       label: "Distribution",
       icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <line x1="22" y1="2" x2="11" y2="13" />
           <polygon points="22 2 15 22 11 13 2 9 22 2" />
         </svg>
@@ -79,7 +176,15 @@ export default function DashboardSidebar({
       id: "growth-results",
       label: "Growth Results",
       icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
           <polyline points="17 6 23 6 23 12" />
         </svg>
@@ -89,7 +194,15 @@ export default function DashboardSidebar({
       id: "workspace-integrations",
       label: "Workspace & Integrations",
       icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="12" cy="12" r="3" />
           <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
         </svg>
@@ -98,7 +211,7 @@ export default function DashboardSidebar({
   ];
 
   return (
-    <aside className="w-64 shrink-0 bg-[#1d4ed8] text-white flex flex-col justify-between min-h-screen sticky top-0 h-screen select-none">
+    <aside className="w-64 shrink-0 bg-[#1d4ed8] text-white flex flex-col justify-between min-h-screen sticky top-0 h-screen select-none z-30">
       {/* Top Header & Workspace Switcher */}
       <div className="p-4 space-y-4">
         {/* Brand Logo */}
@@ -128,22 +241,131 @@ export default function DashboardSidebar({
           </div>
         </div>
 
-        {/* Workspace Switcher Pill */}
-        <div className="bg-white/10 hover:bg-white/15 border border-white/15 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-colors">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-500/80 text-white font-bold text-xs flex items-center justify-center shadow-xs">
-              T
+        {/* Workspace Switcher Pill with Dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className={`w-full bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-all ${
+              isDropdownOpen ? "ring-2 ring-white/30 bg-white/15" : ""
+            }`}
+          >
+            <div className="flex items-center gap-2.5 text-left min-w-0">
+              <div
+                className={`w-7 h-7 rounded-lg ${selectedWorkspace.avatarBg} text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0`}
+              >
+                {selectedWorkspace.initials}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-white leading-none truncate">
+                  {selectedWorkspace.name}
+                </p>
+                <p className="text-[10px] text-blue-200/80 mt-0.5 leading-none truncate">
+                  {selectedWorkspace.subtitle}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-white leading-none">TripC</p>
-              <p className="text-[10px] text-blue-200/80 mt-0.5 leading-none">
-                Growth workspace
-              </p>
+            <svg
+              className={`w-4 h-4 text-blue-200/80 shrink-0 transition-transform duration-200 ${
+                isDropdownOpen ? "rotate-180" : ""
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M8 9l4-4 4 4m0 6l-4 4-4-4"
+              />
+            </svg>
+          </button>
+
+          {/* Dropdown Menu */}
+          {isDropdownOpen && (
+            <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900/95 backdrop-blur-xl border border-blue-400/30 rounded-2xl p-2 shadow-2xl z-50 text-white animate-in fade-in duration-150">
+              <div className="px-2 py-1.5 flex items-center justify-between text-[10px] uppercase font-bold text-blue-300/70">
+                <span>Select Workspace</span>
+                <span>{DEFAULT_WORKSPACES.length} total</span>
+              </div>
+
+              <div className="space-y-1 mt-1">
+                {DEFAULT_WORKSPACES.map((ws) => {
+                  const isSelected = selectedWorkspace.id === ws.id;
+                  return (
+                    <button
+                      key={ws.id}
+                      type="button"
+                      onClick={() => handleSelectWorkspace(ws)}
+                      className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-blue-600 text-white font-semibold shadow-xs"
+                          : "text-slate-200 hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`w-7 h-7 rounded-lg ${ws.avatarBg} text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs`}
+                        >
+                          {ws.initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold leading-tight truncate">
+                            {ws.name}
+                          </p>
+                          <p className="text-[10px] text-blue-200/70 truncate leading-tight">
+                            {ws.subtitle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0 pl-2">
+                        {ws.tag && (
+                          <span
+                            className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+                              isSelected
+                                ? "bg-white/20 text-white"
+                                : "bg-slate-800 text-slate-300"
+                            }`}
+                          >
+                            {ws.tag}
+                          </span>
+                        )}
+                        {isSelected && (
+                          <svg
+                            className="w-3.5 h-3.5 text-white"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Add workspace action */}
+              <div className="border-t border-white/10 mt-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium text-blue-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+                >
+                  <span className="w-5 h-5 rounded-lg border border-dashed border-blue-300/60 flex items-center justify-center text-sm font-bold">
+                    +
+                  </span>
+                  <span>Create new workspace</span>
+                </button>
+              </div>
             </div>
-          </div>
-          <svg className="w-4 h-4 text-blue-200/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-          </svg>
+          )}
         </div>
 
         {/* Navigation List */}
@@ -162,7 +384,9 @@ export default function DashboardSidebar({
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className={isActive ? "text-[#1d4ed8]" : "text-blue-200"}>
+                  <span
+                    className={isActive ? "text-[#1d4ed8]" : "text-blue-200"}
+                  >
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
@@ -195,34 +419,74 @@ export default function DashboardSidebar({
         <div className="space-y-1">
           <div className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <svg className="w-4 h-4 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              <svg
+                className="w-4 h-4 text-blue-200"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                />
               </svg>
               <div>
-                <p className="text-xs font-medium text-white leading-tight">Growth Knowledge</p>
-                <p className="text-[10px] text-blue-200/70">Business context & voice</p>
+                <p className="text-xs font-medium text-white leading-tight">
+                  Growth Knowledge
+                </p>
+                <p className="text-[10px] text-blue-200/70">
+                  Business context & voice
+                </p>
               </div>
             </div>
           </div>
 
           <div className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <svg className="w-4 h-4 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <svg
+                className="w-4 h-4 text-blue-200"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
               </svg>
               <div>
-                <p className="text-xs font-medium text-white leading-tight">Connection status</p>
-                <p className="text-[10px] text-blue-200/70">Connected channels</p>
+                <p className="text-xs font-medium text-white leading-tight">
+                  Connection status
+                </p>
+                <p className="text-[10px] text-blue-200/70">
+                  Connected channels
+                </p>
               </div>
             </div>
             <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
           </div>
 
           <div className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5">
-            <svg className="w-4 h-4 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-4 h-4 text-blue-200"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
-            <span className="text-xs font-medium text-white">Help & documentation</span>
+            <span className="text-xs font-medium text-white">
+              Help & documentation
+            </span>
           </div>
         </div>
 
@@ -233,13 +497,31 @@ export default function DashboardSidebar({
               AM
             </div>
             <div>
-              <p className="text-xs font-bold text-white leading-tight">Alex Morgan</p>
-              <p className="text-[10px] text-blue-200/70 leading-tight">Owner</p>
+              <p className="text-xs font-bold text-white leading-tight">
+                Alex Morgan
+              </p>
+              <p className="text-[10px] text-blue-200/70 leading-tight">
+                Owner
+              </p>
             </div>
           </div>
-          <Link href="/login" title="Logout" className="text-blue-200 hover:text-white transition-colors p-1">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          <Link
+            href="/login"
+            title="Logout"
+            className="text-blue-200 hover:text-white transition-colors p-1"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              />
             </svg>
           </Link>
         </div>

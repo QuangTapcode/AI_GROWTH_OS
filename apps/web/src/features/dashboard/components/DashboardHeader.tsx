@@ -3,12 +3,18 @@
 import React from "react";
 import Link from "next/link";
 
-export default function DashboardHeader() {
+interface DashboardHeaderProps {
+  workspaceName?: string;
+}
+
+export default function DashboardHeader({
+  workspaceName = "TripC",
+}: DashboardHeaderProps) {
   return (
     <header className="bg-[#1e40af] text-white px-6 py-3.5 flex items-center justify-between border-b border-blue-600/40 select-none sticky top-0 z-20">
       {/* Left Breadcrumb */}
       <div className="flex items-center gap-2 text-xs">
-        <span className="text-blue-200/80 font-medium">TripC</span>
+        <span className="text-blue-200/90 font-semibold">{workspaceName}</span>
         <span className="text-blue-300/40">/</span>
         <span className="text-white font-semibold">Overview</span>
       </div>
