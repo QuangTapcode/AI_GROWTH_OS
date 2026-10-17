@@ -7,29 +7,47 @@ import { useRouter } from "next/navigation";
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Validate strict Gmail address format (must end with @gmail.com)
+  const isGmailFormat = (val: string) => {
+    return /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(val.trim());
+  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    setError(null);
+
+    if (!email.trim()) {
+      setError("Vui lòng nhập địa chỉ email");
+      return;
+    }
+
+    if (!isGmailFormat(email)) {
+      setError("Vui lòng nhập đúng định dạng Gmail (ví dụ: example@gmail.com)");
+      return;
+    }
+
     setIsLoading(true);
     setTimeout(() => {
-      router.push("/");
-    }, 450);
+      router.push("/dashboard");
+    }, 350);
   };
 
   const handleGoogleSignIn = () => {
+    setError(null);
     setIsLoading(true);
     setTimeout(() => {
-      router.push("/");
-    }, 450);
+      router.push("/dashboard");
+    }, 350);
   };
 
   return (
     <div className="w-full lg:w-[480px] xl:w-[540px] shrink-0 bg-white min-h-screen flex flex-col justify-between p-8 sm:p-12 lg:p-16 border-r border-slate-100 shadow-sm z-10">
       {/* Top Logo */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-sky-600 flex items-center justify-center text-white shadow-md shadow-sky-500/25">
           <svg
             className="w-5 h-5"
             viewBox="0 0 24 24"
@@ -52,18 +70,11 @@ export function LoginForm() {
       {/* Main Center Form */}
       <div className="my-auto py-10 max-w-[380px] w-full mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
-            Welcome back
+          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
+            Welcome
+            <br />
+            back
           </h1>
-          <p className="text-sm text-slate-600">
-            New to AI Growth OS?{" "}
-            <Link
-              href="/register"
-              className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors"
-            >
-              Create an account
-            </Link>
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -77,20 +88,43 @@ export function LoginForm() {
             <input
               id="login-email"
               type="email"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-xs transition-all text-sm"
+              className={`w-full px-4 py-3 rounded-xl border ${
+                error
+                  ? "border-rose-400 focus:ring-rose-400/20 focus:border-rose-500"
+                  : "border-slate-200 focus:ring-sky-400/25 focus:border-sky-400"
+              } bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 shadow-xs transition-all text-sm`}
               placeholder="Enter your email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError(null);
+              }}
               required
               autoComplete="email"
               autoFocus
             />
+            {error && (
+              <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium">
+                <svg
+                  className="w-3.5 h-3.5 shrink-0"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {error}
+              </p>
+            )}
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm shadow-blue-500/25 hover:shadow-md hover:shadow-blue-500/35 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed mt-2"
+            className="w-full py-3 px-4 bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md shadow-sky-500/25 hover:shadow-lg hover:shadow-sky-500/35 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed mt-2"
           >
             {isLoading ? (
               <>
@@ -149,7 +183,7 @@ export function LoginForm() {
           disabled={isLoading}
           className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium rounded-xl border border-slate-200 flex items-center justify-center gap-2.5 shadow-xs hover:border-slate-300 transition-all cursor-pointer text-sm"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path
               fill="#4285F4"
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
