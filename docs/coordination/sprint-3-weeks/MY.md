@@ -36,21 +36,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Executor gọi CMS thật, lưu immutable snapshot/publication; social live theo capability hoặc manual pack có nhãn; caption/ảnh/UTM đúng version.
 - **Phụ thuộc:** TQ-04 (contract D6, tích hợp D7), MY-02.
 - **Reviewer:** Thiệu Quang + Tiến.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Tiến review) · PR/build: worker tsc sạch, vitest `src/publish 6+7 tests` pass, routing `operationsRouting 4/4` pass · Evidence: `apps/worker/src/publish/CmsPublisher.ts` (MockCmsPublisher + PublisherRegistry + defaultRegistry), `PublishJobProcessor.ts` (idempotency `publish:ws:content:channel:version`, timeout→reconcile trước retry, manual pack), `ManualPackGenerator.ts` (pack FB/IG label `manual-pack` + UTM), wiring `src/jobs/operations.ts createWiredHandler('publish')` · Blocker: CMS thật + immutable snapshot/publication BE (TQ-04) để đạt `integrated`.
 
 ### [ ] MY-05 · D9 · M · Scheduled publish/reconcile và invalidation
 
 - **Làm / đầu ra / Done:** Lưu UTC + timezone; recheck approval/source/account tại execution; timeout đối soát trước retry; không tạo hai bài cùng idempotency key.
 - **Phụ thuộc:** MY-04, TQ-04; gateway contract được TQ bàn giao D7 trong TQ-04.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Thiệu review) · PR/build: worker tsc sạch, `reconciliation.test.ts 7/7` pass · Evidence: `apps/worker/src/reconcile/ReconciliationService.ts` (duplicate_prevented/retry_allowed/still_unknown, UTC ISO, retry cap 2, recoverable filter), `PublishJobProcessor` reconcile path, gateway TQ-06 `tools/execute` đã merge · Blocker: recheck approval/version/hash tại execution qua gateway TQ-06 + schedule BE để đạt `integrated`.
 
 ### [ ] MY-06 · D10 · M · Community intake và metrics ingestion
 
 - **Làm / đầu ra / Done:** Form/webhook supported có dedup; lead DB/owner handoff; GA4/GSC/Meta snapshots khi có quyền, nếu thiếu ghi missing; reply chỉ gửi sau duyệt và đúng quyền.
 - **Phụ thuộc:** TQ-05, MY-02.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Thiệu review) · PR/build: worker tsc sạch, `leadIntake 9 tests + metricsStub 5 tests` pass, API `vitest 72/72` (TQ-05) · Evidence: `apps/worker/src/leads/LeadIntakeService.ts` (validate email/UTM/consent, key `lead:ws:hash`, dedup, status/owner), `src/metrics/MetricsIngestionStub.ts` (`insufficient_data`, hourly dedup event), wiring `operations.ts createWiredHandler('lead'/'metrics')`, TQ-05 `modules/leads/` PG + migration 003 đã merge · Blocker: nối worker intake → PG repository TQ-05 (thay in-memory) + reply approval flow để đạt `integrated`.
 
 ## Tuần 3 — 29/10–04/11/2026
 
@@ -59,21 +59,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** metrics_synced/lead_created/approval_changed/publication_completed tạo đúng task; report theo lịch configurable; max iterations/cost và idempotency qua restart.
 - **Phụ thuộc:** MY-06, QQ-06.
 - **Reviewer:** Quang Quang + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` phần worker (chờ Quang Quang review; chờ QQ-06 handler để `integrated`) · PR/build: worker `feedbackEventScheduler 7/7 + metricsStub 5/5` pass · Evidence: `apps/worker/src/events/FeedbackEventScheduler.ts` (6 event types, dedup `type:ws:hash`, maxIterations 5/costCap 0, `insufficient_data` flag), `MetricsIngestionStub.buildMetricsSyncedEvent`, TQ-07 outbox/reports đã merge · Blocker: QQ-06 Community/Performance handler (AI consumer cho event).
 
 ### [ ] MY-08 · D13 · M · Diễn tập recovery và lỗi tích hợp
 
 - **Làm / đầu ra / Done:** Kill/restart, timeout publish, revoked connector/source, retry cap và queue backlog; lưu evidence một task chỉ tạo một side effect.
 - **Phụ thuộc:** TH-07.
 - **Reviewer:** Thiệu + Thiệu Quang.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` mock (chờ TH-07 E2E env để `integrated`) · PR/build: worker `recoveryDrill 11/11` pass · Evidence: `apps/worker/src/recovery/RecoveryDrill.ts` (6 scenario + runAllDrills, evidence string) · Blocker: TH-07 E2E (kill thật, CMS timeout thật, revoked thật).
 
 ### [ ] MY-09 · D15 · M · Bàn giao runbooks và connector limits
 
 - **Làm / đầu ra / Done:** Start/stop, backup/restore, rotate credential, retry/resume/manual fallback; artifact mẫu và support matrix thật; phối hợp demo.
 - **Phụ thuộc:** MY-08, TH-08.
 - **Reviewer:** Thiệu Quang + Quang Quang.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` skeleton (chờ TH-08 verdict để done) · PR/build: chưa cần build · Evidence: `apps/worker/src/runbooks/MY-RUNBOOKS.md` (start/stop, pg_dump/psql, rollback, rotate token, retry max 2, manual fallback, support matrix thật, escalation) khớp TQ-09 release config (`.env.example`, openapi 1.1.0, migrations 001..004) · Blocker: TH-08 UAT/restore verdict.
 
 ## Khi trễ
 

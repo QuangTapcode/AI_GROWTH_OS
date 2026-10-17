@@ -18,7 +18,7 @@ function makeCtx(
 }
 
 describe('Typed job routing (MY-01)', () => {
-  it('map worker operation → AI operation theo CR-001/CR-002', () => {
+  it('map worker operation → AI operation theo CR-001/CR-002 (MY-04/05/06 đã wiring)', () => {
     expect(WORKER_TO_AI_OPERATION).toMatchObject({
       ingest: 'knowledge.ingest',
       research: 'research.run',
@@ -26,9 +26,14 @@ describe('Typed job routing (MY-01)', () => {
       strategy: 'strategy.generate',
       content: 'content.generate',
     });
-    for (const op of ['publish', 'lead', 'metrics', 'integrations', 'ingest_revoke', 'ingest_delete'] as const) {
+    for (const op of ['ingest_revoke', 'ingest_delete'] as const) {
       expect(WORKER_TO_AI_OPERATION[op]).toBeUndefined();
       expect(NON_AI_OPERATIONS).toContain(op);
+    }
+    // publish/lead/metrics/integrations đã wiring executor, không còn trong NON_AI list
+    for (const op of ['publish', 'lead', 'metrics', 'integrations'] as const) {
+      expect(WORKER_TO_AI_OPERATION[op]).toBeUndefined();
+      expect(NON_AI_OPERATIONS).not.toContain(op);
     }
   });
 
@@ -80,9 +85,9 @@ describe('Typed job routing (MY-01)', () => {
     });
   });
 
-  it('publish/lead/metrics KHÔNG gọi LLM — fail OPERATION_NOT_WIRED', async () => {
+  it('ingest_revoke/ingest_delete KHÔNG gọi LLM — fail OPERATION_NOT_WIRED; publish/lead/metrics đã wiring executor (MY-04/05/06)', async () => {
     const handlers = buildOperationHandlers();
-    for (const operation of ['publish', 'lead', 'metrics'] as JobOperator[]) {
+    for (const operation of ['ingest_revoke', 'ingest_delete'] as JobOperator[]) {
       const job = createJobState({ workspace_id: WS_ID, organization_id: 'org-1', operation });
       let aiCalls = 0;
       const ai = {
@@ -96,6 +101,29 @@ describe('Typed job routing (MY-01)', () => {
       expect(err).toMatchObject({ code: 'OPERATION_NOT_WIRED' });
       expect(aiCalls).toBe(0);
     }
+    // publish/lead/metrics/integrations chạy executor thật, không gọi AI
+    const publishJob = createJobState({
+      workspace_id: WS_ID,
+      organization_id: 'org-1',
+      operation: 'publish',
+      payload: { contentId: 'c1', channel: 'Website', bodyMarkdown: '# hi', contentHash: 'h', expectedVersion: 1 },
+    });
+    const noAi = { run: async (): Promise<AiRunResult> => { throw new Error('AI must not be called'); } };
+    const pubRes = (await handlers.publish(makeCtx(publishJob, noAi))) as Record<string, unknown>;
+    expect(pubRes['channel']).toBe('Website');
+
+    const leadJob = createJobState({
+      workspace_id: WS_ID,
+      organization_id: 'org-1',
+      operation: 'lead',
+      payload: { contactEmail: 'a@b.com', utmSource: 'fb', utmMedium: 'social', utmCampaign: 'c', consent: true },
+    });
+    const leadRes = (await handlers.lead(makeCtx(leadJob, noAi))) as { duplicate: boolean };
+    expect(leadRes.duplicate).toBe(false);
+
+    const metricsJob = createJobState({ workspace_id: WS_ID, organization_id: 'org-1', operation: 'metrics' });
+    const metRes = (await handlers.metrics(makeCtx(metricsJob, noAi))) as { allMissing: boolean };
+    expect(metRes.allMissing).toBe(true);
   });
 
   it('PermanentJobError code tùy biến được ghi vào outcome', () => {

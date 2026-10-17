@@ -16,6 +16,27 @@ export type JobStatus =
   | 'failed'
   | 'cancelled';
 
+/**
+ * Publish job shape for MY-04/MY-05 publisher + reconcile.
+ * Extends JobState with publish-specific fields (channel/content/schedule).
+ */
+export interface PublishJob extends JobState {
+  channel?: 'Website' | 'Facebook' | 'Instagram' | 'Newsletter';
+  contentId?: string;
+  title?: string;
+  bodyMarkdown?: string;
+  metaTitle?: string;
+  metaDescription?: string;
+  slug?: string;
+  scheduledAt?: Date;
+  idempotencyKey?: string;
+  externalPostId?: string;
+  retryCount?: number;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+}
+
 export type JobOperator =
   | 'ingest'
   | 'ingest_revoke'
