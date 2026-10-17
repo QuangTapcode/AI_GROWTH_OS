@@ -92,3 +92,22 @@ def test_plan_budget_and_restart(client, make_client):
     huge["job_id"] = str(uuid4())
     huge["payload"]["business_profile"]["overview"] = "large " * 4000
     assert run_job(client, huge)["error_code"] == "CONTEXT_BUDGET_EXCEEDED"
+
+
+@pytest.mark.parametrize("change", ["past_deadline", "naive_deadline", "negative_score", "large_score"])
+def test_new_plan_rejects_invalid_deadline_or_estimated_factor(client, change):
+    job = request_for(client)
+    if change == "past_deadline": job["payload"]["deadline"] = "2020-01-01T00:00:00Z"
+    elif change == "naive_deadline": job["payload"]["deadline"] = "2099-01-01T00:00:00"
+    else: job["payload"]["score_factors"]["demand"] = -1 if change == "negative_score" else 6
+    assert client.post("/internal/v1/runs", json=job).status_code == 422
+
+
+def test_missing_deadline_blocks_enqueue_and_unknown_score_stays_null(client):
+    job = request_for(client)
+    job["payload"].pop("deadline")
+    job["payload"]["score_factors"] = {"demand": None}
+    result = run_job(client, job)["result"]["result"]
+    assert result["status"] == "blocked" and "campaign_deadline" in result["missing_facts"]
+    assert result["opportunity_score"]["score"] is None
+    assert result["opportunity_score"]["label"] == "insufficient_data"

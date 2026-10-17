@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-10-17T16:44:57.189646+00:00",
+  "verification": "Observed tool process results; not independent reviewer approval",
+  "passed": true,
+  "checks": [
+    {
+      "command": "apps/api: npm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "command": "apps/api: npm run build",
+      "exit_code": 0
+    },
+    {
+      "command": "apps/worker: npm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "command": "apps/worker: npm run build",
+      "exit_code": 0
+    },
+    {
+      "command": "qa/QQ_test: tsc --noEmit",
+      "exit_code": 0
+    }
+  ],
+  "warnings": [
+    "Worker SIGKILL test and E2E startup timed out in earlier runs; final reruns passed. Independent operational review remains pending.",
+    "Fake and live business fixtures are synthetic; production gate stays HOLD."
+  ]
+}

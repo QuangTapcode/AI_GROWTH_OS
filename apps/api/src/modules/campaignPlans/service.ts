@@ -79,11 +79,21 @@ export async function submitCampaignPlan(deps: { repo: PlanRepository; allowSynt
       social.operation !== 'content.repurpose' || social.brief.deliverable !== 'social_pack_draft' ||
       !equal(social.depends_on, [seo.task_id])) fail('INVALID_DEPENDENCIES', 'Expected SEO then social; cycles/unknown tasks rejected');
   for (const task of plan.tasks) {
+    if (plan.contract_version === 'growth-lead-plan-v2' && (!task.deadline || Date.parse(task.deadline) <= Date.now()))
+      fail('INVALID_DEADLINE', 'New plans require future task deadlines');
     if (!equal(task.dependency_artifact_from, task.depends_on) ||
         !equal(task.input_artifact_refs, [plan.research_artifact])) fail('INVALID_HANDOFF', 'Task artifact dependencies differ');
     if (task.brief.topic !== plan.selected_opportunity.topic || !task.brief.audience.length || !task.brief.offer.length ||
         !task.brief.cta?.trim() || task.brief.audience_fit !== plan.selected_opportunity.audience_fit ||
         task.brief.offer_fit !== plan.selected_opportunity.offer_fit) fail('INVALID_BRIEF', 'Brief must preserve research fit, audience, offer and CTA');
+  }
+  if (plan.contract_version === 'growth-lead-plan-v2') {
+    const score = plan.opportunity_score;
+    if (!score) fail('INVALID_SCORE', 'New plans require transparent estimated score metadata');
+    const factors = Object.values(score.factors);
+    const expected = factors.every(x => x !== null) ? factors.reduce<number>((acc, x) => acc * x!, 1) : null;
+    if (score.score !== expected || score.label !== (expected === null ? 'insufficient_data' : 'estimated'))
+      fail('INVALID_SCORE', 'Opportunity score must equal the declared factor product');
   }
   return deps.repo.accept(plan, context);
 }

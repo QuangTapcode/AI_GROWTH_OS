@@ -34,6 +34,7 @@ export interface AiRunRequest {
 export interface AiRunResult {
   output: Record<string, unknown>;
   model: string;
+  prompt_version?: string;
   schema_version: string;
   /** Run/artifact từ AI run store (CR-002) — persist cùng job result */
   run_id?: string;

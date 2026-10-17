@@ -44,6 +44,8 @@ export async function submitJob(
 /** Map operation → pg-boss job name (khác format: ingest_revoke → ingest-revoke). */
 export function queueNameForOperation(operation: JobOperator): string {
   switch (operation) {
+    case 'seo': case 'social': case 'community': case 'performance': case 'learning':
+      return operation;
     case 'ingest':
       return QueueJobs.INGEST;
     case 'ingest_revoke':

@@ -58,10 +58,11 @@ async function main() {
         input_version: 1 });
       return { job, ai, now: () => new Date(), progress: async () => {} };
     }
-    const research = await handlers.research(context('research', researchRequest.payload, 'research-v1')) as Record<string, unknown>;
+    const research = await handlers.research(context('research', researchRequest.payload, 'research-v2')) as Record<string, unknown>;
     assert.equal(research.status, 'ready_for_handoff');
     const planContext = context('strategy', {
       ...fixture.plan_request.payload,
+      deadline: '2026-11-04T10:00:00Z',
       research: Object.fromEntries(Object.entries(research).filter(([key]) =>
         !['model', 'schema_version', 'ai_run_id', 'artifact', 'evidence'].includes(key))),
       research_artifact: research.artifact,
@@ -87,7 +88,7 @@ async function main() {
     assert.equal(repository.records.length, 1);
     assert.deepEqual(repository.records[0].outbox, [{ task_id: plan.tasks[0].task_id, operation: 'seo.local_draft' }]);
     assert.equal(repository.records[0].task_states[plan.tasks[1].task_id], 'blocked');
-    const foreign = context('research', researchRequest.payload, 'research-v1');
+    const foreign = context('research', researchRequest.payload, 'research-v2');
     foreign.job.workspace_id = randomUUID();
     await assert.rejects(() => handlers.research(foreign), { code: 'TENANT_SCOPE_VIOLATION', permanent: true });
     const destination = path.join(repoRoot, 'qa/evidence/merge-my-be');

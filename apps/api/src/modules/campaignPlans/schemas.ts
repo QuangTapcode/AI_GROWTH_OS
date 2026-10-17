@@ -15,9 +15,10 @@ const findingSchema = z.object({
   topic: text, audience_fit: text, offer_fit: text, rationale: text, evidence: evidenceSchema,
   url: z.string().url(), fetched_at: z.string().datetime({ offset: true }),
   confidence: z.literal('hypothesis'), demand_estimate: z.null(),
+  keywords: z.array(text).max(5).optional(), user_need: text.nullable().optional(),
 }).strict();
 export const planSchema = z.object({
-  contract_version: z.literal('growth-lead-plan-v1'), plan_id: z.string().uuid(),
+  contract_version: z.enum(['growth-lead-plan-v1', 'growth-lead-plan-v2']), plan_id: z.string().uuid(),
   workspace_id: z.string().uuid(), input_version: z.number().int().positive(),
   profile_version: z.number().int().positive().nullable(), context_snapshot_id: z.string().uuid(),
   status: z.enum(['proposed', 'blocked']), objective: text,
@@ -36,9 +37,18 @@ export const planSchema = z.object({
       deliverable: z.enum(['seo_article_draft', 'social_pack_draft']), cta: text.nullable(),
       acceptance: z.array(text).min(1).max(10),
     }).strict(), requires_human_approval: z.literal(true),
+    deadline: z.string().datetime({ offset: true }).nullable().optional(),
   }).strict()).max(2),
   missing_facts: z.array(text).max(100), requires_human_approval: z.literal(true),
   applied: z.literal(false), synthetic: z.boolean(),
+  opportunity_score: z.object({
+    factors: z.object({ demand: z.number().finite().min(0).max(5).nullable(), business_relevance: z.number().finite().min(0).max(5).nullable(),
+      growth_potential: z.number().finite().min(0).max(5).nullable(), content_gap: z.number().finite().min(0).max(5).nullable(),
+      freshness: z.number().finite().min(0).max(5).nullable(), conversion_potential: z.number().finite().min(0).max(5).nullable() }).strict(),
+    score: z.number().finite().nonnegative().nullable(), estimated: z.literal(true), label: z.enum(['estimated', 'insufficient_data']),
+    formula: z.literal('demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential'),
+    source: z.literal('operator_estimate_not_search_volume'),
+  }).strict().optional(),
 }).strict();
 export type ArtifactRef = z.infer<typeof artifactRefSchema>;
 export type CampaignPlan = z.infer<typeof planSchema>;

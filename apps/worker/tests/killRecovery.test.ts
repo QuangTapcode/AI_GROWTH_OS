@@ -135,6 +135,7 @@ describe('kill -9 process thật (W1-MY-01)', () => {
       const tsxCli = path.resolve(process.cwd(), 'node_modules/tsx/dist/cli.mjs');
       const fixture = path.resolve(process.cwd(), 'tests/fixtures/killWorker.ts');
       const child = spawn(process.execPath, [tsxCli, fixture, dir, job.id], {
+        windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
         cwd: process.cwd(),
       });
@@ -145,6 +146,7 @@ describe('kill -9 process thật (W1-MY-01)', () => {
       try {
         // Đợi fixture claim job + ghi progress 30 + tốn 1 provider call
         await waitFor(async () => {
+          if (child.exitCode !== null) throw new Error(`Kill fixture exited ${child.exitCode}: ${childOutput}`);
           const j = await store.get(job.id);
           return !!j && j.status === 'running' && j.progress_percent >= 30 && j.provider_calls === 1;
         }, 30_000);

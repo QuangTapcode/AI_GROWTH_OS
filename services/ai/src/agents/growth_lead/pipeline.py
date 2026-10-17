@@ -1,6 +1,8 @@
 """Select an existing research opportunity and assemble bounded draft tasks."""
 import json
 import hashlib
+import math
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
@@ -26,8 +28,10 @@ def validate_growth_lead(job: JobRequest, payload: GrowthLeadPayload, settings: 
         problems.append(("SNAPSHOT_MISMATCH", "Growth Lead requires the same pinned snapshot throughout"))
     if research.profile_version != payload.business_profile.version or artifact.role != "research":
         problems.append(("RESEARCH_VERSION_MISMATCH", "Research profile version/role differs from context"))
-    canonical = json.dumps({"result": research.model_dump(mode="json"),
-                            "evidence": [x.evidence.model_dump(mode="json") for x in research.findings]},
+    # Hash original serialized content, including old artifacts without v2 fields.
+    raw_research = job.payload["research"]
+    canonical = json.dumps({"result": raw_research,
+                            "evidence": [x["evidence"] for x in raw_research["findings"]]},
                            sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     if hashlib.sha256(canonical.encode()).hexdigest() != artifact.content_hash:
         problems.append(("ARTIFACT_HASH_MISMATCH", "Research content differs from its artifact hash"))
@@ -35,6 +39,10 @@ def validate_growth_lead(job: JobRequest, payload: GrowthLeadPayload, settings: 
         problems.append(("INVALID_RESEARCH", "At most three opportunities are supported"))
     if not job.constraints.human_approval_required:
         problems.append(("APPROVAL_REQUIRED", "Campaign drafts require human approval before publication"))
+    if payload.deadline and (payload.deadline.tzinfo is None or payload.deadline <= datetime.now(timezone.utc)):
+        problems.append(("INVALID_DEADLINE", "Campaign deadline must be timezone-aware and in the future"))
+    if any(value is not None and (not math.isfinite(value) or not 0 <= value <= 5) for value in payload.score_factors.values()):
+        problems.append(("INVALID_SCORE", "Operator estimates must be finite scores between zero and five"))
     sources, _ = eligible_sources(job, payload.snapshot)
     for finding in research.findings:
         evidence = finding.evidence
@@ -55,6 +63,8 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         missing.add("confirmed_offer")
     if not p.cta:
         missing.add("confirmed_cta")
+    if not p.deadline:
+        missing.add("campaign_deadline")
     if p.business_profile.version is None:
         missing.add("profile_version")
     selected = None
@@ -85,9 +95,17 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
             tasks.append(CampaignTask(task_id=task_id, role=role, operation=operation,
                                       tools=["knowledge.read", "content.draft"], depends_on=dependencies,
                                       input_artifact_refs=[p.research_artifact],
-                                      dependency_artifact_from=dependencies, brief=brief))
+                                      dependency_artifact_from=dependencies, brief=brief, deadline=p.deadline))
     else:
         missing.add("grounded_opportunities")
+    factor_names = ("demand", "business_relevance", "growth_potential", "content_gap", "freshness", "conversion_potential")
+    factors = {name: p.score_factors.get(name) for name in factor_names}
+    # JSON consumers such as PostgreSQL/JavaScript parse 3.0 as 3. Keep the
+    # artifact's canonical hash stable across that serialization boundary.
+    factors = {key: int(value) if value is not None and value.is_integer() else value for key, value in factors.items()}
+    score = math.prod(factors.values()) if all(value is not None for value in factors.values()) else None
+    if isinstance(score, float) and score.is_integer():
+        score = int(score)
     plan = CampaignPlan(plan_id=uuid5(NAMESPACE_URL, f"plan:{ctx.job.job_id}:{ctx.job.input_version}"),
                         workspace_id=ctx.job.workspace_id, input_version=ctx.job.input_version,
                         profile_version=p.business_profile.version, context_snapshot_id=ctx.job.context_snapshot_id,
@@ -95,7 +113,11 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                         objective=(p.goal_context.objective if p.goal_context else None) or "Prepare grounded SEO and social drafts",
                         selected_opportunity=selected, research_artifact=p.research_artifact,
                         tasks=tasks, missing_facts=sorted(missing),
-                        synthetic=ctx.job.synthetic or research.synthetic or ctx.settings.provider_mode == "fake")
+                        synthetic=ctx.job.synthetic or research.synthetic or ctx.settings.provider_mode == "fake",
+                        opportunity_score={"factors": factors, "score": score, "estimated": True,
+                            "label": "estimated" if score is not None else "insufficient_data",
+                            "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
+                            "source": "operator_estimate_not_search_volume"})
     return OperationOutcome(result=plan.model_dump(mode="json"),
                             evidence=[selected.evidence] if selected else [],
                             warnings=["MOCK_DATA_NOT_FOR_PUBLICATION"] if plan.synthetic else [])

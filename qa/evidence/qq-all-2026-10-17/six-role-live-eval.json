@@ -1,0 +1,530 @@
+{
+  "mode": "live",
+  "synthetic": true,
+  "dataset_version": "qq-six-roles-2026-10-17-v1",
+  "dataset_sha256": "69c1a2b446e6a9effa71010fd23775c8500f7b2fe4baca72f63f64228c29c70b",
+  "rubric": {
+    "pass": "All declared contract/guardrail cases pass; citations/hash/version/approval and limits preserved.",
+    "semantic_review": "Independent QA and BA must review editorial usefulness and audience/offer fit.",
+    "release": "Real approved business sources/assets and independent signoff required for production."
+  },
+  "cases": [
+    {
+      "id": "SIX-01",
+      "scenario": "research",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-02",
+      "scenario": "plan",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-03",
+      "scenario": "seo",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-04",
+      "scenario": "content",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-05",
+      "scenario": "community",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-06",
+      "scenario": "performance",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-07",
+      "scenario": "learning",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-08",
+      "scenario": "tenant:research",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-09",
+      "scenario": "tenant:plan",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-10",
+      "scenario": "tenant:seo",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-11",
+      "scenario": "tenant:content",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-12",
+      "scenario": "tenant:community",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-13",
+      "scenario": "tenant:performance",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-14",
+      "scenario": "tenant:learning",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-15",
+      "scenario": "approval:research",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-16",
+      "scenario": "approval:plan",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-17",
+      "scenario": "approval:seo",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-18",
+      "scenario": "approval:content",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-19",
+      "scenario": "approval:community",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-20",
+      "scenario": "approval:performance",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-21",
+      "scenario": "approval:learning",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-22",
+      "scenario": "tampered_seo_parent",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-23",
+      "scenario": "tampered_content_parent",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-24",
+      "scenario": "foreign_asset",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-25",
+      "scenario": "missing_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-26",
+      "scenario": "zero_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-27",
+      "scenario": "missing_learning_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-28",
+      "scenario": "learning_quota",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-29",
+      "scenario": "learning_max",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-30",
+      "scenario": "community_price",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact": {
+        "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "58cdac2e7b52f90d11c21314849cf3092ee3274ec197456ac00cbbd0ec30bf89",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "research",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "research-v2",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 403,
+        "output_tokens": 231,
+        "total_tokens": 634,
+        "latency_ms": 12889,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "b3f340ba-1c21-563e-9020-6a9857ceb3c1",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "3a3a146e7d6c14f4f79cd08eedd25126c44f89cd9535c8decb754a46f43af1b1",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "growth-lead-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 662,
+        "output_tokens": 9,
+        "total_tokens": 671,
+        "latency_ms": 5240,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "f5f288e8-223e-57aa-af1b-374a44ad92f0",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "e65f5932e3d778bdcf84bfc7a8017a8557784c614b83f0ca3156774e968324bf",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "seo",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "seo-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 159,
+        "output_tokens": 283,
+        "total_tokens": 442,
+        "latency_ms": 13982,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "25d97fbb-e16d-50ae-8c94-f25f4a68488d",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "3d6f05aee0fdd4bccbf781de0b0d79c10ee541a3a2f1b6a2de4611742001e0bd",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "content",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "content-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 330,
+        "output_tokens": 75,
+        "total_tokens": 405,
+        "latency_ms": 6400,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "1999bc68-4013-5c69-b2d6-381575c442bf",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "ab25183d65aedfdb68e6c4db0b5f561cafbb4145e77f92a2806db12c12a3dfbc",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "community",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "community-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 109,
+        "output_tokens": 14,
+        "total_tokens": 123,
+        "latency_ms": 1126,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "86eb4d6d-6201-5a76-8d6d-a3c00a105411",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "95a9dac21050f486b580495ec75b46571d6387f928236851e8828105c880c698",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "performance",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "performance-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "4fca1f00-b4f5-5717-9acc-a0887cb7a4a3",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "30cb77f6d58786ef6a6665bf340ddc48a05e2ef3ed08ef79eb94774ce85f7a87",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "learning-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "9783b2dd-0c2d-5f7a-a75a-f7f9129e8e38",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "01a609155f774d1c83c5130b443ed0228f679b5de9c374e81521058ce368547d",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "performance",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "performance-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "aa74c069-823b-51bb-ab32-fb551218be88",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "bc1e32be2ca14e6f56c2d24c5237061e94b27948a944636b53bfd8c7bfeb50a7",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "performance",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "performance-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "041c73a2-c77c-5541-9250-950b1582065c",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "2add7efc5ffb288751190bf3ae6819a10b05909d01b713cb76abe38bb6a0fc15",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "learning-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "ff31ae2f-d8de-576c-bbb8-9e537d51942a",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "749bc1149f5a519a1c9fc9a8b94316a3f8000ebe8c6ffcd186901b3ec31d7ae8",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "learning-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "e8b46f4e-d851-57bf-bcb7-b36389d8198d",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "28fcc2fbac5c55264baa115fa4cedd94e48257ac54e2f68cdec099519c14b032",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "learning-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "18b65309-6ed1-578d-8643-a6af1ff10db2",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "7fe2f0c3277ff1b66ba2c0d34dd51b0aa8876b09041593809bf772d9fea1ff0b",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "community",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "community-v1",
+      "model_version": "ollama/qwen3:4b-instruct",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    }
+  ],
+  "prompt_hashes": {
+    "community-v1.md": "e56627dde7c9cd1cb1ea677269a065d494d763249706c31ab06aa200a524a6a4",
+    "content-v1.md": "0a8a50ad1841e137869c8368a5193462b1ad94b51f8852cb2703c5936d3271d6",
+    "growth-lead-v1.md": "72632994bec18e8ec69bfcf1233cead5d1168ecf803d73a8f561bad8a458d4b2",
+    "growth-map-v1.md": "a62aa7e7973ff9419bb825b33f0206652dd4ff045f415e9ee60e00b7a39b2af1",
+    "knowledge-answer-v1.md": "6e04f12ea506c64d085fbab6853dc5ba8747765d6bc5c4173419e493af7071f6",
+    "knowledge-answer-v2.md": "1113f971ef0a0d0bfef5d751753ee6465bf9e0a7d7388b1865946529fb476ac8",
+    "learning-v1.md": "7d2bf6984568088c0191d712582b51461ce9e3d8974a0786e61cea51016bfb99",
+    "performance-v1.md": "c7db9061b32c9d17e93a3864e6a310f8acb34556edd79d2230f4ff1d30830fb8",
+    "research-v1.md": "4106863e14c49862c6d69004c57be98fec3047cffd2d0fe9ca54974dfd434cfe",
+    "research-v2.md": "b0dec8c82649224bbe1ffc6ec328eed662049974e32a4df540062688f593231b",
+    "seo-v1.md": "31dd542d027f601f1153a7a7820506f200b84c622cb05e9cc84ec67b56430f3d"
+  },
+  "contract_sha256": "d911d817a7fcacf00edc4fc34d9cdbfef336bba431f17a56d44ba87093ac5eba",
+  "model_digests": [
+    {
+      "name": "qwen3:4b-instruct",
+      "digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0"
+    },
+    {
+      "name": "embeddinggemma:latest",
+      "digest": "85462619ee721b466c5927d109d4cb765861907d5417b9109caebc4e614679f1"
+    },
+    {
+      "name": "qwen2.5:3b-instruct-q4_K_M",
+      "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b"
+    }
+  ],
+  "limits": {
+    "context_tokens": 4096,
+    "output_tokens": 1024,
+    "provider_calls": 2,
+    "concurrent_llm_jobs": 1
+  },
+  "passed": true,
+  "independent_qa_approval": null
+}

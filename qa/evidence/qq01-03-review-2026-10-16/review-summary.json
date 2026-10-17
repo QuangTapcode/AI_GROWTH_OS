@@ -1,0 +1,216 @@
+{
+  "client_review_date": "2026-10-16",
+  "generated_at": "2026-10-16T05:28:52.982857+00:00",
+  "candidate_commit": "e5c64937c30a588fb263d19922c7cc5c126c15cb",
+  "working_tree_dirty": true,
+  "candidate_file_sha256": {
+    "services/ai/src/agents/research/pipeline.py": "c7b6a6b5a268ea32a68564ebd92111b7b10980a99d79773cfe48ab2355282d5e",
+    "services/ai/tests/test_qq01_03_review.py": "af8ac50f09fdbc253c53ffb0a07b983e1ebc99070b8587acafc2aad085bcabcb"
+  },
+  "task_statuses": {
+    "QQ-01": "local_verified_awaiting_review",
+    "QQ-02": "local_verified_awaiting_review",
+    "QQ-03": "local_verified_awaiting_review"
+  },
+  "ai_regression": {
+    "total": 150,
+    "passed": 150,
+    "failed": 0,
+    "skipped": 0
+  },
+  "new_reviewer_cases_subset_of_regression": {
+    "total": 30,
+    "passed": 30,
+    "failed": 0,
+    "skipped": 0
+  },
+  "frozen_live_eval": {
+    "all": {
+      "passed": 30,
+      "total": 30,
+      "rate": 1.0
+    },
+    "critical": {
+      "passed": 23,
+      "total": 23,
+      "rate": 1.0
+    },
+    "facts_retrieval": {
+      "passed": 12,
+      "total": 12,
+      "rate": 1.0
+    },
+    "by_category": {
+      "contract": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "growth_map": {
+        "passed": 4,
+        "total": 4,
+        "rate": 1.0
+      },
+      "ingest": {
+        "passed": 4,
+        "total": 4,
+        "rate": 1.0
+      },
+      "injection": {
+        "passed": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "missing_fact": {
+        "passed": 4,
+        "total": 4,
+        "rate": 1.0
+      },
+      "retrieval": {
+        "passed": 8,
+        "total": 8,
+        "rate": 1.0
+      },
+      "revoke": {
+        "passed": 4,
+        "total": 4,
+        "rate": 1.0
+      },
+      "tenant": {
+        "passed": 3,
+        "total": 3,
+        "rate": 1.0
+      }
+    },
+    "thresholds": {
+      "critical": 1.0,
+      "facts_retrieval": 0.9
+    },
+    "meets_thresholds": true,
+    "usage_totals": {
+      "input_tokens": 7302,
+      "output_tokens": 1747,
+      "total_tokens": 9049,
+      "llm_calls": 15,
+      "embedding_calls": 16,
+      "latency_ms": 113666
+    },
+    "wall_seconds": 118.5
+  },
+  "live_models": {
+    "llm": "ollama/qwen3:4b-instruct",
+    "embedding": "ollama/embeddinggemma:latest",
+    "digests": {
+      "qwen3:4b-instruct": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+      "embeddinggemma:latest": "85462619ee721b466c5927d109d4cb765861907d5417b9109caebc4e614679f1"
+    }
+  },
+  "live_smoke": {
+    "status": "passed",
+    "checks": {
+      "idempotent_retry": true,
+      "artifact_persisted_after_restart": true,
+      "six_roles_registered": true,
+      "research_handoff_ready": true
+    },
+    "synthetic_input": true,
+    "business_database": "not_used",
+    "source_rights": "publication_not_verified",
+    "runs": {
+      "ingest": {
+        "status": "completed",
+        "model": "ollama/embeddinggemma:latest",
+        "prompt_version": "knowledge-ingest-v1",
+        "provider_calls": 0
+      },
+      "answer": {
+        "status": "completed",
+        "model": "ollama/qwen3:4b-instruct",
+        "prompt_version": "knowledge-answer-v2",
+        "provider_calls": 1
+      },
+      "growth-map": {
+        "status": "completed",
+        "model": "ollama/qwen3:4b-instruct",
+        "prompt_version": "growth-map-v1",
+        "provider_calls": 1
+      },
+      "research": {
+        "status": "completed",
+        "model": "ollama/qwen3:4b-instruct",
+        "prompt_version": "research-v1",
+        "provider_calls": 1
+      }
+    }
+  },
+  "worker_http_smoke": {
+    "checks": [
+      "research_typed_payload",
+      "growth_lead_typed_payload",
+      "prompt_and_synthetic_pins",
+      "ai_retry_same_artifact",
+      "backend_201_then_200",
+      "seo_only_outbox",
+      "social_dependency_blocked",
+      "foreign_tenant_rejected"
+    ],
+    "synthetic": true,
+    "storage": "temporary AI SQLite + in-memory business repository"
+  },
+  "manual_reviews": [
+    {
+      "case_id": "QQ01-M01",
+      "status": "pending",
+      "reviewer": "Duong + My"
+    },
+    {
+      "case_id": "QQ01-M02",
+      "status": "pending",
+      "reviewer": "My + Thieu Quang"
+    },
+    {
+      "case_id": "QQ02-M01",
+      "status": "pending",
+      "reviewer": "My + Thieu"
+    },
+    {
+      "case_id": "QQ02-M02",
+      "status": "pending",
+      "reviewer": "Thieu"
+    },
+    {
+      "case_id": "QQ03-M01",
+      "status": "pending",
+      "reviewer": "Duong + Thieu"
+    },
+    {
+      "case_id": "QQ03-M02",
+      "status": "pending",
+      "reviewer": "Duong + Thieu"
+    },
+    {
+      "case_id": "QQ03-M03",
+      "status": "pending",
+      "reviewer": "Duong"
+    }
+  ],
+  "reviewer_acceptance": "not_recorded",
+  "fixes": [
+    "Reject unpinned Research context/unversioned profile before provider",
+    "Reject whitespace-only research quote"
+  ],
+  "remaining_gaps": [
+    "Scope/estimate and DU-02 mapping sign-off",
+    "Business DB-issued snapshot -> ledger/API/dashboard evidence",
+    "Independent QA/rubric review",
+    "Research semantic fit + AC-RES-02 keyword/user_need decision",
+    "Source/asset rights + actual approval evidence"
+  ],
+  "skill_discovery": {
+    "skill": "find-skills",
+    "query": "api testing",
+    "new_skill_installed": false,
+    "test_frameworks": "existing pytest/FastAPI/HTTP/Ollama eval"
+  },
+  "automated_checks_passed": true
+}

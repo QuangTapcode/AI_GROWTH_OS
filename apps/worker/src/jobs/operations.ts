@@ -21,6 +21,11 @@ export const WORKER_TO_AI_OPERATION: Partial<Record<JobOperator, string>> = {
   score: 'opportunity.score',
   strategy: 'strategy.generate',
   content: 'content.generate',
+  seo: 'seo.local_draft',
+  social: 'content.repurpose',
+  community: 'community.response',
+  performance: 'analytics.report',
+  learning: 'learning.analyze',
 };
 
 /**

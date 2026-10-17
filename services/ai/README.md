@@ -1,4 +1,4 @@
-> **Baseline 14/10/2026:** xem [cấu trúc 6 agent](../../docs/architecture/SIX-AGENT-RESTRUCTURE.md) và [TODO Quang Quang](../../docs/coordination/sprint-3-weeks/QUANG-QUANG.md). Registry sáu role đã có; Research dedicated và live HTTP artifact được triển khai trong QQ-01–03, các role Marketing còn lại tiếp tục theo backlog. Hướng dẫn shared RAG/runtime dưới đây tiếp tục dùng.
+> **17/10/2026 candidate:** all six roles and learning have dedicated schemas/handlers; PostgreSQL/outbox/owner-gated handoff verified with synthetic data and real HTTP/model. [Handoff, tests, remaining release gates](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-17-QQ-ALL-HANDOFF.md). Production acceptance requires independent reviewer signoff.
 
 # AI engineer — Agents, RAG và evaluation
 

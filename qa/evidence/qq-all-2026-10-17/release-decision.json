@@ -1,0 +1,85 @@
+{
+  "candidate": "QQ-01 through QQ-09",
+  "synthetic": true,
+  "automated_checks_passed": true,
+  "sandbox_decision": "ready_for_independent_review",
+  "production_decision": "HOLD",
+  "checks": [
+    {
+      "file": "six-role-fake-eval.json",
+      "passed": true,
+      "sha256": "bd931d4b23773569809cada47be2f189b62cc4c6dbfd5bbb52782db8b3c7d034"
+    },
+    {
+      "file": "six-role-live-eval.json",
+      "passed": true,
+      "sha256": "5507ddc018cd32db6badcb4e421c978502954f2a8244d784abd5709a23dfab13"
+    },
+    {
+      "file": "baseline-fake-eval.json",
+      "passed": true,
+      "sha256": "222f0b2f08fa5c4bc0eec943f9ad383213507de1db3d8d2565a787c7f72f6919"
+    },
+    {
+      "file": "baseline-live-eval.json",
+      "passed": true,
+      "sha256": "ad7a0db75cb61931e855d64f30c68cafc13b53fbee294ee0c83ace7703e2ab4b"
+    },
+    {
+      "file": "fake-db-pipeline.json",
+      "passed": true,
+      "sha256": "5d0e2b3477d3c354a4d06fc7eec65063ad088a39a74f28f55d245de849af8264"
+    },
+    {
+      "file": "live-db-pipeline.json",
+      "passed": true,
+      "sha256": "6ccc4f40cf891b57d424695d2b8467a1a0c1f9e43d70681be3ad46569d33d254"
+    },
+    {
+      "file": "api-unit.json",
+      "passed": true,
+      "sha256": "a7b0cb5e0c4d785808833269d87560d70e430032e9238dcdaf2c116224c34ee9"
+    },
+    {
+      "file": "worker-unit.json",
+      "passed": true,
+      "sha256": "53a667c4e7e52ed2ead656101f84c02f9119dfeb39b8a80ad525e5520423fe83"
+    },
+    {
+      "file": "fake-db-summary.json",
+      "passed": true,
+      "sha256": "e5c33c8b3ab9b0a50e2e6f4ed0ccd9f82f892401440768a007e1cc253bd38311"
+    },
+    {
+      "file": "live-db-summary.json",
+      "passed": true,
+      "sha256": "c1790f6a33752476e88392dc12fac773c9811207a08b52afcb2eb6ec7a4150bd"
+    },
+    {
+      "file": "verification-summary.json",
+      "passed": true,
+      "sha256": "9d992922393cf74c66691e8cd5bae725c2aa8af278dd29c52d8e81cdc282d614"
+    },
+    {
+      "file": "ai-unit.xml",
+      "passed": true,
+      "tests": 183
+    },
+    {
+      "check": "frozen_fake_live_inputs",
+      "passed": true
+    },
+    {
+      "check": "current_contract_matches_eval",
+      "passed": true
+    }
+  ],
+  "independent_approvals": null,
+  "remaining": [
+    "Business source/profile/CTA/asset rights",
+    "Real metrics/lead aggregate connector and owner consent",
+    "Website publish/form/dashboard staging UAT",
+    "Independent BA/QA/API/worker review and dependency signoff",
+    "Backup/restore and kill-test timeout investigation if recurrent"
+  ]
+}

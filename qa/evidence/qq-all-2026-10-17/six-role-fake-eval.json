@@ -1,0 +1,516 @@
+{
+  "mode": "fake",
+  "synthetic": true,
+  "dataset_version": "qq-six-roles-2026-10-17-v1",
+  "dataset_sha256": "69c1a2b446e6a9effa71010fd23775c8500f7b2fe4baca72f63f64228c29c70b",
+  "rubric": {
+    "pass": "All declared contract/guardrail cases pass; citations/hash/version/approval and limits preserved.",
+    "semantic_review": "Independent QA and BA must review editorial usefulness and audience/offer fit.",
+    "release": "Real approved business sources/assets and independent signoff required for production."
+  },
+  "cases": [
+    {
+      "id": "SIX-01",
+      "scenario": "research",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-02",
+      "scenario": "plan",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-03",
+      "scenario": "seo",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-04",
+      "scenario": "content",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-05",
+      "scenario": "community",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-06",
+      "scenario": "performance",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-07",
+      "scenario": "learning",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-08",
+      "scenario": "tenant:research",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-09",
+      "scenario": "tenant:plan",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-10",
+      "scenario": "tenant:seo",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-11",
+      "scenario": "tenant:content",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-12",
+      "scenario": "tenant:community",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-13",
+      "scenario": "tenant:performance",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-14",
+      "scenario": "tenant:learning",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-15",
+      "scenario": "approval:research",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-16",
+      "scenario": "approval:plan",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-17",
+      "scenario": "approval:seo",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-18",
+      "scenario": "approval:content",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-19",
+      "scenario": "approval:community",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-20",
+      "scenario": "approval:performance",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-21",
+      "scenario": "approval:learning",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-22",
+      "scenario": "tampered_seo_parent",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-23",
+      "scenario": "tampered_content_parent",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-24",
+      "scenario": "foreign_asset",
+      "expectation": "422 scope/approval/hash rejection",
+      "passed": true
+    },
+    {
+      "id": "SIX-25",
+      "scenario": "missing_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-26",
+      "scenario": "zero_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-27",
+      "scenario": "missing_learning_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-28",
+      "scenario": "learning_quota",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-29",
+      "scenario": "learning_max",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    },
+    {
+      "id": "SIX-30",
+      "scenario": "community_price",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit",
+      "passed": true
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact": {
+        "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "research",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "research-v2",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "b3f340ba-1c21-563e-9020-6a9857ceb3c1",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "153bdadd5469831dec36f1ee5437ab74adcb3b3e47ade2b4e6f546c32c93794f",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "growth-lead-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "dd90bf89-d2cc-570d-9d80-ac049d379452",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "94a8068b1f8237e70e6a8266fce229ef833c4c44a7448dd5ecfc7bb5233e9da9",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "seo",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "seo-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "c59e7909-c30e-5db6-87f3-6c513ed04904",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "4b11581649a3a88e2ec03b48cd4a8ccfc999c9b2aea14fc302ae42465ce6b6dc",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "content",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "content-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "f3d2d421-8f93-5188-952c-8609a3ed503c",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "ab25183d65aedfdb68e6c4db0b5f561cafbb4145e77f92a2806db12c12a3dfbc",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "community",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "community-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "31cecb36-9056-5dfa-9519-e8d9e3bae771",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "1ed7a821619b846b5d6ba49eec874926b5932abf2387c4fa3682c231fb17bf3b",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "performance",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "performance-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "66578b81-5f3a-54a7-b39a-2c6b63df6e24",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "7f6c0bd91725dd8d0c1957730c12b0ffc15269765b79c947d85bece4146e3e87",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "learning-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "a26338d4-1194-59cf-8a48-a05d13bb9ba5",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "0b21f7fbd8caaad077a8557c77cb45dbd4cb0d4c7473e78c26e86f8b3f1177ac",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "performance",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "performance-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "310ef5a0-5ba1-5c71-a447-a2c2d2e1c2f8",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "c0d37e7883a2e896743aa5d5cda114f5f19009646d7ffb4553fdd97b196dc832",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "performance",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "performance-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "53af1986-dda4-5e1a-bb00-d81eed5c12a7",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "39962521dedc11adedacd0498bd93519935eaafcc073d4552917ab6c025a244a",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "learning-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "77891406-5c9a-5c86-8c61-bba1e8334db4",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "23631422ec2c7e9655123955f3924695d99639ab709b577b3dbe4da044056d40",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "learning-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "0f6243c9-bcec-507f-900b-b7543f406f1c",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "9a5a624d275f3fd69df9c7549b62d0ae0e3e65654d13a06e2c24d7bed8992782",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "growth_lead",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "learning-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    },
+    {
+      "artifact": {
+        "artifact_id": "8701113b-35e5-5675-898c-c4945d3fd1c6",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "7fe2f0c3277ff1b66ba2c0d34dd51b0aa8876b09041593809bf772d9fea1ff0b",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "community",
+        "storage": "ai_run_store"
+      },
+      "prompt_version": "community-v1",
+      "model_version": "fake/w1-deterministic-1",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+        "provider_cost_usd": 0.0,
+        "llm_calls": 0,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      }
+    }
+  ],
+  "prompt_hashes": {
+    "community-v1.md": "e56627dde7c9cd1cb1ea677269a065d494d763249706c31ab06aa200a524a6a4",
+    "content-v1.md": "0a8a50ad1841e137869c8368a5193462b1ad94b51f8852cb2703c5936d3271d6",
+    "growth-lead-v1.md": "72632994bec18e8ec69bfcf1233cead5d1168ecf803d73a8f561bad8a458d4b2",
+    "growth-map-v1.md": "a62aa7e7973ff9419bb825b33f0206652dd4ff045f415e9ee60e00b7a39b2af1",
+    "knowledge-answer-v1.md": "6e04f12ea506c64d085fbab6853dc5ba8747765d6bc5c4173419e493af7071f6",
+    "knowledge-answer-v2.md": "1113f971ef0a0d0bfef5d751753ee6465bf9e0a7d7388b1865946529fb476ac8",
+    "learning-v1.md": "7d2bf6984568088c0191d712582b51461ce9e3d8974a0786e61cea51016bfb99",
+    "performance-v1.md": "c7db9061b32c9d17e93a3864e6a310f8acb34556edd79d2230f4ff1d30830fb8",
+    "research-v1.md": "4106863e14c49862c6d69004c57be98fec3047cffd2d0fe9ca54974dfd434cfe",
+    "research-v2.md": "b0dec8c82649224bbe1ffc6ec328eed662049974e32a4df540062688f593231b",
+    "seo-v1.md": "31dd542d027f601f1153a7a7820506f200b84c622cb05e9cc84ec67b56430f3d"
+  },
+  "contract_sha256": "d911d817a7fcacf00edc4fc34d9cdbfef336bba431f17a56d44ba87093ac5eba",
+  "limits": {
+    "context_tokens": 4096,
+    "output_tokens": 1024,
+    "provider_calls": 2,
+    "concurrent_llm_jobs": 1
+  },
+  "passed": true,
+  "independent_qa_approval": null
+}

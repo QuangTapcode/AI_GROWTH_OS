@@ -17,12 +17,16 @@ from ...rag.retrieval import eligible_sources, lexical_overlap, terms
 from ..context import context_problems
 from .schemas import ResearchBrief, ResearchDraft, ResearchFinding, ResearchPayload
 
-PROMPT_VERSION = "research-v1"
+PROMPT_VERSION = "research-v2"
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 
 
 def validate_research(job: JobRequest, payload: ResearchPayload, settings: Settings) -> list[tuple[str, str]]:
     problems = context_problems(job, payload.business_profile, payload.goal_context, payload.snapshot)
+    if not job.context_snapshot_id or not payload.snapshot.snapshot_id:
+        problems.append(("SNAPSHOT_REQUIRED", "Research requires a pinned context_snapshot_id and snapshot_id"))
+    if payload.business_profile.version is None:
+        problems.append(("PROFILE_VERSION_REQUIRED", "Research requires a versioned business profile"))
     if payload.workspace_id != job.workspace_id or any(x.workspace_id != job.workspace_id for x in payload.content_inventory):
         problems.append(("TENANT_SCOPE_VIOLATION", "Research payload/inventory belongs to another workspace"))
     if not job.constraints.human_approval_required:
@@ -93,7 +97,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                 "audience_fit": "Explore this topic for the supplied target audience.",
                 "offer_fit": "Confirm the offer before preparing a campaign.",
                 "rationale": "The cited excerpt supports a content hypothesis; demand is not measured.",
-                "chunk_id": key, "quote": chunk.text[:400]}]}
+                "chunk_id": key, "quote": chunk.text[:400], "keywords": [topic],
+                "user_need": "Understand local living options before making a decision."}]}
         draft = await ctx.call_json(system=SYSTEM_PROMPT, user=json.dumps(base, ensure_ascii=False),
                                     model=ResearchDraft, fake=fake)
 
@@ -101,10 +106,15 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     seen = set()
     for idea in draft.ideas:
         ref = selected.get(idea.chunk_id)
-        if ref is None or idea.quote not in ref[1].text:
+        if ref is None or not idea.quote.strip() or idea.quote not in ref[1].text:
             warnings.append("UNGROUNDED_IDEA_DROPPED")
             continue
-        narrative = " ".join((idea.topic, idea.audience_fit, idea.offer_fit, idea.rationale))
+        explanations = (idea.audience_fit, idea.offer_fit, idea.rationale, idea.user_need)
+        if any(not text.strip().endswith((".", "!", "?")) for text in explanations):
+            warnings.append("INCOMPLETE_BRIEF_DROPPED")
+            missing.append("complete_research_explanation")
+            continue
+        narrative = " ".join((idea.topic, *explanations, *idea.keywords))
         grounding = [json.dumps(profile, ensure_ascii=False), ref[1].text]
         if unsupported_numbers(narrative, grounding) or has_price_claim(narrative) or sensitive_keys_in(narrative):
             warnings.append("UNSUPPORTED_CLAIM_DROPPED")
@@ -121,7 +131,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                                attribution=source.provenance.attribution)
         findings.append(ResearchFinding(topic=idea.topic, audience_fit=idea.audience_fit,
                          offer_fit=idea.offer_fit, rationale=idea.rationale,
-                         evidence=evidence, url=url, fetched_at=fetched))
+                         evidence=evidence, url=url, fetched_at=fetched,
+                         keywords=idea.keywords, user_need=idea.user_need))
     if not findings:
         missing.append("grounded_opportunities")
     brief = ResearchBrief(brief_id=uuid5(NAMESPACE_URL, f"research:{ctx.job.job_id}:{ctx.job.input_version}"),

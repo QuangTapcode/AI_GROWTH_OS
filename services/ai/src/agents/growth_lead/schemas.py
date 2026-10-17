@@ -1,5 +1,6 @@
 """QQ-04: proposals only; backend owns validation, persistence and dispatch."""
 from typing import Literal
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,6 +18,8 @@ class GrowthLeadPayload(BaseModel):
     research: ResearchBrief
     research_artifact: RunArtifact
     cta: str | None = Field(default=None, min_length=1, max_length=200)
+    deadline: datetime | None = None
+    score_factors: dict[Literal["demand", "business_relevance", "growth_potential", "content_gap", "freshness", "conversion_potential"], float | None] = Field(default_factory=dict)
 
 
 class OpportunitySelection(BaseModel):
@@ -48,11 +51,12 @@ class CampaignTask(BaseModel):
     dependency_artifact_from: list[UUID]
     brief: TaskBrief
     requires_human_approval: Literal[True] = True
+    deadline: datetime | None = None
 
 
 class CampaignPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    contract_version: Literal["growth-lead-plan-v1"] = "growth-lead-plan-v1"
+    contract_version: Literal["growth-lead-plan-v2"] = "growth-lead-plan-v2"
     plan_id: UUID
     workspace_id: UUID
     input_version: int = Field(ge=1)
@@ -68,3 +72,4 @@ class CampaignPlan(BaseModel):
     requires_human_approval: Literal[True] = True
     applied: Literal[False] = False
     synthetic: bool
+    opportunity_score: dict = Field(default_factory=dict)

@@ -23,6 +23,8 @@ import { FakeAiAdapter, type AiAdapter } from './adapters/AiAdapter';
 import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { FileResultStorage } from './adapters/StorageAdapter';
 import { DbWorkflowStore } from './workflow';
+import { Pool } from 'pg';
+import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 
 /** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
 let workflowStore: DbWorkflowStore | null = null;
@@ -43,6 +45,18 @@ function buildAiAdapter(cfg: ReturnType<typeof env>): AiAdapter {
 
 async function main(): Promise<void> {
   const cfg = env();
+  const planPool = new Pool({ host: cfg.QUEUE_HOST, port: cfg.QUEUE_PORT, user: cfg.QUEUE_USER,
+    password: cfg.QUEUE_PASSWORD, database: cfg.QUEUE_DATABASE });
+  const planOutbox = new PlanOutboxRunner(planPool, buildAiAdapter(cfg));
+  let planRunning = false;
+  const planTimer = setInterval(() => {
+    // A fake echo adapter has no signed AI artifacts; only HTTP-backed workers consume plans.
+    if (cfg.AI_PROVIDER_MODE !== 'live' || planRunning) return;
+    planRunning = true;
+    void planOutbox.runOnce().catch(error => console.error('[plan-outbox]', (error as Error).message))
+      .finally(() => { planRunning = false; });
+  }, 1000);
+  planTimer.unref();
   // Wire DbWorkflowStore (MY-03): verify Postgres connection at startup.
   workflowStore = new DbWorkflowStore();
   try {
@@ -105,8 +119,10 @@ async function main(): Promise<void> {
     if (stopping) return;
     stopping = true;
     clearInterval(sweep);
+    clearInterval(planTimer);
     console.log(`[worker] ${signal} received, stopping queue...`);
     await queue.stop();
+    await planPool.end();
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));

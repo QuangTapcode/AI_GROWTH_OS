@@ -2,6 +2,8 @@
 
 Ngày: 14/10/2026. Owner: Quang Quang. **Implementation candidate, chờ Dương/Mỹ/Thiệu Quang review**; không ghi nhận phê duyệt thay reviewer. Phạm vi QQ-01–03.
 
+**Review 16/10/2026:** Research nay yêu cầu `business_profile.version` và cả hai snapshot IDs được pin/khớp; thiếu pin trả `SNAPSHOT_REQUIRED`, thiếu profile version trả `PROFILE_VERSION_REQUIRED` trước provider. Quote whitespace bị loại. Payload/HTTP schema dùng chung giữ version hiện tại, nhưng consumer cũ thiếu các giá trị này phải migrate; chưa coi version freeze đã được reviewer thông qua. [Test cases và manual review](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-16-QQ01-03-TEST-CASES.md).
+
 ## Baseline và budget
 
 Giữ roster 7 người theo TEAM, 6 role theo registry, một process AI và concurrency 1. Orchestrator/executor do BE điều phối; AI không tự duyệt nguồn, ghi DB nghiệp vụ hoặc publish/send. Meta Ads read-only. Paid-provider budget mặc định 0 USD; chỉ dùng Ollama/model local đã có, không thêm cloud fallback/download model. Chi phí điện/phần cứng chưa đo, không gọi tổng chi phí bằng 0.
