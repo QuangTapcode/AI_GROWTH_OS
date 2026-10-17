@@ -39,6 +39,15 @@ export async function reviewWorkspaceApproval(
     throw new AppError(404, "NOT_FOUND", "Approval record not found");
   }
 
+  // 3.1. Chặn xung đột duyệt đồng thời (Concurrent Approval Protection)
+  if (approval.status !== "pending") {
+    throw new AppError(
+      409,
+      "APPROVAL_ALREADY_REVIEWED",
+      `Approval record has already been reviewed (current status: ${approval.status}). Concurrent reviews are not allowed.`
+    );
+  }
+
   // 4. Lấy thông tin đối tượng đích (content, source, artifact)
   const target = await repo.getTargetInfo(workspaceId, approval.target_type, approval.target_id);
   if (!target) {
@@ -80,6 +89,16 @@ export async function reviewWorkspaceApproval(
     input.decision,
     user.id
   );
+
+  // 8.1. Thu hồi nguồn (Source Revoke Invalidation Cascade)
+  if (input.decision === "revoke" && approval.target_type === "source") {
+    await repo.invalidateApprovalsForTarget(
+      workspaceId,
+      "source",
+      approval.target_id,
+      "SOURCE_REVOKED"
+    );
+  }
 
   return updatedApproval;
 }
