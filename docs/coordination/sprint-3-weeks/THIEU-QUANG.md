@@ -59,7 +59,7 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Đọc snapshot thật, missing reason, time range/timezone/currency; exceptions có owner; outbox/dedup và atomic transitions cho task vòng tiếp.
 - **Phụ thuộc:** TQ-06, MY-07.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Mỹ + Thiệu review) · PR/build: next build exit 0 (32 routes), tsc --noEmit pass, vitest 66/66 pass · Evidence: database/migrations/004_reports_exceptions_outbox.sql, 004_reports_exceptions_outbox.down.sql, apps/api/src/modules/reports/, apps/api/src/app/v1/workspaces/[workspace_id]/reports, exceptions, outbox, apps/api/tests/reports/reportsConsistency.test.ts, contracts/schemas/openapi.json · Blocker: không.
 
 ### [ ] TQ-08 · D13 · M · Hardening auth/tenant/version và migration
 

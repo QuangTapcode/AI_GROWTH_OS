@@ -9,12 +9,12 @@ import {
   InMemoryLeadRepository,
   PostgresLeadRepository,
   type LeadRoutes,
-} from "@/modules/leads";
+} from "../modules/leads";
 import {
   createPublicContentRoutes,
   InMemoryPublicContentRepository,
   type PublicContentRoutes,
-} from "@/modules/publicContent";
+} from "../modules/publicContent";
 import { MemoryAnalyticsSink } from "./analytics";
 import type { HttpResult } from "./http";
 

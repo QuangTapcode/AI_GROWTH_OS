@@ -8,7 +8,7 @@
 
 CREATE TABLE IF NOT EXISTS leads (
     lead_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id UUID NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     site_id VARCHAR(100) NOT NULL,
     idempotency_key VARCHAR(255) NOT NULL,
     payload_hash VARCHAR(64) NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS leads (
     utm_content VARCHAR(128),
     context JSONB NOT NULL DEFAULT '{}'::jsonb,
     lead_status VARCHAR(50) NOT NULL DEFAULT 'New' CHECK (lead_status IN ('New', 'Assigned', 'Contacted', 'Converted', 'Archived')),
-    lead_owner UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    lead_owner UUID REFERENCES users(id) ON DELETE SET NULL,
     notes TEXT,
     captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
