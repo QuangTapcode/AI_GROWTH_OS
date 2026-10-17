@@ -126,6 +126,18 @@ export async function updateWorkspaceTaskStatus(
     );
   }
 
+  // Xác thực result_ref nếu có: Phải tồn tại và thuộc cùng workspace này (chống Cross-Tenant Reference / IDOR)
+  if (parseResult.data.result_ref) {
+    const linkedArtifact = await repo.getArtifactById(workspaceId, parseResult.data.result_ref);
+    if (!linkedArtifact) {
+      throw new AppError(
+        422,
+        "INVALID_RESULT_REF",
+        `Referenced result artifact '${parseResult.data.result_ref}' does not exist in this workspace`
+      );
+    }
+  }
+
   const updatedTask = await repo.updateTaskStatus(workspaceId, taskId, parseResult.data);
   return updatedTask;
 }

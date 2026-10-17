@@ -684,4 +684,93 @@ describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
       expect(validRes.success).toBe(true);
     });
   });
+
+  describe('7. IDOR & Cross-Tenant Relational Hardening (Tasks, Artifacts, Approvals)', () => {
+    it('IDOR Fix 1: Chặn đứng Cross-Tenant result_ref Injection trong updateWorkspaceTaskStatus', async () => {
+      const { updateWorkspaceTaskStatus } = await import('../../src/modules/tasks/service');
+      const taskRepo = await import('../../src/modules/tasks/repository');
+      const tenant = await import('../../src/lib/tenant');
+
+      vi.spyOn(tenant, 'resolveTenantContext').mockResolvedValue({
+        user: { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+        workspaceId: WORKSPACE_A,
+        role: 'owner',
+      });
+      vi.spyOn(taskRepo, 'getTaskById').mockResolvedValue({
+        id: 'task-active-001',
+        workspace_id: WORKSPACE_A,
+        status: 'running',
+        role: 'content',
+        operation: 'generate_post',
+      } as any);
+      // Artifact không tồn tại trong Workspace A (thuộc Workspace B hoặc phantom)
+      vi.spyOn(taskRepo, 'getArtifactById').mockResolvedValue(null);
+
+      try {
+        await updateWorkspaceTaskStatus(
+          { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
+          WORKSPACE_A,
+          'task-active-001',
+          {
+            status: 'completed',
+            result_ref: '00000000-0000-4000-8000-000000007777', // foreign artifact ID
+          }
+        );
+        expect.unreachable('Should have thrown AppError 422 for foreign result_ref');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(422);
+        expect(err.code).toBe('INVALID_RESULT_REF');
+        expect(err.message).toContain('does not exist in this workspace');
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('IDOR Fix 2: getTargetInfo hỗ trợ đầy đủ targetType task và campaign, chặn target ngoài workspace', async () => {
+      const { getTargetInfo } = await import('../../src/modules/approvals/repository');
+      const db = await import('../../src/lib/db');
+
+      // Mock query trả về task hợp lệ trong workspace A
+      vi.spyOn(db, 'query').mockImplementation(async (sql: string, params?: any[]) => {
+        if (sql.includes('workflow_tasks')) {
+          const [wsId, targetId] = params || [];
+          if (wsId === WORKSPACE_A && targetId === 'task-valid-001') {
+            return { rows: [{ id: 'task-valid-001', version: 2, status: 'awaiting_approval' }], rowCount: 1 } as any;
+          }
+          return { rows: [], rowCount: 0 } as any;
+        }
+        if (sql.includes('campaigns')) {
+          const [wsId, targetId] = params || [];
+          if (wsId === WORKSPACE_A && targetId === 'camp-valid-001') {
+            return { rows: [{ id: 'camp-valid-001' }], rowCount: 1 } as any;
+          }
+          return { rows: [], rowCount: 0 } as any;
+        }
+        return { rows: [], rowCount: 0 } as any;
+      });
+
+      try {
+        // Target task trong workspace A -> tìm thấy
+        const taskTarget = await getTargetInfo(WORKSPACE_A, 'task', 'task-valid-001');
+        expect(taskTarget).not.toBeNull();
+        expect(taskTarget?.id).toBe('task-valid-001');
+        expect(taskTarget?.version).toBe(2);
+
+        // Target task thuộc workspace khác -> null
+        const foreignTask = await getTargetInfo(WORKSPACE_B, 'task', 'task-valid-001');
+        expect(foreignTask).toBeNull();
+
+        // Target campaign trong workspace A -> tìm thấy
+        const campTarget = await getTargetInfo(WORKSPACE_A, 'campaign', 'camp-valid-001');
+        expect(campTarget).not.toBeNull();
+        expect(campTarget?.id).toBe('camp-valid-001');
+
+        // Target campaign thuộc workspace khác -> null
+        const foreignCamp = await getTargetInfo(WORKSPACE_B, 'campaign', 'camp-valid-001');
+        expect(foreignCamp).toBeNull();
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+  });
 });

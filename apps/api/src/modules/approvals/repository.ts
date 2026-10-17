@@ -132,6 +132,38 @@ export async function getTargetInfo(
     };
   }
 
+  if (targetType === "task") {
+    const res = await query<{ id: string; version: number; status: string }>(
+      `SELECT id, input_version as version, status 
+       FROM workflow_tasks 
+       WHERE workspace_id = $1 AND id = $2`,
+      [workspaceId, targetId]
+    );
+    if (res.rows.length === 0) return null;
+    return {
+      id: res.rows[0].id,
+      version: Number(res.rows[0].version),
+      content_hash: "",
+      status: res.rows[0].status,
+    };
+  }
+
+  if (targetType === "campaign") {
+    const res = await query<{ id: string }>(
+      `SELECT id 
+       FROM campaigns 
+       WHERE workspace_id = $1 AND id = $2`,
+      [workspaceId, targetId]
+    );
+    if (res.rows.length === 0) return null;
+    return {
+      id: res.rows[0].id,
+      version: 1,
+      content_hash: "",
+      status: "active",
+    };
+  }
+
   return null;
 }
 
@@ -191,6 +223,14 @@ export async function executeApprovalReviewTransaction(
          SET status = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW() 
          WHERE workspace_id = $3 AND id = $4`,
         [sourceStatus, actorId, workspaceId, targetId]
+      );
+    } else if (targetType === "task") {
+      const taskStatus = input.decision === "approve" ? "queued" : "cancelled";
+      await client.query(
+        `UPDATE workflow_tasks 
+         SET status = $1, updated_at = NOW() 
+         WHERE workspace_id = $2 AND id = $3`,
+        [taskStatus, workspaceId, targetId]
       );
     }
 
@@ -263,6 +303,16 @@ export async function updateTargetApprovalStatus(
        SET status = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW() 
        WHERE workspace_id = $3 AND id = $4`,
       [sourceStatus, actorId, workspaceId, targetId]
+    );
+  }
+
+  if (targetType === "task") {
+    const taskStatus = decision === "approve" ? "queued" : "cancelled";
+    await query(
+      `UPDATE workflow_tasks 
+       SET status = $1, updated_at = NOW() 
+       WHERE workspace_id = $2 AND id = $3`,
+      [taskStatus, workspaceId, targetId]
     );
   }
 }
