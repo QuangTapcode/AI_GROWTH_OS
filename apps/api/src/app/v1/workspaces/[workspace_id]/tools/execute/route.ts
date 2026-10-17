@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateUser } from "@/lib/auth";
 import { resolveTenantContext } from "@/lib/tenant";
-import { handleApiError } from "@/lib/errors";
+import { AppError, handleApiError } from "@/lib/errors";
 import {
   authorizeToolExecution,
   globalToolAuditSink,
@@ -19,11 +19,21 @@ export async function POST(
     const tenantCtx = await resolveTenantContext(user, params.workspace_id);
 
     const body = await req.json();
-    const actorRole = (body.actor_role as AgentRole) || tenantCtx.role;
+
+    // Chặn đứng Privilege Escalation: Viewer không được mạo nhận vai trò cao hơn
+    if (tenantCtx.role === "viewer" && body.actor_role && body.actor_role !== "viewer") {
+      throw new AppError(403, "FORBIDDEN", "Viewer role cannot assume elevated agent roles");
+    }
+    if (tenantCtx.role === "editor" && body.actor_role === "owner") {
+      throw new AppError(403, "FORBIDDEN", "Editor role cannot assume owner role");
+    }
+
+    const actorRole = (body.actor_role as AgentRole) || (tenantCtx.role as AgentRole);
 
     const authResult = await authorizeToolExecution({
       workspace_id: params.workspace_id,
       actor_id: user.id,
+      caller_role: tenantCtx.role as AgentRole,
       actor_role: actorRole,
       provider: body.provider as IntegrationProvider,
       capability: body.capability,

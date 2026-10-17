@@ -205,4 +205,150 @@ describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
       }
     });
   });
+
+  describe('4. Audit Remediation Verifications (5 Flaws Fixed)', () => {
+    it('Flaw 1: chặn đứng Privilege Escalation - Viewer không thể mạo nhận owner hoặc growth_lead', async () => {
+      const { authorizeToolExecution, MemoryToolAuditSink } = await import('../../src/modules/integrations/gateway');
+      const auditSink = new MemoryToolAuditSink();
+
+      const escalationAttempt = {
+        workspace_id: WORKSPACE_A,
+        actor_id: USER_A,
+        caller_role: 'viewer' as const,
+        actor_role: 'owner' as const,
+        provider: 'website_cms' as const,
+        capability: 'publish_cms_post',
+        action_type: 'read' as const,
+      };
+
+      await expect(
+        authorizeToolExecution(escalationAttempt, auditSink, async () => null)
+      ).rejects.toThrowError(/PRIVILEGE_ESCALATION_FORBIDDEN/);
+
+      // Verify audit log ghi nhận denial với lý do privilege escalation
+      const logs = await auditSink.listByWorkspace(WORKSPACE_A);
+      expect(logs).toHaveLength(1);
+      expect(logs[0].status).toBe('denied');
+      expect(logs[0].denial_reason).toContain('PRIVILEGE_ESCALATION_FORBIDDEN');
+    });
+
+    it('Flaw 2: Dev Token Isolation - Chặn đứng dev tokens và raw unverified UUIDs khi chạy production', async () => {
+      const { authenticateUser } = await import('../../src/lib/auth');
+      const { NextRequest } = await import('next/server');
+
+      const originalEnv = process.env.NODE_ENV;
+      try {
+        (process.env as any).NODE_ENV = 'production';
+        delete process.env.ALLOW_INSECURE_DEV_AUTH;
+
+        const req = new NextRequest('http://localhost:3000/v1/workspaces', {
+          headers: { authorization: 'Bearer dev_owner' },
+        });
+
+        expect(() => authenticateUser(req)).toThrowError(/Dev tokens are strictly forbidden in production/);
+
+        const rawUuidReq = new NextRequest('http://localhost:3000/v1/workspaces', {
+          headers: { authorization: `Bearer ${USER_A}` },
+        });
+
+        expect(() => authenticateUser(rawUuidReq)).toThrowError(/Unsigned raw UUID tokens are forbidden in production/);
+      } finally {
+        (process.env as any).NODE_ENV = originalEnv;
+      }
+    });
+
+    it('Flaw 3 & 4: Outbox RFC 9110 Safe GET & PostgreSQL/In-Memory State Separation', async () => {
+      const { listWorkspaceOutboxEvents } = await import('../../src/modules/reports/service');
+
+      await recordOutboxEvent(WORKSPACE_A, {
+        event_type: 'lead_captured',
+        dedup_key: 'audit-safe-get-key',
+        payload: { email: 'safe@test.vn' },
+      });
+
+      // GET không làm thay đổi trạng thái (vẫn pending)
+      const listBefore = await listWorkspaceOutboxEvents(WORKSPACE_A);
+      expect(listBefore.length).toBeGreaterThanOrEqual(1);
+      const target = listBefore.find((e) => e.dedup_key === 'audit-safe-get-key');
+      expect(target?.status).toBe('pending');
+
+      // Dispatch mới làm chuyển sang published
+      const dispatchResult = await processPendingOutboxEvents(WORKSPACE_A);
+      expect(dispatchResult.processed_count).toBeGreaterThanOrEqual(1);
+
+      const listAfter = await listWorkspaceOutboxEvents(WORKSPACE_A);
+      const targetAfter = listAfter.find((e) => e.dedup_key === 'audit-safe-get-key');
+      expect(targetAfter?.status).toBe('published');
+    });
+
+    it('Flaw 5: Race Condition Graceful Handling khi trùng khóa idempotency (PostgreSQL 23505 simulation)', async () => {
+      const { submitLead } = await import('../../src/modules/leads/service');
+      const { MemoryAnalyticsSink } = await import('../../src/lib/analytics');
+
+      // Giả lập repository ném lỗi 23505 unique violation khi xảy ra race condition
+      const mockLead = {
+        id: 'existing-race-lead-id',
+        site_id: 'tripc-pilot',
+        workspace_id: WORKSPACE_A,
+        email: 'race@tripc.test',
+        name: 'Race Contact',
+        interest_topic: 'housing',
+        consent_accepted: true,
+        consent_policy_version: 'v1.0',
+        context: {},
+        idempotency_key: 'race-key-001',
+        payload_hash: 'same-hash-123',
+        lead_status: 'New' as const,
+        lead_owner: null,
+        notes: null,
+        captured_at: new Date(),
+        updated_at: new Date(),
+        created_at: new Date(),
+      };
+
+      const raceRepo = new InMemoryLeadRepository();
+      // Kích hoạt lỗi 23505 mô phỏng
+      let attempt = 0;
+      const failingRepo: any = {
+        withTransaction: async (fn: any) => {
+          attempt++;
+          if (attempt === 1) {
+            const err: any = new Error('duplicate key value violates unique constraint "uq_leads_workspace_idempotency"');
+            err.code = '23505';
+            throw err;
+          }
+          // Lượt retry findByKey tìm ra bản ghi đã được luồng kia ghi thành công
+          return fn({
+            findByKey: async () => mockLead,
+          });
+        },
+      };
+
+      // Tính payload_hash khớp với mockLead
+      const { canonicalJson, sha256Hex } = await import('../../src/lib/hash');
+      const body = {
+        email: 'race@tripc.test',
+        name: 'Race Contact',
+        interest_topic: 'housing',
+        consent: { accepted: true, policy_version: 'v1.0' },
+      };
+      mockLead.payload_hash = sha256Hex(canonicalJson(body));
+
+      const res = await submitLead(
+        { repo: failingRepo, analytics: new MemoryAnalyticsSink() },
+        {
+          siteId: 'tripc-pilot',
+          idempotencyKey: 'race-key-001',
+          body,
+        }
+      );
+
+      // Phản hồi không phải 500 Server Error mà là duplicate (HTTP 200)
+      expect(res.kind).toBe('duplicate');
+      if (res.kind === 'duplicate') {
+        expect(res.deduplicated).toBe(true);
+        expect(res.submission_id).toBe('existing-race-lead-id');
+      }
+    });
+  });
 });

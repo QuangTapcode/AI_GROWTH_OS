@@ -32,6 +32,7 @@ export type AgentRole =
 export interface ToolExecutionRequest {
   workspace_id: string;
   actor_id: string;
+  caller_role?: AgentRole;
   actor_role: AgentRole;
   provider: IntegrationProvider;
   capability: string;
@@ -174,6 +175,44 @@ export async function authorizeToolExecution(
 ): Promise<AuthorizeResult> {
   const auditId = randomUUID();
   const paramsSummary = sanitizeParams(req.params);
+
+  // 0. PRIVILEGE ESCALATION GUARD: Ngăn chặn caller mạo nhận vai trò vượt cấp
+  if (req.caller_role) {
+    if (req.caller_role === 'viewer' && req.actor_role !== 'viewer') {
+      const denialReason = `PRIVILEGE_ESCALATION_FORBIDDEN: Caller with 'viewer' role cannot assume elevated actor_role '${req.actor_role}'`;
+      await auditSink.record({
+        id: auditId,
+        workspace_id: req.workspace_id,
+        actor_id: req.actor_id,
+        actor_role: req.actor_role,
+        provider: req.provider,
+        capability: req.capability,
+        action_type: req.action_type,
+        status: 'denied',
+        denial_reason: denialReason,
+        params_summary: paramsSummary,
+        created_at: new Date(),
+      });
+      throw new AppError(403, 'FORBIDDEN', denialReason);
+    }
+    if (req.caller_role === 'editor' && req.actor_role === 'owner') {
+      const denialReason = `PRIVILEGE_ESCALATION_FORBIDDEN: Caller with 'editor' role cannot assume 'owner' role`;
+      await auditSink.record({
+        id: auditId,
+        workspace_id: req.workspace_id,
+        actor_id: req.actor_id,
+        actor_role: req.actor_role,
+        provider: req.provider,
+        capability: req.capability,
+        action_type: req.action_type,
+        status: 'denied',
+        denial_reason: denialReason,
+        params_summary: paramsSummary,
+        created_at: new Date(),
+      });
+      throw new AppError(403, 'FORBIDDEN', denialReason);
+    }
+  }
 
   // 1. STRICT ADS GUARD: Meta Ads & Google Ads tuyệt đối cấm mọi mutation
   if (req.provider === 'meta_ads' || req.capability.toLowerCase().includes('ads_mutation')) {

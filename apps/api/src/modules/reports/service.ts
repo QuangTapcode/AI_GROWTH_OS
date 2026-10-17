@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { globalLeadRepo } from '../../lib/public-service';
+import { query as dbQuery } from '../../lib/db';
 import type {
   ReportQuery,
   ReportQueryInput,
@@ -181,6 +182,48 @@ export async function listWorkspaceExceptions(
   workspaceId: string,
   filter?: ListExceptionsQuery
 ): Promise<SystemExceptionRecord[]> {
+  try {
+    const conditions: string[] = ['workspace_id = $1'];
+    const params: any[] = [workspaceId];
+    let idx = 2;
+
+    if (filter?.status) {
+      conditions.push(`status = $${idx++}`);
+      params.push(filter.status);
+    }
+    if (filter?.severity) {
+      conditions.push(`severity = $${idx++}`);
+      params.push(filter.severity);
+    }
+    if (filter?.assigned_owner) {
+      conditions.push(`assigned_owner = $${idx++}`);
+      params.push(filter.assigned_owner);
+    }
+
+    const limit = filter?.limit || 50;
+    params.push(limit);
+    const sql = `SELECT * FROM system_exceptions WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT $${idx}`;
+    const res = await dbQuery(sql, params);
+    if (res.rows.length > 0) {
+      return res.rows.map((r: any) => ({
+        id: r.id,
+        workspace_id: r.workspace_id,
+        code: r.code,
+        title: r.title,
+        severity: r.severity,
+        source_task_id: r.source_task_id,
+        assigned_owner: r.assigned_owner,
+        status: r.status,
+        description: r.description,
+        resolution_note: r.resolution_note,
+        created_at: new Date(r.created_at),
+        resolved_at: r.resolved_at ? new Date(r.resolved_at) : null,
+      }));
+    }
+  } catch {
+    // In-memory fallback
+  }
+
   let list = Array.from(memoryExceptions.values()).filter((e) => e.workspace_id === workspaceId);
 
   if (filter?.status) {
@@ -202,6 +245,7 @@ export async function createWorkspaceException(
   input: CreateExceptionInput
 ): Promise<SystemExceptionRecord> {
   const id = randomUUID();
+  const now = new Date();
   const record: SystemExceptionRecord = {
     id,
     workspace_id: workspaceId,
@@ -213,10 +257,36 @@ export async function createWorkspaceException(
     status: 'open',
     description: input.description,
     resolution_note: null,
-    created_at: new Date(),
+    created_at: now,
     resolved_at: null,
   };
+
   memoryExceptions.set(id, record);
+
+  try {
+    await dbQuery(
+      `INSERT INTO system_exceptions (
+        id, workspace_id, code, title, severity, source_task_id,
+        assigned_owner, status, description, resolution_note, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        record.id,
+        record.workspace_id,
+        record.code,
+        record.title,
+        record.severity,
+        record.source_task_id || null,
+        record.assigned_owner,
+        record.status,
+        record.description || null,
+        null,
+        record.created_at,
+      ]
+    );
+  } catch {
+    // in-memory fallback
+  }
+
   return record;
 }
 
@@ -241,24 +311,107 @@ export async function updateWorkspaceException(
   };
 
   memoryExceptions.set(exceptionId, updated);
+
+  try {
+    await dbQuery(
+      `UPDATE system_exceptions 
+       SET status = $1, assigned_owner = $2, resolution_note = $3, resolved_at = $4
+       WHERE id = $5 AND workspace_id = $6`,
+      [
+        updated.status,
+        updated.assigned_owner,
+        updated.resolution_note,
+        updated.resolved_at,
+        exceptionId,
+        workspaceId,
+      ]
+    );
+  } catch {
+    // in-memory fallback
+  }
+
   return updated;
 }
 
 /**
  * Transactional Outbox: Event Consistency & Deduplication
  */
+export async function listWorkspaceOutboxEvents(
+  workspaceId: string,
+  status?: string
+): Promise<OutboxEventRecord[]> {
+  try {
+    const params: any[] = [workspaceId];
+    let sql = `SELECT * FROM outbox_events WHERE workspace_id = $1`;
+    if (status) {
+      sql += ` AND status = $2`;
+      params.push(status);
+    }
+    sql += ` ORDER BY created_at DESC LIMIT 100`;
+    const res = await dbQuery(sql, params);
+    if (res.rows.length > 0) {
+      return res.rows.map((r: any) => ({
+        id: r.id,
+        workspace_id: r.workspace_id,
+        event_type: r.event_type,
+        dedup_key: r.dedup_key,
+        payload: typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload ?? {}),
+        status: r.status,
+        retry_count: r.retry_count,
+        created_at: new Date(r.created_at),
+        published_at: r.published_at ? new Date(r.published_at) : null,
+      }));
+    }
+  } catch {
+    // in-memory fallback
+  }
+
+  let list = Array.from(memoryOutbox.values()).filter((e) => e.workspace_id === workspaceId);
+  if (status) {
+    list = list.filter((e) => e.status === status);
+  }
+  return list.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+}
+
 export async function recordOutboxEvent(
   workspaceId: string,
   input: OutboxEventInput
 ): Promise<{ event: OutboxEventRecord; deduplicated: boolean }> {
-  // Kiểm tra dedup_key trong workspace để chống lặp
+  // 1. Kiểm tra dedup trong memory
   for (const existing of memoryOutbox.values()) {
     if (existing.workspace_id === workspaceId && existing.dedup_key === input.dedup_key) {
       return { event: existing, deduplicated: true };
     }
   }
 
+  // 2. Kiểm tra dedup trong Postgres nếu có
+  try {
+    const existingDb = await dbQuery(
+      `SELECT * FROM outbox_events WHERE workspace_id = $1 AND dedup_key = $2 LIMIT 1`,
+      [workspaceId, input.dedup_key]
+    );
+    if (existingDb.rows.length > 0) {
+      const r = existingDb.rows[0];
+      const ev: OutboxEventRecord = {
+        id: r.id,
+        workspace_id: r.workspace_id,
+        event_type: r.event_type,
+        dedup_key: r.dedup_key,
+        payload: typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload ?? {}),
+        status: r.status,
+        retry_count: r.retry_count,
+        created_at: new Date(r.created_at),
+        published_at: r.published_at ? new Date(r.published_at) : null,
+      };
+      memoryOutbox.set(ev.id, ev);
+      return { event: ev, deduplicated: true };
+    }
+  } catch {
+    // fallback
+  }
+
   const id = randomUUID();
+  const now = new Date();
   const event: OutboxEventRecord = {
     id,
     workspace_id: workspaceId,
@@ -267,17 +420,68 @@ export async function recordOutboxEvent(
     payload: input.payload,
     status: 'pending',
     retry_count: 0,
-    created_at: new Date(),
+    created_at: now,
     published_at: null,
   };
 
   memoryOutbox.set(id, event);
+
+  try {
+    await dbQuery(
+      `INSERT INTO outbox_events (
+        id, workspace_id, event_type, dedup_key, payload, status, retry_count, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        event.id,
+        event.workspace_id,
+        event.event_type,
+        event.dedup_key,
+        JSON.stringify(event.payload ?? {}),
+        event.status,
+        event.retry_count,
+        event.created_at,
+      ]
+    );
+  } catch {
+    // in-memory fallback
+  }
+
   return { event, deduplicated: false };
 }
 
 export async function processPendingOutboxEvents(
   workspaceId: string
 ): Promise<{ processed_count: number; published_events: OutboxEventRecord[] }> {
+  try {
+    const res = await dbQuery(
+      `UPDATE outbox_events 
+       SET status = 'published', published_at = NOW() 
+       WHERE workspace_id = $1 AND status = 'pending' 
+       RETURNING *`,
+      [workspaceId]
+    );
+    if (res.rows.length > 0) {
+      const published = res.rows.map((r: any) => {
+        const ev: OutboxEventRecord = {
+          id: r.id,
+          workspace_id: r.workspace_id,
+          event_type: r.event_type,
+          dedup_key: r.dedup_key,
+          payload: typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload ?? {}),
+          status: 'published',
+          retry_count: r.retry_count,
+          created_at: new Date(r.created_at),
+          published_at: new Date(r.published_at),
+        };
+        memoryOutbox.set(ev.id, ev);
+        return ev;
+      });
+      return { processed_count: published.length, published_events: published };
+    }
+  } catch {
+    // fallback to memory
+  }
+
   const pending = Array.from(memoryOutbox.values()).filter(
     (e) => e.workspace_id === workspaceId && e.status === 'pending'
   );

@@ -1147,21 +1147,21 @@
         }
       },
       "get": {
-        "summary": "Process and dispatch pending outbox events",
+        "summary": "List outbox events (safe & idempotent according to RFC 9110)",
         "security": [{ "BearerAuth": [] }],
         "parameters": [
-          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "status", "in": "query", "required": false, "schema": { "type": "string", "enum": ["pending", "processing", "published", "failed"] } }
         ],
         "responses": {
           "200": {
-            "description": "Processed outbox events list",
+            "description": "List of workspace outbox events",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "processed_count": { "type": "integer" },
-                    "published_events": { "type": "array", "items": { "$ref": "#/components/schemas/OutboxEventRecord" } }
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/OutboxEventRecord" } }
                   }
                 }
               }

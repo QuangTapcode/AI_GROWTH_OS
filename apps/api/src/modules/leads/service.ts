@@ -111,7 +111,31 @@ export async function submitLead(deps: SubmitLeadDeps, req: SubmitLeadRequest): 
       await tx.insertLead(record);
       return { kind: 'created' as const, submission_id: record.id, deduplicated: false as const };
     });
-  } catch (err) {
+  } catch (err: any) {
+    // Xử lý race condition: nếu vi phạm ràng buộc duy nhất (PostgreSQL error 23505 hoặc unique violation)
+    const isUniqueViolation =
+      err?.code === '23505' ||
+      err?.message?.includes('uq_leads_workspace_idempotency') ||
+      err?.message?.includes('duplicate key') ||
+      err?.message?.includes('unique constraint');
+
+    if (isUniqueViolation) {
+      try {
+        const existing = await deps.repo.withTransaction(async (tx) => {
+          return tx.findByKey(site.site_id, key.data);
+        });
+
+        if (existing) {
+          if (existing.payload_hash !== payloadHash) {
+            return { kind: 'conflict' as const, existing_submission_id: existing.id };
+          }
+          return { kind: 'duplicate' as const, submission_id: existing.id, deduplicated: true as const };
+        }
+      } catch {
+        // Fallback về server error nếu không truy vấn lại được
+      }
+    }
+
     // DB fail → 500: không submission nào được persist, không event nào ghi
     return { kind: 'server_error', message: err instanceof Error ? err.message : 'db error' };
   }
