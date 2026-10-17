@@ -447,10 +447,16 @@ describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
       const sourcesRepo = await import('../../src/modules/sources/repository');
       const approvalsRepo = await import('../../src/modules/approvals/repository');
       const tenant = await import('../../src/lib/tenant');
+      const db = await import('../../src/lib/db');
 
       let invalidatedCount = 0;
       let invalidatedTargetId = '';
       let invalidatedReason = '';
+
+      vi.spyOn(db, 'withTransaction').mockImplementation(async (cb) => {
+        const mockClient: any = { query: vi.fn() };
+        return cb(mockClient);
+      });
 
       vi.spyOn(tenant, 'resolveTenantContext').mockResolvedValue({
         user: { id: USER_A, email: 'owner@tripc.local', name: 'Owner' },
@@ -768,6 +774,330 @@ describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
         // Target campaign thuộc workspace khác -> null
         const foreignCamp = await getTargetInfo(WORKSPACE_B, 'campaign', 'camp-valid-001');
         expect(foreignCamp).toBeNull();
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+  });
+
+  describe('8. Concurrency & Optimistic Concurrency Control (OCC) Hardening', () => {
+    it('executeApprovalReviewTransaction: thực thi row-locking FOR UPDATE và chặn đứng double-review đồng thời (409 APPROVAL_ALREADY_REVIEWED)', async () => {
+      const { executeApprovalReviewTransaction } = await import('../../src/modules/approvals/repository');
+      const db = await import('../../src/lib/db');
+
+      const mockQueries: string[] = [];
+      const mockClient: any = {
+        query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
+          mockQueries.push(sql);
+          if (sql.includes('SELECT * FROM approvals')) {
+            // Đã được người khác duyệt xong trước đó -> status = 'approved'
+            return {
+              rows: [{
+                id: 'appr-001',
+                workspace_id: WORKSPACE_A,
+                status: 'approved',
+                target_type: 'content',
+                target_id: 'cnt-001',
+              }],
+              rowCount: 1,
+            };
+          }
+          return { rows: [], rowCount: 0 };
+        }),
+      };
+
+      vi.spyOn(db, 'withTransaction').mockImplementation(async (cb) => cb(mockClient));
+
+      try {
+        await executeApprovalReviewTransaction(
+          WORKSPACE_A,
+          'appr-001',
+          {
+            decision: 'approve',
+            expected_version: 1,
+            expected_hash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+          },
+          USER_A,
+          'owner'
+        );
+        expect.unreachable('Should have thrown AppError 409');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(409);
+        expect(err.code).toBe('APPROVAL_ALREADY_REVIEWED');
+        expect(mockQueries.some((q) => q.includes('FOR UPDATE'))).toBe(true);
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('executeApprovalReviewTransaction: từ chối duyệt khi phiên bản bị phân kỳ Stale Version (409 VERSION_CONFLICT)', async () => {
+      const { executeApprovalReviewTransaction } = await import('../../src/modules/approvals/repository');
+      const db = await import('../../src/lib/db');
+
+      const mockClient: any = {
+        query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
+          if (sql.includes('SELECT * FROM approvals')) {
+            return {
+              rows: [{
+                id: 'appr-002',
+                workspace_id: WORKSPACE_A,
+                status: 'pending',
+                target_type: 'content',
+                target_id: 'cnt-002',
+              }],
+              rowCount: 1,
+            };
+          }
+          if (sql.includes('FROM contents')) {
+            // Target hiện tại đã bị sửa thành version 2 trong khi reviewer kỳ vọng version 1
+            return {
+              rows: [{
+                id: 'cnt-002',
+                version: 2,
+                content_hash: 'hash-v2-111111111111111111111111111111111111111111111111111111111111',
+                status: 'draft',
+              }],
+              rowCount: 1,
+            };
+          }
+          return { rows: [], rowCount: 0 };
+        }),
+      };
+
+      vi.spyOn(db, 'withTransaction').mockImplementation(async (cb) => cb(mockClient));
+
+      try {
+        await executeApprovalReviewTransaction(
+          WORKSPACE_A,
+          'appr-002',
+          {
+            decision: 'approve',
+            expected_version: 1, // Stale! Current is 2
+            expected_hash: 'hash-v1-000000000000000000000000000000000000000000000000000000000000',
+          },
+          USER_A,
+          'owner'
+        );
+        expect.unreachable('Should have thrown AppError 409 VERSION_CONFLICT');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(409);
+        expect(err.code).toBe('VERSION_CONFLICT');
+        expect(err.message).toContain('Stale version conflict');
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('executeApprovalReviewTransaction: từ chối duyệt khi SHA-256 hash của content bị thay đổi (409 CONTENT_HASH_MISMATCH)', async () => {
+      const { executeApprovalReviewTransaction } = await import('../../src/modules/approvals/repository');
+      const db = await import('../../src/lib/db');
+
+      const mockClient: any = {
+        query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
+          if (sql.includes('SELECT * FROM approvals')) {
+            return {
+              rows: [{
+                id: 'appr-003',
+                workspace_id: WORKSPACE_A,
+                status: 'pending',
+                target_type: 'content',
+                target_id: 'cnt-003',
+              }],
+              rowCount: 1,
+            };
+          }
+          if (sql.includes('FROM contents')) {
+            return {
+              rows: [{
+                id: 'cnt-003',
+                version: 1,
+                content_hash: 'realhash1111111111111111111111111111111111111111111111111111111111',
+                status: 'draft',
+              }],
+              rowCount: 1,
+            };
+          }
+          return { rows: [], rowCount: 0 };
+        }),
+      };
+
+      vi.spyOn(db, 'withTransaction').mockImplementation(async (cb) => cb(mockClient));
+
+      try {
+        await executeApprovalReviewTransaction(
+          WORKSPACE_A,
+          'appr-003',
+          {
+            decision: 'approve',
+            expected_version: 1,
+            expected_hash: 'tamperedhash2222222222222222222222222222222222222222222222222222222',
+          },
+          USER_A,
+          'owner'
+        );
+        expect.unreachable('Should have thrown AppError 409 CONTENT_HASH_MISMATCH');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(409);
+        expect(err.code).toBe('CONTENT_HASH_MISMATCH');
+        expect(err.message).toContain('Content hash mismatch');
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('executeApprovalReviewTransaction: cascade invalidation khi thu hồi nguồn (revoke source) chạy trong cùng 1 transaction', async () => {
+      const { executeApprovalReviewTransaction } = await import('../../src/modules/approvals/repository');
+      const db = await import('../../src/lib/db');
+
+      const executedCalls: { sql: string; params?: any[] }[] = [];
+      const mockClient: any = {
+        query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
+          executedCalls.push({ sql, params });
+          if (sql.includes('SELECT * FROM approvals')) {
+            return {
+              rows: [{
+                id: 'appr-004',
+                workspace_id: WORKSPACE_A,
+                status: 'pending',
+                target_type: 'source',
+                target_id: 'src-004',
+              }],
+              rowCount: 1,
+            };
+          }
+          if (sql.includes('FROM sources')) {
+            return {
+              rows: [{
+                id: 'src-004',
+                version: 1,
+                content_hash: 'srchash11111111111111111111111111111111111111111111111111111111111',
+                status: 'approved',
+              }],
+              rowCount: 1,
+            };
+          }
+          if (sql.includes('UPDATE approvals') && sql.includes('SET status = $1')) {
+            return {
+              rows: [{
+                id: 'appr-004',
+                workspace_id: WORKSPACE_A,
+                status: 'revoked',
+                decision: 'revoke',
+              }],
+              rowCount: 1,
+            };
+          }
+          if (sql.includes('UPDATE sources')) {
+            return { rows: [], rowCount: 1 };
+          }
+          if (sql.includes('UPDATE approvals') && sql.includes('invalidated_reason = $1')) {
+            return { rows: [], rowCount: 2 };
+          }
+          return { rows: [], rowCount: 0 };
+        }),
+      };
+
+      vi.spyOn(db, 'withTransaction').mockImplementation(async (cb) => cb(mockClient));
+
+      try {
+        const result = await executeApprovalReviewTransaction(
+          WORKSPACE_A,
+          'appr-004',
+          {
+            decision: 'revoke',
+            expected_version: 1,
+            expected_hash: 'srchash11111111111111111111111111111111111111111111111111111111111',
+          },
+          USER_A,
+          'owner'
+        );
+
+        expect(result.status).toBe('revoked');
+        // Kiểm tra cascade invalidation được gọi trên cùng transaction client với reason = SOURCE_REVOKED
+        const invalidationCall = executedCalls.find(
+          (c) => c.sql.includes('invalidated_reason = $1') && c.params?.[0] === 'SOURCE_REVOKED'
+        );
+        expect(invalidationCall).toBeDefined();
+        expect(invalidationCall?.params?.[1]).toBe(WORKSPACE_A);
+        expect(invalidationCall?.params?.[2]).toBe('source');
+        expect(invalidationCall?.params?.[3]).toBe('src-004');
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('executeSourceReviewTransaction: khóa dòng source FOR UPDATE và chặn stale version (409 VERSION_CONFLICT)', async () => {
+      const { executeSourceReviewTransaction } = await import('../../src/modules/sources/repository');
+      const db = await import('../../src/lib/db');
+
+      const executedSqls: string[] = [];
+      const mockClient: any = {
+        query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
+          executedSqls.push(sql);
+          if (sql.includes('SELECT * FROM sources')) {
+            return {
+              rows: [{
+                id: 'src-005',
+                workspace_id: WORKSPACE_A,
+                version: 3,
+                status: 'imported',
+                deleted_at: null,
+              }],
+              rowCount: 1,
+            };
+          }
+          return { rows: [], rowCount: 0 };
+        }),
+      };
+
+      vi.spyOn(db, 'withTransaction').mockImplementation(async (cb) => cb(mockClient));
+
+      try {
+        await executeSourceReviewTransaction(
+          WORKSPACE_A,
+          'src-005',
+          {
+            decision: 'approved',
+            expected_version: 2, // Stale! DB is 3
+          },
+          USER_A
+        );
+        expect.unreachable('Should have thrown AppError 409 VERSION_CONFLICT');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(409);
+        expect(err.code).toBe('VERSION_CONFLICT');
+        expect(executedSqls.some((q) => q.includes('FOR UPDATE'))).toBe(true);
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('reviewWorkspaceApproval trong service: phân quyền chỉ OWNER mới được duyệt, từ chối hoặc thu hồi', async () => {
+      const { reviewWorkspaceApproval } = await import('../../src/modules/approvals/service');
+      const tenant = await import('../../src/lib/tenant');
+
+      // Giả lập role là editor -> bị từ chối 403 PERMISSION_DENIED
+      vi.spyOn(tenant, 'resolveTenantContext').mockResolvedValue({
+        user: { id: USER_A, email: 'editor@tripc.local', name: 'Editor' },
+        workspaceId: WORKSPACE_A,
+        role: 'editor',
+      });
+
+      try {
+        await reviewWorkspaceApproval(
+          { id: USER_A, email: 'editor@tripc.local', name: 'Editor' },
+          WORKSPACE_A,
+          'appr-perm-001',
+          {
+            decision: 'approve',
+            expected_version: 1,
+            expected_hash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+          }
+        );
+        expect.unreachable('Should have thrown AppError 403');
+      } catch (err: any) {
+        expect(err.statusCode).toBe(403);
+        expect(err.code).toBe('PERMISSION_DENIED');
       } finally {
         vi.restoreAllMocks();
       }
