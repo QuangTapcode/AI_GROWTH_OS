@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 
 export interface WorkspaceItem {
   id: string;
@@ -52,9 +53,30 @@ export default function DashboardSidebar({
   selectedWorkspace = DEFAULT_WORKSPACES[0],
   onWorkspaceChange,
 }: DashboardSidebarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Sync activeTab when prop or pathname changes
+  useEffect(() => {
+    if (activeTab) {
+      setCurrentTab(activeTab);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (pathname === "/workflows") {
+      setCurrentTab("workflows");
+    } else if (pathname === "/dashboard") {
+      setCurrentTab("overview");
+    } else if (pathname === "/review-queue") {
+      setCurrentTab("review-queue");
+    } else if (pathname === "/artifacts") {
+      setCurrentTab("artifacts");
+    }
+  }, [pathname]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -72,9 +94,12 @@ export default function DashboardSidebar({
     };
   }, []);
 
-  const handleNav = (tabId: string) => {
+  const handleNav = (tabId: string, href?: string) => {
     setCurrentTab(tabId);
     if (onTabChange) onTabChange(tabId);
+    if (href && pathname !== href) {
+      router.push(href);
+    }
   };
 
   const handleSelectWorkspace = (ws: WorkspaceItem) => {
@@ -88,6 +113,7 @@ export default function DashboardSidebar({
     {
       id: "overview",
       label: "Overview",
+      href: "/dashboard",
       icon: (
         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
           <path d="M4 4h7v7H4V4zm0 9h7v7H4v-7zm9-9h7v7h-7V4zm0 9h7v7h-7v-7z" />
@@ -97,6 +123,7 @@ export default function DashboardSidebar({
     {
       id: "workflows",
       label: "Workflows & Tasks",
+      href: "/workflows",
       icon: (
         <svg
           className="w-5 h-5"
@@ -117,6 +144,7 @@ export default function DashboardSidebar({
     {
       id: "artifacts",
       label: "Artifacts",
+      href: "/artifacts",
       icon: (
         <svg
           className="w-5 h-5"
@@ -138,7 +166,9 @@ export default function DashboardSidebar({
     {
       id: "review-queue",
       label: "Review Queue",
+      href: "/review-queue",
       badge: 4,
+      badgeColor: "red",
       icon: (
         <svg
           className="w-5 h-5"
@@ -376,7 +406,7 @@ export default function DashboardSidebar({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => handleNav(item.id)}
+                onClick={() => handleNav(item.id, item.href)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
                   isActive
                     ? "bg-white text-[#1d4ed8] font-bold shadow-sm"
@@ -394,7 +424,9 @@ export default function DashboardSidebar({
                 {item.badge && (
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      isActive
+                      item.badgeColor === "red"
+                        ? "bg-rose-500 text-white"
+                        : isActive
                         ? "bg-blue-100 text-[#1d4ed8]"
                         : "bg-blue-500 text-white"
                     }`}
@@ -524,6 +556,17 @@ export default function DashboardSidebar({
               />
             </svg>
           </Link>
+        </div>
+
+        {/* Engine status indicator */}
+        <div className="pt-2 border-t border-blue-600/40 flex items-center justify-between text-[11px] text-blue-200/80 font-mono">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-300" />
+            <span>Engine v4.12-rc</span>
+          </div>
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-blue-900/60 text-blue-200 border border-blue-400/30">
+            AUTO
+          </span>
         </div>
       </div>
     </aside>

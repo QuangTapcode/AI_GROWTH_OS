@@ -5,27 +5,37 @@ import Link from "next/link";
 
 interface DashboardHeaderProps {
   workspaceName?: string;
+  currentPageTitle?: string;
+  searchPlaceholder?: string;
 }
 
 export default function DashboardHeader({
   workspaceName = "TripC",
+  currentPageTitle = "Overview",
+  searchPlaceholder,
 }: DashboardHeaderProps) {
+  const placeholderText =
+    searchPlaceholder ||
+    (currentPageTitle === "Review Queue"
+      ? "Search pipelines, nodes, logs..."
+      : "Search anything...");
+
   return (
     <header className="bg-[#1e40af] text-white px-6 py-3.5 flex items-center justify-between border-b border-blue-600/40 select-none sticky top-0 z-20">
       {/* Left Breadcrumb */}
       <div className="flex items-center gap-2 text-xs">
         <span className="text-blue-200/90 font-semibold">{workspaceName}</span>
         <span className="text-blue-300/40">/</span>
-        <span className="text-white font-semibold">Overview</span>
+        <span className="text-white font-semibold">{currentPageTitle}</span>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-3.5">
+      <div className="flex items-center gap-3">
         {/* Search Bar */}
         <div className="relative">
           <input
             type="text"
-            placeholder="Search anything..."
+            placeholder={placeholderText}
             className="w-56 lg:w-64 pl-8 pr-3 py-1.5 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/15 rounded-xl text-xs text-white placeholder:text-blue-200/60 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all"
           />
           <svg
@@ -68,18 +78,35 @@ export default function DashboardHeader({
               d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
             />
           </svg>
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-sky-400 text-[#1e40af] font-bold text-[9px] rounded-full flex items-center justify-center border-2 border-[#1e40af]">
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center border-2 border-[#1e40af]">
             3
           </span>
         </button>
 
-        {/* User Profile Avatar */}
+        {/* Sliders / Filter tuning icon */}
+        <button
+          type="button"
+          className="p-2 rounded-xl bg-white/10 hover:bg-white/15 transition-colors cursor-pointer text-white hidden md:flex items-center justify-center"
+          title="Filter and system settings"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+        </button>
+
+        {/* User Profile Avatar with Name */}
         <Link
           href="/login"
           title="Profile & Settings"
-          className="w-7 h-7 rounded-full bg-blue-300 text-blue-900 font-bold text-[11px] flex items-center justify-center border border-white/30 hover:scale-105 transition-transform"
+          className="flex items-center gap-2 pl-1 group cursor-pointer"
         >
-          AM
+          <div className="w-7 h-7 rounded-full bg-blue-300 text-blue-900 font-bold text-[11px] flex items-center justify-center border border-white/30 group-hover:scale-105 transition-transform">
+            AM
+          </div>
+          <div className="hidden lg:block text-left leading-tight">
+            <p className="text-xs font-bold text-white leading-tight">Alex Morgan</p>
+            <p className="text-[10px] text-blue-200/70 leading-tight">Owner</p>
+          </div>
         </Link>
       </div>
     </header>
