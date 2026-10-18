@@ -30,27 +30,15 @@ export default function StageDetailsModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || (!stage && !task)) return null;
 
   // Determine displayed fields based on whether a stage or task was selected
-  const title = stage ? "Stage Details" : task ? "Stage Details" : "Stage Details";
-  const status = stage ? stage.status : task ? task.status : "Running";
-  const progressPercent = stage
-    ? stage.progressPercent
-    : task
-    ? task.progressPercent
-    : 72;
-  const description = stage
-    ? stage.description
-    : task
-    ? task.description
-    : "Active scoring matrix executing traffic projection formula across candidate topic clusters.";
-
-  const logs = stage?.logs || task?.logs || [
-    "[09:42:04] SERP seed extraction completed (14 domains)",
-    "[09:44:18] Keyword difficulty vector computed",
-    "[09:46:02] Running intent-cluster classification...",
-  ];
+  const title = stage ? stage.title : task ? `${task.taskId} · ${task.title}` : "";
+  const status = stage ? stage.status : task ? task.status : "";
+  const progressPercent = stage ? stage.progressPercent : task ? task.progressPercent : null;
+  const description = (stage ? stage.description : task?.description) || "No description provided.";
+  const logs = stage?.logs || task?.logs || [];
+  const needsReview = status === "Needs review" || status === "Approval required";
 
   // Status badge styling helper matching the mockup
   const getStatusBadge = (st: string) => {
@@ -72,9 +60,10 @@ export default function StageDetailsModal({
           text: st,
         };
       case "Blocked":
+      case "Failed":
         return {
           bg: "bg-rose-50 text-rose-700 border-rose-200",
-          text: "Blocked",
+          text: st,
         };
       default:
         return {
@@ -112,7 +101,7 @@ export default function StageDetailsModal({
               <rect x="14" y="14" width="7" height="7" rx="1" />
               <path d="M10 6.5h4M6.5 10v7.5a1 1 0 001 1H14" />
             </svg>
-            <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight line-clamp-2">
               {title}
             </h3>
           </div>
@@ -152,9 +141,9 @@ export default function StageDetailsModal({
               >
                 {statusStyle.text}
               </span>
-              <span className="text-xs text-slate-600 font-medium font-mono">
-                {progressPercent}% ({status === "Completed" ? "Completed" : status === "Blocked" ? "Blocked" : "In progress"})
-              </span>
+              {progressPercent !== null && (
+                <span className="text-xs text-slate-600 font-medium font-mono">{progressPercent}%</span>
+              )}
             </div>
           </div>
 
@@ -171,14 +160,18 @@ export default function StageDetailsModal({
           {/* Section 3: LIVE TRACE LOGS */}
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-              LIVE TRACE LOGS
+              EXECUTION TRACE
             </p>
             <div className="bg-[#f0fdf4] border border-emerald-200/60 rounded-xl p-3 font-mono text-[11px] text-emerald-800 space-y-1.5 shadow-inner select-text">
-              {logs.map((log, idx) => (
-                <div key={idx} className="leading-relaxed break-all">
-                  {log}
-                </div>
-              ))}
+              {logs.length === 0 ? (
+                <div className="text-slate-400">No events recorded yet.</div>
+              ) : (
+                logs.map((log, idx) => (
+                  <div key={idx} className="leading-relaxed break-all">
+                    {log}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -192,13 +185,15 @@ export default function StageDetailsModal({
           >
             Close
           </button>
-          <Link
-            href="/review-queue"
-            onClick={onClose}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-xl cursor-pointer transition-all shadow-sm shadow-blue-500/25"
-          >
-            Inspect in Review Queue
-          </Link>
+          {needsReview && (
+            <Link
+              href="/review-queue"
+              onClick={onClose}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-xl cursor-pointer transition-all shadow-sm shadow-blue-500/25"
+            >
+              Inspect in Review Queue
+            </Link>
+          )}
         </div>
       </div>
     </div>

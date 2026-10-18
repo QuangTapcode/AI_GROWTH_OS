@@ -76,6 +76,12 @@ export default function TasksTable({ tasks, onSelectTask }: TasksTableProps) {
             <span>Blocked</span>
           </span>
         );
+      case "Cancelled":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-500 border border-slate-200 line-through">
+            <span>Cancelled</span>
+          </span>
+        );
     }
   };
 
@@ -137,13 +143,11 @@ export default function TasksTable({ tasks, onSelectTask }: TasksTableProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1 self-start sm:self-auto cursor-pointer"
-        >
-          <span>View all tasks</span>
-          <span aria-hidden="true">→</span>
-        </button>
+        <span className="text-xs font-semibold text-slate-500 self-start sm:self-auto">
+          {filteredTasks.length === tasks.length
+            ? `${tasks.length} tasks`
+            : `${filteredTasks.length} of ${tasks.length} tasks`}
+        </span>
       </div>
 
       {/* ── Filters Bar ── */}
@@ -183,6 +187,7 @@ export default function TasksTable({ tasks, onSelectTask }: TasksTableProps) {
               <option value="needs-review">Needs review</option>
               <option value="queued">Queued</option>
               <option value="blocked">Blocked</option>
+              <option value="cancelled">Cancelled</option>
             </select>
             <svg
               className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"

@@ -5,8 +5,9 @@ export interface PipelineStage {
   stepNumber: number;
   title: string;
   subtitle: string;
-  status: "Completed" | "Running" | "Queued" | "Approval required";
-  progressPercent: number;
+  status: "Completed" | "Running" | "Queued" | "Approval required" | "Failed";
+  /** null khi BE chưa báo tiến độ (task đang chạy) */
+  progressPercent: number | null;
   iconType: "search" | "chart" | "process" | "sparkles" | "shield";
   description: string;
   logs: string[];
@@ -14,15 +15,15 @@ export interface PipelineStage {
 
 export interface GrowthTask {
   id: string;
-  taskId: string; // e.g. "TSK-1842"
+  taskId: string; // e.g. "TSK-1A2B3C"
   title: string;
   agent: string;
-  status: "Running" | "Completed" | "Needs review" | "Queued" | "Blocked";
+  status: "Running" | "Completed" | "Needs review" | "Queued" | "Blocked" | "Cancelled";
   lastRun: string;
   updated: string;
   actionText: "View" | "Review" | "Resolve";
   actionType: "link" | "review" | "resolve";
-  progressPercent: number;
+  progressPercent: number | null;
   description: string;
   logs: string[];
   trigger?: string;

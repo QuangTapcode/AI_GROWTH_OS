@@ -7,7 +7,7 @@ interface EditArtifactModalProps {
   isOpen: boolean;
   onClose: () => void;
   artifact: ArtifactDeliverable | null;
-  onSave: (artifactId: string, updatedTitle: string, updatedContent: string) => void;
+  onSave: (artifactId: string, updatedTitle: string, updatedContent: string) => Promise<void>;
 }
 
 export default function EditArtifactModal({
@@ -16,16 +16,24 @@ export default function EditArtifactModal({
   artifact,
   onSave,
 }: EditArtifactModalProps) {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  if (!isOpen || !artifact) return null;
+  // Form mount lại theo artifact nên state luôn bắt đầu từ nội dung hiện tại
+  return <EditArtifactForm key={artifact.id} artifact={artifact} onClose={onClose} onSave={onSave} />;
+}
 
-  // Sync state when artifact changes or modal opens
-  useEffect(() => {
-    if (artifact) {
-      setTitle(artifact.title);
-      setContent(artifact.documentContent);
-    }
-  }, [artifact, isOpen]);
+function EditArtifactForm({
+  onClose,
+  artifact,
+  onSave,
+}: {
+  onClose: () => void;
+  artifact: ArtifactDeliverable;
+  onSave: EditArtifactModalProps["onSave"];
+}) {
+  const [title, setTitle] = useState(artifact.title);
+  const [content, setContent] = useState(artifact.documentContent);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Handle ESC key to discard/close
   useEffect(() => {
@@ -34,11 +42,9 @@ export default function EditArtifactModal({
         onClose();
       }
     };
-    if (isOpen) {
-      window.addEventListener("keydown", handleKeyDown);
-    }
+    window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [onClose]);
 
   // Live word and character counts
   const wordCount = useMemo(() => {
@@ -50,22 +56,23 @@ export default function EditArtifactModal({
     return content.length.toLocaleString();
   }, [content]);
 
-  // Calculate next version string (e.g., v3 -> v4)
-  const nextVersionText = useMemo(() => {
-    if (!artifact) return "v4";
-    const match = artifact.version.match(/v(\d+)/i);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      return `v${num + 1}`;
+  const nextVersionText = `v${artifact.nextVersion}`;
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      setError("Title is required.");
+      return;
     }
-    return `${artifact.version}-new`;
-  }, [artifact]);
-
-  if (!isOpen || !artifact) return null;
-
-  const handleSave = () => {
-    onSave(artifact.id, title, content);
-    onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(artifact.id, title.trim(), content);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the new version.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -185,11 +192,15 @@ export default function EditArtifactModal({
             </svg>
             <p className="leading-relaxed">
               <strong className="font-semibold text-slate-900">Version control:</strong> Saving
-              changes will preserve this draft as a new version snapshot (
-              <span className="font-bold text-blue-700">{nextVersionText}</span>) without
-              overwriting historical run baselines.
+              creates a new artifact version (
+              <span className="font-bold text-blue-700">{nextVersionText}</span>) with its own
+              content hash. The current version stays unchanged in the ledger.
             </p>
           </div>
+
+          {error && (
+            <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">{error}</p>
+          )}
         </div>
 
         {/* ── Modal Footer ── */}
@@ -213,9 +224,10 @@ export default function EditArtifactModal({
             <button
               type="button"
               onClick={handleSave}
-              className="px-5 py-2 bg-[#1d4ed8] hover:bg-[#1e40af] active:bg-blue-900 text-white text-xs font-semibold rounded-xl cursor-pointer transition-all shadow-sm shadow-blue-600/30 flex items-center gap-1.5"
+              disabled={saving}
+              className="px-5 py-2 bg-[#1d4ed8] hover:bg-[#1e40af] active:bg-blue-900 text-white text-xs font-semibold rounded-xl cursor-pointer transition-all shadow-sm shadow-blue-600/30 flex items-center gap-1.5 disabled:opacity-60"
             >
-              <span>Save changes</span>
+              <span>{saving ? "Saving…" : `Save as ${nextVersionText}`}</span>
             </button>
           </div>
         </div>

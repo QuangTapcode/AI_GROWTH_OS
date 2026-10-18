@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { initials } from "@/lib/format";
 
 export interface WorkspaceItem {
   id: string;
@@ -13,70 +13,40 @@ export interface WorkspaceItem {
   tag?: string;
 }
 
-export const DEFAULT_WORKSPACES: WorkspaceItem[] = [
-  {
-    id: "tripc",
-    name: "TripC",
-    subtitle: "Growth workspace",
-    initials: "T",
-    avatarBg: "bg-blue-500",
-    tag: "Active",
-  },
-  {
-    id: "ecotravel",
-    name: "EcoTravel Vietnam",
-    subtitle: "Ecotourism & Local Tours",
-    initials: "E",
-    avatarBg: "bg-emerald-500",
-    tag: "Production",
-  },
-  {
-    id: "danang-gourmet",
-    name: "Danang Gourmet Hub",
-    subtitle: "Culinary & Food Tourism",
-    initials: "D",
-    avatarBg: "bg-amber-500",
-    tag: "Staging",
-  },
-];
-
 interface DashboardSidebarProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
-  selectedWorkspace?: WorkspaceItem;
+  workspaces: WorkspaceItem[];
+  selectedWorkspace: WorkspaceItem;
   onWorkspaceChange?: (workspace: WorkspaceItem) => void;
+  reviewBadge?: number;
+  user: { name: string; role: string };
+  onLogout: () => void;
 }
 
 export default function DashboardSidebar({
   activeTab = "overview",
   onTabChange,
-  selectedWorkspace = DEFAULT_WORKSPACES[0],
+  workspaces,
+  selectedWorkspace,
   onWorkspaceChange,
+  reviewBadge,
+  user,
+  onLogout,
 }: DashboardSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [currentTab, setCurrentTab] = useState(activeTab);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Sync activeTab when prop or pathname changes
-  useEffect(() => {
-    if (activeTab) {
-      setCurrentTab(activeTab);
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (pathname === "/workflows") {
-      setCurrentTab("workflows");
-    } else if (pathname === "/dashboard") {
-      setCurrentTab("overview");
-    } else if (pathname === "/review-queue") {
-      setCurrentTab("review-queue");
-    } else if (pathname === "/artifacts") {
-      setCurrentTab("artifacts");
-    }
-  }, [pathname]);
+  // Tab đang chọn suy ra từ đường dẫn; trang không nằm trong menu thì dùng activeTab
+  const TAB_BY_PATH: Record<string, string> = {
+    "/dashboard": "overview",
+    "/workflows": "workflows",
+    "/review-queue": "review-queue",
+    "/artifacts": "artifacts",
+  };
+  const currentTab = TAB_BY_PATH[pathname.replace(/\/$/, "")] ?? activeTab;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -95,7 +65,6 @@ export default function DashboardSidebar({
   }, []);
 
   const handleNav = (tabId: string, href?: string) => {
-    setCurrentTab(tabId);
     if (onTabChange) onTabChange(tabId);
     if (href && pathname !== href) {
       router.push(href);
@@ -167,7 +136,7 @@ export default function DashboardSidebar({
       id: "review-queue",
       label: "Review Queue",
       href: "/review-queue",
-      badge: 4,
+      badge: reviewBadge && reviewBadge > 0 ? reviewBadge : undefined,
       badgeColor: "red",
       icon: (
         <svg
@@ -317,11 +286,11 @@ export default function DashboardSidebar({
             <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900/95 backdrop-blur-xl border border-blue-400/30 rounded-2xl p-2 shadow-2xl z-50 text-white animate-in fade-in duration-150">
               <div className="px-2 py-1.5 flex items-center justify-between text-[10px] uppercase font-bold text-blue-300/70">
                 <span>Select Workspace</span>
-                <span>{DEFAULT_WORKSPACES.length} total</span>
+                <span>{workspaces.length} total</span>
               </div>
 
               <div className="space-y-1 mt-1">
-                {DEFAULT_WORKSPACES.map((ws) => {
+                {workspaces.map((ws) => {
                   const isSelected = selectedWorkspace.id === ws.id;
                   return (
                     <button
@@ -381,19 +350,6 @@ export default function DashboardSidebar({
                 })}
               </div>
 
-              {/* Add workspace action */}
-              <div className="border-t border-white/10 mt-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(false)}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium text-blue-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
-                >
-                  <span className="w-5 h-5 rounded-lg border border-dashed border-blue-300/60 flex items-center justify-center text-sm font-bold">
-                    +
-                  </span>
-                  <span>Create new workspace</span>
-                </button>
-              </div>
             </div>
           )}
         </div>
@@ -499,7 +455,6 @@ export default function DashboardSidebar({
                 </p>
               </div>
             </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
           </div>
 
           <div className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5">
@@ -526,21 +481,22 @@ export default function DashboardSidebar({
         <div className="pt-2 border-t border-blue-600/60 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-blue-300 text-blue-900 font-bold text-xs flex items-center justify-center">
-              AM
+              {initials(user.name)}
             </div>
-            <div>
-              <p className="text-xs font-bold text-white leading-tight">
-                Alex Morgan
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white leading-tight truncate">
+                {user.name}
               </p>
               <p className="text-[10px] text-blue-200/70 leading-tight">
-                Owner
+                {user.role}
               </p>
             </div>
           </div>
-          <Link
-            href="/login"
+          <button
+            type="button"
+            onClick={onLogout}
             title="Logout"
-            className="text-blue-200 hover:text-white transition-colors p-1"
+            className="text-blue-200 hover:text-white transition-colors p-1 cursor-pointer"
           >
             <svg
               className="w-4 h-4"
@@ -555,18 +511,7 @@ export default function DashboardSidebar({
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
               />
             </svg>
-          </Link>
-        </div>
-
-        {/* Engine status indicator */}
-        <div className="pt-2 border-t border-blue-600/40 flex items-center justify-between text-[11px] text-blue-200/80 font-mono">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-300" />
-            <span>Engine v4.12-rc</span>
-          </div>
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-blue-900/60 text-blue-200 border border-blue-400/30">
-            AUTO
-          </span>
+          </button>
         </div>
       </div>
     </aside>

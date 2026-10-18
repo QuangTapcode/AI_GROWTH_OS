@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import WorkflowsClientView from "@/features/workflows/components/WorkflowsClientView";
 
 export const metadata: Metadata = {
-  title: "TripC / Workflows & Tasks · AI Growth OS",
+  title: "Workflows & Tasks · AI Growth OS",
   description:
     "Monitor autonomous growth workflows, agent execution, and tasks requiring attention.",
 };

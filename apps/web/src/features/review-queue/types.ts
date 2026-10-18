@@ -44,6 +44,8 @@ export interface ReviewItem {
   topicClusters: TopicCluster[];
   jsonPayload: Record<string, unknown>;
   rejectionReason?: string;
+  pipelineNotice: string;
+  documentContent?: string;
 }
 
 export interface ReviewQueueStats {

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { AppError } from "./errors";
+import { looksLikeSessionToken, verifySessionToken } from "./session-token";
 
 export interface AuthUser {
   id: string; // UUID của user
@@ -13,6 +14,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 /**
  * Trích xuất Bearer token từ Header và giải mã thông tin User.
+ * Mọi môi trường: access token đã ký do POST /v1/auth/login cấp (lib/session-token).
  * Trong môi trường Local Dev / Pilot:
  * Hỗ trợ dev token định dạng: "dev_user_<uuid>_<role>"
  * hoặc các token dev tiện ích: "dev_owner", "dev_editor", "dev_viewer", hoặc UUID trực tiếp.
@@ -28,6 +30,11 @@ export function authenticateUser(req: NextRequest): AuthUser {
 
   if (!token) {
     throw new AppError(401, "UNAUTHORIZED", "Empty authentication token");
+  }
+
+  if (looksLikeSessionToken(token)) {
+    const claims = verifySessionToken(token);
+    return { id: claims.sub, email: claims.email, name: claims.name };
   }
 
   const isProduction = process.env.NODE_ENV === "production";

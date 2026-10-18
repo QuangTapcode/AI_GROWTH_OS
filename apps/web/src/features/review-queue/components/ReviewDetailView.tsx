@@ -6,30 +6,44 @@ import JsonPayloadModal from "./JsonPayloadModal";
 
 interface ReviewDetailViewProps {
   item: ReviewItem;
-  onApprove: (itemId: string) => void;
-  onReject: (itemId: string, reason: string) => void;
+  canApprove: boolean;
+  onApprove: (itemId: string, note: string) => Promise<void>;
+  onReject: (itemId: string, reason: string) => Promise<void>;
 }
 
 export default function ReviewDetailView({
   item,
+  canApprove,
   onApprove,
   onReject,
 }: ReviewDetailViewProps) {
   const [rejectionReason, setRejectionReason] = useState("");
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
-  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleApproveClick = () => {
-    onApprove(item.id);
-    setActionNotice("Item approved successfully! Queued for autonomous CMS syndication.");
-    setTimeout(() => setActionNotice(null), 4000);
+  const runDecision = async (action: () => Promise<void>, successText: string) => {
+    setSubmitting(true);
+    setActionNotice(null);
+    try {
+      await action();
+      setRejectionReason("");
+      setActionNotice({ tone: "success", text: successText });
+    } catch (err) {
+      setActionNotice({ tone: "error", text: err instanceof Error ? err.message : "The decision could not be saved." });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleRejectClick = () => {
-    onReject(item.id, rejectionReason || "Feedback provided for recalibration");
-    setActionNotice("Item marked as rejected. Agent recalibration trigger sent.");
-    setTimeout(() => setActionNotice(null), 4000);
-  };
+  const handleApproveClick = () =>
+    runDecision(() => onApprove(item.id, rejectionReason.trim()), "Approved. The decision is recorded in the approval ledger.");
+
+  const handleRejectClick = () =>
+    runDecision(
+      () => onReject(item.id, rejectionReason.trim() || "Rejected without a note"),
+      "Rejected. Your feedback is saved with the approval."
+    );
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between">
@@ -70,11 +84,11 @@ export default function ReviewDetailView({
                   <svg className="w-3.5 h-3.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
-                  <span>Approved for Distribution</span>
+                  <span>Approved</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase bg-rose-50 text-rose-700 border border-rose-200">
-                  <span>Rejected ({item.rejectionReason || "Recalibration needed"})</span>
+                  <span>{item.statusTag} ({item.rejectionReason || "no note"})</span>
                 </span>
               )}
             </div>
@@ -97,9 +111,9 @@ export default function ReviewDetailView({
                 <span>{item.agent}</span>
               </div>
               <span className="text-slate-300">•</span>
-              <span>Task: <strong className="text-slate-700 font-medium">{item.taskId} (Autonomous SERP Analysis)</strong></span>
+              <span>Task: <strong className="text-slate-700 font-medium">{item.taskId}</strong></span>
               <span className="text-slate-300">•</span>
-              <span>Run: <strong className="text-slate-700 font-medium">{item.runId}</strong></span>
+              <span>Approval: <strong className="text-slate-700 font-medium">{item.runId}</strong></span>
               <span className="text-slate-300">•</span>
               <span>Created {item.createdAt}</span>
             </div>
@@ -111,16 +125,15 @@ export default function ReviewDetailView({
       <div className="p-6 space-y-5">
         {/* Toast / Notification feedback banner */}
         {actionNotice && (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs px-4 py-2.5 rounded-xl font-medium flex items-center justify-between animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span>{actionNotice}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActionNotice(null)}
-              className="text-emerald-600 hover:text-emerald-900 font-bold"
-            >
+          <div
+            className={`${
+              actionNotice.tone === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : "bg-rose-50 border-rose-200 text-rose-800"
+            } border text-xs px-4 py-2.5 rounded-xl font-medium flex items-center justify-between animate-in fade-in`}
+          >
+            <span>{actionNotice.text}</span>
+            <button type="button" onClick={() => setActionNotice(null)} className="font-bold opacity-70 hover:opacity-100 pl-3">
               ✕
             </button>
           </div>
@@ -194,9 +207,7 @@ export default function ReviewDetailView({
               <line x1="12" y1="16" x2="12" y2="12" />
               <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
-            <span>
-              AI autonomously executed stages 1-3. Workflow is paused awaiting your executive decision before CMS sync.
-            </span>
+            <span>{item.pipelineNotice}</span>
           </div>
         </div>
 
@@ -207,9 +218,13 @@ export default function ReviewDetailView({
               key={val.id}
               className="bg-white border border-slate-200/80 rounded-xl p-3 flex items-start gap-2.5 shadow-2xs"
             >
-              <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+              <div
+                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                  val.passed ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                }`}
+              >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d={val.passed ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"} />
                 </svg>
               </div>
               <div className="min-w-0">
@@ -243,7 +258,7 @@ export default function ReviewDetailView({
               </div>
               <div>
                 <h4 className="text-xs font-bold text-slate-900 leading-tight">
-                  {item.title} — Da Nang &amp; Hoi An
+                  {item.title}
                 </h4>
                 <p className="text-[11px] text-slate-500 leading-tight mt-0.5">
                   Target Cluster: <span className="font-semibold text-slate-700">{item.targetCluster}</span>
@@ -285,7 +300,7 @@ export default function ReviewDetailView({
                   01
                 </span>
                 <h5 className="text-xs font-bold text-slate-900 tracking-tight">
-                  Executive Summary &amp; Market Void
+                  Executive Summary
                 </h5>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/50 p-3.5 rounded-xl border border-slate-100">
@@ -300,12 +315,14 @@ export default function ReviewDetailView({
                   02
                 </span>
                 <h5 className="text-xs font-bold text-slate-900 tracking-tight">
-                  Priority Topic Clusters &amp; Recommendations
+                  Topic Clusters &amp; Key Points
                 </h5>
               </div>
 
-              {/* 3 Clusters */}
               <div className="space-y-2.5">
+                {item.topicClusters.length === 0 && (
+                  <p className="text-xs text-slate-400">The agent did not return topic clusters for this output.</p>
+                )}
                 {item.topicClusters.map((cluster) => (
                   <div
                     key={cluster.id}
@@ -325,13 +342,27 @@ export default function ReviewDetailView({
                       </div>
                     </div>
 
-                    <span className="inline-flex items-center self-start sm:self-center px-2.5 py-1 rounded-full text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 shrink-0">
-                      {cluster.serpVoidBadge}
-                    </span>
+                    {cluster.serpVoidBadge && (
+                      <span className="inline-flex items-center self-start sm:self-center px-2.5 py-1 rounded-full text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 shrink-0">
+                        {cluster.serpVoidBadge}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
+
+            {item.documentContent && (
+              <div>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">03</span>
+                  <h5 className="text-xs font-bold text-slate-900 tracking-tight">Document</h5>
+                </div>
+                <pre className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans bg-slate-50/50 p-3.5 rounded-xl border border-slate-100 max-h-[360px] overflow-y-auto">
+                  {item.documentContent}
+                </pre>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -351,40 +382,46 @@ export default function ReviewDetailView({
             <path d="M7 11V7a5 5 0 0110 0v4" />
           </svg>
           <span>
-            Human approval is required before next gated action:{" "}
-            <strong className="text-slate-900 font-bold">
-              Automated CMS Publishing &amp; Multi-Channel Syndication.
-            </strong>
+            {item.status !== "pending"
+              ? "This approval has been decided. Request a new review from Artifacts to change it."
+              : canApprove
+              ? "Approval pins this exact version and content hash before it can be handed off for publishing."
+              : "Only workspace owners can approve or reject AI outputs."}
           </span>
         </div>
 
         {/* Action Controls: Input + Reject + Approve */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <input
-            type="text"
-            value={rejectionReason}
-            onChange={(e) => setRejectionReason(e.target.value)}
-            placeholder="Reason for rejection (optional feedback for agent recalibration)..."
-            className="flex-1 w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-2xs"
-          />
+        {item.status === "pending" && canApprove && (
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <input
+              type="text"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              maxLength={1000}
+              placeholder="Review note (required context for rejections, saved with the decision)..."
+              className="flex-1 w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-2xs"
+            />
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 justify-end">
-            <button
-              type="button"
-              onClick={handleRejectClick}
-              className="flex-1 sm:flex-initial px-4 py-2.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200/90 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
-            >
-              <span>✕ Reject</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleApproveClick}
-              className="flex-1 sm:flex-initial px-5 py-2.5 bg-[#1d4ed8] hover:bg-[#1e40af] active:bg-blue-900 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-blue-600/30"
-            >
-              <span>✓ Approve for Distribution</span>
-            </button>
+            <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 justify-end">
+              <button
+                type="button"
+                onClick={handleRejectClick}
+                disabled={submitting}
+                className="flex-1 sm:flex-initial px-4 py-2.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200/90 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs disabled:opacity-60"
+              >
+                <span>✕ Reject</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleApproveClick}
+                disabled={submitting}
+                className="flex-1 sm:flex-initial px-5 py-2.5 bg-[#1d4ed8] hover:bg-[#1e40af] active:bg-blue-900 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-blue-600/30 disabled:opacity-60"
+              >
+                <span>{submitting ? "Saving…" : "✓ Approve"}</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* JSON Payload Modal */}

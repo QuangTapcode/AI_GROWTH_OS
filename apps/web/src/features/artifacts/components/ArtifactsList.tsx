@@ -7,54 +7,61 @@ interface ArtifactsListProps {
   artifacts: ArtifactDeliverable[];
   selectedArtifactId: string;
   onSelectArtifact: (artifact: ArtifactDeliverable) => void;
+  /** Từ khóa ở ô tìm kiếm đầu trang, áp dụng cùng bộ lọc của danh sách */
+  externalQuery?: string;
 }
 
 export default function ArtifactsList({
   artifacts,
   selectedArtifactId,
   onSelectArtifact,
+  externalQuery = "",
 }: ArtifactsListProps) {
   const [filterQuery, setFilterQuery] = useState("");
 
   const filteredArtifacts = useMemo(() => {
-    return artifacts.filter((art) => {
+    const matches = (art: ArtifactDeliverable, query: string) => {
+      const q = query.trim().toLowerCase();
       return (
-        art.title.toLowerCase().includes(filterQuery.toLowerCase()) ||
-        art.code.toLowerCase().includes(filterQuery.toLowerCase()) ||
-        art.category.toLowerCase().includes(filterQuery.toLowerCase()) ||
-        art.status.toLowerCase().includes(filterQuery.toLowerCase())
+        !q ||
+        art.title.toLowerCase().includes(q) ||
+        art.code.toLowerCase().includes(q) ||
+        art.category.toLowerCase().includes(q) ||
+        art.status.toLowerCase().includes(q) ||
+        art.agent.toLowerCase().includes(q)
       );
-    });
-  }, [artifacts, filterQuery]);
+    };
+    return artifacts.filter((art) => matches(art, filterQuery) && matches(art, externalQuery));
+  }, [artifacts, filterQuery, externalQuery]);
 
   const renderStatusDot = (status: ArtifactDeliverable["status"]) => {
     switch (status) {
-      case "Complete":
+      case "Draft":
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-            <span>Complete</span>
+            <span>Draft</span>
           </span>
         );
-      case "In progress":
+      case "In review":
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-            <span>In progress</span>
+            <span>In review</span>
           </span>
         );
-      case "Validated":
+      case "Approved":
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Validated</span>
+            <span>Approved</span>
           </span>
         );
-      case "Queued":
+      case "Rejected":
         return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-            <span>Queued</span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            <span>Rejected</span>
           </span>
         );
     }
@@ -73,15 +80,14 @@ export default function ArtifactsList({
           </span>
         </div>
 
-        <button
-          type="button"
-          title="Filter and sort"
-          className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+        <span
+          title="Newest first"
+          className="text-slate-400 p-1"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M6 10h12M9 16h6" />
           </svg>
-        </button>
+        </span>
       </div>
 
       {/* ── Search Input ── */}

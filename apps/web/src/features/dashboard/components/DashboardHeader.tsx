@@ -1,18 +1,22 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
+import { initials } from "@/lib/format";
 
 interface DashboardHeaderProps {
-  workspaceName?: string;
+  workspaceName: string;
   currentPageTitle?: string;
   searchPlaceholder?: string;
+  user: { name: string; role: string };
+  notificationsCount?: number;
 }
 
 export default function DashboardHeader({
-  workspaceName = "TripC",
+  workspaceName,
   currentPageTitle = "Overview",
   searchPlaceholder,
+  user,
+  notificationsCount = 0,
 }: DashboardHeaderProps) {
   const placeholderText =
     searchPlaceholder ||
@@ -56,14 +60,14 @@ export default function DashboardHeader({
         {/* Operational Status Pill */}
         <div className="hidden sm:flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-3 py-1 text-xs text-blue-50 font-medium">
           <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
-          <span>All systems operational</span>
+          <span>API connected</span>
         </div>
 
         {/* Notification Bell */}
         <button
           type="button"
           className="relative p-2 rounded-xl bg-white/10 hover:bg-white/15 transition-colors cursor-pointer text-white"
-          title="Notifications"
+          title={`${notificationsCount} items need attention`}
         >
           <svg
             className="w-4 h-4"
@@ -78,9 +82,11 @@ export default function DashboardHeader({
               d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
             />
           </svg>
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center border-2 border-[#1e40af]">
-            3
-          </span>
+          {notificationsCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center border-2 border-[#1e40af]">
+              {notificationsCount > 9 ? "9+" : notificationsCount}
+            </span>
+          )}
         </button>
 
         {/* Sliders / Filter tuning icon */}
@@ -95,19 +101,15 @@ export default function DashboardHeader({
         </button>
 
         {/* User Profile Avatar with Name */}
-        <Link
-          href="/login"
-          title="Profile & Settings"
-          className="flex items-center gap-2 pl-1 group cursor-pointer"
-        >
-          <div className="w-7 h-7 rounded-full bg-blue-300 text-blue-900 font-bold text-[11px] flex items-center justify-center border border-white/30 group-hover:scale-105 transition-transform">
-            AM
+        <div className="flex items-center gap-2 pl-1">
+          <div className="w-7 h-7 rounded-full bg-blue-300 text-blue-900 font-bold text-[11px] flex items-center justify-center border border-white/30">
+            {initials(user.name)}
           </div>
           <div className="hidden lg:block text-left leading-tight">
-            <p className="text-xs font-bold text-white leading-tight">Alex Morgan</p>
-            <p className="text-[10px] text-blue-200/70 leading-tight">Owner</p>
+            <p className="text-xs font-bold text-white leading-tight">{user.name}</p>
+            <p className="text-[10px] text-blue-200/70 leading-tight">{user.role}</p>
           </div>
-        </Link>
+        </div>
       </div>
     </header>
   );

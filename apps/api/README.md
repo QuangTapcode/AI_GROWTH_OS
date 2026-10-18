@@ -32,7 +32,24 @@ Mở `http://localhost:4000`. Các lệnh: `npm.cmd run lint`, `npm.cmd run type
 
 `OPTIONS` trả 204 cho origins được cho phép. CORS mặc định chỉ cho frontend `localhost`/`127.0.0.1` ở port 3000 và 3001; origin khác nhận 403 với `{error: {code, message, request_id}}` và không có header cấp quyền CORS. Đây không phải cơ chế authentication.
 
-`src/lib/env.ts` kiểm tra `APP_ENV` (local/staging/test), `INTEGRATION_MODE=fake` và exact origins. Next.js tự đọc `.env.local` khi startup. API không cần database credentials cho bootstrap; chưa có migration/seed/worker hoặc endpoint ghi dữ liệu.
+`src/lib/env.ts` kiểm tra `APP_ENV` (local/staging/test), `INTEGRATION_MODE=fake` và exact origins. Next.js tự đọc `.env.local` khi startup. CORS cho `/v1/*` (trừ `/v1/health`) nằm ở `src/middleware.ts`, dùng chung `CORS_ALLOWED_ORIGINS`.
+
+### Database và đăng nhập
+
+`.env.local` cần `DATABASE_URL` (Postgres local ở `infra/local`) và `AUTH_SECRET` ≥ 32 ký tự. Sau đó:
+
+```powershell
+npm.cmd run db:migrate      # áp database/migrations (idempotent)
+npm.cmd run db:seed         # tenant TripC + Hoi An Homestays, user owner/editor/viewer (synthetic)
+$env:NEW_PASSWORD = "..."; npm.cmd run user:set-password -- someone@gmail.com
+```
+
+`db:seed` in mật khẩu sinh ngẫu nhiên cho tài khoản demo ở lần chạy đầu; đặt `SEED_USER_PASSWORD` để chọn mật khẩu. Seed từ chối chạy khi `NODE_ENV=production`.
+
+- `POST /v1/auth/login` `{email, password}` → `{access_token, token_type: "Bearer", expires_at, user}`. Mật khẩu lưu scrypt (`src/lib/password.ts`); sai 10 lần trong 15 phút theo email hoặc IP → 429 `TOO_MANY_ATTEMPTS`. Sai email hay sai mật khẩu đều trả cùng 401 `INVALID_CREDENTIALS`.
+- Access token là JWT HS256 ký bằng `AUTH_SECRET` (`src/lib/session-token.ts`), hết hạn sau `AUTH_TOKEN_TTL_SECONDS` (mặc định 8 giờ), được `authenticateUser` chấp nhận ở mọi môi trường. Token dev (`dev_owner`, `dev_user_<uuid>_<role>`) vẫn chỉ dùng ngoài production.
+- `GET /v1/auth/me` → user và các workspace kèm role. `GET /v1/workspaces` cũng trả `role` của user hiện tại.
+- Token stateless: đổi `AUTH_SECRET` sẽ vô hiệu hóa mọi phiên; chưa có thu hồi từng token.
 
 ## Cách làm độc lập
 

@@ -114,7 +114,7 @@ export default function ReviewItemsList({
                 : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            All (16)
+            All ({items.length})
           </button>
         </div>
 

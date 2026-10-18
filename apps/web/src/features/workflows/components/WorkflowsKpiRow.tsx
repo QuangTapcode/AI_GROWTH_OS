@@ -1,12 +1,13 @@
 import React from "react";
+import type { TaskKpis } from "../adapters";
 
-export default function WorkflowsKpiRow() {
+export default function WorkflowsKpiRow({ kpis }: { kpis: TaskKpis }) {
   const cards = [
     {
       id: "running",
       label: "RUNNING",
-      value: "3",
-      subtext: "AI runs in progress",
+      value: String(kpis.running),
+      subtext: "Tasks in progress",
       iconBg: "bg-blue-50 border-blue-200 text-blue-600",
       icon: (
         <svg
@@ -20,7 +21,7 @@ export default function WorkflowsKpiRow() {
     {
       id: "completed",
       label: "COMPLETED TODAY",
-      value: "35",
+      value: String(kpis.completedToday),
       subtext: "Successfully finished",
       iconBg: "bg-emerald-50 border-emerald-200 text-emerald-600",
       icon: (
@@ -42,7 +43,7 @@ export default function WorkflowsKpiRow() {
     {
       id: "needs-review",
       label: "NEEDS REVIEW",
-      value: "4",
+      value: String(kpis.needsReview),
       subtext: "Awaiting human approval",
       iconBg: "bg-amber-50 border-amber-200 text-amber-600",
       icon: (
@@ -64,8 +65,8 @@ export default function WorkflowsKpiRow() {
     {
       id: "blocked",
       label: "BLOCKED",
-      value: "1",
-      subtext: "Requires attention",
+      value: String(kpis.blocked),
+      subtext: "Failed tasks requiring attention",
       iconBg: "bg-rose-50 border-rose-200 text-rose-600",
       icon: (
         <svg

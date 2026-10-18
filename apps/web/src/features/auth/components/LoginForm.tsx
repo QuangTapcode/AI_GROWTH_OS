@@ -1,14 +1,28 @@
 "use client";
 
-import React, { useState, type FormEvent } from "react";
+import React, { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ApiError, growthApi } from "@/lib/api";
+import { getSession, saveSession } from "@/lib/session";
+
+/** Chỉ cho phép quay lại đường dẫn nội bộ (chống open redirect qua ?next=). */
+function nextPath(): string {
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/login") ? next : "/dashboard";
+}
 
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Đã có phiên hợp lệ thì vào thẳng ứng dụng
+  useEffect(() => {
+    if (getSession()) router.replace(nextPath());
+  }, [router]);
 
   // Validate strict Gmail address format (must end with @gmail.com)
   const isGmailFormat = (val: string) => {
@@ -29,18 +43,26 @@ export function LoginForm() {
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      router.push("/dashboard");
-    }, 350);
-  };
+    if (!password) {
+      setError("Vui lòng nhập mật khẩu");
+      return;
+    }
 
-  const handleGoogleSignIn = () => {
-    setError(null);
     setIsLoading(true);
-    setTimeout(() => {
-      router.push("/dashboard");
-    }, 350);
+    try {
+      const res = await growthApi.login(email.trim(), password);
+      saveSession({ token: res.access_token, expiresAt: res.expires_at, user: res.user });
+      router.replace(nextPath());
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "INVALID_CREDENTIALS") {
+        setError("Email hoặc mật khẩu không đúng");
+      } else if (err instanceof ApiError && err.code === "TOO_MANY_ATTEMPTS") {
+        setError("Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.");
+      } else {
+        setError(err instanceof ApiError ? err.message : "Không thể đăng nhập. Vui lòng thử lại.");
+      }
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -102,6 +124,32 @@ export function LoginForm() {
               required
               autoComplete="email"
               autoFocus
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              htmlFor="login-password"
+              className="block text-sm font-medium text-slate-700"
+            >
+              Password
+            </label>
+            <input
+              id="login-password"
+              type="password"
+              className={`w-full px-4 py-3 rounded-xl border ${
+                error
+                  ? "border-rose-400 focus:ring-rose-400/20 focus:border-rose-500"
+                  : "border-slate-200 focus:ring-sky-400/25 focus:border-sky-400"
+              } bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 shadow-xs transition-all text-sm`}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+              autoComplete="current-password"
             />
             {error && (
               <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium">
@@ -179,9 +227,9 @@ export function LoginForm() {
         {/* Google Sign-in */}
         <button
           type="button"
-          onClick={handleGoogleSignIn}
-          disabled={isLoading}
-          className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium rounded-xl border border-slate-200 flex items-center justify-center gap-2.5 shadow-xs hover:border-slate-300 transition-all cursor-pointer text-sm"
+          disabled
+          title="Google sign-in is not available yet"
+          className="w-full py-3 px-4 bg-white text-slate-700 font-medium rounded-xl border border-slate-200 flex items-center justify-center gap-2.5 shadow-xs transition-all text-sm opacity-50 cursor-not-allowed"
         >
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path
@@ -201,7 +249,7 @@ export function LoginForm() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
             />
           </svg>
-          Sign in with Google
+          Sign in with Google (coming soon)
         </button>
       </div>
 

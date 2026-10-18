@@ -1,4 +1,5 @@
-export type ArtifactStatus = "Complete" | "In progress" | "Validated" | "Queued";
+/** Trạng thái theo approval gần nhất của artifact (không có approval = Draft). */
+export type ArtifactStatus = "Draft" | "In review" | "Approved" | "Rejected";
 
 export interface HighIntentCard {
   number: string;
@@ -20,10 +21,12 @@ export interface PipelineNode {
 
 export interface ArtifactDeliverable {
   id: string;
-  code: string; // e.g. "ART-0317"
+  code: string; // e.g. "ART-1A2B3C"
   title: string;
   version: string; // e.g. "v3"
-  category: "STRATEGIC REPORT" | "CONTENT BRIEF" | "PAGE BLUEPRINT" | "ARCHITECTURE";
+  /** Version kế tiếp trong cùng lineage khi lưu chỉnh sửa */
+  nextVersion: number;
+  category: string;
   timeAgo: string;
   status: ArtifactStatus;
   statusText: string;
@@ -37,7 +40,8 @@ export interface ArtifactDeliverable {
     pipelineId: string;
     completedStagesText: string;
     totalRunTime: string;
-    isDeterministic: boolean;
+    /** payload.synthetic: dữ liệu seed/fixture, không phải output model thật */
+    isSynthetic: boolean;
     nodes: PipelineNode[];
     activeNodeText: string;
     activeAgent: string;
@@ -45,5 +49,8 @@ export interface ArtifactDeliverable {
     outputPreviewText: string;
   };
   documentContent: string;
+  /** true khi documentContent là văn bản do agent viết (payload.document_markdown) */
+  hasDocument: boolean;
+  canRequestReview: boolean;
   jsonPayload?: Record<string, unknown>;
 }

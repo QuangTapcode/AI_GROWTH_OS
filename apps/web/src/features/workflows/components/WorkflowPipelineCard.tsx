@@ -17,7 +17,7 @@ export default function WorkflowPipelineCard({
   onViewTrace,
 }: WorkflowPipelineCardProps) {
   // Helper to render stage icon based on type
-  const renderStageIcon = (iconType: PipelineStage["iconType"], status: PipelineStage["status"]) => {
+  const renderStageIcon = (iconType: PipelineStage["iconType"]) => {
     switch (iconType) {
       case "search":
         return (
@@ -80,6 +80,13 @@ export default function WorkflowPipelineCard({
             <span>Queued</span>
           </span>
         );
+      case "Failed":
+        return (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            <span>Failed</span>
+          </span>
+        );
       case "Approval required":
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
@@ -98,7 +105,7 @@ export default function WorkflowPipelineCard({
       <div className="px-6 pt-5 pb-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-slate-100">
         <div className="flex items-center gap-2.5 flex-wrap">
           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-700">
-            ACTIVE AI RUN
+            {workflow.status === "Running" ? "ACTIVE AI RUN" : "LATEST AI RUN"}
           </span>
           <span className="text-slate-300">•</span>
           <span className="text-xs font-semibold text-slate-600">
@@ -117,10 +124,22 @@ export default function WorkflowPipelineCard({
           <span>Agent: <strong className="text-slate-700 font-semibold">{workflow.agent}</strong></span>
           <span className="hidden sm:inline text-slate-300">•</span>
           <span>Started: {workflow.startedAt}</span>
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
-            Running
-          </span>
+          {workflow.status === "Running" ? (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+              Running
+            </span>
+          ) : workflow.status === "Failed" ? (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              Failed
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Completed
+            </span>
+          )}
           <span className="text-slate-400 font-mono text-[11px]">{workflow.duration}</span>
 
           {/* Progress bar info */}
@@ -185,6 +204,8 @@ export default function WorkflowPipelineCard({
                     ? "bg-emerald-50/20 border-emerald-200/90 hover:border-emerald-300 hover:bg-emerald-50/40"
                     : stage.status === "Approval required"
                     ? "bg-amber-50/20 border-amber-200/90 hover:border-amber-300 hover:bg-amber-50/40"
+                    : stage.status === "Failed"
+                    ? "bg-rose-50/20 border-rose-200/90 hover:border-rose-300 hover:bg-rose-50/40"
                     : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
                 }`}
               >
@@ -201,7 +222,7 @@ export default function WorkflowPipelineCard({
                         : "bg-slate-100"
                     }`}
                   >
-                    {renderStageIcon(stage.iconType, stage.status)}
+                    {renderStageIcon(stage.iconType)}
                   </div>
                   {renderStageStatusBadge(stage.status)}
                 </div>
