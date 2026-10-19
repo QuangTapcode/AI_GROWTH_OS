@@ -41,6 +41,7 @@ export default function DashboardSidebar({
 
   // Tab đang chọn suy ra từ đường dẫn; trang không nằm trong menu thì dùng activeTab
   const TAB_BY_PATH: Record<string, string> = {
+    "/agents": "agents",
     "/dashboard": "overview",
     "/workflows": "workflows",
     "/review-queue": "review-queue",
@@ -82,6 +83,7 @@ export default function DashboardSidebar({
   };
 
   const navItems = [
+    { id: "agents", label: "Agent Operations", href: "/agents", icon: <span className="text-lg" aria-hidden="true">↗</span> },
     {
       id: "overview",
       label: "Overview",
