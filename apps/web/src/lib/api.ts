@@ -1,15 +1,23 @@
 import { clearSession, getSession } from "./session";
 import type {
   Approval,
+  BusinessProfile,
   Campaign,
+  Channel,
   ContentArtifact,
   CreateArtifactInput,
   CreateTaskInput,
+  IntegrationsResponse,
+  Lead,
   ListResponse,
   LoginResponse,
   MeResponse,
+  Member,
+  MetricSeries,
+  PublishingJob,
   ReviewApprovalInput,
   SystemException,
+  UpdateBusinessProfileInput,
   WorkflowTask,
   WorkspaceReport,
 } from "./apiTypes";
@@ -29,7 +37,7 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
   /** false cho endpoint không cần đăng nhập (login) */
@@ -92,6 +100,39 @@ export const growthApi = {
   login: (email: string, password: string) =>
     apiRequest<LoginResponse>("/auth/login", { method: "POST", body: { email, password }, auth: false }),
   me: (signal?: AbortSignal) => apiRequest<MeResponse>("/auth/me", { signal }),
+  logout: () => apiRequest<{ success: boolean }>("/auth/logout", { method: "POST", body: {} }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiRequest<{ success: boolean; other_sessions_revoked: number }>("/auth/password", {
+      method: "POST",
+      body: { current_password: currentPassword, new_password: newPassword },
+    }),
+
+  getBusinessProfile: (workspaceId: string, signal?: AbortSignal) =>
+    apiRequest<BusinessProfile>(`${ws(workspaceId)}/business-profile`, { signal }),
+  updateBusinessProfile: (workspaceId: string, input: UpdateBusinessProfileInput) =>
+    apiRequest<BusinessProfile>(`${ws(workspaceId)}/business-profile`, { method: "PUT", body: input }),
+  listMembers: (workspaceId: string, signal?: AbortSignal) =>
+    apiRequest<ListResponse<Member>>(`${ws(workspaceId)}/members`, { signal }),
+  getIntegrations: (workspaceId: string, signal?: AbortSignal) =>
+    apiRequest<IntegrationsResponse>(`${ws(workspaceId)}/integrations`, { signal }),
+
+  listChannels: (workspaceId: string, signal?: AbortSignal) =>
+    apiRequest<ListResponse<Channel>>(`${ws(workspaceId)}/channels`, { signal }),
+  createChannel: (workspaceId: string, input: { platform_name: Channel["platform_name"]; display_name: string; channel_identifier?: string | null }) =>
+    apiRequest<Channel>(`${ws(workspaceId)}/channels`, { method: "POST", body: input }),
+  listPublishingJobs: (workspaceId: string, signal?: AbortSignal) =>
+    apiRequest<ListResponse<PublishingJob>>(`${ws(workspaceId)}/publishing-jobs`, { signal }),
+  schedulePublishing: (workspaceId: string, input: { artifact_id: string; channel_id: string; scheduled_for?: string; utm_campaign?: string }) =>
+    apiRequest<PublishingJob>(`${ws(workspaceId)}/publishing-jobs`, { method: "POST", body: input }),
+  updatePublishingJob: (workspaceId: string, jobId: string, input: { action: "cancel" } | { action: "mark_published"; external_post_id?: string | null }) =>
+    apiRequest<PublishingJob>(`${ws(workspaceId)}/publishing-jobs/${encodeURIComponent(jobId)}`, { method: "PATCH", body: input }),
+
+  getMetricSeries: (workspaceId: string, metric: string, range: { from: string; to: string }, signal?: AbortSignal) =>
+    apiRequest<MetricSeries>(`${ws(workspaceId)}/metrics?metric=${encodeURIComponent(metric)}&from=${range.from}&to=${range.to}`, { signal }),
+  listLeads: (workspaceId: string, signal?: AbortSignal) =>
+    apiRequest<{ items: Lead[]; total: number }>(`${ws(workspaceId)}/leads?limit=100`, { signal }),
+  retryTask: (workspaceId: string, taskId: string) =>
+    apiRequest<WorkflowTask>(`${ws(workspaceId)}/tasks/${encodeURIComponent(taskId)}/retry`, { method: "POST", body: {} }),
 
   listTasks: (workspaceId: string, signal?: AbortSignal) =>
     apiRequest<ListResponse<WorkflowTask>>(`${ws(workspaceId)}/tasks`, { signal }),

@@ -6,6 +6,8 @@ export interface AuthUser {
   id: string; // UUID của user
   email: string;
   name: string;
+  /** auth_sessions.id khi đăng nhập bằng mật khẩu; không có với dev token */
+  sessionId?: string;
 }
 
 export type AuthenticatedUser = AuthUser;
@@ -34,7 +36,9 @@ export function authenticateUser(req: NextRequest): AuthUser {
 
   if (looksLikeSessionToken(token)) {
     const claims = verifySessionToken(token);
-    return { id: claims.sub, email: claims.email, name: claims.name };
+    const user: AuthUser = { id: claims.sub, email: claims.email, name: claims.name };
+    if (claims.sid) user.sessionId = claims.sid;
+    return user;
   }
 
   const isProduction = process.env.NODE_ENV === "production";

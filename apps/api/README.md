@@ -49,7 +49,21 @@ $env:NEW_PASSWORD = "..."; npm.cmd run user:set-password -- someone@gmail.com
 - `POST /v1/auth/login` `{email, password}` → `{access_token, token_type: "Bearer", expires_at, user}`. Mật khẩu lưu scrypt (`src/lib/password.ts`); sai 10 lần trong 15 phút theo email hoặc IP → 429 `TOO_MANY_ATTEMPTS`. Sai email hay sai mật khẩu đều trả cùng 401 `INVALID_CREDENTIALS`.
 - Access token là JWT HS256 ký bằng `AUTH_SECRET` (`src/lib/session-token.ts`), hết hạn sau `AUTH_TOKEN_TTL_SECONDS` (mặc định 8 giờ), được `authenticateUser` chấp nhận ở mọi môi trường. Token dev (`dev_owner`, `dev_user_<uuid>_<role>`) vẫn chỉ dùng ngoài production.
 - `GET /v1/auth/me` → user và các workspace kèm role. `GET /v1/workspaces` cũng trả `role` của user hiện tại.
-- Token stateless: đổi `AUTH_SECRET` sẽ vô hiệu hóa mọi phiên; chưa có thu hồi từng token.
+- Mỗi lần đăng nhập tạo một dòng `auth_sessions` (migration 006); token mang `sid`. `POST /v1/auth/logout` thu hồi phiên đó, `POST /v1/auth/password` `{current_password, new_password}` đổi mật khẩu và thu hồi các phiên khác. Phiên bị thu hồi/hết hạn → 401 `SESSION_REVOKED` (kiểm tra cùng truy vấn membership trong `lib/tenant.ts`).
+
+### Endpoint bổ sung (19/10)
+
+| Endpoint | Quyền | Ghi chú |
+| --- | --- | --- |
+| `GET/PUT /v1/workspaces/{id}/business-profile` | xem: mọi role · sửa: owner/editor | PUT cần `expected_version`; sai version → 409 `VERSION_CONFLICT`; ghi `audit_events` |
+| `GET /v1/workspaces/{id}/integrations` | mọi role | Trạng thái GA4/GSC/Meta/CMS theo integration matrix + chế độ đăng (live/manual); không trả secret |
+| `GET/POST /v1/workspaces/{id}/channels` | xem: mọi role · tạo: owner | Kênh website/facebook/instagram/linkedin/email, kèm `publish_mode` |
+| `GET/POST /v1/workspaces/{id}/publishing-jobs` | xem: mọi role · xếp lịch: owner/editor | Chỉ artifact có approval mới nhất `approved` khớp version + hash (409 `APPROVAL_REQUIRED`); trùng lịch → 409 `ALREADY_SCHEDULED`; ghi `outbox_events` `publishing.scheduled` |
+| `PATCH /v1/workspaces/{id}/publishing-jobs/{job}` | owner/editor | `{action: "cancel"}` hoặc `{action: "mark_published", external_post_id?}` cho kênh manual |
+| `GET/POST /v1/workspaces/{id}/metrics` | xem: mọi role · ghi: owner/editor | Chuỗi theo ngày từ `metrics_snapshots`; không có dữ liệu → `missing` + `missing_reason`. Report cộng snapshot ngày (đủ ngày → available, thiếu → partial) |
+| `POST /v1/workspaces/{id}/tasks/{task}/retry` | owner/editor | Chỉ task `failed` → `queued`, ghi audit |
+
+Integration test với DB thật: `RUN_DB_TESTS=1 DATABASE_URL=<db vừa migrate+seed> npx vitest run tests/integration`.
 
 ## Cách làm độc lập
 

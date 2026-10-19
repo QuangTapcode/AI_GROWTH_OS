@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import AppShell from "@/features/shell/AppShell";
 import { useWorkspace } from "@/features/shell/WorkspaceProvider";
 import { EmptyBlock, ErrorBlock, LoadingBlock, Toast } from "@/features/shell/StatusViews";
-import { growthApi } from "@/lib/api";
+import { ApiError, growthApi } from "@/lib/api";
 import { useApiData } from "@/lib/useApiData";
 import WorkflowsKpiRow from "./WorkflowsKpiRow";
 import WorkflowPipelineCard from "./WorkflowPipelineCard";
@@ -144,10 +144,27 @@ function WorkflowsContent() {
 
       {/* ── 4. Stage & Task Details Modal ("màn hình nhỏ đó") ── */}
       <StageDetailsModal
+        key={selectedTask?.id ?? selectedStage?.id ?? "none"}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         stage={selectedStage}
         task={selectedTask}
+        onRetry={
+          canEdit
+            ? async (taskId) => {
+                try {
+                  await growthApi.retryTask(workspace.id, taskId);
+                } catch (err) {
+                  throw new Error(err instanceof ApiError ? `${err.message} (${err.code})` : "Could not retry the task.", {
+                    cause: err,
+                  });
+                }
+                setIsModalOpen(false);
+                setToast("Task re-queued. The worker will pick it up on its next run.");
+                reload();
+              }
+            : undefined
+        }
       />
 
       <CreateTaskModal

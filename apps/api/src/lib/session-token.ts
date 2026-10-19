@@ -15,6 +15,8 @@ export interface SessionClaims {
   sub: string;
   email: string;
   name: string;
+  /** auth_sessions.id — cho phép logout/đổi mật khẩu thu hồi token trước hạn */
+  sid?: string;
   iat: number;
   exp: number;
   iss: string;
@@ -51,14 +53,20 @@ export function looksLikeSessionToken(token: string): boolean {
   return JWT_SHAPE.test(token);
 }
 
+export function sessionExpiry(now: Date = new Date()): Date {
+  return new Date((Math.floor(now.getTime() / 1000) + getTtlSeconds()) * 1000);
+}
+
 export function issueSessionToken(
   user: { id: string; email: string; name: string },
-  now: Date = new Date()
+  now: Date = new Date(),
+  sessionId?: string
 ): IssuedSessionToken {
   const secret = getSecret();
   const iat = Math.floor(now.getTime() / 1000);
   const exp = iat + getTtlSeconds();
   const claims: SessionClaims = { sub: user.id, email: user.email, name: user.name, iat, exp, iss: ISSUER, aud: AUDIENCE };
+  if (sessionId) claims.sid = sessionId;
   const unsigned = `${encodeSegment({ alg: "HS256", typ: "JWT" })}.${encodeSegment(claims)}`;
   return { token: `${unsigned}.${sign(unsigned, secret)}`, expiresAt: new Date(exp * 1000).toISOString() };
 }

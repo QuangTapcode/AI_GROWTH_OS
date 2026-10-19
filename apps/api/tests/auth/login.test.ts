@@ -13,6 +13,10 @@ vi.mock("../../src/modules/auth/repository", () => ({
   recordLogin: vi.fn(async (id: string) => {
     repoState.logins.push(id);
   }),
+  createSession: vi.fn(async () => "c1000000-0000-4000-8000-000000000001"),
+  revokeSession: vi.fn(async () => true),
+  revokeOtherSessions: vi.fn(async () => 0),
+  getPasswordHash: vi.fn(async () => repoState.user?.password_hash ?? null),
   getUserProfile: vi.fn(),
   listActiveMemberships: vi.fn(),
   setPasswordHash: vi.fn(),
@@ -25,6 +29,7 @@ import { login, resetLoginThrottle } from "../../src/modules/auth/service";
 
 const SECRET = "test_secret_value_that_is_long_enough_for_hs256";
 const USER_ID = "a0000000-0000-4000-8000-000000000001";
+const CLIENT = { ip: "127.0.0.1", userAgent: "vitest" };
 
 function bearer(token: string) {
   return new NextRequest("http://localhost:4000/v1/workspaces", { headers: { authorization: `Bearer ${token}` } });
@@ -113,11 +118,12 @@ describe("Auth: POST /v1/auth/login service", () => {
   });
 
   it("đúng email (không phân biệt hoa thường) + mật khẩu → trả token dùng được", async () => {
-    const res = await login({ email: "Owner.TripC.Demo@gmail.com", password: "s3cret-pass" }, "127.0.0.1");
+    const res = await login({ email: "Owner.TripC.Demo@gmail.com", password: "s3cret-pass" }, CLIENT);
     expect(res.token_type).toBe("Bearer");
     expect(res.user).toMatchObject({ id: USER_ID, email: "owner.tripc.demo@gmail.com" });
     expect(new Date(res.expires_at).getTime()).toBeGreaterThan(Date.now());
     expect(verifySessionToken(res.access_token).sub).toBe(USER_ID);
+    expect(verifySessionToken(res.access_token).sid).toBe("c1000000-0000-4000-8000-000000000001");
     expect(repoState.logins).toEqual([USER_ID]);
   });
 
@@ -126,7 +132,7 @@ describe("Auth: POST /v1/auth/login service", () => {
       { email: "owner.tripc.demo@gmail.com", password: "wrong" },
       { email: "nobody@gmail.com", password: "s3cret-pass" },
     ]) {
-      await expect(login(body, "127.0.0.1")).rejects.toMatchObject({
+      await expect(login(body, CLIENT)).rejects.toMatchObject({
         statusCode: 401,
         code: "INVALID_CREDENTIALS",
         message: "Invalid email or password",
@@ -139,7 +145,7 @@ describe("Auth: POST /v1/auth/login service", () => {
     const saved = repoState.user!.password_hash;
     repoState.user!.password_hash = null;
     try {
-      await expect(login({ email: "owner.tripc.demo@gmail.com", password: "" + saved }, "127.0.0.1")).rejects.toMatchObject({
+      await expect(login({ email: "owner.tripc.demo@gmail.com", password: "" + saved }, CLIENT)).rejects.toMatchObject({
         code: "INVALID_CREDENTIALS",
       });
     } finally {
@@ -148,7 +154,7 @@ describe("Auth: POST /v1/auth/login service", () => {
   });
 
   it("payload sai định dạng → 422 VALIDATION_FAILED", async () => {
-    await expect(login({ email: "not-an-email" }, "127.0.0.1")).rejects.toMatchObject({
+    await expect(login({ email: "not-an-email" }, CLIENT)).rejects.toMatchObject({
       statusCode: 422,
       code: "VALIDATION_FAILED",
     });
@@ -156,13 +162,56 @@ describe("Auth: POST /v1/auth/login service", () => {
 
   it("khóa 15 phút sau 10 lần sai liên tiếp, kể cả khi lần sau đúng mật khẩu", async () => {
     for (let i = 0; i < 10; i++) {
-      await expect(login({ email: "owner.tripc.demo@gmail.com", password: "wrong" }, "10.0.0.1")).rejects.toMatchObject({
+      await expect(login({ email: "owner.tripc.demo@gmail.com", password: "wrong" }, { ip: "10.0.0.1", userAgent: null })).rejects.toMatchObject({
         code: "INVALID_CREDENTIALS",
       });
     }
-    await expect(login({ email: "owner.tripc.demo@gmail.com", password: "s3cret-pass" }, "10.0.0.2")).rejects.toMatchObject({
+    await expect(login({ email: "owner.tripc.demo@gmail.com", password: "s3cret-pass" }, { ip: "10.0.0.2", userAgent: null })).rejects.toMatchObject({
       statusCode: 429,
       code: "TOO_MANY_ATTEMPTS",
     });
+  });
+});
+
+describe("Auth: logout & change password service", () => {
+  beforeEach(() => {
+    process.env.AUTH_SECRET = SECRET;
+  });
+
+  it("logout thu hồi đúng phiên trong token; dev token không có phiên để thu hồi", async () => {
+    const repo = await import("../../src/modules/auth/repository");
+    const { logout } = await import("../../src/modules/auth/service");
+    const sid = "c1000000-0000-4000-8000-000000000001";
+    expect(await logout({ id: USER_ID, email: "o@gmail.com", name: "O", sessionId: sid })).toEqual({
+      success: true,
+      session_revoked: true,
+    });
+    expect(repo.revokeSession).toHaveBeenCalledWith(USER_ID, sid);
+    expect(await logout({ id: USER_ID, email: "o@gmail.com", name: "O" })).toEqual({ success: true, session_revoked: false });
+  });
+
+  it("đổi mật khẩu: sai mật khẩu hiện tại → 401, trùng cũ → 422, đúng → lưu hash mới và thu hồi phiên khác", async () => {
+    const repo = await import("../../src/modules/auth/repository");
+    const { changePassword } = await import("../../src/modules/auth/service");
+    const user = { id: USER_ID, email: "owner.tripc.demo@gmail.com", name: "Linh Tran" };
+
+    await expect(changePassword(user, { current_password: "wrong", new_password: "brand-new-pass" })).rejects.toMatchObject({
+      statusCode: 401,
+      code: "INVALID_CREDENTIALS",
+    });
+    await expect(changePassword(user, { current_password: "s3cret-pass", new_password: "s3cret-pass" })).rejects.toMatchObject({
+      statusCode: 422,
+      code: "PASSWORD_UNCHANGED",
+    });
+    await expect(changePassword(user, { current_password: "s3cret-pass", new_password: "short" })).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+
+    const res = await changePassword(user, { current_password: "s3cret-pass", new_password: "brand-new-pass" });
+    expect(res.success).toBe(true);
+    const [savedId, savedHash] = vi.mocked(repo.setPasswordHash).mock.calls.at(-1)!;
+    expect(savedId).toBe(USER_ID);
+    expect(await verifyPassword("brand-new-pass", savedHash as string)).toBe(true);
+    expect(repo.revokeOtherSessions).toHaveBeenCalledWith(USER_ID, null);
   });
 });

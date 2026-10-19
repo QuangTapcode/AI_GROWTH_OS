@@ -1,6 +1,6 @@
 import { AppError } from "../../lib/errors";
 import { AuthUser } from "../../lib/auth";
-import { resolveTenantContext, requireRole } from "../../lib/tenant";
+import { assertActiveSession, resolveTenantContext, requireRole } from "../../lib/tenant";
 import { withTransaction } from "../../lib/db";
 import {
   createWorkspaceSchema,
@@ -11,6 +11,7 @@ import {
 import * as repo from "./repository";
 
 export async function listUserWorkspaces(user: AuthUser) {
+  await assertActiveSession(user);
   await repo.ensureUserExists(user.id, user.email, user.name);
   const items = await repo.listWorkspacesForUser(user.id);
   return { items };
@@ -27,6 +28,7 @@ export async function getWorkspaceDetail(user: AuthUser, workspaceId: string) {
 }
 
 export async function createWorkspace(user: AuthUser, rawInput: unknown) {
+  await assertActiveSession(user);
   const parseResult = createWorkspaceSchema.safeParse(rawInput);
   if (!parseResult.success) {
     const fieldErrors: Record<string, string[]> = {};

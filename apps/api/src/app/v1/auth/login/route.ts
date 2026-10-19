@@ -10,7 +10,7 @@ function clientIp(req: NextRequest): string {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null);
-    const data = await login(body, clientIp(req));
+    const data = await login(body, { ip: clientIp(req), userAgent: req.headers.get("user-agent") });
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     return handleApiError(err);

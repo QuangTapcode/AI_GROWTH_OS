@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { PipelineStage, GrowthTask } from "../types";
 
@@ -9,6 +9,8 @@ interface StageDetailsModalProps {
   onClose: () => void;
   stage?: PipelineStage | null;
   task?: GrowthTask | null;
+  /** Có giá trị khi người dùng được phép chạy lại task bị lỗi */
+  onRetry?: (taskId: string) => Promise<void>;
 }
 
 export default function StageDetailsModal({
@@ -16,7 +18,10 @@ export default function StageDetailsModal({
   onClose,
   stage,
   task,
+  onRetry,
 }: StageDetailsModalProps) {
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
   // Close on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -39,6 +44,20 @@ export default function StageDetailsModal({
   const description = (stage ? stage.description : task?.description) || "No description provided.";
   const logs = stage?.logs || task?.logs || [];
   const needsReview = status === "Needs review" || status === "Approval required";
+  const failedTaskId = status === "Blocked" || status === "Failed" ? (task?.id ?? stage?.id) : undefined;
+
+  const handleRetry = async () => {
+    if (!onRetry || !failedTaskId) return;
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      await onRetry(failedTaskId);
+    } catch (err) {
+      setRetryError(err instanceof Error ? err.message : "Could not retry the task.");
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   // Status badge styling helper matching the mockup
   const getStatusBadge = (st: string) => {
@@ -176,8 +195,22 @@ export default function StageDetailsModal({
           </div>
         </div>
 
+        {retryError && (
+          <p className="mx-5 mb-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">{retryError}</p>
+        )}
+
         {/* Modal Footer */}
         <div className="px-5 py-3.5 bg-white border-t border-slate-100 flex items-center justify-end gap-2.5">
+          {onRetry && failedTaskId && (
+            <button
+              type="button"
+              onClick={handleRetry}
+              disabled={retrying}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors disabled:opacity-60"
+            >
+              {retrying ? "Retrying…" : "Retry task"}
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

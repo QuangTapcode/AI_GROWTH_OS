@@ -18,7 +18,23 @@ Script cài dependencies bằng `npm ci` khi thiếu, tạo `.env.local` từ `.
 | Web quản trị | http://localhost:3000 | /health |
 | API | http://localhost:4000 | /health và /v1/health |
 
-Server chỉ bind `127.0.0.1`. Đây là staging local; `https://aigrowthos-staging.pages.dev/` vẫn là trang thông báo riêng trên Cloudflare Pages, chưa phục vụ các app/API này. GA4/GSC đã thiết lập cho URL công khai đó; bootstrap local không gửi telemetry vào GA4.
+Server chỉ bind `127.0.0.1`. GA4/GSC đã thiết lập cho URL công khai `https://aigrowthos-staging.pages.dev/`; bootstrap local không gửi telemetry vào GA4.
+
+## Public staging trên Cloudflare Pages
+
+`https://aigrowthos-staging.pages.dev/` phục vụ `apps/web` (static export). Request `/v1/*` đi qua Pages Function (`cloudflare-pages/v1-proxy.template.js`) tới API local qua Cloudflare quick tunnel:
+
+```powershell
+.\infra\staging\start.ps1                      # API phải chạy ở 127.0.0.1:4000
+.\infra\staging\cloudflare-pages\deploy.ps1    # bật tunnel (nếu chưa), build, deploy branch main
+.\infra\staging\tunnel.ps1 -Stop               # tắt tunnel → pages.dev báo API_UNREACHABLE
+```
+
+- Cần `cloudflared.exe` ở `%LOCALAPPDATA%\cloudflared\` (bản chính thức từ GitHub release, kiểm tra chữ ký Cloudflare, Inc.) và `wrangler` đã đăng nhập tài khoản sở hữu project.
+- Quick tunnel (`*.trycloudflare.com`) không cần domain nhưng URL đổi mỗi lần khởi động lại và không có SLA: sau khi reboot/tắt tunnel, chạy lại `deploy.ps1`. Máy chạy API phải luôn bật.
+- API qua tunnel chạy `next start` (NODE_ENV=production): token dev bị chặn, chỉ đăng nhập bằng mật khẩu. Đổi mật khẩu tài khoản demo sau khi chia sẻ link.
+- Muốn URL API ổn định: tạo named tunnel trên domain có trong Cloudflare rồi chạy `deploy.ps1 -ApiOrigin https://api.<domain>`.
+- `deploy.ps1 -SkipDeploy` chỉ build vào `.runtime/pages-build` để xem trước bằng `wrangler pages dev out`.
 
 ## Kiểm tra
 

@@ -31,13 +31,14 @@ function DashboardContent() {
   const [toast, setToast] = useState<string | null>(null);
 
   const { data, error, loading, reload } = useApiData(`${workspace.id}:${rangeDays}`, async (signal) => {
-    const [tasks, approvals, artifacts, exceptions, report, previous] = await Promise.all([
+    const [tasks, approvals, artifacts, exceptions, report, previous, sessions] = await Promise.all([
       growthApi.listTasks(workspace.id, signal),
       growthApi.listApprovals(workspace.id, signal),
       growthApi.listArtifacts(workspace.id, signal),
       growthApi.listExceptions(workspace.id, signal),
       growthApi.getReport(workspace.id, periodRange(rangeDays), signal),
       growthApi.getReport(workspace.id, periodRange(rangeDays, 1), signal),
+      growthApi.getMetricSeries(workspace.id, "sessions", periodRange(rangeDays), signal),
     ]);
     return {
       tasks: tasks.items,
@@ -46,6 +47,7 @@ function DashboardContent() {
       exceptions: exceptions.items,
       report,
       previous,
+      sessions,
     };
   });
 
@@ -128,7 +130,7 @@ function DashboardContent() {
           {/* ── 2. Middle Row: Traffic Chart & AI Agent Activity ── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
             <div className="lg:col-span-7 flex flex-col">
-              <TrafficTrendChart report={data.report} />
+              <TrafficTrendChart report={data.report} series={data.sessions} />
             </div>
             <div className="lg:col-span-5 flex flex-col">
               <AgentActivityCard tasks={data.tasks} />

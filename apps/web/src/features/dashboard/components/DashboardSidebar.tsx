@@ -45,6 +45,9 @@ export default function DashboardSidebar({
     "/workflows": "workflows",
     "/review-queue": "review-queue",
     "/artifacts": "artifacts",
+    "/distribution": "distribution",
+    "/growth-results": "growth-results",
+    "/workspace": "workspace-integrations",
   };
   const currentTab = TAB_BY_PATH[pathname.replace(/\/$/, "")] ?? activeTab;
 
@@ -156,6 +159,7 @@ export default function DashboardSidebar({
     {
       id: "distribution",
       label: "Distribution",
+      href: "/distribution",
       icon: (
         <svg
           className="w-5 h-5"
@@ -174,6 +178,7 @@ export default function DashboardSidebar({
     {
       id: "growth-results",
       label: "Growth Results",
+      href: "/growth-results",
       icon: (
         <svg
           className="w-5 h-5"
@@ -192,6 +197,7 @@ export default function DashboardSidebar({
     {
       id: "workspace-integrations",
       label: "Workspace & Integrations",
+      href: "/workspace",
       icon: (
         <svg
           className="w-5 h-5"
@@ -405,7 +411,7 @@ export default function DashboardSidebar({
         </div>
 
         <div className="space-y-1">
-          <div className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
+          <div role="link" tabIndex={0} onClick={() => router.push("/workspace#profile")} className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <svg
                 className="w-4 h-4 text-blue-200"
@@ -431,7 +437,7 @@ export default function DashboardSidebar({
             </div>
           </div>
 
-          <div className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
+          <div role="link" tabIndex={0} onClick={() => router.push("/workspace#integrations")} className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <svg
                 className="w-4 h-4 text-blue-200"

@@ -142,6 +142,18 @@ export async function updateWorkspaceTaskStatus(
   return updatedTask;
 }
 
+export async function retryWorkspaceTask(user: AuthUser, workspaceId: string, taskId: string) {
+  const tenantCtx = await resolveTenantContext(user, workspaceId);
+  requireRole(tenantCtx, ["owner", "editor"]);
+
+  const task = await repo.requeueFailedTask(workspaceId, taskId, user.id);
+  if (task) return task;
+
+  const existing = await repo.getTaskById(workspaceId, taskId);
+  if (!existing) throw new AppError(404, "NOT_FOUND", "Workflow task not found");
+  throw new AppError(409, "INVALID_STATE_TRANSITION", `Only failed tasks can be retried (current status: ${existing.status})`);
+}
+
 export async function createWorkspaceArtifact(
   user: AuthUser,
   workspaceId: string,

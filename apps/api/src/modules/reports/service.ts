@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { globalLeadRepo } from '../../lib/public-service';
 import { query as dbQuery } from '../../lib/db';
+import { METRIC_PROVIDER, dailySnapshots } from '../metrics/service';
 import type {
   ReportQuery,
   ReportQueryInput,
@@ -141,6 +142,28 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
         currency: snapshot.currency,
       };
     }
+  }
+
+  // Snapshot theo ngày trong DB (POST /metrics hoặc worker sync): cộng dồn trong kỳ.
+  // Đủ mọi ngày → available; thiếu ngày → partial (không lấp chỗ trống bằng 0).
+  try {
+    const dayCount = Math.round((Date.parse(toDate) - Date.parse(fromDate)) / 86_400_000) + 1;
+    for (const metric of Object.keys(METRIC_PROVIDER)) {
+      const points = (await dailySnapshots(workspaceId, metric, fromDate, toDate)).filter(
+        (p) => p.availability === 'available' && p.value !== null
+      );
+      if (points.length === 0) continue;
+      const complete = points.length >= dayCount;
+      kpis[metric] = {
+        metric,
+        value: points.reduce((sum, p) => sum + (p.value as number), 0),
+        availability: complete ? 'available' : 'partial',
+        missing_reason: complete ? null : 'SYNC_NOT_RUN_YET',
+        ...(metric === 'ad_spend' ? { currency } : {}),
+      };
+    }
+  } catch {
+    // DB không sẵn sàng (test in-memory): giữ số liệu hiện có
   }
 
   return {

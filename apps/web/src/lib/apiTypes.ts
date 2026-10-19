@@ -169,3 +169,120 @@ export interface SystemException {
 export interface ListResponse<T> {
   items: T[];
 }
+
+export interface BusinessProfile {
+  id: string;
+  workspace_id: string;
+  company_name: string;
+  website_url: string | null;
+  industry: string | null;
+  overview: string | null;
+  safety_rules: Record<string, boolean> | null;
+  target_locations: string[] | null;
+  target_audiences: string[] | null;
+  products_services: string[] | null;
+  brand_voice: string | null;
+  brand_guidelines: string | null;
+  competitors: string[] | null;
+  version: number;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+export type UpdateBusinessProfileInput = Partial<
+  Pick<
+    BusinessProfile,
+    | "company_name"
+    | "website_url"
+    | "industry"
+    | "overview"
+    | "brand_voice"
+    | "brand_guidelines"
+  >
+> & {
+  expected_version: number;
+  target_locations?: string[];
+  target_audiences?: string[];
+  products_services?: string[];
+  competitors?: string[];
+};
+
+export interface IntegrationProviderStatus {
+  provider: string;
+  workspace_id: string;
+  status: "not_connected" | "connecting" | "connected" | "error" | "revoked";
+  missing_reason: string | null;
+  property_ref: string | null;
+  scopes: string[];
+  capabilities: Array<{ capability: string; status: string }>;
+}
+
+export interface IntegrationsResponse {
+  providers: IntegrationProviderStatus[];
+  publishing: Array<{ channel: string; provider: string; mode: "live" | "manual"; label: string; missing_reason: string | null }>;
+}
+
+export interface Channel {
+  id: string;
+  workspace_id: string;
+  platform_name: "website" | "facebook" | "instagram" | "linkedin" | "email";
+  channel_identifier: string | null;
+  display_name: string | null;
+  created_at: string;
+  publish_mode: "live" | "manual";
+}
+
+export interface PublishingJob {
+  id: string;
+  workspace_id: string;
+  content_id: string;
+  channel_id: string;
+  artifact_id: string | null;
+  approval_id: string | null;
+  scheduled_for: string;
+  published_at: string | null;
+  status: "scheduled" | "publishing" | "published" | "cancelled" | "failed";
+  mode: "live" | "manual";
+  utm_url: string | null;
+  external_post_id: string | null;
+  error_message: string | null;
+  created_by: string | null;
+  created_at: string;
+  content_title: string;
+  artifact_version: number | null;
+  platform_name: string;
+  channel_name: string | null;
+}
+
+export interface MetricSeries {
+  metric: string;
+  provider: string;
+  from: string;
+  to: string;
+  points: Array<{ date: string; value: number | null; availability: MetricAvailability; missing_reason: string | null }>;
+  availability: "available" | "missing";
+  missing_reason: string | null;
+}
+
+export interface Lead {
+  id: string;
+  site_id: string;
+  email: string;
+  name: string;
+  interest_topic: string;
+  lead_status: "New" | "Assigned" | "Contacted" | "Converted" | "Archived";
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  captured_at: string;
+}
+
+export interface Member {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: Role;
+  status: string;
+  created_at: string;
+  user: { email: string; full_name: string; avatar_url?: string | null };
+}

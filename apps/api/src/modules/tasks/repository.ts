@@ -1,4 +1,4 @@
-import pool, { query } from "../../lib/db";
+import pool, { query, withTransaction } from "../../lib/db";
 import { CreateWorkflowTaskInput, UpdateTaskStatusInput, CreateArtifactInput } from "./schemas";
 
 export interface WorkflowTaskRow {
@@ -179,6 +179,34 @@ export async function updateTaskStatus(
   ]);
 
   return res.rows[0] || null;
+}
+
+/**
+ * Đưa task failed về queued để worker chạy lại; xóa lỗi cũ, giữ retry_count làm lịch sử.
+ * Điều kiện status = 'failed' nằm trong WHERE nên hai request song song chỉ một bên thành công.
+ */
+export async function requeueFailedTask(
+  workspaceId: string,
+  taskId: string,
+  actorId: string
+): Promise<WorkflowTaskRow | null> {
+  return withTransaction(async (client) => {
+    const res = await client.query<WorkflowTaskRow>(
+      `UPDATE workflow_tasks
+       SET status = 'queued', error_details = NULL, started_at = NULL, completed_at = NULL, updated_at = NOW()
+       WHERE workspace_id = $1 AND id = $2 AND status = 'failed'
+       RETURNING *`,
+      [workspaceId, taskId]
+    );
+    const task = res.rows[0];
+    if (!task) return null;
+    await client.query(
+      `INSERT INTO audit_events (workspace_id, actor_id, action, entity_type, entity_id, entity_version, details)
+       VALUES ($1, $2, 'task.retry_requested', 'workflow_task', $3, $4, $5)`,
+      [workspaceId, actorId, taskId, task.input_version, JSON.stringify({ retry_count: task.retry_count })]
+    );
+    return task;
+  });
 }
 
 export async function createArtifact(

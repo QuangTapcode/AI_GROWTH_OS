@@ -89,8 +89,14 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
   }, [selectedId, attentionVersion]);
 
   const logout = useCallback(() => {
-    clearSession();
-    router.replace("/login");
+    // Thu hồi phiên phía server trước (token bị từ chối ngay), lỗi mạng vẫn xóa phiên local
+    growthApi
+      .logout()
+      .catch(() => undefined)
+      .finally(() => {
+        clearSession();
+        router.replace("/login");
+      });
   }, [router]);
 
   const selectWorkspace = useCallback((id: string) => {

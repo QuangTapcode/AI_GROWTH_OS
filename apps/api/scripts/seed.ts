@@ -305,6 +305,15 @@ async function main() {
       );
     }
 
+    // Kênh phân phối (migration 006): chưa kết nối API nên đăng ở chế độ manual
+    await client.query(
+      `INSERT INTO channels (id, workspace_id, platform_name, display_name, channel_identifier) VALUES
+         ('c1000000-0000-4000-8000-000000000001', $1, 'website', 'TripC blog', 'https://tripc.vn/blog'),
+         ('c1000000-0000-4000-8000-000000000002', $1, 'facebook', 'TripC Facebook page', 'facebook.com/tripc')
+       ON CONFLICT (id) DO NOTHING`,
+      [TRIPC]
+    );
+
     await client.query(
       `INSERT INTO campaigns (id, workspace_id, name, utm_campaign, start_date, end_date)
        VALUES ($1, $2, 'Central Vietnam SEO — Q4', 'cv-seo-q4', CURRENT_DATE - 7, CURRENT_DATE + 60)
