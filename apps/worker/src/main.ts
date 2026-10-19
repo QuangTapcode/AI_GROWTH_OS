@@ -19,17 +19,59 @@ import {
   queueNameForOperation,
 } from './jobs';
 import { PgBossQueue, type QueueTransport } from './adapters/QueueAdapter';
-import { FakeAiAdapter } from './adapters/AiAdapter';
+import { FakeAiAdapter, type AiAdapter } from './adapters/AiAdapter';
+import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { FileResultStorage } from './adapters/StorageAdapter';
+import { DbWorkflowStore } from './workflow';
+import { Pool } from 'pg';
+import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
+
+/** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
+let workflowStore: DbWorkflowStore | null = null;
+
+/** Chọn AI adapter theo config: fake (mặc định) | live (HTTP CR-001). */
+function buildAiAdapter(cfg: ReturnType<typeof env>): AiAdapter {
+  if (cfg.AI_PROVIDER_MODE === 'live') {
+    return new HttpAiAdapter({
+      baseUrl: cfg.AI_SERVICE_BASE_URL,
+      token: cfg.INTERNAL_AI_AUTH_TOKEN || undefined,
+      pollIntervalMs: cfg.AI_HTTP_POLL_INTERVAL_MS,
+      pollTimeoutMs: cfg.AI_HTTP_POLL_TIMEOUT_MS,
+      requestTimeoutMs: cfg.AI_HTTP_REQUEST_TIMEOUT_MS,
+    });
+  }
+  return new FakeAiAdapter();
+}
 
 async function main(): Promise<void> {
   const cfg = env();
+  const planPool = new Pool({ host: cfg.QUEUE_HOST, port: cfg.QUEUE_PORT, user: cfg.QUEUE_USER,
+    password: cfg.QUEUE_PASSWORD, database: cfg.QUEUE_DATABASE });
+  const planOutbox = new PlanOutboxRunner(planPool, buildAiAdapter(cfg));
+  let planRunning = false;
+  const planTimer = setInterval(() => {
+    // A fake echo adapter has no signed AI artifacts; only HTTP-backed workers consume plans.
+    if (cfg.AI_PROVIDER_MODE !== 'live' || planRunning) return;
+    planRunning = true;
+    void planOutbox.runOnce().catch(error => console.error('[plan-outbox]', (error as Error).message))
+      .finally(() => { planRunning = false; });
+  }, 1000);
+  planTimer.unref();
+  // Wire DbWorkflowStore (MY-03): verify Postgres connection at startup.
+  workflowStore = new DbWorkflowStore();
+  try {
+    await workflowStore.getWorkflow('__worker_probe__');
+    console.log('[worker] DbWorkflowStore connected OK');
+  } catch (err) {
+    console.warn('[worker] DbWorkflowStore not available:', err);
+  }
+
   const store = new FileJobStore(cfg.WORKER_STATE_DIR);
   const storage = new FileResultStorage(cfg.WORKER_STATE_DIR);
   const runner = new JobRunner({
     store,
     storage,
-    ai: new FakeAiAdapter(),
+    ai: buildAiAdapter(cfg),
     handlers: buildOperationHandlers(),
     heartbeatIntervalMs: cfg.HEARTBEAT_INTERVAL_MS,
     leaseTtlMs: cfg.HEARTBEAT_TTL_MS,
@@ -77,8 +119,10 @@ async function main(): Promise<void> {
     if (stopping) return;
     stopping = true;
     clearInterval(sweep);
+    clearInterval(planTimer);
     console.log(`[worker] ${signal} received, stopping queue...`);
     await queue.stop();
+    await planPool.end();
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));
@@ -90,6 +134,7 @@ async function main(): Promise<void> {
 }
 
 export { submitJob } from './jobs';
+export { workflowStore };
 
 if (require.main === module) {
   main().catch((err) => {

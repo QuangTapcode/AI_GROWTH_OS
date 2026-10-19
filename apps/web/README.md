@@ -1,6 +1,6 @@
 # FE — Web
 
-Owner: Tiến/Huyền (FE), Tiến đầu mối shell/config/lockfile; Huyền content flows/mocks/tests theo [TEAM](../../docs/coordination/TEAM.md). TypeScript/Next.js; đây là app quản trị và CMS UI. Website công khai nằm riêng ở [apps/pilot](../pilot/README.md). Vùng sửa: `apps/web/**`. Đã có bootstrap shell và kiểm tra kết nối API; auth/CMS chưa triển khai. Phạm vi sản phẩm tiếp tục theo W1-FE-01/W1-FE-02 trong [TODO](../../TODO.md).
+Owner: Tiến/Huyền (FE), Tiến đầu mối shell/config/lockfile; Huyền content flows/mocks/tests theo [TEAM](../../docs/coordination/TEAM.md). TypeScript/Next.js; đây là app quản trị và CMS UI. Website công khai nằm riêng ở [apps/pilot](../pilot/README.md). Vùng sửa: `apps/web/**`. Đã có shell, đăng nhập email/mật khẩu và các màn hình nối API thật; CMS chưa triển khai. Phạm vi sản phẩm tiếp tục theo W1-FE-01/W1-FE-02 trong [TODO](../../TODO.md).
 
 ## Chạy bootstrap local — 06/10/2026
 
@@ -25,7 +25,18 @@ npm.cmd run test:e2e
 
 Test cần cả ba ứng dụng đang chạy. Dùng [start.ps1](../../infra/staging/start.ps1) và [stop.ps1](../../infra/staging/stop.ps1) theo [hướng dẫn staging](../../infra/staging/README.md).
 
-`src/features/staging/api-status.tsx` là phần kiểm tra kết nối; `src/lib/api.ts` gọi HTTP API và kiểm tra response. `/health` chỉ đo tiến trình web. Bootstrap chưa cung cấp login, workspace, roles, CMS hay live Google API connector.
+`src/features/staging/api-status.tsx` là phần kiểm tra kết nối; `src/lib/api.ts` gọi HTTP API và kiểm tra response. `/health` chỉ đo tiến trình web. Chưa có CMS hay live Google API connector.
+
+### Đăng nhập và dữ liệu thật
+
+Dashboard, Workflows, Review Queue và Artifacts đọc/ghi qua API, không còn mock data:
+
+- `/login` gọi `POST /v1/auth/login`; token lưu ở `src/lib/session.ts` và gửi kèm `Authorization: Bearer`. 401 tự xóa phiên và về `/login?next=...`.
+- `src/features/shell/AppShell.tsx` + `WorkspaceProvider.tsx`: kiểm tra phiên, tải `/v1/auth/me`, chọn workspace (nhớ trong localStorage), quyền theo role (viewer chỉ xem, owner mới duyệt).
+- `src/lib/api.ts` (`growthApi`) là client typed; `src/features/*/adapters.ts` chuyển dữ liệu API sang kiểu hiển thị. Không tự suy số liệu: chỉ số chưa có nguồn (GA4/GSC/Meta) hiển thị "Not connected" kèm `missing_reason` từ API.
+- Ghi dữ liệu: tạo task (`POST /tasks`), gửi duyệt (`POST /approvals`), duyệt/từ chối (`POST /approvals/{id}/review` với version + hash), sửa artifact = tạo version mới (`POST /artifacts`).
+
+Cần API đã `db:migrate` + `db:seed` (xem [API README](../api/README.md)).
 
 ## Cách làm độc lập
 

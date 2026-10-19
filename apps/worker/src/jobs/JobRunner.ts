@@ -8,10 +8,11 @@ import { WorkerLimits } from './JobState';
 
 /** Lỗi không được retry — job failed ngay attempt hiện tại. */
 export class PermanentJobError extends Error {
-  readonly code = 'PERMANENT_FAILURE';
-  constructor(message: string) {
+  readonly code: string;
+  constructor(message: string, code = 'PERMANENT_FAILURE') {
     super(message);
     this.name = 'PermanentJobError';
+    this.code = code;
   }
 }
 
@@ -221,7 +222,11 @@ export class JobRunner {
     const error = err instanceof Error ? err : new Error(String(err));
     const errorCode: string =
       (err as { code?: string }).code ?? 'JOB_EXECUTION_FAILED';
-    const permanent = err instanceof PermanentJobError || err instanceof ProviderCallLimitError;
+    // AiHttpError (HttpAiAdapter) đánh dấu lỗi input/conflict là permanent.
+    const permanent =
+      err instanceof PermanentJobError ||
+      err instanceof ProviderCallLimitError ||
+      (err as { permanent?: boolean }).permanent === true;
 
     const decision = computeRetry(job, { permanent }, this.retry, this.now());
 

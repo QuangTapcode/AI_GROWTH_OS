@@ -37,4 +37,4 @@ Thiệu đo 10 phút trên local/staging với fake provider trước; live AI �
 
 Nguồn: [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [embeddings](https://docs.ollama.com/api/embed), [SearXNG JSON API](https://docs.searxng.org/dev/search_api.html). JSON format của SearXNG phải bật trên instance tự host; backend engines vẫn có hạn mức/quyền truy cập riêng, không được coi là search miễn phí không giới hạn.
 
-[W1-PM-02](W1-PM-02.md) · [PILOT](PILOT.md) · [SOURCES](SOURCES.md).
+W1-PM-02 (tài liệu cũ đã xóa) · [PILOT](PILOT.md) · [SOURCES](SOURCES.md).

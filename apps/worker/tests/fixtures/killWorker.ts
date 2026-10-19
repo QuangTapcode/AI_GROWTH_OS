@@ -35,6 +35,10 @@ async function main(): Promise<void> {
     await new Promise(() => {}); // treo vô hạn — chờ SIGKILL từ test cha
     return { unreachable: true };
   });
+
+  // Promise treo phía trên KHÔNG giữ event loop (Node thoát code=0 → flaky).
+  // Keep-alive timer để process sống cho tới khi test cha SIGKILL.
+  setInterval(() => {}, 1_000);
 }
 
 void main();

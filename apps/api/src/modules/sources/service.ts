@@ -1,6 +1,7 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
+import { AppError } from "../../lib/errors";
+import { withTransaction } from "../../lib/db";
+import { AuthUser } from "../../lib/auth";
+import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import {
   createSourceSchema,
   reviewSourceSchema,
@@ -8,6 +9,7 @@ import {
   ReviewSourceInput,
 } from "./schemas";
 import * as repo from "./repository";
+import { invalidateApprovalsForTarget } from "../approvals/repository";
 
 export async function listWorkspaceSources(
   user: AuthUser,
@@ -81,29 +83,13 @@ export async function reviewWorkspaceSource(
 
   const input: ReviewSourceInput = parseResult.data;
 
-  // Kiểm tra sự tồn tại của nguồn
-  const source = await repo.getSourceById(workspaceId, sourceId);
-  if (!source) {
-    throw new AppError(404, "NOT_FOUND", "Source not found");
-  }
-
-  // OPTIMISTIC CONCURRENCY CHECK: So khớp expected_version
-  if (source.version !== input.expected_version) {
-    throw new AppError(
-      409,
-      "VERSION_CONFLICT",
-      `Stale version conflict. Current version is ${source.version}, but expected ${input.expected_version}. Please reload.`
-    );
-  }
-
-  const updatedSource = await repo.updateSourceReview(
+  // Thực thi atomic review bên trong transaction với row-lock và cascade invalidation
+  return repo.executeSourceReviewTransaction(
     workspaceId,
     sourceId,
-    input.decision,
+    input,
     user.id
   );
-
-  return updatedSource;
 }
 
 export async function deleteWorkspaceSource(
@@ -120,6 +106,11 @@ export async function deleteWorkspaceSource(
     throw new AppError(404, "NOT_FOUND", "Source not found");
   }
 
-  await repo.softDeleteSource(workspaceId, sourceId);
+  // Thực thi soft-delete và cascade revoke trong 1 transaction an toàn
+  await withTransaction(async (client) => {
+    await repo.softDeleteSource(workspaceId, sourceId, client);
+    await invalidateApprovalsForTarget(workspaceId, "source", sourceId, "SOURCE_DELETED", client);
+  });
+
   return { success: true, message: "Source deleted successfully" };
 }

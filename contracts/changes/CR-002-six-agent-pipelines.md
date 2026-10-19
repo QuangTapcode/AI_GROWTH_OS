@@ -2,6 +2,8 @@
 
 Ngày: 14/10/2026. Owner: Quang Quang. **Implementation candidate, chờ Dương/Mỹ/Thiệu Quang review**; không ghi nhận phê duyệt thay reviewer. Phạm vi QQ-01–03.
 
+**Review 16/10/2026:** Research nay yêu cầu `business_profile.version` và cả hai snapshot IDs được pin/khớp; thiếu pin trả `SNAPSHOT_REQUIRED`, thiếu profile version trả `PROFILE_VERSION_REQUIRED` trước provider. Quote whitespace bị loại. Payload/HTTP schema dùng chung giữ version hiện tại, nhưng consumer cũ thiếu các giá trị này phải migrate; chưa coi version freeze đã được reviewer thông qua. [Test cases và manual review](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-16-QQ01-03-TEST-CASES.md).
+
 ## Baseline và budget
 
 Giữ roster 7 người theo TEAM, 6 role theo registry, một process AI và concurrency 1. Orchestrator/executor do BE điều phối; AI không tự duyệt nguồn, ghi DB nghiệp vụ hoặc publish/send. Meta Ads read-only. Paid-provider budget mặc định 0 USD; chỉ dùng Ollama/model local đã có, không thêm cloud fallback/download model. Chi phí điện/phần cứng chưa đo, không gọi tổng chi phí bằng 0.
@@ -10,7 +12,7 @@ Caps thực thi: 2 LLM calls/job gồm repair/retry, budget persist qua restart;
 
 ## Contracts và quyền
 
-[Bundle JSON](../schemas/ai-six-role-contracts.json) chứa input/output schema, HTTP envelope, limits và role/tool matrix. Research và HTTP schemas được xuất từ Pydantic thực thi; schema của năm role khác là `design_review_candidate_not_active`, phục vụ QQ-04 trở đi. Không bật validators thiết kế vào các bootstrap handlers trước khi consumer chuyển đổi.
+[Bundle JSON](../schemas/ai-six-role-contracts.json) chứa input/output schema, HTTP envelope, limits và role/tool matrix. Research và HTTP schemas được xuất từ Pydantic thực thi; baseline QQ-01–03 giữ năm role khác ở `design_review_candidate_not_active`. Cập nhật QQ-04: ba Growth Lead planning operations đã có typed schema thực thi theo [CR-003](CR-003-growth-lead-plans.md); learning và bốn role còn lại vẫn bootstrap. Không bật validators thiết kế vào các bootstrap handlers trước khi consumer chuyển đổi.
 
 | Role | Input | Output chính | Tool scope đề xuất |
 | --- | --- | --- | --- |
@@ -52,6 +54,6 @@ M là effort tương đối, không phải thời gian đo; giữ một task ch�
 
 ## Kiểm tra
 
-104 AI tests đạt ở vòng triển khai. Live smoke có 4 operation completed, Research 1 LLM call, idempotent retry và artifact qua restart đạt. [Handoff/evidence](../../docs/coordination/sprint-3-weeks/QQ01-03-HANDOFF.md).
+104 AI tests đạt ở vòng triển khai. Live smoke có 4 operation completed, Research 1 LLM call, idempotent retry và artifact qua restart đạt. [Handoff/evidence](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-QQ01-03-HANDOFF.md).
 
 Smoke dùng process/token/SQLite riêng, nguồn công khai và profile/approval TEST. Không coi đây là nguồn production được duyệt, integrated business DB hoặc actual demo dashboard. Backend cần review version bump cho typed Research input trước release; OpenAPI public không tự được coi là đã cập nhật.

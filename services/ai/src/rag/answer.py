@@ -113,13 +113,18 @@ def _answer_from_facts(ctx: RunContext, eligible: list[SnapshotSource], result: 
 
 
 def _extractive_fake(question: str, selected: list[ScoredChunk], ids: list[str]) -> dict:
-    question_terms = terms(question)
-    best: tuple[float, str, str] | None = None
+    # Entity names identify a source, but do not answer an amenity question.
+    # Normalize simple English plurals and rank by the remaining information need.
+    normalize = lambda words: {w[:-1] if len(w) > 3 and w.endswith("s") else w for w in words}
+    entity_terms = normalize(set().union(*(terms(item.source.title or "") for item in selected)))
+    question_terms = normalize(terms(question)) - entity_terms - {"have", "come", "tell", "about"}
+    best: tuple[tuple[int, int], str, str] | None = None
     for short_id, item in zip(ids, selected):
         for sentence in _SENTENCE.split(item.chunk.text):
-            overlap = len(question_terms & terms(sentence))
-            if overlap and (best is None or overlap > best[0]):
-                best = (overlap, sentence.strip(), short_id)
+            overlap = len(question_terms & normalize(terms(sentence)))
+            score = (overlap, -len(entity_terms & normalize(terms(sentence))))
+            if overlap and (best is None or score > best[0]):
+                best = (score, sentence.strip(), short_id)
     if best is None:
         return {"answer": INSUFFICIENT, "cited_chunk_ids": []}
     return {"answer": best[1], "cited_chunk_ids": [best[2]]}

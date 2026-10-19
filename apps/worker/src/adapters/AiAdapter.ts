@@ -1,20 +1,46 @@
-﻿import type { JobOperator } from '../jobs/JobState';
+import type { JobOperator } from '../jobs/JobState';
 
 /**
- * Giao tiếp worker ↔ AI (W1-MY-01): W1 dùng FakeAiAdapter để test nội bộ
- * không phụ thuộc service Python; adapter HTTP thật nối sau (W2).
+ * Giao tiếp worker ↔ AI.
+ * - FakeAiAdapter (AI_PROVIDER_MODE=fake, mặc định): deterministic, test nội bộ.
+ * - HttpAiAdapter (AI_PROVIDER_MODE=live): contract CR-001 POST /internal/v1/runs.
  */
+export interface AiSourceVersionRef {
+  source_id: string;
+  version: number;
+}
+
 export interface AiRunRequest {
   operation: JobOperator;
   input: Record<string, unknown>;
   /** Idempotency key để AI service không tính trùng call khi worker retry */
   idempotency_key?: string;
+  /** Worker operation đã map sang AI operation (research → research.run) */
+  aiOperation?: string;
+  /** Context bắt buộc với HttpAiAdapter — AI service validate theo CR-001 */
+  job_id?: string;
+  workspace_id?: string;
+  input_version?: number;
+  trace_id?: string;
+  context_snapshot_id?: string | null;
+  approved_source_versions?: AiSourceVersionRef[];
+  /** Pin phiên bản prompt/model nếu consumer yêu cầu đúng bản đã duyệt */
+  prompt_version?: string;
+  model_version?: string;
+  /** Đánh dấu fixture; chỉ dùng với input TEST/provenance hợp lệ */
+  synthetic?: boolean;
 }
 
 export interface AiRunResult {
   output: Record<string, unknown>;
   model: string;
+  prompt_version?: string;
   schema_version: string;
+  /** Run/artifact từ AI run store (CR-002) — persist cùng job result */
+  run_id?: string;
+  artifact?: Record<string, unknown> | null;
+  evidence?: unknown[];
+  provider_calls?: number;
 }
 
 export interface AiAdapter {

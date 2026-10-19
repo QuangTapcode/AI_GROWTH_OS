@@ -13,21 +13,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Duyệt phạm vi với Dương; chốt schema input/output, role/tool matrix, budget và một LLM job tại một thời điểm. Có decision và estimate sau D2.
 - **Phụ thuộc:** DU-01, TQ-01.
 - **Reviewer:** Dương + Mỹ.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [CR-002](../../../contracts/changes/CR-002-six-agent-pipelines.md), [handoff](QQ01-03-HANDOFF.md) · Chờ Dương/Mỹ review baseline/schema/estimate; chưa ghi nhận approval.
+- **Theo dõi:** `local_verified` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · Executable six-role bundle, mapping/policy/estimate; Dương/Mỹ review pending. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ### [ ] QQ-02 · D4 · M · Nối knowledge snapshot và registry với một AI run thật
 
 - **Làm / đầu ra / Done:** Tái sử dụng ingest/answer/growth_map; input chỉ chứa nguồn approved đúng workspace/version; run có artifact, evidence và model/prompt version.
 - **Phụ thuộc:** TQ-02, MY-01.
 - **Reviewer:** Mỹ + Thiệu.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [live HTTP + persistence](../../../qa/evidence/qq01-03/live-report.json), [handoff](QQ01-03-HANDOFF.md) · AI boundary đã đạt; MY-01/TQ-02 còn cần nối worker/business DB, không tự tick dependency.
+- **Theo dõi:** `integrated` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · DB-issued context -> HTTP worker -> AI -> immutable ledger verified; real business data/dashboard UAT pending. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ### [ ] QQ-03 · D5 · M · Xây Research & Trend tối thiểu
 
 - **Làm / đầu ra / Done:** research.run có handler/schema riêng; brief có URL, fetched_at, audience/offer fit và missing facts; handoff cho Growth Lead.
 - **Phụ thuộc:** QQ-02, DU-02.
 - **Reviewer:** Dương + Thiệu.
-- **Theo dõi:** `local_verified` · PR/build: working tree, chưa commit · Evidence: [Research pipeline](../../../services/ai/src/agents/research/pipeline.py), [tests/live](QQ01-03-HANDOFF.md) · Dedicated handler/schema/prompt và brief live đã có; chờ Dương/Thiệu review, checkbox giữ trống.
+- **Theo dõi:** `integrated` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · Research v2: keywords/user_need/provenance, complete explanation guard; semantic review pending. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ## Tuần 2 — 22–28/10/2026
 
@@ -36,21 +36,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Chọn cơ hội từ research; brief SEO và social; dependencies và artifact refs rõ; backend xác thực kế hoạch trước enqueue.
 - **Phụ thuộc:** QQ-03, TQ-03.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `integrated` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · Plan v2 + PgPlanRepository/API/atomic outbox; concurrent replay/rollback verified. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ### [ ] QQ-05 · D8 · L · Xây SEO Worker và Content Marketing tối thiểu
 
 - **Làm / đầu ra / Done:** SEO tạo blog/title/meta/citations; Content tạo caption/CTA + ảnh doanh nghiệp hợp lệ; giữ parent/version. Tách thành PR SEO rồi PR Content, không dùng handler generic để nghiệm thu.
 - **Phụ thuộc:** QQ-04, DU-04, MY-04.
 - **Reviewer:** Dương + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `integrated` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · Dedicated SEO + Content, owner approval dependency, parent/version; synthetic assets only, real asset rights pending. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ### [ ] QQ-06 · D10 · M · Xây Community và Performance tối thiểu
 
 - **Làm / đầu ra / Done:** Community grounded reply + escalation/lead proposal; Performance nhận snapshot và trả evidence hoặc insufficient_data, chỉ đề xuất. Mỗi role có schema/tool scope/eval riêng.
 - **Phụ thuộc:** QQ-05, MY-06, DU-05.
 - **Reviewer:** Thiệu + Mỹ.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `integrated` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · Dedicated Community + Performance; citations/escalation/proposals, null vs zero; real metrics/consent/connector pending. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ## Tuần 3 — 29/10–04/11/2026
 
@@ -59,21 +59,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Growth Lead tổng hợp lead + metrics bằng refs; tạo task vòng tiếp có dedup key, quota, max iterations và lý do; thiếu metrics không bịa kết luận.
 - **Phụ thuộc:** QQ-06, MY-07, TQ-07.
 - **Reviewer:** Dương + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `integrated` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · Learning + persisted aggregate refs + owner approval + dedup/quota/max3 + next research outbox verified. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ### [ ] QQ-08 · D13 · M · Đánh giá sáu role và sửa lỗi chất lượng
 
 - **Làm / đầu ra / Done:** Tái sử dụng bộ 30 ca và bổ sung coverage cho 6 role; freeze dataset/rubric/model/prompt; báo cáo fake tách live, có QA kiểm chứng.
 - **Phụ thuộc:** TH-06, DU-07.
 - **Reviewer:** Thiệu + Dương.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · Frozen baseline 30 + six-role 30 cases, fake/live reports; independent QA/rubric signoff pending. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ### [ ] QQ-09 · D15 · M · Nghiệm thu và bàn giao pilot
 
 - **Làm / đầu ra / Done:** Demo end-to-end với trace; quyết định release dựa evidence QA, giới hạn connector và blocker; ghi backlog sau pilot. Chỉ tick sản phẩm khi AC đạt.
 - **Phụ thuộc:** TH-09, TQ-09, MY-09, TI-09.
 - **Reviewer:** Dương + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (candidate, synthetic data) · PR/build: working tree 17/10, chưa commit · Evidence: [handoff](bao-cao/2026-10-17-QQ-ALL-HANDOFF.md), [test cases](bao-cao/2026-10-17-QQ-ALL-TEST-CASES.md), [release/evidence](../../../qa/evidence/qq-all-2026-10-17/release-decision.json) · Traceable six-role demo, release decision HOLD, runbook/backlog prepared; TH/TQ/MY/TI-09 and human acceptance pending. Chưa ghi nhận chữ ký reviewer; checkbox nghiệm thu giữ trống.
 
 ## Khi trễ
 

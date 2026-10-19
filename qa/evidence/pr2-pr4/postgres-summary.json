@@ -1,0 +1,57 @@
+{
+  "run_id": "2026-10-16T05-02-50-537Z-a998e6",
+  "started_at": "2026-10-16T05:02:50.538Z",
+  "mode": "--db",
+  "commit": "d2d15e8a273b65921ce1499bef2fbe28d03cb3a6",
+  "branch": "main",
+  "working_tree_dirty": true,
+  "node": "v24.14.1",
+  "boundaries": {
+    "database": "disposable PostgreSQL",
+    "api_routes": "in-process handlers",
+    "unit": "not_used",
+    "ai": "not_used"
+  },
+  "stages": [
+    {
+      "id": "QQ-DB-001",
+      "exit_code": 0,
+      "migrations": [
+        "001_initial_core_schema.sql",
+        "002_workflow_content_ledger.sql"
+      ]
+    },
+    {
+      "id": "be-integration",
+      "exit_code": 0,
+      "signal": null,
+      "log": "be-integration.log",
+      "tests": {
+        "total": 40,
+        "passed": 40,
+        "failed": 0,
+        "pending": 0
+      }
+    },
+    {
+      "id": "worker-db",
+      "exit_code": 0,
+      "signal": null,
+      "log": "worker-db.log",
+      "tests": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "pending": 0
+      }
+    }
+  ],
+  "cleanup": "passed",
+  "database": {
+    "name": "qq_test_1792126970642_2e8c59",
+    "host": "127.0.0.1",
+    "port": "15432"
+  },
+  "finished_at": "2026-10-16T05:02:55.353Z",
+  "passed": true
+}

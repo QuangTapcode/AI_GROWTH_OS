@@ -29,6 +29,6 @@ Baseline 14/10/2026 theo file Word và yêu cầu mới. Lịch dự kiến **15
 
 Giữ Level 2, human approval trước publish/send, tenant isolation, approved facts/version, idempotency và retry hữu hạn. Ads read-only; social live và Google metrics theo quyền. Video render, CRM/calendar ngoài, live spend và UI nâng cao sau pilot.
 
-[Kiến trúc](docs/architecture/SIX-AGENT-RESTRUCTURE.md) · [Reuse/task cũ](docs/coordination/sprint-3-weeks/REUSE-MAP.md) · [Roster](docs/coordination/TEAM.md).
+[Kiến trúc](docs/architecture/SIX-AGENT-RESTRUCTURE.md) · [Reuse/task cũ](docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-REUSE-MAP.md) · [Roster](docs/coordination/TEAM.md).
 
-[Biên bản dọn bản cũ](docs/coordination/sprint-3-weeks/CLEANUP.md): checklist trùng đã xóa; dùng bảy file cá nhân hiện hành để nhận việc.
+[Biên bản dọn bản cũ](docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-CLEANUP.md): checklist trùng đã xóa; dùng bảy file cá nhân hiện hành để nhận việc.

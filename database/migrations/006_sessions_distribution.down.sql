@@ -1,0 +1,12 @@
+DROP INDEX IF EXISTS idx_publishing_jobs_workspace;
+DROP INDEX IF EXISTS uq_publishing_jobs_active;
+ALTER TABLE publishing_jobs DROP COLUMN IF EXISTS created_at;
+ALTER TABLE publishing_jobs DROP COLUMN IF EXISTS created_by;
+ALTER TABLE publishing_jobs DROP COLUMN IF EXISTS mode;
+ALTER TABLE publishing_jobs DROP COLUMN IF EXISTS approval_id;
+ALTER TABLE publishing_jobs DROP COLUMN IF EXISTS artifact_id;
+ALTER TABLE publishing_jobs DROP COLUMN IF EXISTS workspace_id;
+DROP INDEX IF EXISTS idx_channels_workspace;
+ALTER TABLE channels DROP COLUMN IF EXISTS created_at;
+ALTER TABLE channels DROP COLUMN IF EXISTS display_name;
+DROP TABLE IF EXISTS auth_sessions CASCADE;

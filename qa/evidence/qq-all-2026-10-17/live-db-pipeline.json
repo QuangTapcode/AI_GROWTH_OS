@@ -1,0 +1,845 @@
+{
+  "mode": "live",
+  "synthetic": true,
+  "database": "disposable PostgreSQL",
+  "transport": "real HTTP",
+  "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+  "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+  "checks": [
+    "six dedicated roles",
+    "synthetic production gate",
+    "concurrent plan/task dedup",
+    "transaction rollback",
+    "SEO-before-social owner approval",
+    "stale/tampered approval rejected",
+    "worker restart",
+    "learning persisted next task/replay/dedup",
+    "source revoke/lease recovery"
+  ],
+  "artifacts": [
+    {
+      "id": "cc463016-cc82-5177-95a0-934a547b5136",
+      "role": "community",
+      "operation": "community.response",
+      "content_hash": "00ede0f570c4ca0cf91f8f80693155630a151bc324abe77c4c56533cac83e1ac",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "reply": "The guide compares living areas for newcomers.",
+          "status": "draft",
+          "applied": false,
+          "version": 1,
+          "citations": [
+            {
+              "quote": "The guide compares living areas for newcomers.",
+              "license": "Synthetic fixture only",
+              "locator": "paragraph:1",
+              "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+              "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+              "source_url": "https://example.org/guide",
+              "attribution": "QQ test",
+              "source_version": 2
+            }
+          ],
+          "synthetic": true,
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "lead_proposal": null,
+          "missing_facts": [],
+          "profile_version": 1,
+          "escalation_reason": null,
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+          "escalation_required": false,
+          "input_artifact_refs": [],
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "community",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "cc463016-cc82-5177-95a0-934a547b5136",
+          "content_hash": "00ede0f570c4ca0cf91f8f80693155630a151bc324abe77c4c56533cac83e1ac",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+          "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "fb52f105-68fa-5035-a9a9-422fe349de64",
+      "role": "seo",
+      "operation": "seo.local_draft",
+      "content_hash": "0193717a53b0bd5e6f819a99ed3d321a1ed9610cbe7dcd8af4033fabc4e9144c",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "cta": "Request the guide (MOCK)",
+          "title": "Practical Local Insights for Newcomers in Da Nang",
+          "status": "draft",
+          "applied": false,
+          "version": 1,
+          "headings": [
+            "Practical Local Insights for Newcomers in Da Nang",
+            "How Local Insights Help You Navigate Da Nang"
+          ],
+          "citations": [
+            {
+              "quote": "The guide compares living areas for newcomers.",
+              "license": "Synthetic fixture only",
+              "locator": "paragraph:1",
+              "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+              "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+              "source_url": "https://example.org/guide",
+              "attribution": "QQ test",
+              "source_version": 2
+            }
+          ],
+          "synthetic": true,
+          "article_id": "3859b96d-968a-5a7a-9a61-d8452831f9bd",
+          "seo_checks": {
+            "meta": true,
+            "title": true,
+            "headings": true,
+            "citations": true,
+            "internal_link": true
+          },
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "body_markdown": "## Practical Local Insights for Newcomers in Da Nang\n\nAdjusting to life in Da Nang can be smoother with practical, local insights tailored to newcomers. From neighborhood safety to daily routines, understanding the local environment helps build confidence and connection. The guide compares living areas for newcomers, highlighting which districts offer the best balance of affordability, accessibility, and community vibe.\n\n## How Local Insights Help You Navigate Da Nang\n\nNewcomers often face challenges like language barriers, unfamiliar transport systems, and cultural nuances. Local insights provide real-world context—such as which areas are quieter for families, where street food is most authentic, or which markets offer reliable daily supplies. These practical details turn abstract information into actionable steps, making daily life in Da Nang feel more intuitive and less overwhelming.\n\n[Request the guide (MOCK)](https://example.com/request-guide)\n\n[source:9d11198b-50dd-4db9-a96a-fc0eef18563c](https://example.org/guide)\n\n[Request information](/contact) — Request the guide (MOCK)",
+          "missing_facts": [],
+          "primary_keyword": "local",
+          "profile_version": 1,
+          "meta_description": "Discover practical local insights for newcomers in Da Nang, from living areas to daily routines. Learn how to adjust quickly with real-world, neighborhood-based",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+          "input_artifact_refs": [
+            {
+              "role": "research",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "2f7b2f1f-f571-5be2-a0a2-189cdaf264c1",
+              "content_hash": "9460d9dbe963616ebfc4d7a595fd53b482def38d15ef4ae9184a5272d3931d5f",
+              "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+              "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+            }
+          ],
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "seo",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "fb52f105-68fa-5035-a9a9-422fe349de64",
+          "content_hash": "0193717a53b0bd5e6f819a99ed3d321a1ed9610cbe7dcd8af4033fabc4e9144c",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        },
+        "run_metadata": {
+          "run_id": "6689ed79-2e4f-50a6-bfe7-dcd18a4a4fff",
+          "trace_id": "plan-task:ccfba6c3-faab-5b22-840c-5b76a2a5707f",
+          "input_version": 1,
+          "model_version": "ollama/qwen3:4b-instruct",
+          "prompt_version": "seo-v1",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+          "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "7df15075-395a-43fb-a9d1-6ba01e234ed4",
+      "role": "growth_lead",
+      "operation": "lead.aggregate",
+      "content_hash": "1087d5546bdae323c84698c685ce1fc4407f293c9853d67ab285d0fa7ff14afb",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "count": 2,
+          "version": 1,
+          "synthetic": true,
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e"
+        },
+        "artifact": {
+          "role": "growth_lead",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "7df15075-395a-43fb-a9d1-6ba01e234ed4",
+          "content_hash": "1087d5546bdae323c84698c685ce1fc4407f293c9853d67ab285d0fa7ff14afb",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "f686fde5-af90-50d4-bea5-6b0c3d5ef2bc",
+      "role": "performance",
+      "operation": "analytics.report",
+      "content_hash": "217e7671fdc1a57435f8580c967cbdf088408c73cbaec035bfc8a6c87b6f5c2d",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "status": "draft",
+          "window": {
+            "end": "2026-10-07T00:00:00+00:00",
+            "start": "2026-10-01T00:00:00+00:00"
+          },
+          "applied": false,
+          "metrics": {
+            "leads": 2,
+            "clicks": 20,
+            "impressions": 100,
+            "qualified_visits": 12
+          },
+          "version": 1,
+          "proposal": "Review the cited aggregate window before proposing the next content test.",
+          "synthetic": true,
+          "attribution": "aggregate_observation_only_not_causal",
+          "observations": [
+            "Observed qualified_visits: 12.",
+            "Observed leads: 2.",
+            "Observed impressions: 100.",
+            "Observed clicks: 20."
+          ],
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "missing_facts": [],
+          "profile_version": 1,
+          "metric_snapshot_id": "68d50137-ed77-4ad0-a898-d33d90a6d5f2",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+          "input_artifact_refs": [
+            {
+              "role": "performance",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "45f57a73-af8a-434c-b9b7-e7c08faee160",
+              "content_hash": "d6903ccc2fb7a51448ee4abbc2d669ee45f9f9b2434eaa51db77013599f0e79a",
+              "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+              "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+            }
+          ],
+          "spend_mutation_allowed": false,
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "performance",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "f686fde5-af90-50d4-bea5-6b0c3d5ef2bc",
+          "content_hash": "217e7671fdc1a57435f8580c967cbdf088408c73cbaec035bfc8a6c87b6f5c2d",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "442b6c48-5a7d-5a3f-b09d-8ce31ab49992",
+      "role": "research",
+      "operation": "research.run",
+      "content_hash": "78886a6ea201b68da05fe505ac0b79d1d4d54759f54608cd58fc7ff88266b452",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "status": "ready_for_handoff",
+          "applied": false,
+          "brief_id": "c864511c-e1eb-5af2-81fe-0d99448fb967",
+          "findings": [
+            {
+              "url": "https://example.org/guide",
+              "topic": "Practical local living info for newcomers in Da Nang",
+              "evidence": {
+                "quote": "The guide compares living areas for newcomers.",
+                "license": "Synthetic fixture only",
+                "locator": "paragraph:1",
+                "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+                "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+                "source_url": "https://example.org/guide",
+                "attribution": "QQ test",
+                "source_version": 2
+              },
+              "keywords": [
+                "local",
+                "practical",
+                "newcomers",
+                "Da Nang"
+              ],
+              "offer_fit": "A guide with local living info meets the need for practical, actionable advice.",
+              "rationale": "Provides actionable, local content for newcomers navigating daily life.",
+              "user_need": "Newcomers need practical local information to adapt quickly.",
+              "confidence": "hypothesis",
+              "fetched_at": "2026-10-01T00:00:00Z",
+              "audience_fit": "English-speaking newcomers in Da Nang need practical local insights.",
+              "demand_estimate": null
+            }
+          ],
+          "synthetic": true,
+          "handoff_role": "growth_lead",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "missing_facts": [],
+          "profile_version": 1,
+          "handoff_operation": "opportunity.score",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "research",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "442b6c48-5a7d-5a3f-b09d-8ce31ab49992",
+          "content_hash": "78886a6ea201b68da05fe505ac0b79d1d4d54759f54608cd58fc7ff88266b452",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        },
+        "run_metadata": {
+          "run_id": "128292c4-3255-5b9a-b113-ef863c09d1fc",
+          "trace_id": "plan-task:5160392f-217d-432a-ad01-4c3713238778",
+          "input_version": 1,
+          "model_version": "ollama/qwen3:4b-instruct",
+          "prompt_version": "research-v2",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+          "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "2f7b2f1f-f571-5be2-a0a2-189cdaf264c1",
+      "role": "research",
+      "operation": "research.run",
+      "content_hash": "9460d9dbe963616ebfc4d7a595fd53b482def38d15ef4ae9184a5272d3931d5f",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "status": "ready_for_handoff",
+          "applied": false,
+          "brief_id": "7167f222-4ff7-537d-8c4b-86f9d5006be2",
+          "findings": [
+            {
+              "url": "https://example.org/guide",
+              "topic": "practical local insights for newcomers",
+              "evidence": {
+                "quote": "The guide compares living areas for newcomers.",
+                "license": "Synthetic fixture only",
+                "locator": "paragraph:1",
+                "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+                "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+                "source_url": "https://example.org/guide",
+                "attribution": "QQ test",
+                "source_version": 2
+              },
+              "keywords": [
+                "local",
+                "practical",
+                "insights",
+                "newcomers"
+              ],
+              "offer_fit": "A guide with local living insights meets the need for trustworthy, practical advice.",
+              "rationale": "Provides actionable, local content for newcomers navigating Da Nang.",
+              "user_need": "Newcomers need practical, local insights to adjust to Da Nang.",
+              "confidence": "hypothesis",
+              "fetched_at": "2026-10-01T00:00:00Z",
+              "audience_fit": "English-speaking newcomers in Da Nang need practical local insights.",
+              "demand_estimate": null
+            }
+          ],
+          "synthetic": true,
+          "handoff_role": "growth_lead",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "missing_facts": [],
+          "profile_version": 1,
+          "handoff_operation": "opportunity.score",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "research",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "2f7b2f1f-f571-5be2-a0a2-189cdaf264c1",
+          "content_hash": "9460d9dbe963616ebfc4d7a595fd53b482def38d15ef4ae9184a5272d3931d5f",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        },
+        "run_metadata": {
+          "run_id": "bdc1df1d-4810-5a85-b084-581c16a56a88",
+          "trace_id": "plan-task:7c78b6bc-79a8-4a59-bcb1-5c6f5da066ff",
+          "input_version": 1,
+          "model_version": "ollama/qwen3:4b-instruct",
+          "prompt_version": "research-v2",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+          "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "cfd80bd5-c1f7-5c09-899c-538442435bb7",
+      "role": "growth_lead",
+      "operation": "learning.analyze",
+      "content_hash": "a7805ee626e87eb354c9e7d65ac6369a57aad1fa3a5636ce88a71e33e1323479",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "status": "draft",
+          "applied": false,
+          "version": 1,
+          "learning": [
+            "The cited lead aggregate contains 2 leads; causal attribution is not established."
+          ],
+          "iteration": 0,
+          "synthetic": true,
+          "next_tasks": [
+            {
+              "role": "research",
+              "reason": "Reassess one grounded topic using the cited aggregate window.",
+              "dedup_key": "04e6e5411b9bef512ca14924f57d5c5ac6dcd3f67964f09b46d5a51f3151c44f",
+              "iteration": 1,
+              "operation": "research.run",
+              "input_artifact_refs": [
+                {
+                  "role": "performance",
+                  "storage": "ai_run_store",
+                  "version": 1,
+                  "artifact_id": "f686fde5-af90-50d4-bea5-6b0c3d5ef2bc",
+                  "content_hash": "217e7671fdc1a57435f8580c967cbdf088408c73cbaec035bfc8a6c87b6f5c2d",
+                  "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+                  "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+                },
+                {
+                  "role": "growth_lead",
+                  "storage": "ai_run_store",
+                  "version": 1,
+                  "artifact_id": "7df15075-395a-43fb-a9d1-6ba01e234ed4",
+                  "content_hash": "1087d5546bdae323c84698c685ce1fc4407f293c9853d67ab285d0fa7ff14afb",
+                  "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+                  "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+                }
+              ],
+              "requires_human_approval": true
+            }
+          ],
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "missing_facts": [],
+          "max_iterations": 3,
+          "stopped_reason": null,
+          "profile_version": 1,
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+          "input_artifact_refs": [
+            {
+              "role": "performance",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "f686fde5-af90-50d4-bea5-6b0c3d5ef2bc",
+              "content_hash": "217e7671fdc1a57435f8580c967cbdf088408c73cbaec035bfc8a6c87b6f5c2d",
+              "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+              "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+            },
+            {
+              "role": "growth_lead",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "7df15075-395a-43fb-a9d1-6ba01e234ed4",
+              "content_hash": "1087d5546bdae323c84698c685ce1fc4407f293c9853d67ab285d0fa7ff14afb",
+              "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+              "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+            }
+          ],
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "growth_lead",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "cfd80bd5-c1f7-5c09-899c-538442435bb7",
+          "content_hash": "a7805ee626e87eb354c9e7d65ac6369a57aad1fa3a5636ce88a71e33e1323479",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "9c901c01-a493-5adc-9885-bb3bfb6979ba",
+      "role": "growth_lead",
+      "operation": "strategy.generate",
+      "content_hash": "e516763ea52975fb3c86aa71a54f3d95b1ddd8f4d30f5fc25416fed8c62170d6",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "tasks": [
+            {
+              "role": "seo",
+              "brief": {
+                "cta": "Request the guide (MOCK)",
+                "offer": [
+                  "Local living information MOCK"
+                ],
+                "topic": "practical local insights for newcomers",
+                "intent": "informational",
+                "audience": [
+                  "English-speaking newcomers"
+                ],
+                "offer_fit": "A guide with local living insights meets the need for trustworthy, practical advice.",
+                "acceptance": [
+                  "Use cited research and verified snapshot facts only.",
+                  "Report missing facts; do not invent demand, price or availability.",
+                  "Return a draft for human review before publication."
+                ],
+                "deliverable": "seo_article_draft",
+                "audience_fit": "English-speaking newcomers in Da Nang need practical local insights."
+              },
+              "tools": [
+                "knowledge.read",
+                "content.draft"
+              ],
+              "task_id": "ccfba6c3-faab-5b22-840c-5b76a2a5707f",
+              "deadline": "2026-10-18T16:37:12.188000Z",
+              "operation": "seo.local_draft",
+              "depends_on": [],
+              "input_artifact_refs": [
+                {
+                  "role": "research",
+                  "storage": "ai_run_store",
+                  "version": 1,
+                  "artifact_id": "2f7b2f1f-f571-5be2-a0a2-189cdaf264c1",
+                  "content_hash": "9460d9dbe963616ebfc4d7a595fd53b482def38d15ef4ae9184a5272d3931d5f",
+                  "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+                  "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+                }
+              ],
+              "requires_human_approval": true,
+              "dependency_artifact_from": []
+            },
+            {
+              "role": "content",
+              "brief": {
+                "cta": "Request the guide (MOCK)",
+                "offer": [
+                  "Local living information MOCK"
+                ],
+                "topic": "practical local insights for newcomers",
+                "intent": "informational",
+                "audience": [
+                  "English-speaking newcomers"
+                ],
+                "offer_fit": "A guide with local living insights meets the need for trustworthy, practical advice.",
+                "acceptance": [
+                  "Use cited research and verified snapshot facts only.",
+                  "Report missing facts; do not invent demand, price or availability.",
+                  "Return a draft for human review before publication.",
+                  "Adapt the approved SEO draft; identify real image assets or report missing assets."
+                ],
+                "deliverable": "social_pack_draft",
+                "audience_fit": "English-speaking newcomers in Da Nang need practical local insights."
+              },
+              "tools": [
+                "knowledge.read",
+                "content.draft"
+              ],
+              "task_id": "73bdf6ef-4163-5f51-8298-69511e2b1e1d",
+              "deadline": "2026-10-18T16:37:12.188000Z",
+              "operation": "content.repurpose",
+              "depends_on": [
+                "ccfba6c3-faab-5b22-840c-5b76a2a5707f"
+              ],
+              "input_artifact_refs": [
+                {
+                  "role": "research",
+                  "storage": "ai_run_store",
+                  "version": 1,
+                  "artifact_id": "2f7b2f1f-f571-5be2-a0a2-189cdaf264c1",
+                  "content_hash": "9460d9dbe963616ebfc4d7a595fd53b482def38d15ef4ae9184a5272d3931d5f",
+                  "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+                  "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+                }
+              ],
+              "requires_human_approval": true,
+              "dependency_artifact_from": [
+                "ccfba6c3-faab-5b22-840c-5b76a2a5707f"
+              ]
+            }
+          ],
+          "status": "proposed",
+          "applied": false,
+          "plan_id": "9ea88616-37fd-5ba2-b278-e227cfdb6e46",
+          "objective": "Prepare a newcomer guide and social drafts",
+          "synthetic": true,
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "input_version": 1,
+          "missing_facts": [],
+          "profile_version": 1,
+          "contract_version": "growth-lead-plan-v2",
+          "selection_method": "model_selection_from_grounded_research",
+          "opportunity_score": {
+            "label": "estimated",
+            "score": 729,
+            "source": "operator_estimate_not_search_volume",
+            "factors": {
+              "demand": 3,
+              "freshness": 3,
+              "content_gap": 3,
+              "growth_potential": 3,
+              "business_relevance": 3,
+              "conversion_potential": 3
+            },
+            "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
+            "estimated": true
+          },
+          "research_artifact": {
+            "role": "research",
+            "storage": "ai_run_store",
+            "version": 1,
+            "artifact_id": "2f7b2f1f-f571-5be2-a0a2-189cdaf264c1",
+            "content_hash": "9460d9dbe963616ebfc4d7a595fd53b482def38d15ef4ae9184a5272d3931d5f",
+            "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+            "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+          },
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+          "selected_opportunity": {
+            "url": "https://example.org/guide",
+            "topic": "practical local insights for newcomers",
+            "evidence": {
+              "quote": "The guide compares living areas for newcomers.",
+              "license": "Synthetic fixture only",
+              "locator": "paragraph:1",
+              "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+              "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+              "source_url": "https://example.org/guide",
+              "attribution": "QQ test",
+              "source_version": 2
+            },
+            "keywords": [
+              "local",
+              "practical",
+              "insights",
+              "newcomers"
+            ],
+            "offer_fit": "A guide with local living insights meets the need for trustworthy, practical advice.",
+            "rationale": "Provides actionable, local content for newcomers navigating Da Nang.",
+            "user_need": "Newcomers need practical, local insights to adjust to Da Nang.",
+            "confidence": "hypothesis",
+            "fetched_at": "2026-10-01T00:00:00Z",
+            "audience_fit": "English-speaking newcomers in Da Nang need practical local insights.",
+            "demand_estimate": null
+          },
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "growth_lead",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "9c901c01-a493-5adc-9885-bb3bfb6979ba",
+          "content_hash": "e516763ea52975fb3c86aa71a54f3d95b1ddd8f4d30f5fc25416fed8c62170d6",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        },
+        "run_metadata": {
+          "run_id": "a310d243-e44b-5d36-8fcb-44eba9b6f582",
+          "trace_id": "plan-task:f21bbd1d-ca3f-4d9f-831f-963074d9ecbe",
+          "input_version": 1,
+          "model_version": "ollama/qwen3:4b-instruct",
+          "prompt_version": "growth-lead-v1",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+          "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "6faae9aa-81e2-5978-9d7d-6de6bc139de8",
+      "role": "content",
+      "operation": "content.repurpose",
+      "content_hash": "f931f643ec8e9c8604f4666e9b3db237ec9b6cdca540f5ea99250d7b1913a4d4",
+      "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+      "payload": {
+        "result": {
+          "cta": "Request the guide (MOCK)",
+          "status": "draft",
+          "applied": false,
+          "caption": "New to Da Nang? Discover which neighborhoods offer the best mix of affordability, safety, and community vibe. Local insights make daily life feel intuitive—no guesswork needed. 🌿\n\n👉 Request the guide (MOCK)",
+          "pack_id": "0a09a6ed-a951-5b98-8f60-8b13669520bb",
+          "version": 1,
+          "alt_text": "A map of Da Nang highlighting key districts with local insights for newcomers, showing areas with family-friendly zones, authentic street food spots, and daily市",
+          "channels": [
+            "facebook",
+            "instagram"
+          ],
+          "citations": [
+            {
+              "quote": "The guide compares living areas for newcomers.",
+              "license": "Synthetic fixture only",
+              "locator": "paragraph:1",
+              "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+              "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+              "source_url": "https://example.org/guide",
+              "attribution": "QQ test",
+              "source_version": 2
+            }
+          ],
+          "synthetic": true,
+          "channel_mode": "manual_review_pack",
+          "image_assets": [
+            {
+              "url": "https://example.org/mock-image.png",
+              "status": "approved",
+              "license": "Synthetic test fixture only",
+              "version": 1,
+              "asset_id": "7a4b9fdb-7d69-4bea-904c-891b7bfbf7fd",
+              "synthetic": true,
+              "attribution": "QQ fixture",
+              "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e"
+            }
+          ],
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "missing_facts": [],
+          "parent_version": 1,
+          "profile_version": 1,
+          "parent_content_id": "3859b96d-968a-5a7a-9a61-d8452831f9bd",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819",
+          "input_artifact_refs": [
+            {
+              "role": "seo",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "fb52f105-68fa-5035-a9a9-422fe349de64",
+              "content_hash": "0193717a53b0bd5e6f819a99ed3d321a1ed9610cbe7dcd8af4033fabc4e9144c",
+              "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+              "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+            }
+          ],
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "content",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "6faae9aa-81e2-5978-9d7d-6de6bc139de8",
+          "content_hash": "f931f643ec8e9c8604f4666e9b3db237ec9b6cdca540f5ea99250d7b1913a4d4",
+          "workspace_id": "4a7e0067-a6d5-4d70-bff5-12eb5e7c950e",
+          "context_snapshot_id": "b0bcf926-25d6-482e-b64a-1366580bf819"
+        },
+        "run_metadata": {
+          "run_id": "860d901f-f046-5005-a5a2-da9321018a9d",
+          "trace_id": "plan-task:73bdf6ef-4163-5f51-8298-69511e2b1e1d",
+          "input_version": 1,
+          "model_version": "ollama/qwen3:4b-instruct",
+          "prompt_version": "content-v1",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "9d11198b-50dd-4db9-a96a-fc0eef18563c",
+          "source_id": "8f909000-7a3e-4e6c-9c19-7abf5e92e9eb",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    }
+  ],
+  "outbox": [
+    {
+      "task_id": "7c78b6bc-79a8-4a59-bcb1-5c6f5da066ff",
+      "status": "sent",
+      "attempts": 1,
+      "error_code": null
+    },
+    {
+      "task_id": "f21bbd1d-ca3f-4d9f-831f-963074d9ecbe",
+      "status": "sent",
+      "attempts": 1,
+      "error_code": null
+    },
+    {
+      "task_id": "ccfba6c3-faab-5b22-840c-5b76a2a5707f",
+      "status": "sent",
+      "attempts": 1,
+      "error_code": null
+    },
+    {
+      "task_id": "73bdf6ef-4163-5f51-8298-69511e2b1e1d",
+      "status": "failed",
+      "attempts": 2,
+      "error_code": "SOURCE_NOT_APPROVED"
+    },
+    {
+      "task_id": "5160392f-217d-432a-ad01-4c3713238778",
+      "status": "sent",
+      "attempts": 1,
+      "error_code": null
+    }
+  ],
+  "audits": [
+    {
+      "target_id": "fb52f105-68fa-5035-a9a9-422fe349de64",
+      "target_version": 1,
+      "target_hash": "0193717a53b0bd5e6f819a99ed3d321a1ed9610cbe7dcd8af4033fabc4e9144c",
+      "status": "approved",
+      "decision": "approve",
+      "actor_role": "owner"
+    },
+    {
+      "target_id": "cfd80bd5-c1f7-5c09-899c-538442435bb7",
+      "target_version": 1,
+      "target_hash": "a7805ee626e87eb354c9e7d65ac6369a57aad1fa3a5636ce88a71e33e1323479",
+      "status": "approved",
+      "decision": "approve",
+      "actor_role": "owner"
+    }
+  ],
+  "model": "ollama/qwen3:4b-instruct",
+  "passed": true
+}

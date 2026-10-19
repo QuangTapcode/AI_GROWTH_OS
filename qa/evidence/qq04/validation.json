@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-15",
+  "scope": "QQ-04 local verification with synthetic data",
+  "ai_tests": { "passed": 120, "new_qq04_tests": 16, "command": "python -m pytest services/ai/tests -q -p no:cacheprovider --basetemp D:/Hoc/qq04-pytest-full-1 --tb=short" },
+  "backend_qq04_tests": { "passed": 21, "command": "node_modules/.bin/vitest.cmd run tests/campaignPlans/submit.test.ts" },
+  "typescript_qq04": { "status": "passed", "scope": "schemas/service/mockRepository/routes/tests/demo; strict, noEmit, es2022, bundler resolution" },
+  "ai_smoke": { "status": "passed", "transport": "ASGI TestClient", "model": "fake", "checks": ["research_to_plan", "retry_idempotency", "restart_persistence"] },
+  "backend_demo": { "status": "passed", "storage": "in-memory mock", "queue": "outbox mock only", "first_status": 201, "retry_status": 200 },
+  "existing_full_api_check_failures": [
+    { "command": "npm.cmd test", "passed_tests": 54, "passed_files": 4, "failed_suite": "tests/bootstrap.test.mjs", "reason": "Node test-runner file discovered by Vitest; bootstrap checks also need running API" },
+    { "command": "npm.cmd run typecheck", "file": ".next/types/validator.ts:6", "reason": "Cannot find module next/types.js" }
+  ],
+  "not_verified": ["live model QQ-04", "PostgreSQL transaction", "real HTTP auth/RBAC route TQ-03", "broker enqueue/delivery", "worker dependency resume", "reviewer acceptance"],
+  "warning": "FastAPI/Starlette TestClient httpx deprecation"
+}

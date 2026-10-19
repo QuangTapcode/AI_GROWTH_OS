@@ -1,0 +1,193 @@
+{
+  "mode": "mock",
+  "synthetic": true,
+  "storage": "in-memory mock",
+  "queue": "outbox mock only",
+  "first": {
+    "status": 201,
+    "body": {
+      "plan_id": "32466218-e270-5175-94d9-79959d6caa8d",
+      "status": "accepted",
+      "synthetic": true,
+      "deduplicated": false,
+      "task_states": {
+        "a787c081-5b09-5944-865a-74cf434951f9": "ready",
+        "7469b889-944e-5a60-9b4b-8f3c50f80ddc": "blocked"
+      },
+      "outbox": [
+        {
+          "task_id": "a787c081-5b09-5944-865a-74cf434951f9",
+          "operation": "seo.local_draft"
+        }
+      ]
+    }
+  },
+  "retry": {
+    "status": 200,
+    "body": {
+      "plan_id": "32466218-e270-5175-94d9-79959d6caa8d",
+      "status": "accepted",
+      "synthetic": true,
+      "deduplicated": true,
+      "task_states": {
+        "a787c081-5b09-5944-865a-74cf434951f9": "ready",
+        "7469b889-944e-5a60-9b4b-8f3c50f80ddc": "blocked"
+      },
+      "outbox": [
+        {
+          "task_id": "a787c081-5b09-5944-865a-74cf434951f9",
+          "operation": "seo.local_draft"
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "plan": {
+        "contract_version": "growth-lead-plan-v1",
+        "plan_id": "32466218-e270-5175-94d9-79959d6caa8d",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "input_version": 1,
+        "profile_version": 1,
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "status": "proposed",
+        "objective": "Prepare a newcomer guide and social drafts",
+        "selection_method": "model_selection_from_grounded_research",
+        "selected_opportunity": {
+          "topic": "Living areas guide",
+          "audience_fit": "Explore this topic for the supplied target audience.",
+          "offer_fit": "Confirm the offer before preparing a campaign.",
+          "rationale": "The cited excerpt supports a content hypothesis; demand is not measured.",
+          "evidence": {
+            "source_id": "00000000-0000-4000-8000-000000000002",
+            "source_version": 1,
+            "chunk_id": "mock-guide",
+            "locator": "mock:paragraph:1",
+            "quote": "The guide compares living areas for newcomers.",
+            "source_url": "https://example.org/qq04-mock",
+            "license": "Synthetic fixture only",
+            "attribution": "QQ-04 mock"
+          },
+          "url": "https://example.org/qq04-mock",
+          "fetched_at": "2026-01-01T00:00:00Z",
+          "confidence": "hypothesis",
+          "demand_estimate": null
+        },
+        "research_artifact": {
+          "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+          "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+          "role": "research",
+          "storage": "ai_run_store"
+        },
+        "tasks": [
+          {
+            "task_id": "a787c081-5b09-5944-865a-74cf434951f9",
+            "role": "seo",
+            "operation": "seo.local_draft",
+            "tools": [
+              "knowledge.read",
+              "content.draft"
+            ],
+            "depends_on": [],
+            "input_artifact_refs": [
+              {
+                "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+                "workspace_id": "00000000-0000-4000-8000-000000000001",
+                "version": 1,
+                "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+                "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+                "role": "research",
+                "storage": "ai_run_store"
+              }
+            ],
+            "dependency_artifact_from": [],
+            "brief": {
+              "topic": "Living areas guide",
+              "audience": [
+                "English-speaking newcomers"
+              ],
+              "offer": [
+                "Local living information MOCK"
+              ],
+              "audience_fit": "Explore this topic for the supplied target audience.",
+              "offer_fit": "Confirm the offer before preparing a campaign.",
+              "intent": "informational",
+              "deliverable": "seo_article_draft",
+              "cta": "Request the newcomer guide (MOCK)",
+              "acceptance": [
+                "Use cited research and verified snapshot facts only.",
+                "Report missing facts; do not invent demand, price or availability.",
+                "Return a draft for human review before publication."
+              ]
+            },
+            "requires_human_approval": true
+          },
+          {
+            "task_id": "7469b889-944e-5a60-9b4b-8f3c50f80ddc",
+            "role": "content",
+            "operation": "content.repurpose",
+            "tools": [
+              "knowledge.read",
+              "content.draft"
+            ],
+            "depends_on": [
+              "a787c081-5b09-5944-865a-74cf434951f9"
+            ],
+            "input_artifact_refs": [
+              {
+                "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+                "workspace_id": "00000000-0000-4000-8000-000000000001",
+                "version": 1,
+                "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+                "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+                "role": "research",
+                "storage": "ai_run_store"
+              }
+            ],
+            "dependency_artifact_from": [
+              "a787c081-5b09-5944-865a-74cf434951f9"
+            ],
+            "brief": {
+              "topic": "Living areas guide",
+              "audience": [
+                "English-speaking newcomers"
+              ],
+              "offer": [
+                "Local living information MOCK"
+              ],
+              "audience_fit": "Explore this topic for the supplied target audience.",
+              "offer_fit": "Confirm the offer before preparing a campaign.",
+              "intent": "informational",
+              "deliverable": "social_pack_draft",
+              "cta": "Request the newcomer guide (MOCK)",
+              "acceptance": [
+                "Use cited research and verified snapshot facts only.",
+                "Report missing facts; do not invent demand, price or availability.",
+                "Return a draft for human review before publication.",
+                "Adapt the approved SEO draft; identify real image assets or report missing assets."
+              ]
+            },
+            "requires_human_approval": true
+          }
+        ],
+        "missing_facts": [],
+        "requires_human_approval": true,
+        "applied": false,
+        "synthetic": true
+      },
+      "task_states": {
+        "a787c081-5b09-5944-865a-74cf434951f9": "ready",
+        "7469b889-944e-5a60-9b4b-8f3c50f80ddc": "blocked"
+      },
+      "outbox": [
+        {
+          "task_id": "a787c081-5b09-5944-865a-74cf434951f9",
+          "operation": "seo.local_draft"
+        }
+      ]
+    }
+  ]
+}

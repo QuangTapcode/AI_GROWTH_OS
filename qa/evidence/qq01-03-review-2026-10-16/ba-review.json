@@ -1,0 +1,35 @@
+{
+  "review_date": "2026-10-16",
+  "review_type": "AI BA assessment requested by user; not actual Duong signature",
+  "candidate_commit": "e5c64937c30a588fb263d19922c7cc5c126c15cb",
+  "candidate_matches_tested_hashes": {
+    "services/ai/src/agents/research/pipeline.py": true,
+    "services/ai/tests/test_qq01_03_review.py": true
+  },
+  "automated_regression": {
+    "total": 150,
+    "passed": 150,
+    "failed": 0,
+    "skipped": 0
+  },
+  "live_eval": {
+    "passed": 30,
+    "total": 30,
+    "rate": 1.0
+  },
+  "ba_verdict": "needs_changes",
+  "integration_authorized_condition": "Only if BA review is OK",
+  "integration_performed": false,
+  "findings": [
+    "BA-QQ-01",
+    "BA-QQ-02",
+    "BA-QQ-03",
+    "BA-QQ-04",
+    "BA-QQ-05"
+  ],
+  "AC_RES_02_missing_explicit_fields_or_documented_mapping": {
+    "keywords": true,
+    "user_need": true
+  },
+  "actual_reviewer_signature": null
+}

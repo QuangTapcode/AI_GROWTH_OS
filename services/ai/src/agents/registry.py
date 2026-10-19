@@ -1,7 +1,8 @@
 """Six marketing roles and their existing operation codes.
 
 This is routing metadata, not a tool permission enforcement layer. Research has
-a dedicated handler; remaining marketing operations use bootstrap handlers.
+a dedicated handler, as do Growth Lead planning operations. Other marketing
+operations (including learning.analyze) still use bootstrap handlers.
 Knowledge ingest/answer and growth_map.suggest remain shared existing services.
 """
 from __future__ import annotations

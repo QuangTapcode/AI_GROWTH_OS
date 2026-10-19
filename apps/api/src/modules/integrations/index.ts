@@ -27,8 +27,22 @@ export {
   syncMetrics,
   runSync,
   supportMatrix,
+  socialChannelDecision,
   type IntegrationConnectionStatus,
   type OwnershipProbeResult,
   type MetricSyncResult,
   type SyncJobResult,
+  type ChannelMode,
+  type ChannelDecision,
 } from './stubs';
+export {
+  authorizeToolExecution,
+  globalToolAuditSink,
+  MemoryToolAuditSink,
+  type ActionType,
+  type AgentRole,
+  type ToolExecutionRequest,
+  type ToolAuditLog,
+  type ToolAuditSink,
+  type AuthorizeResult,
+} from './gateway';

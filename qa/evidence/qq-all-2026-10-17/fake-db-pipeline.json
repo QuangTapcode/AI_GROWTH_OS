@@ -1,0 +1,836 @@
+{
+  "mode": "fake",
+  "synthetic": true,
+  "database": "disposable PostgreSQL",
+  "transport": "real HTTP",
+  "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+  "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+  "checks": [
+    "six dedicated roles",
+    "synthetic production gate",
+    "concurrent plan/task dedup",
+    "transaction rollback",
+    "SEO-before-social owner approval",
+    "stale/tampered approval rejected",
+    "worker restart",
+    "learning persisted next task/replay/dedup",
+    "source revoke/lease recovery"
+  ],
+  "artifacts": [
+    {
+      "id": "1bf222c7-9c71-53b4-ab91-fb5154869c44",
+      "role": "community",
+      "operation": "community.response",
+      "content_hash": "0a4ba7655d8210c426a75d24e0991c06883f2c573d51c11affcb6bbee88e30cf",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "reply": "The guide compares living areas for newcomers.",
+          "status": "draft",
+          "applied": false,
+          "version": 1,
+          "citations": [
+            {
+              "quote": "The guide compares living areas for newcomers.",
+              "license": "Synthetic fixture only",
+              "locator": "paragraph:1",
+              "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+              "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+              "source_url": "https://example.org/guide",
+              "attribution": "QQ test",
+              "source_version": 2
+            }
+          ],
+          "synthetic": true,
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "lead_proposal": null,
+          "missing_facts": [],
+          "profile_version": 1,
+          "escalation_reason": null,
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+          "escalation_required": false,
+          "input_artifact_refs": [],
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "community",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "1bf222c7-9c71-53b4-ab91-fb5154869c44",
+          "content_hash": "0a4ba7655d8210c426a75d24e0991c06883f2c573d51c11affcb6bbee88e30cf",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+          "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "d85be02d-0ca9-5a1a-9f5c-784192c6389c",
+      "role": "performance",
+      "operation": "analytics.report",
+      "content_hash": "1d543f40c76b04557102dba551a3ad29dd564982c9e455dff08aba63a77370cc",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "status": "draft",
+          "window": {
+            "end": "2026-10-07T00:00:00+00:00",
+            "start": "2026-10-01T00:00:00+00:00"
+          },
+          "applied": false,
+          "metrics": {
+            "leads": 2,
+            "clicks": 20,
+            "impressions": 100,
+            "qualified_visits": 12
+          },
+          "version": 1,
+          "proposal": "Review the cited aggregate window before proposing the next content test.",
+          "synthetic": true,
+          "attribution": "aggregate_observation_only_not_causal",
+          "observations": [
+            "Observed qualified_visits: 12.",
+            "Observed leads: 2.",
+            "Observed impressions: 100.",
+            "Observed clicks: 20."
+          ],
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "missing_facts": [],
+          "profile_version": 1,
+          "metric_snapshot_id": "02ce5bc9-39a0-4263-b8bf-901e407ddf2c",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+          "input_artifact_refs": [
+            {
+              "role": "performance",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "8990f9e8-49a0-4fb0-9ada-a655d27c58f6",
+              "content_hash": "267a21382a15274568c0df9af2884a146aaa6e9145680e1c0657b375513d021d",
+              "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+              "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+            }
+          ],
+          "spend_mutation_allowed": false,
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "performance",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "d85be02d-0ca9-5a1a-9f5c-784192c6389c",
+          "content_hash": "1d543f40c76b04557102dba551a3ad29dd564982c9e455dff08aba63a77370cc",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "614d289b-3dbb-5a22-a94f-65bce8cacc02",
+      "role": "growth_lead",
+      "operation": "learning.analyze",
+      "content_hash": "60fa626f4ed051adefdcfff897410a99112d4d521ba3f6f2c33f8e5fa166389a",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "status": "draft",
+          "applied": false,
+          "version": 1,
+          "learning": [
+            "The cited lead aggregate contains 2 leads; causal attribution is not established."
+          ],
+          "iteration": 0,
+          "synthetic": true,
+          "next_tasks": [
+            {
+              "role": "research",
+              "reason": "Reassess one grounded topic using the cited aggregate window.",
+              "dedup_key": "4ed588b089953643748f0f62405647c3aa0b1f56c275d018c01ed42ad0cc9c1b",
+              "iteration": 1,
+              "operation": "research.run",
+              "input_artifact_refs": [
+                {
+                  "role": "performance",
+                  "storage": "ai_run_store",
+                  "version": 1,
+                  "artifact_id": "d85be02d-0ca9-5a1a-9f5c-784192c6389c",
+                  "content_hash": "1d543f40c76b04557102dba551a3ad29dd564982c9e455dff08aba63a77370cc",
+                  "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+                  "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+                },
+                {
+                  "role": "growth_lead",
+                  "storage": "ai_run_store",
+                  "version": 1,
+                  "artifact_id": "85f0d26a-db0d-493e-892f-c9fc1c592197",
+                  "content_hash": "780ed06427538419bb6d1800c3c7c041f1e3effc21ac0ad4c9d7a9f9cfbda5c0",
+                  "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+                  "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+                }
+              ],
+              "requires_human_approval": true
+            }
+          ],
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "missing_facts": [],
+          "max_iterations": 3,
+          "stopped_reason": null,
+          "profile_version": 1,
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+          "input_artifact_refs": [
+            {
+              "role": "performance",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "d85be02d-0ca9-5a1a-9f5c-784192c6389c",
+              "content_hash": "1d543f40c76b04557102dba551a3ad29dd564982c9e455dff08aba63a77370cc",
+              "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+              "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+            },
+            {
+              "role": "growth_lead",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "85f0d26a-db0d-493e-892f-c9fc1c592197",
+              "content_hash": "780ed06427538419bb6d1800c3c7c041f1e3effc21ac0ad4c9d7a9f9cfbda5c0",
+              "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+              "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+            }
+          ],
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "growth_lead",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "614d289b-3dbb-5a22-a94f-65bce8cacc02",
+          "content_hash": "60fa626f4ed051adefdcfff897410a99112d4d521ba3f6f2c33f8e5fa166389a",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "85f0d26a-db0d-493e-892f-c9fc1c592197",
+      "role": "growth_lead",
+      "operation": "lead.aggregate",
+      "content_hash": "780ed06427538419bb6d1800c3c7c041f1e3effc21ac0ad4c9d7a9f9cfbda5c0",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "count": 2,
+          "version": 1,
+          "synthetic": true,
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a"
+        },
+        "artifact": {
+          "role": "growth_lead",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "85f0d26a-db0d-493e-892f-c9fc1c592197",
+          "content_hash": "780ed06427538419bb6d1800c3c7c041f1e3effc21ac0ad4c9d7a9f9cfbda5c0",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": "286ae498-4c2d-5219-98a3-57b0df409f63",
+      "role": "growth_lead",
+      "operation": "strategy.generate",
+      "content_hash": "7d4d5f9a7a7845345b664634c12140f021d5d95ada784bcbd59f1f7759ff3581",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "tasks": [
+            {
+              "role": "seo",
+              "brief": {
+                "cta": "Request the guide (MOCK)",
+                "offer": [
+                  "Local living information MOCK"
+                ],
+                "topic": "Local living guide",
+                "intent": "informational",
+                "audience": [
+                  "English-speaking newcomers"
+                ],
+                "offer_fit": "Confirm the offer before preparing a campaign.",
+                "acceptance": [
+                  "Use cited research and verified snapshot facts only.",
+                  "Report missing facts; do not invent demand, price or availability.",
+                  "Return a draft for human review before publication."
+                ],
+                "deliverable": "seo_article_draft",
+                "audience_fit": "Explore this topic for the supplied target audience."
+              },
+              "tools": [
+                "knowledge.read",
+                "content.draft"
+              ],
+              "task_id": "6ea62647-7566-52a0-81eb-f01f9ed94eba",
+              "deadline": "2026-10-18T16:44:13.975000Z",
+              "operation": "seo.local_draft",
+              "depends_on": [],
+              "input_artifact_refs": [
+                {
+                  "role": "research",
+                  "storage": "ai_run_store",
+                  "version": 1,
+                  "artifact_id": "ab9588a2-8c72-5f4a-8d77-68624a8baba8",
+                  "content_hash": "fd944d869407bc5523a4c7e66b31ac83b05dff867ffb80aa3dfc0c5d77e144a7",
+                  "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+                  "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+                }
+              ],
+              "requires_human_approval": true,
+              "dependency_artifact_from": []
+            },
+            {
+              "role": "content",
+              "brief": {
+                "cta": "Request the guide (MOCK)",
+                "offer": [
+                  "Local living information MOCK"
+                ],
+                "topic": "Local living guide",
+                "intent": "informational",
+                "audience": [
+                  "English-speaking newcomers"
+                ],
+                "offer_fit": "Confirm the offer before preparing a campaign.",
+                "acceptance": [
+                  "Use cited research and verified snapshot facts only.",
+                  "Report missing facts; do not invent demand, price or availability.",
+                  "Return a draft for human review before publication.",
+                  "Adapt the approved SEO draft; identify real image assets or report missing assets."
+                ],
+                "deliverable": "social_pack_draft",
+                "audience_fit": "Explore this topic for the supplied target audience."
+              },
+              "tools": [
+                "knowledge.read",
+                "content.draft"
+              ],
+              "task_id": "11038106-fc16-5ab2-b6dd-c4dd0fd67ae3",
+              "deadline": "2026-10-18T16:44:13.975000Z",
+              "operation": "content.repurpose",
+              "depends_on": [
+                "6ea62647-7566-52a0-81eb-f01f9ed94eba"
+              ],
+              "input_artifact_refs": [
+                {
+                  "role": "research",
+                  "storage": "ai_run_store",
+                  "version": 1,
+                  "artifact_id": "ab9588a2-8c72-5f4a-8d77-68624a8baba8",
+                  "content_hash": "fd944d869407bc5523a4c7e66b31ac83b05dff867ffb80aa3dfc0c5d77e144a7",
+                  "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+                  "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+                }
+              ],
+              "requires_human_approval": true,
+              "dependency_artifact_from": [
+                "6ea62647-7566-52a0-81eb-f01f9ed94eba"
+              ]
+            }
+          ],
+          "status": "proposed",
+          "applied": false,
+          "plan_id": "cab10362-393d-50c8-b2ee-bdd939cce097",
+          "objective": "Prepare a newcomer guide and social drafts",
+          "synthetic": true,
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "input_version": 1,
+          "missing_facts": [],
+          "profile_version": 1,
+          "contract_version": "growth-lead-plan-v2",
+          "selection_method": "model_selection_from_grounded_research",
+          "opportunity_score": {
+            "label": "estimated",
+            "score": 729,
+            "source": "operator_estimate_not_search_volume",
+            "factors": {
+              "demand": 3,
+              "freshness": 3,
+              "content_gap": 3,
+              "growth_potential": 3,
+              "business_relevance": 3,
+              "conversion_potential": 3
+            },
+            "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
+            "estimated": true
+          },
+          "research_artifact": {
+            "role": "research",
+            "storage": "ai_run_store",
+            "version": 1,
+            "artifact_id": "ab9588a2-8c72-5f4a-8d77-68624a8baba8",
+            "content_hash": "fd944d869407bc5523a4c7e66b31ac83b05dff867ffb80aa3dfc0c5d77e144a7",
+            "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+            "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+          },
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+          "selected_opportunity": {
+            "url": "https://example.org/guide",
+            "topic": "Local living guide",
+            "evidence": {
+              "quote": "The guide compares living areas for newcomers.",
+              "license": "Synthetic fixture only",
+              "locator": "paragraph:1",
+              "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+              "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+              "source_url": "https://example.org/guide",
+              "attribution": "QQ test",
+              "source_version": 2
+            },
+            "keywords": [
+              "Local living guide"
+            ],
+            "offer_fit": "Confirm the offer before preparing a campaign.",
+            "rationale": "The cited excerpt supports a content hypothesis; demand is not measured.",
+            "user_need": "Understand local living options before making a decision.",
+            "confidence": "hypothesis",
+            "fetched_at": "2026-10-01T00:00:00Z",
+            "audience_fit": "Explore this topic for the supplied target audience.",
+            "demand_estimate": null
+          },
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "growth_lead",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "286ae498-4c2d-5219-98a3-57b0df409f63",
+          "content_hash": "7d4d5f9a7a7845345b664634c12140f021d5d95ada784bcbd59f1f7759ff3581",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        },
+        "run_metadata": {
+          "run_id": "162fc006-3a36-501a-a3ca-3b9b839953f6",
+          "trace_id": "plan-task:d306f3d2-df3e-432e-a21f-49767291ffb9",
+          "input_version": 1,
+          "model_version": "fake/w1-deterministic-1",
+          "prompt_version": "growth-lead-v1",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+          "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "3e80a374-7dfa-5838-bfce-ef33d2ce935a",
+      "role": "seo",
+      "operation": "seo.local_draft",
+      "content_hash": "89fae6d37e4dd4afaac90bc75dba834483ec07cd8b5cd6fc150155c492b25d78",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "cta": "Request the guide (MOCK)",
+          "title": "Local living guide",
+          "status": "draft",
+          "applied": false,
+          "version": 1,
+          "headings": [
+            "Overview",
+            "Next steps"
+          ],
+          "citations": [
+            {
+              "quote": "The guide compares living areas for newcomers.",
+              "license": "Synthetic fixture only",
+              "locator": "paragraph:1",
+              "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+              "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+              "source_url": "https://example.org/guide",
+              "attribution": "QQ test",
+              "source_version": 2
+            }
+          ],
+          "synthetic": true,
+          "article_id": "f55fe064-9e5d-5707-b91f-174b32348a7f",
+          "seo_checks": {
+            "meta": true,
+            "title": true,
+            "headings": true,
+            "citations": true,
+            "internal_link": true
+          },
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "body_markdown": "## Overview\n\nThe guide compares living areas for newcomers.\n\n## Next steps\n\nRequest the guide (MOCK)\n\n[source:e0761ef9-5bff-4d8f-94ab-f6ebc133d362](https://example.org/guide)\n\n[Request information](/contact) — Request the guide (MOCK)",
+          "missing_facts": [],
+          "primary_keyword": "Local living guide",
+          "profile_version": 1,
+          "meta_description": "Explore local living guide using cited research.",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+          "input_artifact_refs": [
+            {
+              "role": "research",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "ab9588a2-8c72-5f4a-8d77-68624a8baba8",
+              "content_hash": "fd944d869407bc5523a4c7e66b31ac83b05dff867ffb80aa3dfc0c5d77e144a7",
+              "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+              "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+            }
+          ],
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "seo",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "3e80a374-7dfa-5838-bfce-ef33d2ce935a",
+          "content_hash": "89fae6d37e4dd4afaac90bc75dba834483ec07cd8b5cd6fc150155c492b25d78",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        },
+        "run_metadata": {
+          "run_id": "d6c1a5b1-3c1a-5d2d-ac3c-b01edf77bba7",
+          "trace_id": "plan-task:6ea62647-7566-52a0-81eb-f01f9ed94eba",
+          "input_version": 1,
+          "model_version": "fake/w1-deterministic-1",
+          "prompt_version": "seo-v1",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+          "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "c0825ce2-e4cd-5510-8bc2-835b09490ce9",
+      "role": "content",
+      "operation": "content.repurpose",
+      "content_hash": "a5d3a4435c41ddf4fcd3b359c66e0cae2453e946ba6354eadf94dee19dd32555",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "cta": "Request the guide (MOCK)",
+          "status": "draft",
+          "applied": false,
+          "caption": "Explore local living guide. Request the guide (MOCK)",
+          "pack_id": "2e4a2b48-d91c-5f66-b5a4-7d01f782ab22",
+          "version": 1,
+          "alt_text": "Supporting image for the cited local guide.",
+          "channels": [
+            "facebook",
+            "instagram"
+          ],
+          "citations": [
+            {
+              "quote": "The guide compares living areas for newcomers.",
+              "license": "Synthetic fixture only",
+              "locator": "paragraph:1",
+              "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+              "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+              "source_url": "https://example.org/guide",
+              "attribution": "QQ test",
+              "source_version": 2
+            }
+          ],
+          "synthetic": true,
+          "channel_mode": "manual_review_pack",
+          "image_assets": [
+            {
+              "url": "https://example.org/mock-image.png",
+              "status": "approved",
+              "license": "Synthetic test fixture only",
+              "version": 1,
+              "asset_id": "5dcb87b1-9ba7-4991-bf79-0e0fb1ba2c2a",
+              "synthetic": true,
+              "attribution": "QQ fixture",
+              "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a"
+            }
+          ],
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "missing_facts": [],
+          "parent_version": 1,
+          "profile_version": 1,
+          "parent_content_id": "f55fe064-9e5d-5707-b91f-174b32348a7f",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+          "input_artifact_refs": [
+            {
+              "role": "seo",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "3e80a374-7dfa-5838-bfce-ef33d2ce935a",
+              "content_hash": "89fae6d37e4dd4afaac90bc75dba834483ec07cd8b5cd6fc150155c492b25d78",
+              "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+              "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+            }
+          ],
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "content",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "c0825ce2-e4cd-5510-8bc2-835b09490ce9",
+          "content_hash": "a5d3a4435c41ddf4fcd3b359c66e0cae2453e946ba6354eadf94dee19dd32555",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        },
+        "run_metadata": {
+          "run_id": "f1d6d96d-6780-536a-be73-80977d0e0a07",
+          "trace_id": "plan-task:11038106-fc16-5ab2-b6dd-c4dd0fd67ae3",
+          "input_version": 1,
+          "model_version": "fake/w1-deterministic-1",
+          "prompt_version": "content-v1",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+          "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "9c55e476-9a33-52e0-b86b-dbc56f6ca98e",
+      "role": "research",
+      "operation": "research.run",
+      "content_hash": "f78d8ed5ed3c06b13a8d5c3f5c21d0fd3803753062f3fdaaee8523fd66aafb47",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "status": "ready_for_handoff",
+          "applied": false,
+          "brief_id": "119fe808-6ad5-5a9f-a61a-a13d217e9ee2",
+          "findings": [
+            {
+              "url": "https://example.org/guide",
+              "topic": "Local living guide",
+              "evidence": {
+                "quote": "The guide compares living areas for newcomers.",
+                "license": "Synthetic fixture only",
+                "locator": "paragraph:1",
+                "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+                "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+                "source_url": "https://example.org/guide",
+                "attribution": "QQ test",
+                "source_version": 2
+              },
+              "keywords": [
+                "Local living guide"
+              ],
+              "offer_fit": "Confirm the offer before preparing a campaign.",
+              "rationale": "The cited excerpt supports a content hypothesis; demand is not measured.",
+              "user_need": "Understand local living options before making a decision.",
+              "confidence": "hypothesis",
+              "fetched_at": "2026-10-01T00:00:00Z",
+              "audience_fit": "Explore this topic for the supplied target audience.",
+              "demand_estimate": null
+            }
+          ],
+          "synthetic": true,
+          "handoff_role": "growth_lead",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "missing_facts": [],
+          "profile_version": 1,
+          "handoff_operation": "opportunity.score",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "research",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "9c55e476-9a33-52e0-b86b-dbc56f6ca98e",
+          "content_hash": "f78d8ed5ed3c06b13a8d5c3f5c21d0fd3803753062f3fdaaee8523fd66aafb47",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        },
+        "run_metadata": {
+          "run_id": "d54f9a94-2b35-53f9-b493-21d4ef74cd02",
+          "trace_id": "plan-task:4cd01631-76bf-4eaf-99a0-04dbcc4b7ef4",
+          "input_version": 1,
+          "model_version": "fake/w1-deterministic-1",
+          "prompt_version": "research-v2",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+          "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    },
+    {
+      "id": "ab9588a2-8c72-5f4a-8d77-68624a8baba8",
+      "role": "research",
+      "operation": "research.run",
+      "content_hash": "fd944d869407bc5523a4c7e66b31ac83b05dff867ffb80aa3dfc0c5d77e144a7",
+      "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+      "payload": {
+        "result": {
+          "status": "ready_for_handoff",
+          "applied": false,
+          "brief_id": "f4a32a48-8139-5755-8d43-fd21031aeb8f",
+          "findings": [
+            {
+              "url": "https://example.org/guide",
+              "topic": "Local living guide",
+              "evidence": {
+                "quote": "The guide compares living areas for newcomers.",
+                "license": "Synthetic fixture only",
+                "locator": "paragraph:1",
+                "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+                "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+                "source_url": "https://example.org/guide",
+                "attribution": "QQ test",
+                "source_version": 2
+              },
+              "keywords": [
+                "Local living guide"
+              ],
+              "offer_fit": "Confirm the offer before preparing a campaign.",
+              "rationale": "The cited excerpt supports a content hypothesis; demand is not measured.",
+              "user_need": "Understand local living options before making a decision.",
+              "confidence": "hypothesis",
+              "fetched_at": "2026-10-01T00:00:00Z",
+              "audience_fit": "Explore this topic for the supplied target audience.",
+              "demand_estimate": null
+            }
+          ],
+          "synthetic": true,
+          "handoff_role": "growth_lead",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "missing_facts": [],
+          "profile_version": 1,
+          "handoff_operation": "opportunity.score",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108",
+          "requires_human_approval": true
+        },
+        "artifact": {
+          "role": "research",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "ab9588a2-8c72-5f4a-8d77-68624a8baba8",
+          "content_hash": "fd944d869407bc5523a4c7e66b31ac83b05dff867ffb80aa3dfc0c5d77e144a7",
+          "workspace_id": "f14c4f47-4193-45b9-b1cc-410e5947766a",
+          "context_snapshot_id": "bc5ca1de-84f2-4b0b-876f-f43472482108"
+        },
+        "run_metadata": {
+          "run_id": "3de81b1d-56c4-5351-9798-3acfa7564aeb",
+          "trace_id": "plan-task:c4ec0334-bb4d-46a3-b3fa-1245fd1ade29",
+          "input_version": 1,
+          "model_version": "fake/w1-deterministic-1",
+          "prompt_version": "research-v2",
+          "provider_calls": 1
+        }
+      },
+      "evidence": [
+        {
+          "quote": "The guide compares living areas for newcomers.",
+          "license": "Synthetic fixture only",
+          "locator": "paragraph:1",
+          "chunk_id": "e0761ef9-5bff-4d8f-94ab-f6ebc133d362",
+          "source_id": "fbebceb9-9d33-45c3-9b93-ab093105c2d7",
+          "source_url": "https://example.org/guide",
+          "attribution": "QQ test",
+          "source_version": 2
+        }
+      ]
+    }
+  ],
+  "outbox": [
+    {
+      "task_id": "c4ec0334-bb4d-46a3-b3fa-1245fd1ade29",
+      "status": "sent",
+      "attempts": 1,
+      "error_code": null
+    },
+    {
+      "task_id": "d306f3d2-df3e-432e-a21f-49767291ffb9",
+      "status": "sent",
+      "attempts": 1,
+      "error_code": null
+    },
+    {
+      "task_id": "6ea62647-7566-52a0-81eb-f01f9ed94eba",
+      "status": "sent",
+      "attempts": 1,
+      "error_code": null
+    },
+    {
+      "task_id": "11038106-fc16-5ab2-b6dd-c4dd0fd67ae3",
+      "status": "failed",
+      "attempts": 2,
+      "error_code": "SOURCE_NOT_APPROVED"
+    },
+    {
+      "task_id": "4cd01631-76bf-4eaf-99a0-04dbcc4b7ef4",
+      "status": "sent",
+      "attempts": 1,
+      "error_code": null
+    }
+  ],
+  "audits": [
+    {
+      "target_id": "3e80a374-7dfa-5838-bfce-ef33d2ce935a",
+      "target_version": 1,
+      "target_hash": "89fae6d37e4dd4afaac90bc75dba834483ec07cd8b5cd6fc150155c492b25d78",
+      "status": "approved",
+      "decision": "approve",
+      "actor_role": "owner"
+    },
+    {
+      "target_id": "614d289b-3dbb-5a22-a94f-65bce8cacc02",
+      "target_version": 1,
+      "target_hash": "60fa626f4ed051adefdcfff897410a99112d4d521ba3f6f2c33f8e5fa166389a",
+      "status": "approved",
+      "decision": "approve",
+      "actor_role": "owner"
+    }
+  ],
+  "model": "fake/w1-deterministic-1",
+  "passed": true
+}

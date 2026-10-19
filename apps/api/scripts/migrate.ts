@@ -3,7 +3,8 @@ import path from "path";
 import pool from "../src/lib/db";
 
 async function runMigrations() {
-  console.log("🚀 Starting database migrations...");
+  const isRollback = process.argv.includes("--down") || process.argv.includes("--rollback");
+  console.log(isRollback ? "🔄 Starting database migration rollback..." : "🚀 Starting database migrations...");
 
   const migrationsDir = path.resolve(__dirname, "../../../database/migrations");
 
@@ -12,13 +13,25 @@ async function runMigrations() {
     process.exit(1);
   }
 
-  const files = fs
-    .readdirSync(migrationsDir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
+  let files: string[];
+
+  if (isRollback) {
+    // Với rollback, chỉ lấy file .down.sql và chạy theo thứ tự giảm dần
+    files = fs
+      .readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".down.sql"))
+      .sort()
+      .reverse();
+  } else {
+    // Với forward migration, chỉ lấy file .sql chuẩn (bỏ qua .down.sql) và chạy theo thứ tự tăng dần
+    files = fs
+      .readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql") && !f.endsWith(".down.sql"))
+      .sort();
+  }
 
   if (files.length === 0) {
-    console.log("ℹ️ No migration files found.");
+    console.log(isRollback ? "ℹ️ No rollback migration files found." : "ℹ️ No forward migration files found.");
     await pool.end();
     return;
   }
@@ -29,7 +42,7 @@ async function runMigrations() {
     await client.query("BEGIN");
 
     for (const file of files) {
-      console.log(`⏳ Applying migration: ${file}...`);
+      console.log(`⏳ Executing ${isRollback ? "rollback" : "migration"}: ${file}...`);
       const filePath = path.join(migrationsDir, file);
       const sql = fs.readFileSync(filePath, "utf-8");
 
@@ -38,7 +51,7 @@ async function runMigrations() {
     }
 
     await client.query("COMMIT");
-    console.log("🎉 All migrations applied successfully!");
+    console.log(isRollback ? "🎉 Rollback completed successfully!" : "🎉 All migrations applied successfully!");
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("❌ Migration failed! Rolled back transaction.", err);

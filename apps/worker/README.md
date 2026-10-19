@@ -1,8 +1,49 @@
 # BE — Worker jobs
 
-Owner: Mỹ (BE), Thiệu Quang peer-review; vùng sửa `apps/worker/**`. Package/lockfile và process riêng với API, job dài không nằm trong request web. W1-MY-01: đã có queue pg-boss baseline, job state/heartbeat/retry/kill-recovery + fake AI adapter (chưa có AI/CMS live).
+Owner: Mỹ (BE), Thiệu Quang peer-review; vùng sửa `apps/worker/**`. Package/lockfile và process riêng với API, job dài không nằm trong request web. W1-MY-01: đã có queue pg-boss baseline, job state/heartbeat/retry/kill-recovery + fake AI adapter. **MY-01 (D3): đã nối AI HTTP adapter (CR-001) và typed job routing** — xem mục riêng dưới đây.
 
-`src/jobs/`: `JobState` (status/attempt/deadline/progress/result_ref/provider_calls), `JobStore` (Memory + File durable), `RetryPolicy`, `Heartbeat`, `JobRunner` (claim→heartbeat→persist→completed; timeout; recoverStale), `QueueConfig` (pg-boss v8), `operations`, `submit`. `src/adapters/`: `AiAdapter` (FakeAiAdapter), `QueueAdapter` (PgBoss/Memory), `StorageAdapter` (Memory/File result_ref); CMS/GA4/GSC placeholder. `tests/` và `tasks/` do BE quản.
+`src/jobs/`: `JobState` (status/attempt/deadline/progress/result_ref/provider_calls), `JobStore` (Memory + File durable), `RetryPolicy`, `Heartbeat`, `JobRunner` (claim→heartbeat→persist→completed; timeout; recoverStale), `QueueConfig` (pg-boss v8), `operations` (typed routing), `submit`. `src/adapters/`: `AiAdapter` (Fake + Http), `QueueAdapter` (PgBoss/Memory), `StorageAdapter` (Memory/File result_ref); CMS/GA4/GSC placeholder. `src/workflow/`: `WorkflowRunner` (dependency dispatch + human wait + dedup + resume + requeueFailed), `WorkflowStore` (Memory + File), `DbWorkflowStore` (Postgres, nối migration 002). `tests/` và `tasks/` do BE quản.
+
+## AI HTTP adapter và typed routing (MY-01)
+
+- `AI_PROVIDER_MODE=live` → `HttpAiAdapter` (`src/adapters/HttpAiAdapter.ts`): POST `{AI_SERVICE_BASE_URL}/internal/v1/runs` với JobRequest đầy đủ (job_id/workspace_id UUID, operation đã map, input_version, trace_id, payload), poll `GET /internal/v1/runs/{run_id}` tới terminal, auth `Authorization: Bearer {INTERNAL_AI_AUTH_TOKEN}`.
+- Idempotency theo CR-001: worker resend **cùng request** (không nhúng attempt) → AI service resume run cũ; khóa định danh là `job_id + operation + input_version`.
+- Phân loại lỗi: envelope 4xx (INVALID_PAYLOAD, IDEMPOTENCY_CONFLICT, UNAUTHORIZED…) → permanent (không retry, `error_code` giữ mã AI); 429/5xx/network/poll-timeout → retryable; run failed đọc cờ `retryable` từ AI service. Lỗi ghi vào `JobState.error_code`.
+- Cancel: contract chưa có AI-side cancel endpoint → `HttpAiAdapter.cancel(runId)` ngừng poll local (`RUN_CANCELLED`); run vẫn hoàn tất bên AI và nằm trong AI run store.
+- Typed routing (`src/jobs/operations.ts`): `ingest→knowledge.ingest`, `research→research.run`, `score→opportunity.score`, `strategy→strategy.generate`, `content→content.generate`. **publish/lead/metrics/integrations đã wiring executor (MY-04/05/06)** — publish qua `PublishJobProcessor + defaultRegistry (MockCmsPublisher)`, lead qua `LeadIntakeService`, metrics qua `MetricsIngestionStub (insufficient_data)`, integrations passthrough manual/insufficient; chỉ `ingest_revoke/ingest_delete` còn fail `OPERATION_NOT_WIRED` chờ snapshot scoping (TQ-02).
+- Env: `AI_SERVICE_BASE_URL`, `INTERNAL_AI_AUTH_TOKEN`, `AI_HTTP_POLL_INTERVAL_MS` (1000), `AI_HTTP_POLL_TIMEOUT_MS` (600000), `AI_HTTP_REQUEST_TIMEOUT_MS` (30000).
+- Job result của operation AI-backed gồm `ai_run_id` + `artifact` (CR-002) persist qua `result_ref`.
+- Test: `tests/httpAiAdapter.test.ts` (submit/poll/idempotency/error envelope/cancel, stub fetch — không cần service thật), `tests/operationsRouting.test.ts` (mapping + không-LLM ops). Chạy: `npm test`.
+
+## Workflow runner durable (MY-03 — hoàn thiện tuần 1)
+
+- `WorkflowRunner` (`src/workflow/WorkflowRunner.ts`): dependency dispatch đúng thứ tự DAG, dừng ở human wait (`awaiting_approval`), event dedup exactly-once, `resume()` sau restart chỉ chạy step cần, `requeueFailed()` retry step lỗi không chạy lại toàn campaign.
+- `DbWorkflowStore` (`src/workflow/DbWorkflowStore.ts`, mới): pg Pool raw SQL theo pattern `apps/api/src/lib/db.ts`, nối migration 002 của TQ-02 — Workflow → hàng `workflow_tasks` operation=`__workflow__`; Task → hàng `workflow_tasks` + cạnh `task_dependencies` (đọc dependencies từ bảng, nguồn sự thật cho dispatch); Event → hàng `content_artifacts` (`artifact_type='workflow_event'`, content_hash = sha256(workflow_id|dedup_key), dedup read-before-write trong transaction vì 002 chưa có unique (workspace_id, content_hash)). `'blocked'` hạ xuống `'failed'` + error_code=`DEPENDENCY_FAILED` (map ngược khi đọc) vì CHECK của 002 không có `'blocked'`.
+- Test: `tests/workflow.test.ts` 5/5 (Memory/File store), `tests/dbWorkflow.test.ts` (tích hợp Postgres thật, tự skip khi không có DB — cần `DATABASE_URL` trỏ Postgres đã migrate 001+002).
+- Hạn chế môi trường hiện tại: Docker Desktop chưa chạy trên máy Mỹ nên evidence DB thật + live run MY-01 chưa có — chạy lại `npx vitest run tests/dbWorkflow.test.ts` và smoke `AI_PROVIDER_MODE=live` khi có Postgres + AI service.
+
+Giới hạn: chỉ 1 AI process (concurrency 1); workspace_id phải là UUID thật từ BE — test nội bộ dùng FakeAiAdapter; publish/lead/metrics đã wiring executor, còn `ingest_revoke/ingest_delete` chờ snapshot scoping (TQ-02).
+
+## Lead persistence PG (MY-06 — thay in-memory)
+
+- `src/leads/PgLeadStore.ts` (mới): implements `LeadStore` bằng pg Pool raw SQL theo pattern `DbWorkflowStore`, bảng `leads` (migration 003). `insertLead` chạy transaction `BEGIN` → check idempotency read-before-write → `INSERT` → `COMMIT`, lỗi giữa chừng `ROLLBACK` (không half-write). `findByKey/listByWorkspace/updateStatus` cùng DB. `close()` kết thúc Pool.
+- `LeadIntakeService(pgStore?)`: nếu truyền store thì dùng PG, ngược lại `autoPgStore()` — có `DATABASE_URL` thì tự tạo `PgLeadStore`, không thì in-memory như cũ. Test cũ không set `DATABASE_URL` nên vẫn in-memory, không đổi hành vi.
+- Smoke PG thật (tay, không CI): `cd apps/worker && DATABASE_URL=... npx tsx tasks/pgLeadSmoke.ts` → intake 2 lần cùng payload: lần 2 `duplicate=true`, cùng `leadId`, row trong `leads`. Cần workspace UUID có thật (FK `workspace_id` → `workspaces.id`); thiếu FK thì intake trả `LEAD_PERSIST_FAILED`.
+- Test tích hợp gating (CI-local): `tests/pgLeadStore.test.ts` — tự skip khi không kết nối được Postgres (mặc định `:15432`). Chạy: `DATABASE_URL=... npx vitest run tests/pgLeadStore.test.ts`. Bao roundtrip intake/dedup/list/updateStatus, **race 2 request song song** (unique constraint `uq_leads_workspace_idempotency` chặn, `insertLead` bắt `23505` trả row đã commit → `duplicate=true`), và persist-fail không half-write.
+- Env: `DATABASE_URL` (Postgres đã migrate 001–004).
+
+## Gateway recheck qua HTTP (MY-05 — nối TQ-06)
+
+- `src/publish/GatewayRecheckClient.ts` (mới): `createGatewayCheck()` trả seam `gatewayCheck` cho `PublishJobProcessor` — `POST {API_BASE_URL}/v1/workspaces/{ws}/tools/execute` với `Authorization: Bearer {WORKER_GATEWAY_TOKEN}` (mặc định `dev_owner`), timeout `GATEWAY_REQUEST_TIMEOUT_MS` (5000ms).
+- Channel → provider/capability theo matrix: Website/Newsletter → `website_cms/publish_cms_post`; Facebook → `facebook_page/publish_page_post`; Instagram → `instagram_business/publish_ig_media`. Luôn `action_type=publish` kèm `approval_id` + `expected_version/hash`.
+- **Fail-closed**: HTTP 4xx/5xx/network → deny (`GATEWAY_UNREACHABLE`/lý do từ envelope lỗi) → publish trả `GATEWAY_DENIED`, không gọi CMS. Thiếu `API_BASE_URL` → `null` → bỏ qua recheck (hành vi cũ, test không đổi).
+- Wiring: `operations.ts` handler `publish` tự tạo `gatewayCheck` khi env có `API_BASE_URL`; job payload có `approvalId` để truyền xuống.
+- Test stub fetch: `src/publish/__tests__/gatewayRecheckClient.test.ts` (5 test, không mở socket).
+
+## MY-08 drill (một phần trên PG thật)
+
+- `tests/my08DrillPg.test.ts` (gating, tự skip khi không có Postgres): (1) queue backlog — worker mới `resume` từ PG drain workflow dở dang (t1/t2 completed bền, t3 awaiting_approval, event dedup); (2) revoked connector — gateway deny → publish fail fast `GATEWAY_DENIED`, CMS không được gọi.
+- Còn chờ TH-07: kill process thật + CMS timeout E2E.
 
 ## Chạy & kiểm thử (W1-MY-01)
 

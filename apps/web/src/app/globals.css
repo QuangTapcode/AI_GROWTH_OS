@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   color-scheme: light;
   --ink: #142b37;
@@ -5,30 +7,51 @@
   --accent: #116b59;
   font-family: Arial, Helvetica, sans-serif;
 }
+
 * { box-sizing: border-box; }
-body { margin: 0; color: var(--ink); background: #f5f8f7; }
-a { color: var(--accent); text-underline-offset: 4px; }
-button { font: inherit; }
+body { margin: 0; color: var(--ink); background: #ffffff; }
+
+/* ── Scoped Staging Shell Styles (Only applies within .shell) ── */
 .shell { max-width: 1000px; margin: auto; padding: 32px 24px 64px; }
-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 30px; border-bottom: 1px solid #dce5e1; }
-.brand { font-size: 20px; font-weight: 700; text-decoration: none; color: var(--ink); }
-.badge { padding: 7px 12px; background: #e1eee8; color: #225a46; border-radius: 999px; font-size: 13px; }
-.hero { margin: 64px 0 40px; max-width: 740px; }
-.eyebrow { color: var(--accent); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
-h1 { font-size: clamp(36px, 6vw, 58px); line-height: 1.12; letter-spacing: -0.035em; margin: 18px 0; }
-p { line-height: 1.65; }
-.lead { color: var(--muted); font-size: 18px; }
-.connection-card { background: white; border: 1px solid #dce5e1; border-radius: 18px; padding: 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.connection-status { font-size: 22px; font-weight: 700; margin: 8px 0; }
-.muted { color: var(--muted); font-size: 14px; }
-button { border: 0; border-radius: 10px; padding: 12px 18px; background: var(--accent); color: white; cursor: pointer; white-space: nowrap; }
-button:hover { background: #0c5143; }
-button:disabled { opacity: 0.6; cursor: wait; }
-button:focus-visible, a:focus-visible { outline: 3px solid #d5a632; outline-offset: 4px; }
-footer { margin-top: 36px; display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.shell a { color: var(--accent); text-underline-offset: 4px; }
+.shell button { border: 0; border-radius: 10px; padding: 12px 18px; background: var(--accent); color: white; cursor: pointer; white-space: nowrap; font: inherit; }
+.shell button:hover { background: #0c5143; }
+.shell button:disabled { opacity: 0.6; cursor: wait; }
+.shell button:focus-visible, .shell a:focus-visible { outline: 3px solid #d5a632; outline-offset: 4px; }
+.shell header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 30px; border-bottom: 1px solid #dce5e1; }
+.shell .brand { font-size: 20px; font-weight: 700; text-decoration: none; color: var(--ink); }
+.shell .badge { padding: 7px 12px; background: #e1eee8; color: #225a46; border-radius: 999px; font-size: 13px; }
+.shell .hero { margin: 64px 0 40px; max-width: 740px; }
+.shell .eyebrow { color: var(--accent); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
+.shell h1 { font-size: clamp(36px, 6vw, 58px); line-height: 1.12; letter-spacing: -0.035em; margin: 18px 0; }
+.shell p { line-height: 1.65; }
+.shell .lead { color: var(--muted); font-size: 18px; }
+.shell .connection-card { background: white; border: 1px solid #dce5e1; border-radius: 18px; padding: 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.shell .connection-status { font-size: 22px; font-weight: 700; margin: 8px 0; }
+.shell .muted { color: var(--muted); font-size: 14px; }
+.shell footer { margin-top: 36px; display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+
 @media (max-width: 600px) {
   .shell { padding: 24px 18px 40px; }
-  .hero { margin-top: 40px; }
-  .connection-card { align-items: flex-start; flex-direction: column; }
+  .shell .hero { margin-top: 40px; }
+  .shell .connection-card { align-items: flex-start; flex-direction: column; }
 }
 
+/* ── Modern Animations ── */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes floatReverse {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(6px); }
+}
+
+.animate-float-slow {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: floatReverse 6s ease-in-out infinite;
+}

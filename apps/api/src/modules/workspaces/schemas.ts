@@ -20,3 +20,4 @@ export const addMemberSchema = z.object({
 });
 
 export type AddMemberInput = z.infer<typeof addMemberSchema>;
+export type UserRole = "owner" | "editor" | "viewer";
