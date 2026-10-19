@@ -57,6 +57,19 @@ async function main(): Promise<void> {
       .finally(() => { planRunning = false; });
   }, 1000);
   planTimer.unref();
+  let automationRunning = false;
+  const automationTimer = setInterval(() => {
+    if (automationRunning || !process.env.AUTOMATION_INTERNAL_TOKEN || !process.env.API_BASE_URL) return;
+    automationRunning = true;
+    const base = process.env.API_BASE_URL.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+    void fetch(`${base}/internal/automation/tick`, { method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.AUTOMATION_INTERNAL_TOKEN}` },
+      signal: AbortSignal.timeout(25000) }).then(response => {
+        if (!response.ok) throw new Error(`Automation scheduler HTTP ${response.status}`);
+      }).catch(error => console.error('[automation]', (error as Error).message))
+      .finally(() => { automationRunning = false; });
+  }, 30000);
+  automationTimer.unref();
   // Wire DbWorkflowStore (MY-03): verify Postgres connection at startup.
   workflowStore = new DbWorkflowStore();
   try {
@@ -120,6 +133,7 @@ async function main(): Promise<void> {
     stopping = true;
     clearInterval(sweep);
     clearInterval(planTimer);
+    clearInterval(automationTimer);
     console.log(`[worker] ${signal} received, stopping queue...`);
     await queue.stop();
     await planPool.end();

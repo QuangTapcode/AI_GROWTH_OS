@@ -63,6 +63,7 @@ export class PlanOutboxRunner {
         payload.lead_summary = input.lead_summary_artifact_id ? await load(input.lead_summary_artifact_id) : null;
         payload.iteration = input.iteration; payload.max_iterations = input.max_iterations; payload.task_quota = input.task_quota;
       } else if (task.operation !== 'research.run') throw new Error('UNKNOWN_PLAN_OPERATION');
+      await this.pool.query("UPDATE workflow_tasks SET status='running',started_at=COALESCE(started_at,now()),updated_at=now() WHERE id=$1 AND status NOT IN ('completed','cancelled','failed')", [task.id]);
       const result = await this.ai.run({ operation: 'content', aiOperation: task.operation, input: payload,
         job_id: task.id, workspace_id: claimed.workspace_id, input_version: task.input_version,
         trace_id: `plan-task:${task.id}`, context_snapshot_id: context.snapshot_id,
@@ -98,6 +99,7 @@ export class PlanOutboxRunner {
       const permanent = (error as { permanent?: boolean }).permanent === true ||
         ['TASK_NOT_RUNNABLE', 'TASK_DEADLINE_EXCEEDED', 'STALE_CONTEXT', 'SOURCE_NOT_APPROVED', 'DEPENDENCY_NOT_APPROVED', 'UNKNOWN_PLAN_OPERATION', 'INVALID_AI_ARTIFACT', 'ARTIFACT_HASH_MISMATCH'].includes((error as Error).message);
       const owned = await this.pool.query("UPDATE plan_task_outbox SET status=$2,lease_until=NULL,error_code=$3 WHERE id=$1 AND status='claimed' AND attempts=$4 RETURNING task_id", [claimed.id, permanent || claimed.attempts >= 3 ? 'failed' : 'pending', (error as Error).message, claimed.attempts]);
+      if (owned.rowCount && !permanent && claimed.attempts < 3) await this.pool.query("UPDATE workflow_tasks SET status='queued',error_details=$2,updated_at=now() WHERE id=$1 AND status='running'", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);
       if (owned.rowCount && (permanent || claimed.attempts >= 3)) await this.pool.query("UPDATE workflow_tasks SET status='failed',error_details=$2,updated_at=now() WHERE id=$1 AND status NOT IN('completed','cancelled')", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);
       throw error;
     }

@@ -1,0 +1,8 @@
+@media (max-width: 767px) {
+  .root > div > aside {
+    display: none;
+  }
+  .root > div > div > header {
+    display: none;
+  }
+}
