@@ -27,12 +27,22 @@ Giữ runtime TypeScript/SQL/Python và manifests/lockfiles riêng hiện có. C
 
 ## Local/staging
 
-Từ PowerShell ở repo, launcher hiện có:
+Yêu cầu: Windows + PowerShell, Docker Desktop, Node.js 24, Python 3.12–3.14 (AI service). Chạy từ thư mục repo:
 
 ```powershell
-.\infra\staging\start.ps1
+.\infra\staging\setup-local.ps1   # lần đầu: Docker Postgres/SearXNG, apps/api/.env.local, migrate + seed (in mật khẩu demo)
+.\infra\staging\start.ps1         # build + chạy API :4000, web :3000, pilot :3001
 .\infra\staging\stop.ps1
 ```
+
+Đăng nhập http://localhost:3000/login bằng `owner.tripc.demo@gmail.com` (hoặc `editor.`/`viewer.`) với mật khẩu `db:seed` in ra. AI service (:5000) và worker chạy riêng nếu cần:
+
+```powershell
+$env:LLM_PROVIDER_MODE = "fake"; python -m uvicorn src.app.main:app --app-dir services/ai --host 127.0.0.1 --port 5000
+cd apps/worker; npm ci; $env:QUEUE_PORT = "15432"; $env:QUEUE_PASSWORD = "<POSTGRES_PASSWORD trong infra/local/.env>"; npx tsx src/main.ts
+```
+
+Public staging `https://aigrowthos-staging.pages.dev/` deploy bằng `infra\staging\cloudflare-pages\deploy.ps1` (xem [staging README](infra/staging/README.md)).
 
 [Hướng dẫn staging](infra/staging/README.md) có env/build/start/health. Launcher không chứng minh nghiệp vụ đã hoàn thành. Xem README từng package cho lệnh phát triển và các giới hạn fake/live; không đổi credential hoặc chạy publish/ads chỉ vì khởi động app.
 

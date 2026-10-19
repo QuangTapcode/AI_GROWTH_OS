@@ -1,10 +1,16 @@
 # Local staging cho AI Growth OS
 
-Bootstrap tối giản tạo hai giao diện Next.js và một API chạy trên máy Windows. Hai frontend kiểm tra API thật qua HTTP; môi trường này chưa triển khai authentication, CMS, database persistence hay queue nghiệp vụ.
+Hai giao diện Next.js và một API chạy trên máy Windows, dữ liệu trong Postgres local (`infra/local`), đăng nhập email/mật khẩu. Chưa có CMS live hay connector GA4/GSC/Meta.
 
 ## Bật staging
 
-Yêu cầu Node.js major 24 (`24.14.1` đã dùng), npm và PowerShell trên Windows. Từ repository root:
+Yêu cầu Node.js major 24 (`24.14.1` đã dùng), npm, Docker Desktop và PowerShell trên Windows. Từ repository root, lần đầu sau khi clone:
+
+```powershell
+.\infra\staging\setup-local.ps1
+```
+
+Script kéo image và chạy `infra/local/bootstrap.ps1` (Postgres 127.0.0.1:15432, SearXNG 127.0.0.1:18081), ghi `apps/api/.env.local` (`DATABASE_URL` từ `infra/local/.env`, `AUTH_SECRET` ngẫu nhiên), rồi `db:migrate` + `db:seed`. Chạy lại an toàn; đã có Docker stack thì dùng `-SkipInfra`. Sau đó:
 
 ```powershell
 .\infra\staging\start.ps1
