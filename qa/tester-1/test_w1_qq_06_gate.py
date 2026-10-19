@@ -9,7 +9,7 @@ HEADERS = {"Authorization": "Bearer w1-dev-token-qa-only"}
 def test_w1_qq_06_staging_gate_verdict():
     """QA Nghiệm thu W1-QQ-06: Staging Integration, End-to-End Pipeline & Gate Verdict"""
     
-    print("\n🚀 [QA GATE] Bắt đầu kiểm tra toàn trình hệ thống Staging...")
+    print("\n [QA GATE] Bắt đầu kiểm tra toàn trình hệ thống Staging...")
     
     # 1. Kiểm tra trạng thái sẵn sàng của hệ thống (Health & Ready)
     health_res = requests.get(f"{BASE_URL}/healthz")
@@ -64,7 +64,7 @@ def test_w1_qq_06_staging_gate_verdict():
     run_id = run_data.get("run_id")
     print(f"   -> [PASS] Job E2E đã khởi tạo thành công cho Tenant {workspace_id} với Run ID: {run_id}")
     
-    # 4. KẾT LUẬN GATE VERDICT
+
     print("\n==================================================")
     print("🏆 GATE VERDICT: PASSED (APPROVED FOR STAGING RELEASE)")
     print("==================================================")

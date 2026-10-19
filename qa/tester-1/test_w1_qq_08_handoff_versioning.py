@@ -2,7 +2,6 @@ import uuid
 import requests
 import pytest
 
-# Dùng cổng 5001 như chúng ta đã set up thành công ở các task trước
 BASE_URL = "http://localhost:5001"
 HEADERS = {"Authorization": "Bearer w1-dev-token-qa-only"}
 

@@ -23,8 +23,6 @@ def test_cross_tenant_isolation(fixtures):
     global_id = fixtures["tenants"][1]["tenant_id"]
     job_id = str(uuid.uuid4())
     
-    # Payload cố tình gài "râu ông nọ cắm cằm bà kia": 
-    # Job thuộc TripC nhưng snapshot lại chứa data của Global Expat
     payload = {
         "job_id": job_id,
         "workspace_id": tripc_id, 
