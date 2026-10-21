@@ -74,6 +74,7 @@ Một báo cáo chỉ được đánh dấu **PRODUCTION_PASS** khi `synthetic=f
 
 ## Nguồn evidence
 
+- [Standalone runbook cho từng agent](SINGLE-AGENT-RUNBOOK.md)
 - [Live DB pipeline](../../qa/evidence/qq-all-2026-10-17/live-db-pipeline.json)
 - [Six-role live evaluation](../../qa/evidence/qq-all-2026-10-17/six-role-live-eval.json)
 - [Release decision](../../qa/evidence/qq-all-2026-10-17/release-decision.json)
