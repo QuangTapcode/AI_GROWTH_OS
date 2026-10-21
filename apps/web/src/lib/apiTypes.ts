@@ -151,6 +151,19 @@ export interface WorkspaceReport {
   generated_at: string;
 }
 
+export interface MetricSyncResponse {
+  from: string;
+  to: string;
+  points_saved: number;
+  results: Array<{
+    provider: "ga4" | "gsc" | "meta_ads";
+    status: "synced" | "no_data" | "skipped" | "error";
+    points: number;
+    missing_reason?: string;
+    error?: string;
+  }>;
+}
+
 export interface SystemException {
   id: string;
   workspace_id: string;

@@ -2,7 +2,7 @@
 
 Nền tảng điều phối 6 agent Marketing cho TripC: Research → Growth Lead → SEO/Content → human approval → xuất bản → Community/lead → Performance → learning/task tiếp.
 
-**Baseline hiện hành: 7 người, 3 tuần (15/10–04/11/2026 dự kiến), Level 2.** AI xử lý/bàn giao nội bộ, con người duyệt trước nội dung ra ngoài. Sáu pipeline còn đang triển khai; registry và scaffold chưa phải hệ thống chạy hoàn chỉnh.
+**Baseline hiện hành: 7 người, 3 tuần (15/10–04/11/2026 dự kiến), Level 2.** AI xử lý/bàn giao nội bộ, con người duyệt trước nội dung ra ngoài. Sáu pipeline đã có handler/schema/RAG; connector live vẫn fail-closed cho đến khi OAuth được verify.
 
 ## Bắt đầu
 
@@ -10,6 +10,7 @@ Nền tảng điều phối 6 agent Marketing cho TripC: Research → Growth Lea
 2. Đọc [roster/quyền sửa](docs/coordination/TEAM.md), [cấu trúc và data flow](docs/architecture/SIX-AGENT-RESTRUCTURE.md).
 3. Tra [bản đồ tái sử dụng](docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-REUSE-MAP.md), chọn task rồi chốt contract/AC với consumer trước code.
 4. Handoff có task ID, PR/build, schema/version và evidence. Mock/local khác tích hợp/live; Done cần reviewer xác nhận.
+5. Xem [MCP và connector setup](docs/integrations/MCP-CONNECTOR-SETUP.md) để cấu hình Facebook/TikTok và luồng approval → outbox → publisher.
 
 ## Các package
 
@@ -35,7 +36,7 @@ Yêu cầu: Windows + PowerShell, Docker Desktop, Node.js 24, Python 3.12–3.14
 .\infra\staging\stop.ps1
 ```
 
-Đăng nhập http://localhost:3000/login bằng `owner.tripc.demo@gmail.com` (hoặc `editor.`/`viewer.`) với mật khẩu `db:seed` in ra. AI service (:5000) và worker chạy riêng nếu cần:
+Đăng nhập http://localhost:3000/login bằng `owner.tripc.demo@gmail.com` (hoặc `editor.`/`viewer.`) với mật khẩu fixture `TripC@2026!`; xem toàn bộ tài khoản bằng `npm.cmd --prefix apps/api run db:demo-accounts`. AI service (:5000) và worker chạy riêng nếu cần:
 
 ```powershell
 $env:LLM_PROVIDER_MODE = "fake"; python -m uvicorn src.app.main:app --app-dir services/ai --host 127.0.0.1 --port 5000

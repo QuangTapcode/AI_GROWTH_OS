@@ -110,7 +110,9 @@ export default function KpiMetricsRow({ report, previous }: KpiMetricsRowProps) 
                       className="inline-flex items-center font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-md"
                       title={item.missing_reason ?? undefined}
                     >
-                      Not connected · {humanize((item.missing_reason ?? item.availability).toLowerCase())}
+                      {item.missing_reason === "NO_DATA_IN_RANGE"
+                        ? "No data in range"
+                        : `Not connected · ${humanize((item.missing_reason ?? item.availability).toLowerCase())}`}
                     </span>
                   )}
                 </div>

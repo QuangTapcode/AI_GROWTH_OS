@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/features/shell/AppShell";
 import { useWorkspace } from "@/features/shell/WorkspaceProvider";
@@ -14,6 +14,8 @@ type Settings = {
   enabled: boolean;
   interval_hours: number;
   cta: string;
+  auto_approve_outputs: boolean;
+  auto_publish_facebook: boolean;
   next_run_at: string;
   last_tick_at: string | null;
   last_error: string | null;
@@ -77,6 +79,8 @@ function Operations() {
   );
   const [interval, setIntervalHours] = useState(24);
   const [cta, setCta] = useState("Contact our team");
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [autoPublishFacebook, setAutoPublishFacebook] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [role, setRole] = useState("all");
@@ -86,22 +90,34 @@ function Operations() {
     return () => window.clearInterval(timer);
   }, [reload]);
   // Hydrate inputs once; polling must never overwrite an owner's unsaved edits.
-  const [hydrated, setHydrated] = useState(false);
+  const hydrated = useRef(false);
   useEffect(() => {
-    if (!data || hydrated) return;
-    if (data.settings) {
-      setIntervalHours(data.settings.interval_hours);
-      setCta(data.settings.cta);
-    }
-    setHydrated(true);
-  }, [data, hydrated]);
+    if (!data || hydrated.current) return;
+    const timer = window.setTimeout(() => {
+      if (data.settings) {
+        setIntervalHours(data.settings.interval_hours);
+        setCta(data.settings.cta);
+        setAutoApprove(data.settings.auto_approve_outputs);
+        setAutoPublishFacebook(data.settings.auto_publish_facebook);
+      }
+      hydrated.current = true;
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [data]);
   async function save(enabled: boolean, run_now = false) {
     setBusy(true);
     setMessage("");
     try {
       await apiRequest(`/workspaces/${workspace.id}/automation`, {
         method: "PUT",
-        body: { enabled, interval_hours: interval, cta, run_now },
+        body: {
+          enabled,
+          interval_hours: interval,
+          cta,
+          auto_approve_outputs: autoApprove,
+          auto_publish_facebook: autoPublishFacebook,
+          run_now,
+        },
       });
       setMessage(
         run_now
@@ -217,6 +233,24 @@ function Operations() {
               >
                 {settings?.enabled ? "Tạm dừng lịch" : "Bật tự động"}
               </button>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={autoApprove}
+                  onChange={(e) => setAutoApprove(e.target.checked)}
+                  disabled={!canApprove || busy}
+                />
+                Tự duyệt output đủ citation
+              </label>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={autoPublishFacebook}
+                  onChange={(e) => setAutoPublishFacebook(e.target.checked)}
+                  disabled={!canApprove || busy}
+                />
+                Tự đăng Facebook
+              </label>
               <button
                 disabled={!canApprove || busy}
                 onClick={() => save(Boolean(settings?.enabled), true)}
@@ -248,13 +282,18 @@ function Operations() {
                 (t) => t.role === id && t.status === "running" && !t.synthetic,
               ).length;
               return (
-                <button
+                <article
                   key={id}
-                  onClick={() => setRole(role === id ? "all" : id)}
                   className={`rounded-xl border bg-white p-5 text-left transition-colors hover:border-blue-400 ${role === id ? "border-blue-600" : "border-slate-200"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="font-bold text-slate-900">{name}</h2>
+                    <button
+                      type="button"
+                      onClick={() => setRole(role === id ? "all" : id)}
+                      className="font-bold text-slate-900 hover:text-blue-700"
+                    >
+                      {name}
+                    </button>
                     <span
                       className={`rounded-md px-2 py-1 text-xs ${badge(running ? "running" : latest?.status)}`}
                     >
@@ -270,7 +309,19 @@ function Operations() {
                     {tasks.filter((t) => t.role === id).length} task trong 100
                     task gần nhất
                   </p>
-                </button>
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setRole(role === id ? "all" : id)}
+                      className="text-xs font-semibold text-slate-500 hover:text-blue-700"
+                    >
+                      Lọc task
+                    </button>
+                    <Link href={`/agents/${id}`} className="text-xs font-bold text-blue-700 hover:underline">
+                      Xem chi tiết →
+                    </Link>
+                  </div>
+                </article>
               );
             })}
           </section>

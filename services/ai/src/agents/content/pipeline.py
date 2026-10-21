@@ -26,14 +26,21 @@ async def run_content(ctx):
          "brand_voice": p.business_profile.voice}, ContentDraft,
         lambda: {"caption": f"Explore {article['title'].lower()}. {p.cta}", "alt_text": "Supporting image for the cited local guide."})
     ensure_grounded(draft.caption + " " + draft.alt_text, [article["body_markdown"], article["title"], p.cta])
+    channels = [channel for channel in p.target_channels if channel in {"facebook", "tiktok"}]
+    if not channels:
+        channels = ["facebook", "tiktok"]
     missing = list(article.get("missing_facts", []))
-    if not assets:
+    # Facebook Page text posts do not require an image. TikTok still requires
+    # an approved media asset, so keep the asset gate for any TikTok target.
+    requires_media = "tiktok" in channels
+    if not assets and requires_media:
         missing.append("approved_image_asset")
     fields = result_fields(ctx, [p.source_article])
     fields["synthetic"] = fields["synthetic"] or any(a.synthetic for a in assets)
-    result = SocialPack(**fields, status="needs_assets" if not assets else "insufficient_data" if article.get("missing_facts") else "draft",
+    result = SocialPack(**fields, status="needs_assets" if (not assets and requires_media) else "insufficient_data" if article.get("missing_facts") else "draft",
         missing_facts=sorted(set(missing)), pack_id=stable_id(ctx, "social"), parent_content_id=article["article_id"],
         parent_version=p.source_article.artifact.version, caption=draft.caption, cta=p.cta,
-        channels=["facebook", "instagram"], image_assets=assets, alt_text=draft.alt_text, citations=p.source_article.evidence)
+        channels=channels, image_assets=assets, alt_text=draft.alt_text, citations=p.source_article.evidence,
+        video_asset_ref=None, tiktok_privacy_level="SELF_ONLY")
     return OperationOutcome(result=result.model_dump(mode="json"), evidence=p.source_article.evidence,
                             warnings=["MANUAL_PACK_REQUIRES_APPROVAL_AND_CHANNEL_CAPABILITY"])

@@ -17,6 +17,8 @@
     "db:migrate": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/migrate.ts",
     "db:rollback": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/migrate.ts --down",
     "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.ts",
+    "db:seed-context": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed-demo-knowledge.ts",
+    "db:demo-accounts": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/list-demo-accounts.ts",
     "user:set-password": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/set-password.ts"
   },
   "dependencies": {

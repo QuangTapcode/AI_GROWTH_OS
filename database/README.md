@@ -22,5 +22,11 @@ Mỗi migration PR cần thử DB trống, upgrade DB hiện tại, backfill/rec
 
 Versioned entities tối thiểu: brand/context, source/chunks, brief/content/variants, approval, jobs/runs, publishing mapping, metric snapshots/report. Bảng chi tiết chốt theo stories, không tạo tất cả tables PRD trước nhu cầu MVP.
 
+Migration `008_integration_connections.sql` thêm metadata connector theo tenant (provider, account ref, scopes, probe status). Token OAuth không lưu trong bảng; chỉ lưu `credential_ref` trỏ tới vault/secret manager.
+
+Migration `009_demo_login_accounts.sql` thêm danh mục tài khoản synthetic local/staging (`email`, workspace, role, password). Mật khẩu đăng nhập thật vẫn lưu scrypt hash trong `users.password_hash`; bảng này chỉ để QA khôi phục fixture và tuyệt đối không dùng cho production. Dùng `npm.cmd --prefix apps/api run db:demo-accounts` để trích xuất danh mục.
+
+Để kiểm tra agent trên staging, chạy `npm.cmd --prefix apps/api run db:seed-context`. Lệnh này tạo source synthetic đã approved, RAG chunks/facts và cấp context hiện hành; không dùng làm dữ liệu nghiệp vụ production.
+
 
 Baseline W1-PM-02: PostgreSQL + pgvector tự host, không bắt buộc Supabase. Thiệu Quang quản migrations/policies/auth boundary; Mỹ quản seed/queue/metrics. embeddinggemma hiện trả vector 768 chiều trên workstation; pin model digest/dimension và reindex khi đổi model. Đây là lựa chọn thiết kế, DB/migrations chưa provision. [Local stack](../infra/local/README.md).

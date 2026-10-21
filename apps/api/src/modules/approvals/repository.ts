@@ -308,6 +308,61 @@ export async function executeApprovalReviewTransaction(
       if (updateTask.rowCount === 0) {
         throw new AppError(409, "VERSION_CONFLICT", "Target task version was modified concurrently");
       }
+    } else if (effectiveTargetType === "artifact" && input.decision === "approve") {
+      // AI workers persist the artifact first and expose it through the
+      // approval ledger. Approving that artifact must also close the linked
+      // workflow task and open any dependency-ready children; otherwise the
+      // review UI says approved while the pipeline remains stuck forever.
+      const linked = (await client.query<{ id: string }>(
+        `SELECT id
+           FROM workflow_tasks
+          WHERE workspace_id = $1 AND result_ref = $2 AND status = 'awaiting_approval'
+          FOR UPDATE`,
+        [workspaceId, effectiveTargetId],
+      )).rows[0];
+      if (linked) {
+        await client.query(
+          `UPDATE workflow_tasks
+              SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+            WHERE workspace_id = $1 AND id = $2 AND status = 'awaiting_approval'`,
+          [workspaceId, linked.id],
+        );
+        const children = (await client.query<{ id: string; input_version: number; operation: string }>(
+          `SELECT child.id, child.input_version, child.operation
+             FROM workflow_tasks child
+            WHERE child.workspace_id = $1
+              AND child.status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM task_dependencies edge
+                 WHERE edge.workspace_id = $1
+                   AND edge.task_id = child.id
+                   AND edge.depends_on_task_id = $2
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                  FROM task_dependencies edge
+                  JOIN workflow_tasks parent ON parent.id = edge.depends_on_task_id
+                 WHERE edge.workspace_id = $1
+                   AND edge.task_id = child.id
+                   AND parent.status <> 'completed'
+              )
+            FOR UPDATE`,
+          [workspaceId, linked.id],
+        )).rows;
+        for (const child of children) {
+          await client.query(
+            `UPDATE workflow_tasks SET status = 'queued', updated_at = NOW()
+              WHERE workspace_id = $1 AND id = $2 AND status = 'pending'`,
+            [workspaceId, child.id],
+          );
+          await client.query(
+            `INSERT INTO plan_task_outbox(workspace_id, task_id, input_version, operation)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (task_id, input_version) DO NOTHING`,
+            [workspaceId, child.id, child.input_version, child.operation],
+          );
+        }
+      }
     }
 
     // 7. Cascade Invalidation nguyên tử trong transaction: Nếu thu hồi nguồn (source revoke)

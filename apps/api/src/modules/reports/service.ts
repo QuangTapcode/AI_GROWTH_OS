@@ -149,10 +149,22 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
   try {
     const dayCount = Math.round((Date.parse(toDate) - Date.parse(fromDate)) / 86_400_000) + 1;
     for (const metric of Object.keys(METRIC_PROVIDER)) {
-      const points = (await dailySnapshots(workspaceId, metric, fromDate, toDate)).filter(
+      const rawPoints = await dailySnapshots(workspaceId, metric, fromDate, toDate);
+      const points = rawPoints.filter(
         (p) => p.availability === 'available' && p.value !== null
       );
-      if (points.length === 0) continue;
+      if (points.length === 0) {
+        const noData = rawPoints.find((point) => point.missing_reason);
+        if (noData) {
+          kpis[metric] = {
+            ...kpis[metric],
+            value: null,
+            availability: 'missing',
+            missing_reason: noData.missing_reason,
+          };
+        }
+        continue;
+      }
       const complete = points.length >= dayCount;
       kpis[metric] = {
         metric,

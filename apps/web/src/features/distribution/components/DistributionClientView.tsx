@@ -132,7 +132,7 @@ function AddChannelForm({ onAdded }: { onAdded: (c: Channel) => void }) {
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Add channel</p>
       <div className="grid grid-cols-3 gap-2">
         <select className={input} value={platform} onChange={(e) => setPlatform(e.target.value as Channel["platform_name"])}>
-          {(["website", "facebook", "instagram", "linkedin", "email"] as const).map((p) => (
+          {(["website", "facebook", "tiktok", "instagram", "linkedin", "email"] as const).map((p) => (
             <option key={p} value={p}>
               {humanize(p)}
             </option>

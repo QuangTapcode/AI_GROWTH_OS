@@ -1,12 +1,14 @@
-import { createHash, randomBytes } from "crypto";
+import { createHash } from "crypto";
 import pool from "../src/lib/db";
 import { hashPassword } from "../src/lib/password";
 
 /**
  * Seed dữ liệu synthetic cho DB local (database/README: tenant A/B + roles).
  * - Chạy sau `npm run db:migrate`. Idempotent: ID cố định + ON CONFLICT DO NOTHING.
- * - Mật khẩu user demo: SEED_USER_PASSWORD, nếu không có thì sinh ngẫu nhiên và in ra một lần.
- *   User đã có mật khẩu thì giữ nguyên, trừ khi truyền SEED_USER_PASSWORD.
+ * - Mật khẩu user demo: SEED_USER_PASSWORD; nếu không truyền thì dùng mật khẩu
+ *   fixture rõ ràng TripC@2026! để staging/local luôn có thể đăng nhập.
+ *   Mỗi lần seed sẽ đồng bộ lại password_hash của tài khoản demo để bảng
+ *   demo_login_accounts và đăng nhập luôn khớp nhau.
  * - Mọi payload có `synthetic: true`; không dùng cho staging chung/production.
  */
 
@@ -22,6 +24,14 @@ const USERS = [
   { id: "11111111-1111-4000-8000-000000000001", email: "owner@tripc.local", name: "TripC Owner", login: false },
   { id: "22222222-2222-4000-8000-000000000002", email: "editor@tripc.local", name: "TripC Editor", login: false },
   { id: "33333333-3333-4000-8000-000000000003", email: "viewer@tripc.local", name: "TripC Viewer", login: false },
+];
+
+const DEFAULT_DEMO_PASSWORD = "TripC@2026!";
+const DEMO_ACCOUNTS: Array<{ userId: string; workspace: string; role: "owner" | "editor" | "viewer" }> = [
+  { userId: USERS[0].id, workspace: TRIPC, role: "owner" },
+  { userId: USERS[1].id, workspace: TRIPC, role: "editor" },
+  { userId: USERS[2].id, workspace: TRIPC, role: "viewer" },
+  { userId: USERS[3].id, workspace: HOIAN, role: "owner" },
 ];
 
 const MEMBERSHIPS: Array<[string, string, "owner" | "editor" | "viewer"]> = [
@@ -252,12 +262,12 @@ function contentHash(title: string, payload: Record<string, unknown>): string {
 }
 
 async function main() {
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Refusing to seed synthetic data with NODE_ENV=production");
+  if (process.env.NODE_ENV === "production" || process.env.APP_ENV === "production") {
+    throw new Error("Refusing to seed synthetic data in production");
   }
 
-  const providedPassword = process.env.SEED_USER_PASSWORD;
-  const password = providedPassword || randomBytes(9).toString("base64url");
+  const providedPassword = process.env.SEED_USER_PASSWORD || process.env.DEMO_LOGIN_PASSWORD;
+  const password = providedPassword || DEFAULT_DEMO_PASSWORD;
   const passwordHash = await hashPassword(password);
 
   const client = await pool.connect();
@@ -273,8 +283,8 @@ async function main() {
       if (u.login) {
         const res = await client.query(
           `UPDATE users SET password_hash = $1, password_updated_at = NOW()
-           WHERE id = $2 AND ($3::boolean OR password_hash IS NULL)`,
-          [passwordHash, u.id, Boolean(providedPassword)]
+           WHERE id = $2`,
+          [passwordHash, u.id]
         );
         passwordsSet += res.rowCount ?? 0;
       }
@@ -305,11 +315,32 @@ async function main() {
       );
     }
 
+    if (process.env.APP_ENV !== "production") {
+      for (const account of DEMO_ACCOUNTS) {
+        const user = USERS.find((candidate) => candidate.id === account.userId);
+        if (!user) continue;
+        await client.query(
+          `INSERT INTO demo_login_accounts
+             (user_id, workspace_id, email, role, password_value, notes, is_active, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW())
+           ON CONFLICT (user_id, workspace_id) DO UPDATE SET
+             email = EXCLUDED.email,
+             role = EXCLUDED.role,
+             password_value = EXCLUDED.password_value,
+             notes = EXCLUDED.notes,
+             is_active = TRUE,
+             updated_at = NOW()`,
+          [account.userId, account.workspace, user.email, account.role, password, "Synthetic local/staging account; do not use in production."]
+        );
+      }
+    }
+
     // Kênh phân phối (migration 006): chưa kết nối API nên đăng ở chế độ manual
     await client.query(
       `INSERT INTO channels (id, workspace_id, platform_name, display_name, channel_identifier) VALUES
          ('c1000000-0000-4000-8000-000000000001', $1, 'website', 'TripC blog', 'https://tripc.vn/blog'),
-         ('c1000000-0000-4000-8000-000000000002', $1, 'facebook', 'TripC Facebook page', 'facebook.com/tripc')
+         ('c1000000-0000-4000-8000-000000000002', $1, 'facebook', 'TripC Facebook page', 'facebook.com/tripc'),
+         ('c1000000-0000-4000-8000-000000000003', $1, 'tiktok', 'TripC TikTok', 'tiktok.com/@tripc')
        ON CONFLICT (id) DO NOTHING`,
       [TRIPC]
     );
@@ -431,12 +462,10 @@ async function main() {
   console.log("Seed completed: workspaces TripC + Hoi An Homestays.");
   console.log("Login accounts:");
   for (const u of USERS.filter((x) => x.login)) console.log(`  ${u.email}`);
-  if (passwordsSet === 0) {
-    console.log("Existing passwords kept. Set SEED_USER_PASSWORD to reset them.");
-  } else if (providedPassword) {
-    console.log(`Password set from SEED_USER_PASSWORD for ${passwordsSet} account(s).`);
+  if (providedPassword) {
+    console.log(`Password set from SEED_USER_PASSWORD/DEMO_LOGIN_PASSWORD for ${passwordsSet} account(s).`);
   } else {
-    console.log(`Generated password for ${passwordsSet} new account(s): ${password}`);
+    console.log(`Demo password for ${passwordsSet} account(s): ${password}`);
   }
 }
 

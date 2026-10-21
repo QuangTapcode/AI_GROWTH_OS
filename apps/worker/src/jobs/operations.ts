@@ -123,7 +123,7 @@ function createWiredHandler(operation: 'publish' | 'lead' | 'metrics' | 'integra
     if (operation === 'publish') {
       const processor = new PublishJobProcessor(defaultRegistry);
       const version = typeof payload['expectedVersion'] === 'number' ? (payload['expectedVersion'] as number) : ctx.job.input_version;
-      const channel = (payload['channel'] as 'Website' | 'Facebook' | 'Instagram' | 'Newsletter' | undefined) ?? 'Website';
+      const channel = (payload['channel'] as 'Website' | 'Facebook' | 'TikTok' | 'Instagram' | 'Newsletter' | undefined) ?? 'Website';
       const idempotencyKey =
         (payload['idempotencyKey'] as string | undefined) ??
         PublishJobProcessor.buildDedupKey(
@@ -150,6 +150,9 @@ function createWiredHandler(operation: 'publish' | 'lead' | 'metrics' | 'integra
         utmCampaign: payload['utmCampaign'] as string | undefined,
         expectedVersion: version,
         contentHash: String(payload['contentHash'] ?? ''),
+        linkUrl: payload['linkUrl'] as string | undefined,
+        mediaUrl: payload['mediaUrl'] as string | undefined,
+        mediaType: payload['mediaType'] as 'video' | 'image' | undefined,
         approvalId: payload['approvalId'] as string | undefined,
         ...(gatewayCheck ? { gatewayCheck } : {}),
       });
@@ -179,6 +182,30 @@ function createWiredHandler(operation: 'publish' | 'lead' | 'metrics' | 'integra
       return { lead: res.lead, duplicate: res.duplicate ?? false };
     }
     if (operation === 'metrics') {
+      if (process.env.INTEGRATION_MODE === 'production' && process.env.API_BASE_URL) {
+        const base = process.env.API_BASE_URL.replace(/\/$/, '');
+        const range = {
+          from: typeof payload['from'] === 'string' ? payload['from'] : undefined,
+          to: typeof payload['to'] === 'string' ? payload['to'] : undefined,
+        };
+        const response = await fetch(`${base}/internal/metrics/sync`, {
+          method: 'POST',
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+            ...(process.env.WORKER_GATEWAY_TOKEN ? { authorization: `Bearer ${process.env.WORKER_GATEWAY_TOKEN}` } : {}),
+          },
+          body: JSON.stringify({ ...range, workspace_id: ctx.job.workspace_id }),
+          signal: AbortSignal.timeout(Number(process.env.GATEWAY_REQUEST_TIMEOUT_MS ?? 5000)),
+        });
+        const result = await response.json().catch(() => null) as Record<string, unknown> | null;
+        if (!response.ok) {
+          const error = result?.error as { message?: string; code?: string } | undefined;
+          throw new PermanentJobError(error?.message ?? `metrics sync failed (${response.status})`, error?.code ?? 'METRICS_SYNC_FAILED');
+        }
+        await ctx.progress(90);
+        return result ?? { points_saved: 0, results: [] };
+      }
       const stub = new MetricsIngestionStub();
       const sources = (payload['sources'] as Array<'ga4' | 'gsc' | 'meta_ads'> | undefined) ?? ['ga4', 'gsc'];
       const res = await stub.ingest(ctx.job.workspace_id, sources);

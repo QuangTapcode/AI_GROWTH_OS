@@ -16,6 +16,8 @@ const schema = z
     enabled: z.boolean(),
     interval_hours: z.number().int().min(1).max(168),
     cta: z.string().trim().min(1).max(200),
+    auto_approve_outputs: z.boolean().default(false),
+    auto_publish_facebook: z.boolean().default(false),
     run_now: z.boolean().optional(),
   })
   .strict();
@@ -66,9 +68,12 @@ export async function PUT(req: NextRequest, { params }: Context) {
       );
     const b = parsed.data;
     await pool.query(
-      `INSERT INTO agent_automation(workspace_id,actor_id,enabled,interval_hours,cta) VALUES($1,$2,$3,$4,$5)
-      ON CONFLICT(workspace_id) DO UPDATE SET actor_id=$2,enabled=$3,interval_hours=$4,cta=$5,updated_at=now()`,
-      [params.workspace_id, tenant.user.id, b.enabled, b.interval_hours, b.cta],
+      `INSERT INTO agent_automation(workspace_id,actor_id,enabled,interval_hours,cta,auto_approve_outputs,auto_publish_facebook)
+       VALUES($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT(workspace_id) DO UPDATE SET actor_id=$2,enabled=$3,interval_hours=$4,cta=$5,
+         auto_approve_outputs=$6,auto_publish_facebook=$7,updated_at=now()`,
+      [params.workspace_id, tenant.user.id, b.enabled, b.interval_hours, b.cta,
+       b.auto_approve_outputs, b.auto_publish_facebook],
     );
     if (b.run_now) await tickAutomation(pool, params.workspace_id, true);
     return NextResponse.json({ status: "saved" });

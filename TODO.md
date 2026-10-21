@@ -31,4 +31,6 @@ Giữ Level 2, human approval trước publish/send, tenant isolation, approved 
 
 [Kiến trúc](docs/architecture/SIX-AGENT-RESTRUCTURE.md) · [Reuse/task cũ](docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-REUSE-MAP.md) · [Roster](docs/coordination/TEAM.md).
 
+[Checklist kiểm tra và phát triển sáu agent](docs/coordination/AGENT-TEST-DEV-TODO.md) — gồm lane Dương + Trường và Community RAG do Quang Quang phụ trách.
+
 [Biên bản dọn bản cũ](docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-CLEANUP.md): checklist trùng đã xóa; dùng bảy file cá nhân hiện hành để nhận việc.
