@@ -12,35 +12,34 @@ import TasksTable from "./TasksTable";
 import StageDetailsModal from "./StageDetailsModal";
 import { MOCK_ACTIVE_AI_RUN, MOCK_TASKS } from "../data/workflowsMockData";
 import { PipelineStage, GrowthTask } from "../types";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function WorkflowsClientView() {
+  const { language, t } = useLanguage();
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceItem>(
     DEFAULT_WORKSPACES[0]
   );
   const [activeTab, setActiveTab] = useState("workflows");
 
-  // Selection state for detail modal ("màn hình nhỏ đó")
+  // Selection state for detail modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedStage, setSelectedStage] = useState<PipelineStage | null>(
-    MOCK_ACTIVE_AI_RUN.stages[2] // Stage 3 initially loaded
+    MOCK_ACTIVE_AI_RUN.stages[2]
   );
   const [selectedTask, setSelectedTask] = useState<GrowthTask | null>(null);
 
-  // Click on a stage from the pipeline
   const handleSelectStage = (stage: PipelineStage) => {
     setSelectedStage(stage);
     setSelectedTask(null);
     setIsModalOpen(true);
   };
 
-  // Click on a task from the table
   const handleSelectTask = (task: GrowthTask) => {
     setSelectedTask(task);
     setSelectedStage(null);
     setIsModalOpen(true);
   };
 
-  // Click on "View execution trace"
   const handleViewTrace = () => {
     const runningStage = MOCK_ACTIVE_AI_RUN.stages.find(
       (s) => s.status === "Running"
@@ -55,7 +54,7 @@ export default function WorkflowsClientView() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex w-full font-sans antialiased text-slate-800">
+    <div className="app-container">
       {/* ── Left Sidebar (Cobalt Theme) ── */}
       <DashboardSidebar
         activeTab={activeTab}
@@ -65,7 +64,7 @@ export default function WorkflowsClientView() {
       />
 
       {/* ── Right Content Area ── */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+      <div className="main-wrapper">
         {/* Top Navbar */}
         <DashboardHeader
           workspaceName={currentWorkspace.name}
@@ -73,20 +72,20 @@ export default function WorkflowsClientView() {
         />
 
         {/* Main Canvas */}
-        <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
+        <main className="content-body">
           {/* ── Page Header / Operations Title ── */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-                  AI Growth Operations
+                  {t.workflows.pageTitle}
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 border border-slate-200/90 text-slate-600">
-                  Prototype data • {currentWorkspace.name} AI Growth OS
+                  {t.workflows.prototypeBadge.replace("{workspace}", currentWorkspace.name)}
                 </span>
               </div>
               <p className="text-xs md:text-sm text-slate-500 mt-1">
-                Monitor autonomous growth workflows, agent execution, and tasks requiring attention.
+                {t.workflows.pageSubtitle}
               </p>
             </div>
 
@@ -110,7 +109,7 @@ export default function WorkflowsClientView() {
                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                <span>Execution history</span>
+                <span>{t.workflows.executionHistory}</span>
               </button>
 
               {/* + New AI run button */}
@@ -124,12 +123,12 @@ export default function WorkflowsClientView() {
                 >
                   <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                 </svg>
-                <span>New AI run</span>
+                <span>{language === "vi" ? "Chạy AI mới" : "New AI run"}</span>
               </button>
             </div>
           </div>
 
-          {/* ── 1. KPI Stat Cards (Running: 3, Completed: 35, etc.) ── */}
+          {/* ── 1. KPI Stat Cards ── */}
           <WorkflowsKpiRow />
 
           {/* ── 2. Active AI Run & Horizontal Pipeline Flow ── */}
@@ -148,7 +147,7 @@ export default function WorkflowsClientView() {
         </main>
       </div>
 
-      {/* ── 4. Stage & Task Details Modal ("màn hình nhỏ đó") ── */}
+      {/* ── 4. Stage & Task Details Modal ── */}
       <StageDetailsModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}

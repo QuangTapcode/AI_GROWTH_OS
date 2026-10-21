@@ -1,16 +1,22 @@
+"use client";
+
 import React from "react";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function WorkflowsKpiRow() {
+  const { language } = useLanguage();
+
   const cards = [
     {
       id: "running",
-      label: "RUNNING",
+      label: language === "vi" ? "Đang chạy" : "Running",
       value: "3",
-      subtext: "AI runs in progress",
-      iconBg: "bg-blue-50 border-blue-200 text-blue-600",
+      subtext: language === "vi" ? "3 đợt chạy AI đang tiến hành" : "3 AI runs in progress",
+      accent: "from-blue-600 to-indigo-600",
+      iconBg: "bg-blue-600 text-white shadow-md shadow-blue-500/25",
       icon: (
         <svg
-          className="w-4 h-4 fill-current ml-0.5"
+          className="w-5 h-5 fill-current ml-0.5"
           viewBox="0 0 24 24"
         >
           <path d="M8 5v14l11-7z" />
@@ -19,13 +25,14 @@ export default function WorkflowsKpiRow() {
     },
     {
       id: "completed",
-      label: "COMPLETED TODAY",
+      label: language === "vi" ? "Hoàn thành hôm nay" : "Completed today",
       value: "35",
-      subtext: "Successfully finished",
-      iconBg: "bg-emerald-50 border-emerald-200 text-emerald-600",
+      subtext: language === "vi" ? "Đã hoàn tất thành công" : "Successfully finished",
+      accent: "from-emerald-500 to-teal-600",
+      iconBg: "bg-emerald-600 text-white shadow-md shadow-emerald-500/25",
       icon: (
         <svg
-          className="w-4 h-4"
+          className="w-5 h-5"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -41,17 +48,18 @@ export default function WorkflowsKpiRow() {
     },
     {
       id: "needs-review",
-      label: "NEEDS REVIEW",
-      value: "4",
-      subtext: "Awaiting human approval",
-      iconBg: "bg-amber-50 border-amber-200 text-amber-600",
+      label: language === "vi" ? "Cần phê duyệt" : "Needs review",
+      value: "3",
+      subtext: language === "vi" ? "Chờ con người ký duyệt" : "Awaiting human approval",
+      accent: "from-amber-500 to-orange-600",
+      iconBg: "bg-amber-600 text-white shadow-md shadow-amber-500/25",
       icon: (
         <svg
-          className="w-4 h-4"
+          className="w-5 h-5"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="2.5"
         >
           <path
             strokeLinecap="round"
@@ -63,17 +71,18 @@ export default function WorkflowsKpiRow() {
     },
     {
       id: "blocked",
-      label: "BLOCKED",
+      label: language === "vi" ? "Bị chặn" : "Blocked",
       value: "1",
-      subtext: "Requires attention",
-      iconBg: "bg-rose-50 border-rose-200 text-rose-600",
+      subtext: language === "vi" ? "Cần sự chú ý" : "Requires attention",
+      accent: "from-rose-500 to-red-600",
+      iconBg: "bg-rose-600 text-white shadow-md shadow-rose-500/25",
       icon: (
         <svg
-          className="w-4 h-4"
+          className="w-5 h-5"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="2.5"
         >
           <circle cx="12" cy="12" r="9" />
           <line x1="12" y1="8" x2="12" y2="12" />
@@ -88,19 +97,23 @@ export default function WorkflowsKpiRow() {
       {cards.map((card) => (
         <div
           key={card.id}
-          className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center justify-between"
+          className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/90 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-between relative overflow-hidden group cursor-default"
         >
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          {/* Top colored accent bar */}
+          <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${card.accent} group-hover:h-1.5 transition-all`} />
+
+          <div className="space-y-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
               {card.label}
             </p>
-            <p className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
+            <p className="text-3xl font-extrabold text-slate-900 tracking-tight leading-none pt-0.5">
               {card.value}
             </p>
-            <p className="text-xs text-slate-500 mt-0.5">{card.subtext}</p>
+            <p className="text-xs text-slate-500 font-medium pt-1">{card.subtext}</p>
           </div>
+
           <div
-            className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${card.iconBg}`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${card.iconBg}`}
           >
             {card.icon}
           </div>
