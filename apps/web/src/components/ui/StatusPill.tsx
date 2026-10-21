@@ -196,3 +196,5 @@ export default function StatusPill({
     </span>
   );
 }
+
+export { StatusPill };

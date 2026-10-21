@@ -10,8 +10,10 @@ import ReviewItemsList from "./ReviewItemsList";
 import ReviewDetailView from "./ReviewDetailView";
 import { MOCK_REVIEW_ITEMS, MOCK_REVIEW_STATS } from "../data/reviewQueueMockData";
 import { ReviewItem, ReviewQueueStats } from "../types";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function ReviewQueueClientView() {
+  const { t } = useLanguage();
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceItem>(
     DEFAULT_WORKSPACES[0]
   );
@@ -58,7 +60,7 @@ export default function ReviewQueueClientView() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex w-full font-sans antialiased text-slate-800">
+    <div className="app-container">
       {/* ── Left Sidebar (Cobalt Theme) ── */}
       <DashboardSidebar
         activeTab={activeTab}
@@ -68,53 +70,51 @@ export default function ReviewQueueClientView() {
       />
 
       {/* ── Right Content Area ── */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+      <div className="main-wrapper">
         {/* Top Navbar */}
         <DashboardHeader
           workspaceName={currentWorkspace.name}
-          currentPageTitle="Review Queue"
+          currentPageTitle={t.sidebar.reviewQueue}
         />
 
         {/* Main Canvas */}
-        <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-[1700px] w-full mx-auto">
+        <main className="content-body">
           {/* ── Page Header / Operations Title ── */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-                  Review Queue
+                  {t.reviewQueue.pageTitle}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-600 text-white shadow-xs">
-                  Tier-1 Gated
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-600 text-white shadow-xs">
+                  {t.reviewQueue.badge}
                 </span>
               </div>
-              <p className="text-xs md:text-sm text-slate-500 mt-1">
-                Review AI-generated outputs that require your approval before autonomous production execution.
+              <p className="text-xs md:text-sm text-slate-500 mt-1.5">
+                {t.reviewQueue.subtitle}
               </p>
             </div>
 
             {/* Right Summary Stats Indicators */}
-            <div className="flex items-center gap-4 flex-wrap bg-white border border-slate-200/90 rounded-2xl px-4 py-2 shadow-2xs text-xs font-semibold text-slate-700">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                <span>{stats.pendingCount} pending</span>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>{t.reviewQueue.pendingCount.replace("{count}", String(stats.pendingCount))}</span>
               </div>
-              <span className="text-slate-200">|</span>
-              <div className="flex items-center gap-1.5">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span>{stats.approvedTodayCount} approved today</span>
+                <span>{t.reviewQueue.approvedToday.replace("{count}", String(stats.approvedTodayCount))}</span>
               </div>
-              <span className="text-slate-200">|</span>
-              <div className="flex items-center gap-1.5">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
-                <span>{stats.rejectedCount} rejected</span>
+                <span>{t.reviewQueue.rejectedCount.replace("{count}", String(stats.rejectedCount))}</span>
               </div>
             </div>
           </div>
 
           {/* ── Main 2-Column Review Interface ── */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Artifacts / Review List (approx 35% on large screens) */}
+            {/* Left Column: Artifacts / Review List */}
             <div className="xl:col-span-4 w-full">
               <ReviewItemsList
                 items={items}
@@ -123,7 +123,7 @@ export default function ReviewQueueClientView() {
               />
             </div>
 
-            {/* Right Column: Detailed Document Preview & Approval Panel (approx 65%) */}
+            {/* Right Column: Detailed Document Preview & Approval Panel */}
             <div className="xl:col-span-8 w-full">
               {selectedItem ? (
                 <ReviewDetailView
@@ -133,7 +133,7 @@ export default function ReviewQueueClientView() {
                 />
               ) : (
                 <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 text-slate-400 text-sm">
-                  Select an artifact on the left to begin reviewing.
+                  {t.common.loading}
                 </div>
               )}
             </div>
