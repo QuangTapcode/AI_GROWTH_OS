@@ -1,0 +1,1491 @@
+/* ==========================================================================
+   AI GROWTH OS — GROWTH RESULTS DASHBOARD (MODULES M12–M16)
+   Traffic Performance, Analytics & Attribution, AI Insights, Experiments, Learnings
+   Inspired by DreamsAI Analytics Dashboard design language and information density.
+   ========================================================================== */
+
+:root {
+  /* Centralized Growth Results Vibrant Color Palette */
+  --gr-violet: #8B5CF6;
+  --gr-violet-light: #F5F3FF;
+  --gr-violet-border: #DDD6FE;
+  --gr-violet-dark: #6D28D9;
+
+  --gr-blue: #3B82F6;
+  --gr-blue-light: #EFF6FF;
+  --gr-blue-border: #BFDBFE;
+  --gr-blue-dark: #1D4ED8;
+
+  --gr-pink: #EC4899;
+  --gr-pink-light: #FDF2F8;
+  --gr-pink-border: #FBCFE8;
+  --gr-pink-dark: #BE185D;
+
+  --gr-amber: #F59E0B;
+  --gr-amber-light: #FFFBEB;
+  --gr-amber-border: #FDE68A;
+  --gr-amber-dark: #B45309;
+
+  --gr-emerald: #10B981;
+  --gr-emerald-light: #ECFDF5;
+  --gr-emerald-border: #A7F3D0;
+  --gr-emerald-dark: #047857;
+
+  --gr-cyan: #06B6D4;
+  --gr-cyan-light: #ECFEFF;
+  --gr-cyan-border: #A5F3FC;
+  --gr-cyan-dark: #0891B2;
+
+  --gr-orange: #F97316;
+  --gr-indigo: #6366F1;
+  --gr-teal: #0D9488;
+  --gr-teal-dark: #0F766E;
+  --gr-teal-light: #F0FDFA;
+  --gr-teal-border: #99F6E4;
+
+  /* Typography Scale */
+  --gr-text-title: 26px;
+  --gr-text-section: 17px;
+  --gr-text-card: 15px;
+  --gr-text-body: 13.5px;
+  --gr-text-meta: 12px;
+  --gr-text-micro: 11px;
+}
+
+/* --------------------------------------------------------------------------
+   1. PAGE HEADER & RANGE CONTROLS
+   -------------------------------------------------------------------------- */
+.gr-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding-bottom: 2px;
+}
+
+.gr-header-left {
+  flex: 1;
+  min-width: 320px;
+}
+
+.gr-header-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.gr-header-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--gr-text-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gr-teal);
+  background: var(--gr-teal-light);
+  border: 1px solid var(--gr-teal-border);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.gr-last-updated-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #64748B;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+}
+
+.gr-header-title {
+  font-size: var(--gr-text-title);
+  font-weight: 800;
+  color: var(--brand-navy);
+  margin: 0 0 6px 0;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+.gr-header-desc {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 680px;
+  line-height: 1.45;
+}
+
+.gr-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Date Preset Segmented Control */
+.gr-date-presets {
+  display: inline-flex;
+  align-items: center;
+  background: #EEF2F6;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.gr-date-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+
+.gr-date-btn:hover {
+  color: var(--brand-navy);
+}
+
+.gr-date-btn.active {
+  background: #FFFFFF;
+  color: var(--brand-navy);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.gr-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+}
+
+.gr-btn-gradient {
+  background: linear-gradient(135deg, #0D9488 0%, #0284C7 100%) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
+  transition: all var(--transition-fast);
+}
+
+.gr-btn-gradient:hover {
+  background: linear-gradient(135deg, #0F766E 0%, #0369A1 100%) !important;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35);
+  transform: translateY(-1px);
+}
+
+/* Generic Section Wrapper */
+.gr-section {
+  margin-bottom: 24px;
+}
+
+.gr-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.gr-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--brand-navy);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.gr-section-subtitle {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin: 3px 0 0 0;
+}
+
+.gr-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #059669;
+  font-family: var(--font-mono);
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.gr-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10B981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: grPulse 2s infinite;
+}
+
+@keyframes grPulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* --------------------------------------------------------------------------
+   2. KPI PERFORMANCE GRID (M12 TRAFFIC ENGINE)
+   -------------------------------------------------------------------------- */
+.gr-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 1300px) {
+  .gr-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .gr-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gr-kpi-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.gr-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: #CBD5E1;
+}
+
+/* Individual Color Identities for KPI Cards */
+.gr-kpi-card.kpi-violet {
+  border-top: 3px solid var(--gr-violet);
+}
+.gr-kpi-card.kpi-violet .gr-kpi-icon-wrap {
+  background: var(--gr-violet-light);
+  color: var(--gr-violet);
+  border: 1px solid var(--gr-violet-border);
+}
+.gr-kpi-card.kpi-violet.active {
+  border-color: var(--gr-violet);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.22), var(--shadow-md);
+  background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 100%);
+}
+
+.gr-kpi-card.kpi-blue {
+  border-top: 3px solid var(--gr-blue);
+}
+.gr-kpi-card.kpi-blue .gr-kpi-icon-wrap {
+  background: var(--gr-blue-light);
+  color: var(--gr-blue);
+  border: 1px solid var(--gr-blue-border);
+}
+.gr-kpi-card.kpi-blue.active {
+  border-color: var(--gr-blue);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22), var(--shadow-md);
+  background: linear-gradient(180deg, #FFFFFF 0%, #EFF6FF 100%);
+}
+
+.gr-kpi-card.kpi-pink {
+  border-top: 3px solid var(--gr-pink);
+}
+.gr-kpi-card.kpi-pink .gr-kpi-icon-wrap {
+  background: var(--gr-pink-light);
+  color: var(--gr-pink);
+  border: 1px solid var(--gr-pink-border);
+}
+.gr-kpi-card.kpi-pink.active {
+  border-color: var(--gr-pink);
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.22), var(--shadow-md);
+  background: linear-gradient(180deg, #FFFFFF 0%, #FDF2F8 100%);
+}
+
+.gr-kpi-card.kpi-amber {
+  border-top: 3px solid var(--gr-amber);
+}
+.gr-kpi-card.kpi-amber .gr-kpi-icon-wrap {
+  background: var(--gr-amber-light);
+  color: var(--gr-amber);
+  border: 1px solid var(--gr-amber-border);
+}
+.gr-kpi-card.kpi-amber.active {
+  border-color: var(--gr-amber);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.22), var(--shadow-md);
+  background: linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 100%);
+}
+
+.gr-kpi-card.kpi-emerald {
+  border-top: 3px solid var(--gr-emerald);
+}
+.gr-kpi-card.kpi-emerald .gr-kpi-icon-wrap {
+  background: var(--gr-emerald-light);
+  color: var(--gr-emerald);
+  border: 1px solid var(--gr-emerald-border);
+}
+.gr-kpi-card.kpi-emerald.active {
+  border-color: var(--gr-emerald);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.22), var(--shadow-md);
+  background: linear-gradient(180deg, #FFFFFF 0%, #ECFDF5 100%);
+}
+
+.gr-kpi-card.north-star {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 100%);
+  border-color: var(--gr-violet-border);
+}
+
+.gr-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.gr-kpi-icon-wrap {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gr-kpi-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gr-ns-badge {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--gr-violet-dark);
+  background: #EDE9FE;
+  border: 1px solid var(--gr-violet-border);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.03em;
+}
+
+.gr-kpi-middle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.gr-kpi-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--brand-navy);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.gr-kpi-delta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.gr-kpi-delta.up {
+  color: #047857;
+  background: #ECFDF5;
+}
+
+.gr-kpi-delta.down {
+  color: #B91C1C;
+  background: #FEF2F2;
+}
+
+.gr-kpi-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.gr-kpi-subtext {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gr-sparkline-wrap {
+  width: 72px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   3. GRID LAYOUTS (DREAMS-AI INSPIRED)
+   -------------------------------------------------------------------------- */
+.gr-grid-2-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.gr-grid-1-1 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 1200px) {
+  .gr-grid-2-1,
+  .gr-grid-1-1 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gr-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.gr-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.gr-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--brand-navy);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.gr-card-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 2px 0 0 0;
+}
+
+/* --------------------------------------------------------------------------
+   4. MAIN TRAFFIC PERFORMANCE CHART (VISUALIZATION 1)
+   -------------------------------------------------------------------------- */
+.gr-chart-card {
+  position: relative;
+}
+
+.gr-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.gr-granularity-switch {
+  display: inline-flex;
+  background: #F1F5F9;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.gr-gran-btn {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.gr-gran-btn.active {
+  background: #FFFFFF;
+  color: var(--brand-navy);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.gr-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.gr-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gr-legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.gr-legend-dash {
+  width: 14px;
+  height: 2px;
+  border-top: 2px dashed #94A3B8;
+}
+
+.gr-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.gr-chart-wrapper {
+  position: relative;
+  width: 100%;
+  height: 230px;
+  margin: 8px 0 12px 0;
+}
+
+.gr-chart-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.gr-chart-point {
+  transition: r 0.15s ease, fill 0.15s ease;
+  cursor: pointer;
+}
+
+.gr-chart-point:hover {
+  r: 6;
+  fill: #0F766E;
+}
+
+.gr-chart-tooltip {
+  position: absolute;
+  background: rgba(15, 23, 42, 0.94);
+  color: #FFFFFF;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -115%);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  min-width: 155px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gr-chart-tooltip.active {
+  opacity: 1;
+}
+
+.gr-tooltip-date {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: #94A3B8;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 3px;
+}
+
+.gr-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  line-height: 1.45;
+}
+
+.gr-tooltip-val {
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.gr-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 10px 14px;
+  background: #F8FAFD;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  margin-top: 6px;
+}
+
+@media (max-width: 900px) {
+  .gr-summary-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.gr-strip-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.gr-strip-lbl {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.gr-strip-val {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--brand-navy);
+}
+
+/* --------------------------------------------------------------------------
+   5. TRAFFIC SOURCE DISTRIBUTION — DONUT CHART (VISUALIZATION 2)
+   -------------------------------------------------------------------------- */
+.gr-donut-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.gr-donut-svg-wrap {
+  width: 170px;
+  height: 170px;
+  margin: 6px 0 12px 0;
+  position: relative;
+}
+
+.gr-donut-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.gr-donut-segment {
+  cursor: pointer;
+  transition: stroke-width 0.2s ease, opacity 0.2s ease;
+}
+
+.gr-donut-segment:hover {
+  stroke-width: 26;
+  opacity: 0.92;
+}
+
+.gr-donut-legend {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+.gr-donut-legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: #F8FAFD;
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.gr-donut-legend-item:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+}
+
+.gr-donut-legend-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gr-donut-legend-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-navy);
+}
+
+.gr-donut-legend-right {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+}
+
+.gr-donut-legend-pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-navy);
+}
+
+.gr-donut-legend-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   6. CHANNEL PERFORMANCE — GROUPED BAR CHART (VISUALIZATION 3)
+   -------------------------------------------------------------------------- */
+.gr-bar-chart-wrap {
+  width: 100%;
+  height: 230px;
+  margin-top: 4px;
+}
+
+.gr-bar-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.gr-bar-elem {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.gr-bar-elem:hover {
+  opacity: 0.85;
+}
+
+/* --------------------------------------------------------------------------
+   7. VISUAL CONVERSION FUNNEL (VISUALIZATION 4)
+   -------------------------------------------------------------------------- */
+.gr-funnel-visual-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.gr-funnel-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gr-funnel-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.gr-funnel-stage-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-navy);
+}
+
+.gr-funnel-count {
+  font-size: 12px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--brand-navy);
+}
+
+.gr-funnel-step-rate {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.gr-funnel-bar-bg {
+  width: 100%;
+  height: 12px;
+  background: #F1F5F9;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.gr-funnel-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 0.35s ease;
+}
+
+.gr-funnel-drop-tag {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  padding-left: 2px;
+}
+
+.gr-funnel-drop-tag.success {
+  color: #047857;
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   8. TOP CONVERTING LANDING PAGES (VISUALIZATION 5)
+   -------------------------------------------------------------------------- */
+.gr-landing-pages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.gr-page-row {
+  display: grid;
+  grid-template-columns: 32px 2fr 3fr 1.2fr;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: #F8FAFD;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.gr-page-row:hover {
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 900px) {
+  .gr-page-row {
+    grid-template-columns: 28px 1fr;
+  }
+  .gr-page-bar-container {
+    display: none;
+  }
+}
+
+.gr-page-rank {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gr-teal);
+}
+
+.gr-page-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.gr-page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gr-page-path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gr-page-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: #EEF2FF;
+  color: #4F46E5;
+  white-space: nowrap;
+}
+
+.gr-page-name {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gr-page-bar-container {
+  width: 100%;
+}
+
+.gr-page-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: #E2E8F0;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.gr-page-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 0.4s ease;
+}
+
+.gr-page-rank.rank-1 { color: #8B5CF6; }
+.gr-page-rank.rank-2 { color: #3B82F6; }
+.gr-page-rank.rank-3 { color: #06B6D4; }
+.gr-page-rank.rank-4 { color: #10B981; }
+.gr-page-rank.rank-5 { color: #F59E0B; }
+
+.gr-page-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.gr-page-visits {
+  font-size: 12.5px;
+  color: var(--brand-navy);
+}
+
+.gr-page-conv {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   9. AI GROWTH INSIGHTS — MODULE 14 (VISUALIZATION 6)
+   -------------------------------------------------------------------------- */
+.gr-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 1300px) {
+  .gr-insights-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .gr-insights-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gr-insight-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all var(--transition-fast);
+}
+
+.gr-insight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.gr-insight-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.gr-cat-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.04em;
+}
+
+.gr-cat-badge.trend {
+  color: #047857;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+}
+
+.gr-cat-badge.opportunity {
+  color: #B45309;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+}
+
+.gr-cat-badge.risk {
+  color: #BE123C;
+  background: #FFF1F2;
+  border: 1px solid #FECDD3;
+}
+
+.gr-domain-pill {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.gr-insight-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--brand-navy);
+  margin: 0 0 6px 0;
+  line-height: 1.35;
+}
+
+.gr-insight-finding {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0 0 8px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.gr-insight-impact-box {
+  background: #F8FAFD;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 7px 10px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gr-insight-action-box {
+  background: #F0FDFA;
+  border: 1px solid var(--gr-teal-border);
+  border-radius: var(--radius-md);
+  padding: 7px 10px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gr-insight-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-light);
+  padding-top: 10px;
+}
+
+.btn-teal {
+  background: var(--gr-teal);
+  color: #FFFFFF;
+  border: none;
+  font-weight: 600;
+}
+
+.btn-teal:hover {
+  background: var(--gr-teal-dark);
+}
+
+/* --------------------------------------------------------------------------
+   10. EXPERIMENT PERFORMANCE — MODULE 15 (VISUALIZATION 7)
+   -------------------------------------------------------------------------- */
+.gr-exp-header {
+  margin-bottom: 12px;
+}
+
+.gr-exp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #F8FAFC;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.gr-toolbar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 5px 10px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.gr-toolbar-search svg {
+  color: var(--text-muted);
+}
+
+.gr-filter-input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+
+.gr-status-tabs {
+  display: inline-flex;
+  gap: 4px;
+  background: #EEF2F6;
+  padding: 2px;
+  border-radius: var(--radius-md);
+}
+
+.gr-tab-btn {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.gr-tab-btn.active {
+  background: #FFFFFF;
+  color: var(--brand-navy);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.gr-experiments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gr-exp-item-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gr-exp-item-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: var(--shadow-sm);
+}
+
+.gr-exp-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.gr-exp-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--gr-teal);
+  background: var(--gr-teal-light);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.gr-exp-channel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.gr-exp-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand-navy);
+  margin: 4px 0 0 0;
+}
+
+.gr-exp-hypo {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Variant A vs Variant B Comparative Bar Representation */
+.gr-variant-comparison-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #F8FAFD;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
+.gr-variant-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gr-variant-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+}
+
+.gr-variant-lbl {
+  color: var(--text-secondary);
+}
+
+.gr-variant-val {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.gr-variant-val.challenger {
+  color: #047857;
+}
+
+.gr-variant-bar-bg {
+  width: 100%;
+  height: 7px;
+  background: #E2E8F0;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.gr-variant-bar-fill.control {
+  height: 100%;
+  background: #94A3B8;
+  border-radius: var(--radius-pill);
+}
+
+.gr-variant-bar-fill.challenger {
+  height: 100%;
+  background: linear-gradient(90deg, #8B5CF6, #3B82F6);
+  border-radius: var(--radius-pill);
+}
+
+.gr-variant-bar-fill.winner {
+  height: 100%;
+  background: linear-gradient(90deg, #10B981, #059669);
+  border-radius: var(--radius-pill);
+}
+
+.gr-variant-bottom-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #E2E8F0;
+}
+
+.gr-lift-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: #047857;
+  background: #ECFDF5;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.gr-lift-badge.winner {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.gr-confidence-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.gr-status-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  text-transform: capitalize;
+}
+
+.gr-status-pill.running {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
+
+.gr-status-pill.completed {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+}
+
+.gr-status-pill.draft {
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #CBD5E1;
+}
+
+/* --------------------------------------------------------------------------
+   11. GROWTH LEARNINGS — MODULE 16 (VISUALIZATION 8)
+   -------------------------------------------------------------------------- */
+.gr-learn-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gr-select {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: #FFFFFF;
+}
+
+.gr-learnings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .gr-learnings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gr-learning-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  transition: all var(--transition-fast);
+}
+
+.gr-learning-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: var(--shadow-sm);
+}
+
+.gr-learning-card.reviewed {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFD 100%);
+  border-color: #CBD5E1;
+}
+
+.gr-learning-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gr-learning-cat {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gr-teal);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gr-learning-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--brand-navy);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.gr-learning-finding {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gr-learning-evidence-box {
+  background: #F8FAFD;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gr-learning-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border-light);
+  padding-top: 8px;
+  margin-top: 4px;
+}
