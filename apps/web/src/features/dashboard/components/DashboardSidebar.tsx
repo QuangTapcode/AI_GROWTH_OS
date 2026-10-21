@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import DatabaseSchemaModal from "./DatabaseSchemaModal";
 
 export interface WorkspaceItem {
   id: string;
@@ -11,6 +13,7 @@ export interface WorkspaceItem {
   initials: string;
   avatarBg: string;
   tag?: string;
+  members?: number;
 }
 
 export const DEFAULT_WORKSPACES: WorkspaceItem[] = [
@@ -19,24 +22,27 @@ export const DEFAULT_WORKSPACES: WorkspaceItem[] = [
     name: "TripC",
     subtitle: "Growth workspace",
     initials: "T",
-    avatarBg: "bg-blue-500",
+    avatarBg: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
     tag: "Active",
+    members: 3,
   },
   {
     id: "ecotravel",
     name: "EcoTravel Vietnam",
     subtitle: "Ecotourism & Local Tours",
     initials: "E",
-    avatarBg: "bg-emerald-500",
+    avatarBg: "linear-gradient(135deg, #059669 0%, #047857 100%)",
     tag: "Production",
+    members: 5,
   },
   {
     id: "danang-gourmet",
     name: "Danang Gourmet Hub",
     subtitle: "Culinary & Food Tourism",
     initials: "D",
-    avatarBg: "bg-amber-500",
+    avatarBg: "linear-gradient(135deg, #D97706 0%, #B45309 100%)",
     tag: "Staging",
+    members: 2,
   },
 ];
 
@@ -55,9 +61,13 @@ export default function DashboardSidebar({
 }: DashboardSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { language, t } = useLanguage();
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Sync activeTab when prop or pathname changes
   useEffect(() => {
@@ -67,14 +77,20 @@ export default function DashboardSidebar({
   }, [activeTab]);
 
   useEffect(() => {
-    if (pathname === "/workflows") {
+    if (pathname.startsWith("/workflows")) {
       setCurrentTab("workflows");
-    } else if (pathname === "/dashboard") {
-      setCurrentTab("overview");
-    } else if (pathname === "/review-queue") {
+    } else if (pathname.startsWith("/review-queue")) {
       setCurrentTab("review-queue");
-    } else if (pathname === "/artifacts") {
+    } else if (pathname.startsWith("/artifacts")) {
       setCurrentTab("artifacts");
+    } else if (pathname.startsWith("/distribution")) {
+      setCurrentTab("distribution");
+    } else if (pathname.startsWith("/growth-results")) {
+      setCurrentTab("growth-results");
+    } else if (pathname.startsWith("/workspace-integrations")) {
+      setCurrentTab("workspace-integrations");
+    } else {
+      setCurrentTab("overview");
     }
   }, [pathname]);
 
@@ -86,6 +102,12 @@ export default function DashboardSidebar({
         !dropdownRef.current.contains(event.target as Node)
       ) {
         setIsDropdownOpen(false);
+      }
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsUserMenuOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -109,466 +131,531 @@ export default function DashboardSidebar({
     setIsDropdownOpen(false);
   };
 
+  const getLocalizedWorkspaceSubtitle = (ws: WorkspaceItem) => {
+    if (ws.id === "tripc") return t.sidebar.growthWorkspace;
+    if (ws.id === "ecotravel") return t.sidebar.ecotourismLocalTours;
+    if (ws.id === "danang-gourmet") return t.sidebar.culinaryFoodTourism;
+    return ws.subtitle;
+  };
+
   const navItems = [
     {
       id: "overview",
-      label: "Overview",
+      label: t.sidebar.overview,
       href: "/dashboard",
       icon: (
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M4 4h7v7H4V4zm0 9h7v7H4v-7zm9-9h7v7h-7V4zm0 9h7v7h-7v-7z" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
         </svg>
       ),
     },
     {
       id: "workflows",
-      label: "Workflows & Tasks",
+      label: t.sidebar.workflows,
       href: "/workflows",
       icon: (
-        <svg
-          className="w-5 h-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="3" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="14" width="7" height="7" rx="1" />
-          <path d="M10 6.5h4M6.5 10v7.5a1 1 0 001 1H14" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
         </svg>
       ),
     },
     {
       id: "artifacts",
-      label: "Artifacts",
+      label: t.sidebar.artifacts,
       href: "/artifacts",
       icon: (
-        <svg
-          className="w-5 h-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
           <polyline points="14 2 14 8 20 8" />
           <line x1="16" y1="13" x2="8" y2="13" />
           <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10 9 9 9 8 9" />
         </svg>
       ),
     },
     {
       id: "review-queue",
-      label: "Review Queue",
+      label: t.sidebar.reviewQueue,
       href: "/review-queue",
-      badge: 4,
-      badgeColor: "red",
+      badge: 3,
+      badgeColor: "var(--brand-accent)",
       icon: (
-        <svg
-          className="w-5 h-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M9 11l3 3L22 4" />
-          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
         </svg>
       ),
     },
     {
       id: "distribution",
-      label: "Distribution",
+      label: t.sidebar.distribution,
+      href: "/distribution",
+      badge: 1,
+      badgeColor: "#E11D48",
       icon: (
-        <svg
-          className="w-5 h-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="22" y1="2" x2="11" y2="13" />
-          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
         </svg>
       ),
     },
     {
       id: "growth-results",
-      label: "Growth Results",
+      label: t.sidebar.growthResults,
+      href: "/growth-results",
       icon: (
-        <svg
-          className="w-5 h-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-          <polyline points="17 6 23 6 23 12" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="14" />
         </svg>
       ),
     },
     {
       id: "workspace-integrations",
-      label: "Workspace & Integrations",
+      label: t.sidebar.workspaceIntegrations,
+      href: "/workspace-integrations",
       icon: (
-        <svg
-          className="w-5 h-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       ),
     },
   ];
 
   return (
-    <aside className="w-64 shrink-0 bg-[#1d4ed8] text-white flex flex-col justify-between min-h-screen sticky top-0 h-screen select-none z-30">
-      {/* Top Header & Workspace Switcher */}
-      <div className="p-4 space-y-4">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-3 px-2 py-1">
-          <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-          </div>
-          <div>
-            <span className="font-bold text-white tracking-tight text-base block leading-tight">
-              AI Growth OS
-            </span>
-            <span className="text-[11px] text-blue-200/80 block leading-tight">
-              Growth operating system
-            </span>
-          </div>
-        </div>
+    <>
+      <aside className="sidebar" id="appSidebar" aria-label="Main Navigation">
+        <div className="sidebar-top-section">
+          {/* Brand Header */}
+          <div className="sidebar-header">
+            <Link href="/dashboard" className="brand-wrapper" title="AI Growth OS">
+              <div className="brand-icon">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                </svg>
+              </div>
+              <div className="brand-info">
+                <span className="brand-title">AI Growth OS</span>
+                <span className="brand-subtitle">
+                  {language === "vi"
+                    ? "Hệ điều hành tăng trưởng"
+                    : "Growth operating system"}
+                </span>
+              </div>
+            </Link>
 
-        {/* Workspace Switcher Pill with Dropdown */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            type="button"
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className={`w-full bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-all ${
-              isDropdownOpen ? "ring-2 ring-white/30 bg-white/15" : ""
-            }`}
-          >
-            <div className="flex items-center gap-2.5 text-left min-w-0">
+            {/* Workspace Selector */}
+            <div className="relative" ref={dropdownRef}>
               <div
-                className={`w-7 h-7 rounded-lg ${selectedWorkspace.avatarBg} text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0`}
+                className="workspace-selector"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                role="button"
+                tabIndex={0}
+                title="Switch Workspace"
               >
-                {selectedWorkspace.initials}
+                <div className="workspace-left">
+                  <div
+                    className="workspace-avatar"
+                    style={{ background: selectedWorkspace.avatarBg }}
+                  >
+                    {selectedWorkspace.initials}
+                  </div>
+                  <div className="workspace-details">
+                    <span className="workspace-name">
+                      {selectedWorkspace.name}
+                    </span>
+                    <span className="workspace-tag">
+                      {getLocalizedWorkspaceSubtitle(selectedWorkspace)}
+                    </span>
+                  </div>
+                </div>
+                <div
+                  className="workspace-chevron"
+                  style={{
+                    transform: isDropdownOpen ? "rotate(180deg)" : "none",
+                    transition: "transform 0.2s ease",
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-white leading-none truncate">
-                  {selectedWorkspace.name}
-                </p>
-                <p className="text-[10px] text-blue-200/80 mt-0.5 leading-none truncate">
-                  {selectedWorkspace.subtitle}
-                </p>
-              </div>
-            </div>
-            <svg
-              className={`w-4 h-4 text-blue-200/80 shrink-0 transition-transform duration-200 ${
-                isDropdownOpen ? "rotate-180" : ""
-              }`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M8 9l4-4 4 4m0 6l-4 4-4-4"
-              />
-            </svg>
-          </button>
 
-          {/* Dropdown Menu */}
-          {isDropdownOpen && (
-            <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900/95 backdrop-blur-xl border border-blue-400/30 rounded-2xl p-2 shadow-2xl z-50 text-white animate-in fade-in duration-150">
-              <div className="px-2 py-1.5 flex items-center justify-between text-[10px] uppercase font-bold text-blue-300/70">
-                <span>Select Workspace</span>
-                <span>{DEFAULT_WORKSPACES.length} total</span>
-              </div>
-
-              <div className="space-y-1 mt-1">
-                {DEFAULT_WORKSPACES.map((ws) => {
-                  const isSelected = selectedWorkspace.id === ws.id;
-                  return (
+              {/* Workspace Dropdown Menu */}
+              {isDropdownOpen && (
+                <div
+                  className="dropdown-menu active"
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    marginTop: "6px",
+                    background: "#0F172A",
+                    border: "1px solid rgba(147, 197, 253, 0.25)",
+                    borderRadius: "12px",
+                    padding: "8px",
+                    zIndex: 200,
+                    boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      color: "rgba(147, 197, 253, 0.7)",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {language === "vi" ? "Không gian làm việc" : "Workspaces"}
+                  </div>
+                  {DEFAULT_WORKSPACES.map((ws) => (
                     <button
                       key={ws.id}
                       type="button"
                       onClick={() => handleSelectWorkspace(ws)}
-                      className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-blue-600 text-white font-semibold shadow-xs"
-                          : "text-slate-200 hover:bg-white/10"
-                      }`}
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        borderRadius: "8px",
+                        border: "none",
+                        background:
+                          selectedWorkspace.id === ws.id
+                            ? "rgba(37, 99, 235, 0.3)"
+                            : "transparent",
+                        cursor: "pointer",
+                        color: "#FFFFFF",
+                        textAlign: "left",
+                      }}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        style={{
+                          width: "24px",
+                          height: "24px",
+                          borderRadius: "6px",
+                          background: ws.avatarBg,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {ws.initials}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div
-                          className={`w-7 h-7 rounded-lg ${ws.avatarBg} text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs`}
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
                         >
-                          {ws.initials}
+                          {ws.name}
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold leading-tight truncate">
-                            {ws.name}
-                          </p>
-                          <p className="text-[10px] text-blue-200/70 truncate leading-tight">
-                            {ws.subtitle}
-                          </p>
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            color: "rgba(147, 197, 253, 0.7)",
+                          }}
+                        >
+                          {getLocalizedWorkspaceSubtitle(ws)}
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0 pl-2">
-                        {ws.tag && (
-                          <span
-                            className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
-                              isSelected
-                                ? "bg-white/20 text-white"
-                                : "bg-slate-800 text-slate-300"
-                            }`}
-                          >
-                            {ws.tag}
-                          </span>
-                        )}
-                        {isSelected && (
-                          <svg
-                            className="w-3.5 h-3.5 text-white"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        )}
-                      </div>
+                      {selectedWorkspace.id === ws.id && (
+                        <span style={{ color: "#60A5FA", fontSize: "14px" }}>
+                          ✓
+                        </span>
+                      )}
                     </button>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
-              {/* Add workspace action */}
-              <div className="border-t border-white/10 mt-2 pt-2">
+          {/* Navigation Tabs (Exact 7 tabs in order) */}
+          <nav className="sidebar-nav" aria-label="Primary">
+            {navItems.map((item) => {
+              const isActive = currentTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleNav(item.id, item.href)}
+                  className={`nav-link ${isActive ? "active" : ""}`}
+                  style={{
+                    width: "100%",
+                    cursor: "pointer",
+                    border: "none",
+                    textAlign: "left",
+                  }}
+                >
+                  <div className="nav-link-content">
+                    <span className="nav-icon">{item.icon}</span>
+                    <span className="nav-text">{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span
+                      className="nav-badge"
+                      style={{ background: item.badgeColor }}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Lower Utilities & Intelligence */}
+        <div className="sidebar-footer">
+          <div className="section-label">WORKSPACE INTELLIGENCE</div>
+          <div className="sidebar-util-nav">
+            {/* Growth Knowledge */}
+            <Link
+              href="/workspace-integrations"
+              className="util-link"
+              title="Business profiles & Brand Voice"
+            >
+              <div className="util-left">
+                <span className="util-icon">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                </span>
+                <div className="util-texts">
+                  <span className="util-title">{t.sidebar.growthKnowledge}</span>
+                  <span className="util-sub">
+                    {language === "vi"
+                      ? "Bối cảnh doanh nghiệp & giọng văn"
+                      : "Business context & voice"}
+                  </span>
+                </div>
+              </div>
+            </Link>
+
+            {/* Connection Status */}
+            <Link
+              href="/distribution"
+              className="util-link"
+              title="Connected channels status"
+            >
+              <div className="util-left">
+                <span className="util-icon">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                    <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                    <line x1="6" y1="6" x2="6.01" y2="6" />
+                    <line x1="6" y1="18" x2="6.01" y2="18" />
+                  </svg>
+                </span>
+                <div className="util-texts">
+                  <span className="util-title">
+                    {t.sidebar.connectionStatus}
+                  </span>
+                  <span className="util-sub">
+                    {t.sidebar.connectedChannels}
+                  </span>
+                </div>
+              </div>
+              <span className="status-dot-pulse" title="Channels Active" />
+            </Link>
+          </div>
+
+          <div className="sidebar-divider" />
+
+          {/* Database Schema Map Trigger */}
+          <div className="sidebar-util-nav">
+            <button
+              type="button"
+              onClick={() => setIsSchemaModalOpen(true)}
+              className="util-link"
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                width: "100%",
+                textAlign: "left",
+              }}
+              title="Inspect Database Schema Mapping"
+            >
+              <div className="util-left">
+                <span className="util-icon">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <ellipse cx="12" cy="5" rx="9" ry="3" />
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                  </svg>
+                </span>
+                <span
+                  className="util-title"
+                  style={{ color: "#93C5FD", fontWeight: 600 }}
+                >
+                  Database Schema Map
+                </span>
+              </div>
+            </button>
+          </div>
+
+          {/* User Profile Pill */}
+          <div className="relative" ref={userMenuRef}>
+            <div
+              className="sidebar-user"
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              role="button"
+              tabIndex={0}
+              title="User Account"
+            >
+              <div className="user-info-group">
+                <div className="user-avatar-pill">AM</div>
+                <div className="user-text-details">
+                  <span className="user-name">Alex Morgan</span>
+                  <span className="user-role">{t.header.owner}</span>
+                </div>
+              </div>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#93C5FD"
+                strokeWidth="2.5"
+                style={{
+                  transform: isUserMenuOpen ? "rotate(180deg)" : "none",
+                  transition: "transform 0.2s ease",
+                }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+
+            {/* User Dropdown Menu */}
+            {isUserMenuOpen && (
+              <div
+                className="dropdown-menu active"
+                style={{
+                  position: "absolute",
+                  bottom: "100%",
+                  left: "8px",
+                  right: "8px",
+                  marginBottom: "8px",
+                  background: "#0F172A",
+                  border: "1px solid rgba(147, 197, 253, 0.25)",
+                  borderRadius: "12px",
+                  padding: "6px",
+                  zIndex: 200,
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "6px 10px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "rgba(147, 197, 253, 0.7)",
+                  }}
+                >
+                  alex@tripc.ai
+                </div>
                 <button
                   type="button"
-                  onClick={() => setIsDropdownOpen(false)}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium text-blue-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+                  onClick={() => router.push("/workspace-integrations")}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    fontSize: "12px",
+                    border: "none",
+                    background: "transparent",
+                    color: "#FFFFFF",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    borderRadius: "6px",
+                  }}
                 >
-                  <span className="w-5 h-5 rounded-lg border border-dashed border-blue-300/60 flex items-center justify-center text-sm font-bold">
-                    +
-                  </span>
-                  <span>Create new workspace</span>
+                  {language === "vi" ? "Cài đặt tài khoản" : "Account Settings"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/login")}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    fontSize: "12px",
+                    border: "none",
+                    background: "transparent",
+                    color: "#F87171",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    borderRadius: "6px",
+                  }}
+                >
+                  {t.sidebar.logout}
                 </button>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation List */}
-        <nav className="space-y-1 pt-2">
-          {navItems.map((item) => {
-            const isActive = currentTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleNav(item.id, item.href)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-                  isActive
-                    ? "bg-white text-[#1d4ed8] font-bold shadow-sm"
-                    : "text-blue-100/90 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={isActive ? "text-[#1d4ed8]" : "text-blue-200"}
-                  >
-                    {item.icon}
-                  </span>
-                  <span>{item.label}</span>
-                </div>
-                {item.badge && (
-                  <span
-                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      item.badgeColor === "red"
-                        ? "bg-rose-500 text-white"
-                        : isActive
-                        ? "bg-blue-100 text-[#1d4ed8]"
-                        : "bg-blue-500 text-white"
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Bottom Section: Workspace Intelligence & User Profile */}
-      <div className="p-4 border-t border-blue-600/60 space-y-3">
-        <div className="px-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200/60">
-            Workspace Intelligence
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          <div className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <svg
-                className="w-4 h-4 text-blue-200"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                />
-              </svg>
-              <div>
-                <p className="text-xs font-medium text-white leading-tight">
-                  Growth Knowledge
-                </p>
-                <p className="text-[10px] text-blue-200/70">
-                  Business context & voice
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <svg
-                className="w-4 h-4 text-blue-200"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
-              <div>
-                <p className="text-xs font-medium text-white leading-tight">
-                  Connection status
-                </p>
-                <p className="text-[10px] text-blue-200/70">
-                  Connected channels
-                </p>
-              </div>
-            </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
-          </div>
-
-          <div className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5">
-            <svg
-              className="w-4 h-4 text-blue-200"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span className="text-xs font-medium text-white">
-              Help & documentation
-            </span>
+            )}
           </div>
         </div>
+      </aside>
 
-        {/* User Profile Footer */}
-        <div className="pt-2 border-t border-blue-600/60 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-blue-300 text-blue-900 font-bold text-xs flex items-center justify-center">
-              AM
-            </div>
-            <div>
-              <p className="text-xs font-bold text-white leading-tight">
-                Alex Morgan
-              </p>
-              <p className="text-[10px] text-blue-200/70 leading-tight">
-                Owner
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/login"
-            title="Logout"
-            className="text-blue-200 hover:text-white transition-colors p-1"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-              />
-            </svg>
-          </Link>
-        </div>
-
-        {/* Engine status indicator */}
-        <div className="pt-2 border-t border-blue-600/40 flex items-center justify-between text-[11px] text-blue-200/80 font-mono">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-300" />
-            <span>Engine v4.12-rc</span>
-          </div>
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-blue-900/60 text-blue-200 border border-blue-400/30">
-            AUTO
-          </span>
-        </div>
-      </div>
-    </aside>
+      {/* Database Schema Map Modal */}
+      <DatabaseSchemaModal
+        isOpen={isSchemaModalOpen}
+        onClose={() => setIsSchemaModalOpen(false)}
+      />
+    </>
   );
 }

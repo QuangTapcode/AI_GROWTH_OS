@@ -2,21 +2,25 @@
 
 import React from "react";
 import Link from "next/link";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { StatusPill } from "@/components/ui";
 
 export default function AgentActivityCard() {
+  const { language, t } = useLanguage();
+
   const statusStats = [
-    { label: "Running", count: 3, bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-100" },
-    { label: "Completed", count: 18, bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-100" },
-    { label: "Review", count: 4, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-100" },
-    { label: "Failed", count: 1, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-100" },
+    { label: t.dashboard.agentActivity.running, count: 3, bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-100" },
+    { label: t.dashboard.agentActivity.completed, count: 18, bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-100" },
+    { label: t.dashboard.agentActivity.review, count: 4, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-100" },
+    { label: t.dashboard.agentActivity.failed, count: 1, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-100" },
   ];
 
   const agentTasks = [
     {
-      agent: "SEO Agent",
-      action: "Optimize description tags for Da Nang guide",
-      time: "12m ago",
-      status: "Completed",
+      agent: t.dashboard.agentActivity.seoAgent,
+      action: t.dashboard.agentActivity.seoAction,
+      time: language === "vi" ? "12 phút trước" : "12m ago",
+      status: t.dashboard.agentActivity.completed,
       statusColor: "bg-slate-100 text-slate-700 border-slate-200",
       iconBg: "bg-blue-100 text-blue-600",
       icon: (
@@ -27,10 +31,10 @@ export default function AgentActivityCard() {
       ),
     },
     {
-      agent: "Content Agent",
-      action: "Draft Da Nang travel blog 3/5",
-      time: "34m ago",
-      status: "Needs review",
+      agent: t.dashboard.agentActivity.contentAgent,
+      action: t.dashboard.agentActivity.contentAction,
+      time: language === "vi" ? "34 phút trước" : "34m ago",
+      status: t.dashboard.agentActivity.needsReview,
       statusColor: "bg-amber-100 text-amber-800 border-amber-200",
       iconBg: "bg-amber-100 text-amber-600",
       icon: (
@@ -40,10 +44,10 @@ export default function AgentActivityCard() {
       ),
     },
     {
-      agent: "Research Agent",
-      action: "Analyze seasonal query demand Q4",
-      time: "1h ago",
-      status: "Running",
+      agent: t.dashboard.agentActivity.researchAgent,
+      action: t.dashboard.agentActivity.researchAction,
+      time: language === "vi" ? "1 giờ trước" : "1h ago",
+      status: t.dashboard.agentActivity.running,
       statusColor: "bg-sky-100 text-sky-800 border-sky-200",
       iconBg: "bg-indigo-100 text-indigo-600",
       icon: (
@@ -53,10 +57,10 @@ export default function AgentActivityCard() {
       ),
     },
     {
-      agent: "Distribution Agent",
-      action: "Syndicate hotel curation to LinkedIn",
-      time: "2h ago",
-      status: "Completed",
+      agent: t.dashboard.agentActivity.distributionAgent,
+      action: t.dashboard.agentActivity.distributionAction,
+      time: language === "vi" ? "2 giờ trước" : "2h ago",
+      status: t.dashboard.agentActivity.completed,
       statusColor: "bg-slate-100 text-slate-700 border-slate-200",
       iconBg: "bg-sky-100 text-sky-600",
       icon: (
@@ -69,84 +73,77 @@ export default function AgentActivityCard() {
   ];
 
   return (
-    <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+    <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
       <div>
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse" />
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight">
-              AI Agent Activity
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
+              {t.dashboard.agentActivity.title}
             </h2>
           </div>
           <Link
-            href="/dashboard?tab=workflows"
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+            href="/workflows"
+            className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
           >
-            View all tasks →
+            <span>{t.dashboard.agentActivity.viewAllTasks}</span>
+            <span>→</span>
           </Link>
         </div>
 
-        {/* 4 Status Counter Boxes */}
-        <div className="grid grid-cols-4 gap-2 mb-4">
+        {/* 4 Status Counter Boxes (padded, distinct contrast) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           {statusStats.map((s, idx) => (
             <div
               key={idx}
-              className={`${s.bg} ${s.border} border rounded-xl p-2.5 text-center`}
+              className={`${s.bg} ${s.border} border rounded-xl p-3.5 text-center flex flex-col justify-between`}
             >
-              <p className="text-[10px] text-slate-500 font-medium capitalize">
+              <p className="text-xs text-slate-600 font-bold uppercase tracking-wider">
                 {s.label}
               </p>
-              <p className={`text-xl font-black ${s.text} leading-none mt-1`}>
+              <p className={`text-2xl font-black ${s.text} leading-none mt-2`}>
                 {s.count}
               </p>
             </div>
           ))}
         </div>
 
-        {/* Agent Task List */}
-        <div className="space-y-2.5">
-          {agentTasks.map((t, idx) => (
+        {/* Recent Agent Tasks List (rows min 56px, StatusPill right-aligned) */}
+        <div className="space-y-3">
+          {agentTasks.map((tItem, idx) => (
             <div
               key={idx}
-              className="p-2.5 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/50 transition-all flex items-center justify-between gap-3"
+              className="min-h-[56px] flex items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200/80 hover:bg-slate-50/80 hover:border-slate-300 transition-all"
             >
-              <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-3.5 min-w-0">
                 <div
-                  className={`w-7 h-7 rounded-lg ${t.iconBg} flex items-center justify-center shrink-0`}
+                  className={`w-9 h-9 rounded-xl ${tItem.iconBg} flex items-center justify-center shrink-0 shadow-xs`}
                 >
-                  {t.icon}
+                  {tItem.icon}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 leading-tight">
-                    {t.agent}
-                  </p>
-                  <p className="text-[11px] text-slate-500 truncate leading-tight mt-0.5">
-                    {t.action}
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-slate-900 truncate">
+                      {tItem.agent}
+                    </p>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-xs text-slate-500 font-medium truncate">
+                      {tItem.time}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 truncate font-normal">
+                    {tItem.action}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${t.statusColor}`}
-                >
-                  {t.status}
-                </span>
-                <span className="text-[10px] text-slate-400">{t.time}</span>
+              <div className="shrink-0">
+                <StatusPill status={tItem.status} label={tItem.status} />
               </div>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Model & Latency Footer */}
-      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-mono">
-        <span>Model: Gemini 1.5 Pro</span>
-        <span className="flex items-center gap-1.5 font-sans">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-          Avg latency: 420ms
-        </span>
       </div>
     </div>
   );
