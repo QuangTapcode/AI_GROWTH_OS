@@ -1,15 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'Be Vietnam Pro', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@import "../styles/common.css";
+@import "../styles/components.css";
+@import "../styles/overview.css";
+@import "../styles/workflows-tasks.css";
+@import "../styles/artifacts.css";
+@import "../styles/review-queue.css";
+@import "../styles/distribution.css";
+@import "../styles/growth-results.css";
+@import "../styles/workspace-integrations.css";
+@import "../styles/workspace-wizard.css";
 
 :root {
   color-scheme: light;
-  --ink: #142b37;
-  --muted: #546a76;
-  --accent: #116b59;
-  font-family: Arial, Helvetica, sans-serif;
+  --ink: #102F70;
+  --muted: #63748B;
+  --accent: #2563EB;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; color: var(--ink); background: #ffffff; }
+body { margin: 0; color: var(--text-primary); background: var(--main-bg); font-family: var(--font-sans); }
 
 /* ── Scoped Staging Shell Styles (Only applies within .shell) ── */
 .shell { max-width: 1000px; margin: auto; padding: 32px 24px 64px; }

@@ -1,8 +1,11 @@
 "use client";
 
 import React from "react";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function LoginHeroPanel() {
+  const { language, t } = useLanguage();
+
   return (
     <div className="relative flex-1 hidden lg:flex flex-col justify-between overflow-hidden min-h-screen p-8 xl:p-12 bg-slate-950 select-none">
       {/* Background Hero Image */}
@@ -20,14 +23,14 @@ export default function LoginHeroPanel() {
       {/* Floating Metric Cards Area */}
       <div className="relative flex-1 w-full flex items-center justify-center my-4">
         {/* Top-Right SEO Pill */}
-        <div className="absolute top-4 right-4 xl:top-6 xl:right-8 bg-white/95 backdrop-blur-md rounded-full px-4 py-2 flex items-center gap-2.5 shadow-2xl border border-white/80 z-20 animate-float-slow">
+        <div className="absolute top-4 right-4 xl:top-6 xl:right-8 bg-white/95 backdrop-blur-md rounded-full px-4 py-2.5 flex items-center gap-2.5 shadow-xl border border-white/80 z-20 animate-float-slow">
           <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
           <span className="text-xs text-slate-700 font-medium">
-            SEO Score: <strong className="font-bold text-slate-900">94.0</strong>
+            {t.auth.heroSeoScore}: <strong className="font-bold text-slate-900">94.0</strong>
           </span>
           <span className="h-3.5 w-px bg-slate-200" />
           <span className="text-xs text-slate-700 font-medium">
-            Content: <strong className="font-bold text-slate-900">92.5</strong>
+            {t.auth.heroContent}: <strong className="font-bold text-slate-900">92.5</strong>
           </span>
           <span className="w-4 h-4 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[10px] font-bold border border-blue-200">
             ✓
@@ -35,16 +38,16 @@ export default function LoginHeroPanel() {
         </div>
 
         {/* Growth Target Floating Card (Top Left) */}
-        <div className="absolute top-[14%] left-[6%] xl:left-[12%] bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-white/80 w-44 z-30 animate-float-slow">
-          <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-            GROWTH TARGET
+        <div className="absolute top-[10%] left-[4%] xl:left-[8%] bg-white/95 backdrop-blur-md rounded-2xl p-5 shadow-2xl border border-white/80 w-52 z-30 animate-float-slow">
+          <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase block mb-1.5">
+            {t.auth.heroGrowthTarget}
           </span>
           <div className="flex items-center justify-between">
             <span className="text-3xl font-extrabold text-slate-900 tracking-tight">
               +50%
             </span>
-            <div className="relative w-9 h-9">
-              <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+            <div className="relative w-11 h-11">
+              <svg className="w-11 h-11 -rotate-90" viewBox="0 0 36 36">
                 <circle
                   cx="18"
                   cy="18"
@@ -67,22 +70,22 @@ export default function LoginHeroPanel() {
               </svg>
             </div>
           </div>
-          <span className="text-xs text-slate-500 font-medium block mt-1">
-            Qualified traffic
+          <span className="text-xs text-slate-600 font-medium block mt-2">
+            {t.auth.heroQualifiedTraffic}
           </span>
         </div>
 
         {/* Main Center Chart Card */}
-        <div className="relative bg-white/95 backdrop-blur-md rounded-2xl p-5 shadow-2xl border border-white/80 w-[380px] xl:w-[420px] z-10">
+        <div className="relative bg-white/95 backdrop-blur-md rounded-2xl p-6 shadow-2xl border border-white/80 w-[440px] xl:w-[480px] z-10">
           {/* Header */}
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
-              On Track
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              {t.auth.heroOnTrack}
             </span>
-            <span className="text-xs text-slate-400 font-medium flex items-center gap-1 cursor-pointer hover:text-slate-600 transition-colors">
-              Monthly
+            <span className="text-xs text-slate-500 font-semibold flex items-center gap-1 cursor-pointer hover:text-slate-700 transition-colors">
+              {t.auth.heroMonthly}
               <svg
-                className="w-3 h-3"
+                className="w-3.5 h-3.5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -97,19 +100,21 @@ export default function LoginHeroPanel() {
             </span>
           </div>
 
-          <p className="text-[11px] text-slate-400 font-medium mb-4">
-            Da Nang Airport Segment · Target: 63,240 visits
+          <p className="text-xs text-slate-500 font-medium mb-4">
+            {language === "vi"
+              ? "Phân khúc Sân bay Đà Nẵng · Mục tiêu: 63.240 lượt truy cập"
+              : "Da Nang Airport Segment · Target: 63,240 visits"}
           </p>
 
           {/* Floating Tooltip above highest chart point */}
-          <div className="absolute top-[48px] right-[45px] xl:right-[55px] bg-slate-900 text-white rounded-lg px-2.5 py-1 text-center shadow-xl border border-slate-700/80 z-20">
-            <span className="text-xs font-bold block leading-tight">
-              63,240 visits
+          <div className="absolute top-[52px] right-[50px] xl:right-[65px] bg-slate-900 text-white rounded-xl px-3 py-1.5 text-center shadow-xl border border-slate-700/80 z-20">
+            <span className="text-xs font-extrabold block leading-tight">
+              {language === "vi" ? "63.240 lượt" : "63,240 visits"}
             </span>
-            <span className="text-[10px] text-emerald-400 font-medium block leading-tight">
-              +52.4% vs baseline
+            <span className="text-[10.5px] text-emerald-400 font-semibold block leading-tight mt-0.5">
+              {language === "vi" ? "+52.4% so với mốc chuẩn" : "+52.4% vs baseline"}
             </span>
-            <div className="w-2 h-2 bg-slate-900 rotate-45 absolute -bottom-1 right-7 border-r border-b border-slate-700/80" />
+            <div className="w-2.5 h-2.5 bg-slate-900 rotate-45 absolute -bottom-1 right-7 border-r border-b border-slate-700/80" />
           </div>
 
           {/* Chart SVG */}
@@ -129,17 +134,25 @@ export default function LoginHeroPanel() {
               <line x1="28" y1="95" x2="310" y2="95" stroke="#f1f5f9" strokeWidth="1" />
 
               {/* Y Axis Labels */}
-              <text x="5" y="24" fill="#94a3b8" fontSize="9" fontWeight="500">60K</text>
-              <text x="5" y="49" fill="#94a3b8" fontSize="9" fontWeight="500">45K</text>
-              <text x="5" y="74" fill="#94a3b8" fontSize="9" fontWeight="500">30K</text>
-              <text x="5" y="99" fill="#94a3b8" fontSize="9" fontWeight="500">15K</text>
-              <text x="18" y="120" fill="#94a3b8" fontSize="9" fontWeight="500">0</text>
+              <text x="5" y="24" fill="#94a3b8" fontSize="10" fontWeight="600">60K</text>
+              <text x="5" y="49" fill="#94a3b8" fontSize="10" fontWeight="600">45K</text>
+              <text x="5" y="74" fill="#94a3b8" fontSize="10" fontWeight="600">30K</text>
+              <text x="5" y="99" fill="#94a3b8" fontSize="10" fontWeight="600">15K</text>
+              <text x="18" y="120" fill="#94a3b8" fontSize="10" fontWeight="600">0</text>
 
               {/* X Axis Labels */}
-              <text x="45" y="122" fill="#94a3b8" fontSize="9" fontWeight="500" textAnchor="middle">Jan</text>
-              <text x="110" y="122" fill="#94a3b8" fontSize="9" fontWeight="500" textAnchor="middle">Feb</text>
-              <text x="175" y="122" fill="#94a3b8" fontSize="9" fontWeight="500" textAnchor="middle">Mar</text>
-              <text x="240" y="122" fill="#94a3b8" fontSize="9" fontWeight="500" textAnchor="middle">Apr</text>
+              <text x="45" y="122" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">
+                {language === "vi" ? "Th1" : "Jan"}
+              </text>
+              <text x="110" y="122" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">
+                {language === "vi" ? "Th2" : "Feb"}
+              </text>
+              <text x="175" y="122" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">
+                {language === "vi" ? "Th3" : "Mar"}
+              </text>
+              <text x="240" y="122" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">
+                {language === "vi" ? "Th4" : "Apr"}
+              </text>
 
               {/* Area Fill */}
               <path
@@ -152,35 +165,35 @@ export default function LoginHeroPanel() {
                 d="M40 98 C 80 92, 120 78, 175 70 C 220 62, 250 35, 290 24"
                 fill="none"
                 stroke="#2563eb"
-                strokeWidth="3"
+                strokeWidth="3.5"
                 strokeLinecap="round"
               />
 
               {/* Points */}
-              <circle cx="175" cy="70" r="3.5" fill="#ffffff" stroke="#2563eb" strokeWidth="2.5" />
-              <circle cx="235" cy="48" r="3.5" fill="#ffffff" stroke="#2563eb" strokeWidth="2.5" />
-              <circle cx="290" cy="24" r="5" fill="#2563eb" stroke="#ffffff" strokeWidth="2.5" />
+              <circle cx="175" cy="70" r="4" fill="#ffffff" stroke="#2563eb" strokeWidth="2.5" />
+              <circle cx="235" cy="48" r="4" fill="#ffffff" stroke="#2563eb" strokeWidth="2.5" />
+              <circle cx="290" cy="24" r="5.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2.5" />
             </svg>
           </div>
         </div>
 
         {/* Organic Traffic Floating Card (Bottom Right) */}
-        <div className="absolute bottom-[14%] right-[6%] xl:right-[12%] bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-white/80 w-48 z-30 animate-float-reverse">
-          <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block">
-            ORGANIC TRAFFIC
+        <div className="absolute bottom-[10%] right-[4%] xl:right-[8%] bg-white/95 backdrop-blur-md rounded-2xl p-5 shadow-2xl border border-white/80 w-56 z-30 animate-float-reverse">
+          <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase block mb-1">
+            {language === "vi" ? "LƯU LƯỢNG TỰ NHIÊN" : "ORGANIC TRAFFIC"}
           </span>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-3xl font-extrabold text-slate-900 tracking-tight">
               190
             </span>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
               +30.9%
             </span>
           </div>
-          <span className="text-[11px] text-slate-400 font-medium block mt-0.5">
-            vs prev day
+          <span className="text-xs text-slate-500 font-medium block mt-1">
+            {language === "vi" ? "so với hôm trước" : "vs prev day"}
           </span>
-          <div className="mt-2 h-7 w-full">
+          <div className="mt-3 h-8 w-full">
             <svg className="w-full h-full" viewBox="0 0 100 28" fill="none">
               <path
                 d="M0 24 C 20 22, 35 25, 50 18 C 65 11, 75 16, 95 6"
@@ -200,16 +213,19 @@ export default function LoginHeroPanel() {
           AI Growth OS
         </h2>
         <p className="text-sm font-medium text-slate-200 mb-1">
-          Turn growth data into actionable opportunities.
+          {language === "vi"
+            ? "Biến dữ liệu tăng trưởng thành cơ hội hành động thực tế."
+            : "Turn growth data into actionable opportunities."}
         </p>
         <p className="text-xs text-slate-400 leading-relaxed mb-4 max-w-sm mx-auto">
-          Discover opportunities, generate content, optimize SEO, and measure
-          growth with AI-powered workflows.
+          {t.auth.heroQuote}
         </p>
         <div className="inline-flex items-center gap-2 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-full px-4 py-1.5 text-xs text-slate-300 shadow-lg">
           <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
-          Workspace:{" "}
-          <span className="font-semibold text-white">TripC Da Nang</span> · Active
+          <span>
+            {language === "vi" ? "Không gian làm việc: " : "Workspace: "}
+            <strong className="font-semibold text-white">TripC Da Nang</strong> · {t.sidebar.active}
+          </span>
         </div>
       </div>
     </div>
