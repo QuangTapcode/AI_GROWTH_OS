@@ -11,8 +11,10 @@ import ArtifactDetailCanvas from "./ArtifactDetailCanvas";
 import EditArtifactModal from "./EditArtifactModal";
 import { MOCK_ARTIFACTS } from "../data/artifactsMockData";
 import { ArtifactDeliverable } from "../types";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function ArtifactsClientView() {
+  const { t } = useLanguage();
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceItem>(
     DEFAULT_WORKSPACES[0]
   );
@@ -32,12 +34,14 @@ export default function ArtifactsClientView() {
     updatedTitle: string,
     updatedContent: string
   ) => {
+    let nextVerStr = "v4";
     setArtifacts((prev) =>
       prev.map((art) => {
         if (art.id === artifactId) {
           // Increment version (e.g., v3 -> v4)
           const match = art.version.match(/v(\d+)/i);
           const nextVersion = match ? `v${parseInt(match[1], 10) + 1}` : `${art.version}.1`;
+          nextVerStr = nextVersion;
 
           return {
             ...art,
@@ -55,12 +59,16 @@ export default function ArtifactsClientView() {
       })
     );
 
-    setToastMessage(`Saved changes! Created new version snapshot (${selectedArtifact.version} → v4).`);
+    const msg = t.artifacts.savedToast
+      .replace("{oldVersion}", selectedArtifact.version)
+      .replace("{newVersion}", nextVerStr);
+    setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleSendForReview = (art: ArtifactDeliverable) => {
-    setToastMessage(`Artifact "${art.title}" sent to Review Queue successfully!`);
+    const msg = t.artifacts.sentToReviewToast.replace("{title}", art.title);
+    setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -75,12 +83,13 @@ export default function ArtifactsClientView() {
     downloadAnchor.click();
     downloadAnchor.remove();
 
-    setToastMessage(`Exported ${selectedArtifact.code} package successfully.`);
+    const msg = t.artifacts.exportedToast.replace("{code}", selectedArtifact.code);
+    setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex w-full font-sans antialiased text-slate-800">
+    <div className="app-container">
       {/* ── Left Sidebar (Cobalt Theme) ── */}
       <DashboardSidebar
         activeTab={activeTab}
@@ -90,15 +99,15 @@ export default function ArtifactsClientView() {
       />
 
       {/* ── Right Content Area ── */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+      <div className="main-wrapper">
         {/* Top Navbar */}
         <DashboardHeader
           workspaceName={currentWorkspace.name}
-          currentPageTitle="Artifacts"
+          currentPageTitle={t.sidebar.artifacts}
         />
 
         {/* Main Canvas */}
-        <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-[1700px] w-full mx-auto">
+        <main className="content-body">
           {/* Toast Notification */}
           {toastMessage && (
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs px-4 py-2.5 rounded-xl font-medium flex items-center justify-between shadow-xs animate-in fade-in">
@@ -121,14 +130,14 @@ export default function ArtifactsClientView() {
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-                  Artifacts
+                  {t.sidebar.artifacts}
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                  AI Workspace
+                  {t.artifacts.aiWorkspaceBadge}
                 </span>
               </div>
               <p className="text-xs md:text-sm text-slate-500 mt-1">
-                Calibrated strategic deliverables, automated research insights, and growth opportunities.
+                {t.artifacts.subtitle}
               </p>
             </div>
 
@@ -140,7 +149,7 @@ export default function ArtifactsClientView() {
                   type="text"
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  placeholder="Search deliverables..."
+                  placeholder={t.artifacts.searchPlaceholder}
                   className="w-48 sm:w-56 bg-white border border-slate-200/90 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-2xs"
                 />
                 <svg
@@ -169,7 +178,7 @@ export default function ArtifactsClientView() {
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                <span>Export</span>
+                <span>{t.common.export}</span>
               </button>
 
               {/* Send for review primary CTA */}
@@ -184,7 +193,7 @@ export default function ArtifactsClientView() {
                 >
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                 </svg>
-                <span>Send for review</span>
+                <span>{t.artifacts.sendForReviewBtn}</span>
               </button>
             </div>
           </div>
@@ -210,7 +219,7 @@ export default function ArtifactsClientView() {
                 />
               ) : (
                 <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 text-slate-400 text-sm">
-                  Select a deliverable on the left to inspect its content.
+                  {t.artifacts.selectPrompt}
                 </div>
               )}
             </div>
