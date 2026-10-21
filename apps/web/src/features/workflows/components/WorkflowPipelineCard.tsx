@@ -293,7 +293,7 @@ export default function WorkflowPipelineCard({
         {/* ── Current Step & Latest Activity Footer Strip ── */}
         <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               {language === "vi" ? "BƯỚC HIỆN TẠI" : "CURRENT STEP"}
             </p>
             <p className="text-xs font-bold text-slate-800 mt-0.5">
@@ -307,7 +307,7 @@ export default function WorkflowPipelineCard({
           </div>
 
           <div className="flex flex-col md:items-end gap-1">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
               {language === "vi" ? "HOẠT ĐỘNG MỚI NHẤT" : "LATEST ACTIVITY"}
             </p>
             <div className="flex items-center gap-2">

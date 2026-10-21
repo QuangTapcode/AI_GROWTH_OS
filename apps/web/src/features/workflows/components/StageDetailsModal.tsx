@@ -143,12 +143,12 @@ export default function StageDetailsModal({
         <div className="p-5 space-y-4 text-left overflow-y-auto">
           {/* Section 1: STATUS & PROGRESS */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
               {t.workflows.modal.statusAndProgress}
             </p>
             <div className="flex items-center gap-2">
               <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${statusStyle.bg}`}
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusStyle.bg}`}
               >
                 {statusStyle.text}
               </span>
@@ -166,7 +166,7 @@ export default function StageDetailsModal({
 
           {/* Section 2: DESCRIPTION */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
               {t.workflows.modal.description}
             </p>
             <p className="text-xs text-slate-600 leading-relaxed">
@@ -176,10 +176,10 @@ export default function StageDetailsModal({
 
           {/* Section 3: LIVE TRACE LOGS */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
               {t.workflows.modal.liveLogs}
             </p>
-            <div className="bg-[#f0fdf4] border border-emerald-200/60 rounded-xl p-3 font-mono text-[11px] text-emerald-800 space-y-1.5 shadow-inner select-text">
+            <div className="bg-[#f0fdf4] border border-emerald-200/60 rounded-xl p-3 font-mono text-xs text-emerald-800 space-y-1.5 shadow-inner select-text">
               {logs.map((log, idx) => (
                 <div key={idx} className="leading-relaxed break-all">
                   {log}

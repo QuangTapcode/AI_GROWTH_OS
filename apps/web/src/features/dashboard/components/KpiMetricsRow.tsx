@@ -109,7 +109,7 @@ export default function KpiMetricsRow() {
         ))}
       </div>
       <div className="text-right pr-1">
-        <span className="text-[10px] text-slate-400 italic">
+        <span className="text-xs text-slate-400 italic">
           {t.dashboard.kpi.demoFootnote.replace("{workspace}", "TripC")}
         </span>
       </div>
