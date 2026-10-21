@@ -3,9 +3,12 @@
 import React, { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import LanguageSwitcher from "@/lib/i18n/LanguageSwitcher";
 
 export function LoginForm() {
   const router = useRouter();
+  const { language, t } = useLanguage();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,12 +23,12 @@ export function LoginForm() {
     setError(null);
 
     if (!email.trim()) {
-      setError("Vui lòng nhập địa chỉ email");
+      setError(t.auth.emailRequired);
       return;
     }
 
     if (!isGmailFormat(email)) {
-      setError("Vui lòng nhập đúng định dạng Gmail (ví dụ: example@gmail.com)");
+      setError(t.auth.emailInvalidGmail);
       return;
     }
 
@@ -44,67 +47,102 @@ export function LoginForm() {
   };
 
   return (
-    <div className="w-full lg:w-[480px] xl:w-[540px] shrink-0 bg-white min-h-screen flex flex-col justify-between p-8 sm:p-12 lg:p-16 border-r border-slate-100 shadow-sm z-10">
-      {/* Top Logo */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-sky-600 flex items-center justify-center text-white shadow-md shadow-sky-500/25">
-          <svg
-            className="w-5 h-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
+    <div className="w-full lg:w-[480px] xl:w-[520px] shrink-0 bg-white min-h-screen flex flex-col justify-between px-8 sm:px-12 lg:px-14 py-8 sm:py-10 border-r border-slate-200/80 shadow-xl shadow-slate-900/5 z-10">
+      {/* 1. Top Logo & Language Switcher */}
+      <header className="flex items-center justify-between w-full">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25">
+            <svg
+              className="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <div>
+            <span className="text-lg font-bold tracking-tight text-slate-900 block leading-tight">
+              AI Growth OS
+            </span>
+            <span className="text-[11px] font-semibold text-blue-600 tracking-wider uppercase">
+              {language === "vi" ? "Hệ điều hành tăng trưởng" : "Growth Operations"}
+            </span>
+          </div>
         </div>
-        <span className="text-xl font-bold tracking-tight text-slate-900">
-          AI Growth OS
-        </span>
-      </div>
 
-      {/* Main Center Form */}
-      <div className="my-auto py-10 max-w-[380px] w-full mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            Welcome
-            <br />
-            back
-          </h1>
+        {/* Language Switcher */}
+        <LanguageSwitcher variant="light" />
+      </header>
+
+      {/* 2. Main Center Form Area */}
+      <main className="my-auto py-8 max-w-[400px] w-full mx-auto">
+        {/* Badge "Đăng nhập an toàn" */}
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 mb-3.5">
+          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+          <span>{language === "vi" ? "Đăng nhập an toàn" : "Secure Sign-in"}</span>
         </div>
+
+        {/* H1 Heading */}
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">
+          {t.auth.welcomeBack1} {t.auth.welcomeBack2}
+        </h1>
+
+        {/* Mô tả */}
+        <p className="text-sm text-slate-500 mt-2 mb-6 leading-relaxed">
+          {language === "vi"
+            ? "Biến dữ liệu tăng trưởng thành hành động thực tế với AI Agents thông minh."
+            : "Turn growth telemetry into automated action with multi-agent intelligence."}
+        </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label
               htmlFor="login-email"
-              className="block text-sm font-medium text-slate-700"
+              className="block text-xs font-semibold text-slate-700 uppercase tracking-wider"
             >
-              Email
+              {t.auth.emailLabel}
             </label>
-            <input
-              id="login-email"
-              type="email"
-              className={`w-full px-4 py-3 rounded-xl border ${
-                error
-                  ? "border-rose-400 focus:ring-rose-400/20 focus:border-rose-500"
-                  : "border-slate-200 focus:ring-sky-400/25 focus:border-sky-400"
-              } bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 shadow-xs transition-all text-sm`}
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (error) setError(null);
-              }}
-              required
-              autoComplete="email"
-              autoFocus
-            />
+            <div className="relative flex items-center">
+              <svg
+                className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
+                />
+              </svg>
+              <input
+                id="login-email"
+                type="email"
+                className={`w-full h-12 px-4 pl-10 rounded-xl border text-sm font-medium transition-all focus:outline-hidden ${
+                  error
+                    ? "border-rose-400 focus:ring-3 focus:ring-rose-500/15 focus:border-rose-500 bg-rose-50/20"
+                    : "border-slate-300 hover:border-slate-400 focus:ring-3 focus:ring-blue-500/15 focus:border-blue-600 bg-white"
+                } text-slate-900 placeholder:text-slate-400 shadow-xs`}
+                placeholder={t.auth.emailPlaceholder}
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError(null);
+                }}
+                required
+                autoComplete="email"
+                autoFocus
+              />
+            </div>
             {error && (
-              <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium">
+              <p className="text-xs text-rose-600 mt-1.5 flex items-center gap-1.5 font-medium">
                 <svg
                   className="w-3.5 h-3.5 shrink-0"
                   viewBox="0 0 20 20"
@@ -121,10 +159,11 @@ export function LoginForm() {
             )}
           </div>
 
+          {/* Nút Đăng nhập (cao 48px, full width) */}
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 px-4 bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md shadow-sky-500/25 hover:shadow-lg hover:shadow-sky-500/35 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed mt-2"
+            className="w-full h-12 px-5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed select-none active:translate-y-px"
           >
             {isLoading ? (
               <>
@@ -147,11 +186,11 @@ export function LoginForm() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Signing in...
+                {t.auth.signingIn}
               </>
             ) : (
               <>
-                Sign in
+                <span>{t.auth.signIn}</span>
                 <svg className="w-4 h-4 ml-0.5" viewBox="0 0 16 16" fill="none">
                   <path
                     d="M3 8h10m0 0L9 4m4 4-4 4"
@@ -166,22 +205,24 @@ export function LoginForm() {
           </button>
         </form>
 
-        {/* Divider */}
+        {/* Divider "HOẶC" có 2 đường kẻ ngang */}
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-slate-200" />
           </div>
           <div className="relative flex justify-center text-xs">
-            <span className="bg-white px-3 text-slate-400">or</span>
+            <span className="bg-white px-3 text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+              {language === "vi" ? "HOẶC" : "OR"}
+            </span>
           </div>
         </div>
 
-        {/* Google Sign-in */}
+        {/* Nút Đăng nhập với Google (cao 48px) */}
         <button
           type="button"
           onClick={handleGoogleSignIn}
           disabled={isLoading}
-          className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium rounded-xl border border-slate-200 flex items-center justify-center gap-2.5 shadow-xs hover:border-slate-300 transition-all cursor-pointer text-sm"
+          className="w-full h-12 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-semibold rounded-xl border border-slate-200 shadow-xs hover:border-slate-300 flex items-center justify-center gap-3 transition-all cursor-pointer text-sm select-none active:translate-y-px"
         >
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path
@@ -201,23 +242,25 @@ export function LoginForm() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
             />
           </svg>
-          Sign in with Google
+          <span>{t.auth.signInGoogle}</span>
         </button>
-      </div>
+      </main>
 
-      {/* Footer */}
-      <footer className="flex items-center justify-between text-xs text-slate-400 pt-6">
-        <span>&copy; 2025 AI Growth OS Inc.</span>
-        <div className="flex items-center gap-1.5 text-slate-500">
-          <Link href="/terms" className="hover:text-slate-800 transition-colors">
-            Terms of Service
+      {/* 3. Footer (cố định đáy panel, có padding, không đè nội dung) */}
+      <footer className="w-full pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+        <span>{t.auth.copyright}</span>
+        <div className="flex items-center gap-3 font-medium">
+          <Link href="/terms" className="hover:text-blue-600 transition-colors">
+            {t.auth.termsOfService}
           </Link>
-          <span>&middot;</span>
-          <Link href="/privacy" className="hover:text-slate-800 transition-colors">
-            Privacy Policy
+          <span className="text-slate-300">&middot;</span>
+          <Link href="/privacy" className="hover:text-blue-600 transition-colors">
+            {t.auth.privacyPolicy}
           </Link>
         </div>
       </footer>
     </div>
   );
 }
+
+export default LoginForm;
