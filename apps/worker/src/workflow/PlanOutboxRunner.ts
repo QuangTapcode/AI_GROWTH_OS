@@ -48,6 +48,11 @@ export class PlanOutboxRunner {
         if (!parent?.result_ref) throw new Error('DEPENDENCY_NOT_APPROVED');
         payload.source_article = await load(parent.result_ref);
         payload.assets = context.assets;
+        const automation = (await this.pool.query(
+          'SELECT auto_publish_facebook FROM agent_automation WHERE workspace_id=$1',
+          [claimed.workspace_id],
+        )).rows[0];
+        if (automation?.auto_publish_facebook === true) payload.target_channels = ['facebook'];
       } else if (task.operation === 'strategy.generate') {
         const research = await load(task.payload.input.research_artifact_id);
         payload.research = research.result; payload.research_artifact = research.artifact;
@@ -83,22 +88,42 @@ export class PlanOutboxRunner {
         if (!lease) throw new Error('LEASE_LOST');
         await db.query('SELECT id FROM workflow_tasks WHERE id=$1 FOR UPDATE', [task.id]);
         await db.query(`INSERT INTO content_artifacts(id,workspace_id,task_id,version,content_hash,context_snapshot_id,role,operation,artifact_type,title,storage,payload,evidence)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ai_result',$7,'ai_run_store',$9,$10) ON CONFLICT(id) DO NOTHING`,
+          VALUES($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::varchar,$6::uuid,$7::varchar,$8::varchar,'ai_result',$7::varchar,'ai_run_store',$9::jsonb,$10::jsonb) ON CONFLICT(id) DO NOTHING`,
           [artifact.artifact_id, claimed.workspace_id, task.id, artifact.version, hash, context.snapshot_id, task.role, task.operation,
             JSON.stringify({ artifact, result: result.output, run_metadata: { run_id: result.run_id, model_version: result.model,
               prompt_version: result.prompt_version, input_version: task.input_version, trace_id: `plan-task:${task.id}`, provider_calls: result.provider_calls } }), JSON.stringify(result.evidence ?? [])]);
         const saved = (await db.query('SELECT workspace_id,content_hash FROM content_artifacts WHERE id=$1', [artifact.artifact_id])).rows[0];
         if (saved?.workspace_id !== claimed.workspace_id || saved.content_hash !== hash) throw new Error('ARTIFACT_HASH_MISMATCH');
-        await db.query("UPDATE workflow_tasks SET status=CASE WHEN status='completed' THEN status ELSE 'awaiting_approval' END,result_ref=$2,updated_at=now() WHERE id=$1", [task.id, artifact.artifact_id]);
-        await db.query("UPDATE plan_task_outbox SET status='sent',lease_until=NULL WHERE id=$1", [claimed.id]);
+        const requiresApproval = task.payload?.requires_human_approval !== false;
+        if (requiresApproval) {
+          // The review UI reads the approval ledger, while the worker owns
+          // artifact creation. Create the pending approval in the same
+          // transaction so an awaiting task can never become invisible to
+          // Review Queue. The guard keeps retries idempotent and allows a
+          // fresh approval after a previous rejection/revocation.
+          await db.query(`
+            INSERT INTO approvals (workspace_id, target_type, target_id, target_version, target_hash, status)
+            SELECT $1::uuid, 'artifact', $2::uuid, $3::integer, $4::varchar, 'pending'
+            WHERE NOT EXISTS (
+              SELECT 1 FROM approvals
+              WHERE workspace_id = $1::uuid AND target_type = 'artifact' AND target_id = $2::uuid
+                AND target_version = $3::integer AND target_hash = $4::varchar AND status IN ('pending', 'approved')
+            )`, [claimed.workspace_id, artifact.artifact_id, artifact.version, hash]);
+        }
+        await db.query("UPDATE workflow_tasks SET status=CASE WHEN status='completed' THEN status ELSE $3 END,result_ref=$2,error_details=NULL,completed_at=CASE WHEN $3='completed' THEN now() ELSE completed_at END,updated_at=now() WHERE id=$1", [task.id, artifact.artifact_id, requiresApproval ? 'awaiting_approval' : 'completed']);
+        // A retry may have recorded a transient database/provider error before
+        // the same outbox item succeeds. Clear that stale error so the UI and
+        // monitoring reflect the final delivery state.
+        await db.query("UPDATE plan_task_outbox SET status='sent',lease_until=NULL,error_code=NULL WHERE id=$1", [claimed.id]);
         await db.query('COMMIT');
       } catch (error) { await db.query('ROLLBACK'); throw error; }
       finally { db.release(); }
       return { task_id: task.id, artifact, output: result.output, evidence: result.evidence ?? [], model: result.model, run_id: result.run_id, status: 'awaiting_approval' };
     } catch (error) {
+      console.error('[plan-outbox]', error);
       const permanent = (error as { permanent?: boolean }).permanent === true ||
         ['TASK_NOT_RUNNABLE', 'TASK_DEADLINE_EXCEEDED', 'STALE_CONTEXT', 'SOURCE_NOT_APPROVED', 'DEPENDENCY_NOT_APPROVED', 'UNKNOWN_PLAN_OPERATION', 'INVALID_AI_ARTIFACT', 'ARTIFACT_HASH_MISMATCH'].includes((error as Error).message);
-      const owned = await this.pool.query("UPDATE plan_task_outbox SET status=$2,lease_until=NULL,error_code=$3 WHERE id=$1 AND status='claimed' AND attempts=$4 RETURNING task_id", [claimed.id, permanent || claimed.attempts >= 3 ? 'failed' : 'pending', (error as Error).message, claimed.attempts]);
+      const owned = await this.pool.query("UPDATE plan_task_outbox SET status=$2::varchar,lease_until=NULL,error_code=$3::text WHERE id=$1::uuid AND status='claimed' AND attempts=$4::integer RETURNING task_id", [claimed.id, permanent || claimed.attempts >= 3 ? 'failed' : 'pending', (error as Error).message, claimed.attempts]);
       if (owned.rowCount && !permanent && claimed.attempts < 3) await this.pool.query("UPDATE workflow_tasks SET status='queued',error_details=$2,updated_at=now() WHERE id=$1 AND status='running'", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);
       if (owned.rowCount && (permanent || claimed.attempts >= 3)) await this.pool.query("UPDATE workflow_tasks SET status='failed',error_details=$2,updated_at=now() WHERE id=$1 AND status NOT IN('completed','cancelled')", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);
       throw error;

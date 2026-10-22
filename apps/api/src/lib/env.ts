@@ -4,8 +4,8 @@ export function getEnvironment() {
     throw new Error("APP_ENV must be local, staging or test.");
   }
   const integrationMode = process.env.INTEGRATION_MODE || "fake";
-  if (integrationMode !== "fake") {
-    throw new Error("This bootstrap only supports INTEGRATION_MODE=fake.");
+  if (!["fake", "production"].includes(integrationMode)) {
+    throw new Error("INTEGRATION_MODE must be fake or production.");
   }
   const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ||
     "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001")

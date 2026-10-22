@@ -1,0 +1,191 @@
+{
+  "generated_at": "2026-10-21T16:56:21.169498+00:00",
+  "role": "community",
+  "operation": "community.response",
+  "mode": "live",
+  "synthetic": true,
+  "verdict": "PASS",
+  "input": {
+    "workspace_id": "00000000-0000-4000-8000-000000000001",
+    "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+    "job_id": "cad27026-bb40-413a-b4df-78e23523c931",
+    "request": {
+      "job_id": "cad27026-bb40-413a-b4df-78e23523c931",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "operation": "community.response",
+      "input_version": 1,
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "trace_id": "six-role-community.response",
+      "synthetic": true,
+      "approved_source_versions": [
+        {
+          "source_id": "00000000-0000-4000-8000-000000000002",
+          "version": 1
+        }
+      ],
+      "payload": {
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "business_profile": {
+          "company": "TripC MOCK",
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "audiences": [
+            "English-speaking newcomers"
+          ],
+          "services": [
+            "Local living information MOCK"
+          ],
+          "topic_priority": [
+            "Living areas guide"
+          ]
+        },
+        "snapshot": {
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "snapshot_id": "00000000-0000-4000-8000-000000000003",
+          "sources": [
+            {
+              "source_id": "00000000-0000-4000-8000-000000000002",
+              "workspace_id": "00000000-0000-4000-8000-000000000001",
+              "version": 1,
+              "status": "approved",
+              "provenance": {
+                "license": "Synthetic fixture only",
+                "attribution": "QQ-04 mock",
+                "source_url": "https://example.org/qq04-mock",
+                "retrieved_at": "2026-01-01T00:00:00Z"
+              },
+              "chunks": [
+                {
+                  "chunk_id": "mock-guide",
+                  "text": "The guide compares living areas for newcomers.",
+                  "locator": "mock:paragraph:1"
+                }
+              ]
+            }
+          ]
+        },
+        "goal_context": {
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "objective": "Prepare a newcomer guide and social drafts"
+        },
+        "question": "Can you explain living areas for newcomers?"
+      }
+    }
+  },
+  "prerequisites": [
+    {
+      "role": "research",
+      "operation": "research.run",
+      "artifact": {
+        "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "5747e2114859cc849621e7e424a1d7fc9bdeaadc8fb0cfc395a6b989147722f5",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "research",
+        "storage": "ai_run_store"
+      }
+    }
+  ],
+  "output": {
+    "schema_version": "1.0.0",
+    "run_id": "664fc940-4e4d-5565-9768-ed8635f336f8",
+    "operation": "community.response",
+    "result": {
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "profile_version": 1,
+      "version": 1,
+      "status": "draft",
+      "missing_facts": [],
+      "input_artifact_refs": [],
+      "requires_human_approval": true,
+      "applied": false,
+      "synthetic": true,
+      "reply": "The guide compares living areas for newcomers.",
+      "citations": [
+        {
+          "source_id": "00000000-0000-4000-8000-000000000002",
+          "source_version": 1,
+          "chunk_id": "mock-guide",
+          "locator": "mock:paragraph:1",
+          "quote": "The guide compares living areas for newcomers.",
+          "source_url": "https://example.org/qq04-mock",
+          "license": "Synthetic fixture only",
+          "attribution": "QQ-04 mock"
+        }
+      ],
+      "escalation_required": false,
+      "escalation_reason": null,
+      "lead_proposal": null
+    },
+    "evidence": [
+      {
+        "source_id": "00000000-0000-4000-8000-000000000002",
+        "source_version": 1,
+        "chunk_id": "mock-guide",
+        "locator": "mock:paragraph:1",
+        "quote": "The guide compares living areas for newcomers.",
+        "source_url": "https://example.org/qq04-mock",
+        "license": "Synthetic fixture only",
+        "attribution": "QQ-04 mock"
+      }
+    ],
+    "warnings": [],
+    "usage": {
+      "input_tokens": 109,
+      "output_tokens": 14,
+      "total_tokens": 123,
+      "latency_ms": 1563,
+      "provider_cost_usd": 0.0,
+      "llm_calls": 1,
+      "embedding_calls": 0,
+      "embedding_input_tokens": 0
+    },
+    "model_version": "ollama/qwen3:4b-instruct",
+    "prompt_version": "community-v1",
+    "input_version": 1,
+    "trace_id": "six-role-community.response",
+    "artifact": {
+      "artifact_id": "a64a187e-a078-5fc6-943d-ad1ff54d447d",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "content_hash": "ab25183d65aedfdb68e6c4db0b5f561cafbb4145e77f92a2806db12c12a3dfbc",
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "role": "community",
+      "storage": "ai_run_store"
+    }
+  },
+  "checks": [
+    {
+      "name": "synthetic_is_explicit",
+      "passed": true,
+      "detail": "Fixture output is marked synthetic"
+    },
+    {
+      "name": "human_approval_required",
+      "passed": true,
+      "detail": "Output cannot bypass owner approval"
+    },
+    {
+      "name": "not_applied",
+      "passed": true,
+      "detail": "Agent did not apply/send/publish changes"
+    },
+    {
+      "name": "draft_only",
+      "passed": true,
+      "detail": "status=draft"
+    },
+    {
+      "name": "has_grounded_reply",
+      "passed": true,
+      "detail": "Reply has citation evidence"
+    },
+    {
+      "name": "no_unapproved_lead_send",
+      "passed": true,
+      "detail": "Lead remains a proposal"
+    }
+  ]
+}

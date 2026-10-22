@@ -2,7 +2,7 @@ import { AppError } from "../../lib/errors";
 import { AuthUser } from "../../lib/auth";
 import { withTransaction } from "../../lib/db";
 import { resolveTenantContext, requireRole } from "../../lib/tenant";
-import { getConnectionStatus } from "../integrations/stubs";
+import { getWorkspaceConnectionStatus } from "../integrations/stubs";
 import type { IntegrationProvider } from "../integrations/types";
 import { createChannelSchema, schedulePublishSchema, updatePublishingJobSchema } from "./schemas";
 import * as repo from "./repository";
@@ -17,6 +17,7 @@ import * as repo from "./repository";
 const PROVIDER_BY_PLATFORM: Partial<Record<string, IntegrationProvider>> = {
   website: "website_cms",
   facebook: "facebook_page",
+  tiktok: "tiktok",
   instagram: "instagram_business",
 };
 
@@ -31,10 +32,10 @@ function parseOrThrow<T>(result: { success: true; data: T } | { success: false; 
   throw new AppError(422, "VALIDATION_FAILED", message, fieldErrors);
 }
 
-function publishMode(workspaceId: string, platform: string): "live" | "manual" {
+async function publishMode(workspaceId: string, platform: string): Promise<"live" | "manual"> {
   const provider = PROVIDER_BY_PLATFORM[platform];
   if (!provider) return "manual";
-  return (getConnectionStatus(workspaceId, provider).status as string) === "connected" ? "live" : "manual";
+  return (await getWorkspaceConnectionStatus(workspaceId, provider)).status === "connected" ? "live" : "manual";
 }
 
 function buildUtmUrl(base: string | null, platform: string, campaign: string, artifactId: string): string | null {
@@ -54,7 +55,7 @@ function buildUtmUrl(base: string | null, platform: string, campaign: string, ar
 export async function listWorkspaceChannels(user: AuthUser, workspaceId: string) {
   await resolveTenantContext(user, workspaceId);
   const channels = await repo.listChannels(workspaceId);
-  return { items: channels.map((c) => ({ ...c, publish_mode: publishMode(workspaceId, c.platform_name) })) };
+  return { items: await Promise.all(channels.map(async (c) => ({ ...c, publish_mode: await publishMode(workspaceId, c.platform_name) }))) };
 }
 
 export async function createWorkspaceChannel(user: AuthUser, workspaceId: string, rawInput: unknown) {
@@ -62,7 +63,7 @@ export async function createWorkspaceChannel(user: AuthUser, workspaceId: string
   requireRole(ctx, ["owner"]);
   const input = parseOrThrow(createChannelSchema.safeParse(rawInput), "Invalid channel payload");
   const channel = await repo.insertChannel(workspaceId, input);
-  return { ...channel, publish_mode: publishMode(workspaceId, channel.platform_name) };
+  return { ...channel, publish_mode: await publishMode(workspaceId, channel.platform_name) };
 }
 
 export async function listPublishingJobs(user: AuthUser, workspaceId: string) {
@@ -93,7 +94,7 @@ export async function schedulePublishing(user: AuthUser, workspaceId: string, ra
       if (!channel) throw new AppError(422, "INVALID_CHANNEL_REF", "Channel does not exist in this workspace");
 
       const contentId = await repo.upsertContentForArtifact(client, workspaceId, artifact, approval.actor_id);
-      const mode = publishMode(workspaceId, channel.platform_name);
+      const mode = await publishMode(workspaceId, channel.platform_name);
       const utmUrl = buildUtmUrl(
         await repo.getWebsiteUrl(client, workspaceId),
         channel.platform_name,

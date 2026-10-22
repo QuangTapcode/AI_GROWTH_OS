@@ -24,6 +24,8 @@ For the public Cloudflare staging domain, first stop these services, build the A
 
 Prepare a business profile, approved source documents/chunks, a backend-issued current knowledge context, approved assets and a campaign CTA. A source must contain real provenance. The scheduler never approves source data or manufactures missing business facts. Changing context invalidates stale jobs through existing worker validation.
 
+For the TripC staging smoke fixture, run `npm.cmd --prefix apps/api run db:seed-context` once after migrations. It creates a clearly synthetic approved source, RAG chunks/facts and a current context. If API/Web are already running and only the plan worker is missing, use `.\infra\staging\start-worker-live.ps1 -Mode fake`; this keeps the real HTTP worker/AI boundary while the Python AI service returns deterministic fake outputs. After provider credentials are configured, use `-IntegrationMode production` so worker metrics jobs call the live internal sync endpoint.
+
 The owner enables a 1–168 hour recurring schedule or clicks Run now. Every 30 seconds the worker calls the authenticated internal scheduler. A workspace advisory lock and deterministic task IDs prevent duplicate dispatch across concurrent ticks and restart. A suspended owner blocks automation. A cycle waits for outstanding work rather than opening overlapping campaigns.
 
 ## What runs automatically

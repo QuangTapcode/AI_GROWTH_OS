@@ -98,7 +98,9 @@ export async function getMetricSeries(user: AuthUser, workspaceId: string, rawQu
     to,
     points,
     availability: available.length === 0 ? "missing" : "available",
-    missing_reason: available.length === 0 ? getConnectionStatus(workspaceId, provider).missing_reason : null,
+    missing_reason: available.length === 0
+      ? points.find((point) => point.missing_reason)?.missing_reason ?? getConnectionStatus(workspaceId, provider).missing_reason
+      : null,
   };
 }
 

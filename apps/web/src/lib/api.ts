@@ -14,6 +14,7 @@ import type {
   MeResponse,
   Member,
   MetricSeries,
+  MetricSyncResponse,
   PublishingJob,
   ReviewApprovalInput,
   SystemException,
@@ -129,6 +130,8 @@ export const growthApi = {
 
   getMetricSeries: (workspaceId: string, metric: string, range: { from: string; to: string }, signal?: AbortSignal) =>
     apiRequest<MetricSeries>(`${ws(workspaceId)}/metrics?metric=${encodeURIComponent(metric)}&from=${range.from}&to=${range.to}`, { signal }),
+  syncMetrics: (workspaceId: string, range?: { from?: string; to?: string }) =>
+    apiRequest<MetricSyncResponse>(`${ws(workspaceId)}/metrics/sync`, { method: "POST", body: range ?? {} }),
   listLeads: (workspaceId: string, signal?: AbortSignal) =>
     apiRequest<{ items: Lead[]; total: number }>(`${ws(workspaceId)}/leads?limit=100`, { signal }),
   retryTask: (workspaceId: string, taskId: string) =>

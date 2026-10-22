@@ -17,6 +17,10 @@ export interface IntegrationCapabilityRow {
     | 'verify_site_ownership'
     | 'read_page_posts'
     | 'publish_page_post'
+    | 'read_creator_info'
+    | 'publish_tiktok_video'
+    | 'publish_tiktok_photo'
+    | 'read_tiktok_status'
     | 'read_ig_media'
     | 'publish_ig_media'
     | 'read_ads_insights'
@@ -30,6 +34,9 @@ export interface IntegrationCapabilityRow {
     | 'search_analytics_query'
     | 'stream_event_report'
     | 'page_posts_lookup'
+    | 'creator_info_lookup'
+    | 'publish_video_init'
+    | 'publish_status_lookup'
     | 'media_library_lookup'
     | 'ads_insights_query'
     | 'cms_publish_draft';
@@ -112,6 +119,48 @@ export const INTEGRATION_MATRIX: readonly IntegrationCapabilityRow[] = [
     server_env_key: 'FACEBOOK_PAGE_ACCESS_TOKEN',
     default_status: 'not_connected',
     default_missing_reason: 'FACEBOOK_PAGE_PERMISSION_MISSING',
+  },
+  // TikTok Content Posting API. Direct posting is fail-closed until OAuth
+  // grants video.publish and the app/account has passed TikTok review.
+  {
+    provider: 'tiktok',
+    capability: 'read_creator_info',
+    required_scope: 'user.info.basic',
+    required_permission: 'TikTok user authorization',
+    probe: 'creator_info_lookup',
+    server_env_key: 'TIKTOK_ACCESS_TOKEN',
+    default_status: 'not_connected',
+    default_missing_reason: 'TIKTOK_ACCOUNT_NOT_CONNECTED',
+  },
+  {
+    provider: 'tiktok',
+    capability: 'publish_tiktok_video',
+    required_scope: 'video.publish',
+    required_permission: 'TikTok Content Posting API approval + user consent',
+    probe: 'publish_video_init',
+    server_env_key: 'TIKTOK_ACCESS_TOKEN',
+    default_status: 'not_connected',
+    default_missing_reason: 'TIKTOK_ACCOUNT_NOT_CONNECTED',
+  },
+  {
+    provider: 'tiktok',
+    capability: 'publish_tiktok_photo',
+    required_scope: 'photo.publish',
+    required_permission: 'TikTok Content Posting API photo scope + user consent',
+    probe: 'publish_video_init',
+    server_env_key: 'TIKTOK_ACCESS_TOKEN',
+    default_status: 'not_connected',
+    default_missing_reason: 'TIKTOK_ACCOUNT_NOT_CONNECTED',
+  },
+  {
+    provider: 'tiktok',
+    capability: 'read_tiktok_status',
+    required_scope: 'video.publish or video.upload',
+    required_permission: 'TikTok user authorization',
+    probe: 'publish_status_lookup',
+    server_env_key: 'TIKTOK_ACCESS_TOKEN',
+    default_status: 'not_connected',
+    default_missing_reason: 'TIKTOK_ACCOUNT_NOT_CONNECTED',
   },
   {
     provider: 'facebook_page',

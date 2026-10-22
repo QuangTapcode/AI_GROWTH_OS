@@ -7,8 +7,10 @@
  */
 
 import type { PublishJob } from '../jobs/JobState';
+import { FacebookPagePublisher } from './FacebookPagePublisher';
+import { TikTokPublisher } from './TikTokPublisher';
 
-export type PublishChannel = 'Website' | 'Facebook' | 'Instagram' | 'Newsletter';
+export type PublishChannel = 'Website' | 'Facebook' | 'TikTok' | 'Instagram' | 'Newsletter';
 
 export interface CmsPublishRequest {
   contentId: string;
@@ -20,6 +22,10 @@ export interface CmsPublishRequest {
   scheduledAt?: Date;
   idempotencyKey: string;
   workspaceId: string;
+  /** Optional canonical URL/media supplied by the approved artifact. */
+  linkUrl?: string;
+  mediaUrl?: string;
+  mediaType?: 'video' | 'image';
 }
 
 export interface CmsPublishResult {
@@ -89,6 +95,25 @@ export class MockCmsPublisher extends CmsPublisher {
   }
 }
 
+/** Explicit fail-closed publisher used when production credentials are absent. */
+export class UnavailablePublisher extends CmsPublisher {
+  constructor(public channel: PublishChannel, private reason = 'INTEGRATION_NOT_CONNECTED') {
+    super();
+  }
+
+  async publish(): Promise<CmsPublishResult> {
+    return {
+      success: false,
+      errorCode: this.reason,
+      errorMessage: `${this.channel} integration is not connected or verified`,
+    };
+  }
+
+  async reconcile(): Promise<CmsPublishResult> {
+    return { success: false, errorCode: this.reason, errorMessage: `${this.channel} integration is unavailable` };
+  }
+}
+
 /**
  * Publisher registry — maps channel to publisher instance.
  * Easy to swap mock for real adapter when TQ-04/TQ-06 contract is ready.
@@ -111,8 +136,28 @@ export class PublisherRegistry {
 
 export const defaultRegistry = new PublisherRegistry();
 
-// Register mock publishers for all channels (MY-02 decided manual pack for social)
-defaultRegistry.register('Website', new MockCmsPublisher('Website', 'success'));
-defaultRegistry.register('Facebook', new MockCmsPublisher('Facebook', 'success'));
-defaultRegistry.register('Instagram', new MockCmsPublisher('Instagram', 'success'));
-defaultRegistry.register('Newsletter', new MockCmsPublisher('Newsletter', 'success'));
+/**
+ * Fake mode keeps deterministic local tests. Production mode never falls back
+ * to a mock publisher: a missing token becomes an explicit integration error.
+ */
+if ((process.env.INTEGRATION_MODE || 'fake') === 'production') {
+  defaultRegistry.register('Website', new UnavailablePublisher('Website', 'CMS_NOT_CONFIGURED'));
+  defaultRegistry.register('Instagram', new UnavailablePublisher('Instagram', 'INSTAGRAM_ACCOUNT_NOT_LINKED'));
+  defaultRegistry.register('Newsletter', new UnavailablePublisher('Newsletter', 'NEWSLETTER_NOT_CONFIGURED'));
+  const pageId = process.env.FACEBOOK_PAGE_ID;
+  const pageToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+  defaultRegistry.register('Facebook', pageId && pageToken
+    ? new FacebookPagePublisher(pageId, pageToken)
+    : new UnavailablePublisher('Facebook', 'FACEBOOK_PAGE_PERMISSION_MISSING'));
+  const tiktokToken = process.env.TIKTOK_ACCESS_TOKEN;
+  defaultRegistry.register('TikTok', tiktokToken
+    ? new TikTokPublisher(tiktokToken, process.env.TIKTOK_OPEN_ID)
+    : new UnavailablePublisher('TikTok', 'TIKTOK_ACCOUNT_NOT_CONNECTED'));
+} else {
+  // Register mock publishers for local deterministic tests only.
+  defaultRegistry.register('Website', new MockCmsPublisher('Website', 'success'));
+  defaultRegistry.register('Facebook', new MockCmsPublisher('Facebook', 'success'));
+  defaultRegistry.register('TikTok', new MockCmsPublisher('TikTok', 'success'));
+  defaultRegistry.register('Instagram', new MockCmsPublisher('Instagram', 'success'));
+  defaultRegistry.register('Newsletter', new MockCmsPublisher('Newsletter', 'success'));
+}

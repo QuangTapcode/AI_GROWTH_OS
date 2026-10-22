@@ -2,7 +2,7 @@
 
 Owner: Quang Quang. Task: QQ-04, QQ-07 trong [TODO cá nhân](../../../../../docs/coordination/sprint-3-weeks/QUANG-QUANG.md). Reviewer chất lượng: Thiệu; business rules: Dương; HTTP boundary: Mỹ/Thiệu Quang.
 
-**Trạng thái QQ-04:** `opportunity.score`, `strategy.generate`, `brief.generate` dùng dedicated handler/schema/prompt `growth-lead-v1`. Cả ba là entry point tương đương cho cùng proposal tối thiểu; gọi một operation cho mỗi job, không cần gọi cả ba. `learning.analyze` vẫn bootstrap, thuộc QQ-07.
+**Trạng thái QQ-04/07:** `opportunity.score`, `strategy.generate`, `brief.generate` và `learning.analyze` đều dùng dedicated handler/schema/prompt. Proposal downstream vẫn phải qua approval trước publish.
 
 - Input: research + goals + report artifacts.
 - Output/handoff: campaign/task proposal, briefs, learning, next-task proposal → SEO, Content và worker validate plan.

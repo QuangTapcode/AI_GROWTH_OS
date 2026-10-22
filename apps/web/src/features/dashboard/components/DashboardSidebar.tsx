@@ -11,28 +11,34 @@ export interface WorkspaceItem {
   initials: string;
   avatarBg: string;
   tag?: string;
+  members?: number;
 }
+
+/** Fallback workspace used by standalone visual views from the Tien UI branch. */
+export const DEFAULT_WORKSPACES: WorkspaceItem[] = [
+  { id: "tripc", name: "TripC", subtitle: "Growth workspace", initials: "T", avatarBg: "bg-blue-500", tag: "Active", members: 3 },
+];
 
 interface DashboardSidebarProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
-  workspaces: WorkspaceItem[];
-  selectedWorkspace: WorkspaceItem;
+  workspaces?: WorkspaceItem[];
+  selectedWorkspace?: WorkspaceItem;
   onWorkspaceChange?: (workspace: WorkspaceItem) => void;
   reviewBadge?: number;
-  user: { name: string; role: string };
-  onLogout: () => void;
+  user?: { name: string; role: string };
+  onLogout?: () => void;
 }
 
 export default function DashboardSidebar({
   activeTab = "overview",
   onTabChange,
-  workspaces,
-  selectedWorkspace,
+  workspaces = DEFAULT_WORKSPACES,
+  selectedWorkspace = DEFAULT_WORKSPACES[0],
   onWorkspaceChange,
   reviewBadge,
-  user,
-  onLogout,
+  user = { name: "Owner", role: "Owner" },
+  onLogout = () => undefined,
 }: DashboardSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();

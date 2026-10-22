@@ -1,6 +1,6 @@
 # Local staging cho AI Growth OS
 
-Hai giao diện Next.js và một API chạy trên máy Windows, dữ liệu trong Postgres local (`infra/local`), đăng nhập email/mật khẩu. Chưa có CMS live hay connector GA4/GSC/Meta.
+Hai giao diện Next.js và một API chạy trên máy Windows, dữ liệu trong Postgres local (`infra/local`), đăng nhập email/mật khẩu. Connector GA4/GSC/Meta có live sync nhưng chỉ hoạt động sau khi cấu hình credential server-side; staging mặc định vẫn fail-closed.
 
 ## Bật staging
 
@@ -28,7 +28,7 @@ Server chỉ bind `127.0.0.1`. GA4/GSC đã thiết lập cho URL công khai `ht
 
 ## Public staging trên Cloudflare Pages
 
-`https://aigrowthos-staging.pages.dev/` phục vụ `apps/web` (static export). Request `/v1/*` đi qua Pages Function (`cloudflare-pages/v1-proxy.template.js`) tới API local qua Cloudflare quick tunnel:
+`https://aigrowthos-staging.pages.dev/` phục vụ `apps/web` (static export). Request `/v1/*` đi qua Pages Function (`cloudflare-pages/v1-proxy.template.js`) tới API local qua Cloudflare Tunnel:
 
 ```powershell
 .\infra\staging\start.ps1                      # API phải chạy ở 127.0.0.1:4000
@@ -37,9 +37,25 @@ Server chỉ bind `127.0.0.1`. GA4/GSC đã thiết lập cho URL công khai `ht
 ```
 
 - Cần `cloudflared.exe` ở `%LOCALAPPDATA%\cloudflared\` (bản chính thức từ GitHub release, kiểm tra chữ ký Cloudflare, Inc.) và `wrangler` đã đăng nhập tài khoản sở hữu project.
-- Quick tunnel (`*.trycloudflare.com`) không cần domain nhưng URL đổi mỗi lần khởi động lại và không có SLA: sau khi reboot/tắt tunnel, chạy lại `deploy.ps1`. Máy chạy API phải luôn bật.
+- Quick tunnel (`*.trycloudflare.com`) không cần domain nhưng URL đổi mỗi lần khởi động lại và không có SLA. Đây chỉ là fallback kiểm thử; `tunnel.ps1` kiểm tra `/v1/health` trước khi tái sử dụng state và tự thay tunnel khi URL bị thu hồi.
 - API qua tunnel chạy `next start` (NODE_ENV=production): token dev bị chặn, chỉ đăng nhập bằng mật khẩu. Đổi mật khẩu tài khoản demo sau khi chia sẻ link.
-- Muốn URL API ổn định: tạo named tunnel trên domain có trong Cloudflare rồi chạy `deploy.ps1 -ApiOrigin https://api.<domain>`.
+
+### API ổn định trên `api.growthos.vn`
+
+Named Tunnel giữ nguyên hostname sau reboot và loại bỏ lỗi 530 do Quick Tunnel bị thu hồi. Cần một lần đăng nhập Cloudflare và một CNAME DNS:
+
+```powershell
+& "$env:LOCALAPPDATA\cloudflared\cloudflared.exe" tunnel login
+.\infra\staging\named-tunnel.ps1 -InstallTask
+```
+
+Script tạo tunnel `aigrowthos-api`, cấu hình `api.growthos.vn` → API local, rồi đăng ký Scheduled Task tự khởi động lại khi đăng nhập Windows. Nếu zone không nằm trong Cloudflare, script sẽ in target dạng `<tunnel-id>.cfargotunnel.com`; thêm CNAME `api` trỏ tới target đó tại nhà cung cấp DNS (hiện domain đang dùng MatBao), sau đó chạy:
+
+```powershell
+.\infra\staging\cloudflare-pages\deploy.ps1 -ApiOrigin https://api.growthos.vn
+```
+
+Pages chỉ cần deploy lại một lần với hostname cố định. Không commit `~/.cloudflared/*.json` hoặc `aigrowthos-api.yml`; đó là credentials riêng của máy chạy API.
 - `deploy.ps1 -SkipDeploy` chỉ build vào `.runtime/pages-build` để xem trước bằng `wrangler pages dev out`.
 
 ## Kiểm tra

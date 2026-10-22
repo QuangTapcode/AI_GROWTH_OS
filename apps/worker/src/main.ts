@@ -25,6 +25,7 @@ import { FileResultStorage } from './adapters/StorageAdapter';
 import { DbWorkflowStore } from './workflow';
 import { Pool } from 'pg';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
+import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
 
 /** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
 let workflowStore: DbWorkflowStore | null = null;
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
   const planPool = new Pool({ host: cfg.QUEUE_HOST, port: cfg.QUEUE_PORT, user: cfg.QUEUE_USER,
     password: cfg.QUEUE_PASSWORD, database: cfg.QUEUE_DATABASE });
   const planOutbox = new PlanOutboxRunner(planPool, buildAiAdapter(cfg));
+  const publishingOutbox = new PublishingOutboxRunner(planPool);
   let planRunning = false;
   const planTimer = setInterval(() => {
     // A fake echo adapter has no signed AI artifacts; only HTTP-backed workers consume plans.
@@ -57,6 +59,16 @@ async function main(): Promise<void> {
       .finally(() => { planRunning = false; });
   }, 1000);
   planTimer.unref();
+  let publishingRunning = false;
+  const publishingTimer = setInterval(() => {
+    if (publishingRunning) return;
+    publishingRunning = true;
+    void publishingOutbox.runOnce()
+      .then(result => { if (result !== 'idle') console.log(`[publishing-outbox] ${result}`); })
+      .catch(error => console.error('[publishing-outbox]', (error as Error).message))
+      .finally(() => { publishingRunning = false; });
+  }, 5_000);
+  publishingTimer.unref();
   let automationRunning = false;
   const automationTimer = setInterval(() => {
     if (automationRunning || !process.env.AUTOMATION_INTERNAL_TOKEN || !process.env.API_BASE_URL) return;
@@ -133,6 +145,7 @@ async function main(): Promise<void> {
     stopping = true;
     clearInterval(sweep);
     clearInterval(planTimer);
+    clearInterval(publishingTimer);
     clearInterval(automationTimer);
     console.log(`[worker] ${signal} received, stopping queue...`);
     await queue.stop();

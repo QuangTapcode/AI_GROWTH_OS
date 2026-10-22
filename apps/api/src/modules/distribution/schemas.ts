@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CHANNEL_PLATFORMS = ["website", "facebook", "instagram", "linkedin", "email"] as const;
+export const CHANNEL_PLATFORMS = ["website", "facebook", "tiktok", "instagram", "linkedin", "email"] as const;
 export type ChannelPlatform = (typeof CHANNEL_PLATFORMS)[number];
 
 export const createChannelSchema = z

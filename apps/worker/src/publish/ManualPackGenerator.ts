@@ -8,7 +8,7 @@
 
 
 export interface ManualPack {
-  channel: 'Facebook' | 'Instagram';
+  channel: 'Facebook' | 'TikTok' | 'Instagram';
   contentId: string;
   title: string;
   bodyText: string;
@@ -36,7 +36,7 @@ export function generateManualPack(
     utmMedium?: string;
     utmCampaign?: string;
   },
-  channel: 'Facebook' | 'Instagram'
+  channel: 'Facebook' | 'TikTok' | 'Instagram'
 ): ManualPack {
   const workspaceId = job.workspaceId ?? job.workspace_id ?? 'unknown';
   const utmSource = job.utmSource || 'social';
@@ -81,7 +81,7 @@ export function generateManualPacks(
     utmMedium?: string;
     utmCampaign?: string;
   },
-  channels: ('Facebook' | 'Instagram')[]
+  channels: ('Facebook' | 'TikTok' | 'Instagram')[]
 ): ManualPack[] {
   return channels.map((channel) => generateManualPack(job, channel));
 }

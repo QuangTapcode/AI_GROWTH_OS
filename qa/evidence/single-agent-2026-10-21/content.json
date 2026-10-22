@@ -1,0 +1,330 @@
+{
+  "generated_at": "2026-10-21T16:53:44.809370+00:00",
+  "role": "content",
+  "operation": "content.repurpose",
+  "mode": "fake",
+  "synthetic": true,
+  "verdict": "PASS",
+  "input": {
+    "workspace_id": "00000000-0000-4000-8000-000000000001",
+    "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+    "job_id": "c736e3d6-f93c-44b9-b477-5fef7e667c21",
+    "request": {
+      "job_id": "c736e3d6-f93c-44b9-b477-5fef7e667c21",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "operation": "content.repurpose",
+      "input_version": 1,
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "trace_id": "six-role-content.repurpose",
+      "synthetic": true,
+      "approved_source_versions": [
+        {
+          "source_id": "00000000-0000-4000-8000-000000000002",
+          "version": 1
+        }
+      ],
+      "payload": {
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "business_profile": {
+          "company": "TripC MOCK",
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "audiences": [
+            "English-speaking newcomers"
+          ],
+          "services": [
+            "Local living information MOCK"
+          ],
+          "topic_priority": [
+            "Living areas guide"
+          ]
+        },
+        "snapshot": {
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "snapshot_id": "00000000-0000-4000-8000-000000000003",
+          "sources": [
+            {
+              "source_id": "00000000-0000-4000-8000-000000000002",
+              "workspace_id": "00000000-0000-4000-8000-000000000001",
+              "version": 1,
+              "status": "approved",
+              "provenance": {
+                "license": "Synthetic fixture only",
+                "attribution": "QQ-04 mock",
+                "source_url": "https://example.org/qq04-mock",
+                "retrieved_at": "2026-01-01T00:00:00Z"
+              },
+              "chunks": [
+                {
+                  "chunk_id": "mock-guide",
+                  "text": "The guide compares living areas for newcomers.",
+                  "locator": "mock:paragraph:1"
+                }
+              ]
+            }
+          ]
+        },
+        "goal_context": {
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "objective": "Prepare a newcomer guide and social drafts"
+        },
+        "source_article": {
+          "artifact": {
+            "artifact_id": "079dec1a-7bda-5796-ae5a-4298a88afb7f",
+            "workspace_id": "00000000-0000-4000-8000-000000000001",
+            "version": 1,
+            "content_hash": "34b828a6a2f9b82a0b2b3f226d9dd238f8d08eb8d143e16b1dd56856efb4bc0a",
+            "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+            "role": "seo",
+            "storage": "ai_run_store"
+          },
+          "result": {
+            "workspace_id": "00000000-0000-4000-8000-000000000001",
+            "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+            "profile_version": 1,
+            "version": 1,
+            "status": "draft",
+            "missing_facts": [],
+            "input_artifact_refs": [
+              {
+                "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+                "workspace_id": "00000000-0000-4000-8000-000000000001",
+                "version": 1,
+                "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
+                "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+                "role": "research",
+                "storage": "ai_run_store"
+              }
+            ],
+            "requires_human_approval": true,
+            "applied": false,
+            "synthetic": true,
+            "article_id": "6ed0d004-295c-557b-99f7-b8fc4508c45a",
+            "title": "Living areas guide",
+            "meta_description": "Explore living areas guide using cited research.",
+            "primary_keyword": "Living areas guide",
+            "headings": [
+              "Overview",
+              "Next steps"
+            ],
+            "body_markdown": "## Overview\n\nThe guide compares living areas for newcomers.\n\n## Next steps\n\nRequest the guide\n\n[source:mock-guide](https://example.org/qq04-mock)\n\n[Request information](/contact) — Request the guide",
+            "cta": "Request the guide",
+            "citations": [
+              {
+                "source_id": "00000000-0000-4000-8000-000000000002",
+                "source_version": 1,
+                "chunk_id": "mock-guide",
+                "locator": "mock:paragraph:1",
+                "quote": "The guide compares living areas for newcomers.",
+                "source_url": "https://example.org/qq04-mock",
+                "license": "Synthetic fixture only",
+                "attribution": "QQ-04 mock"
+              }
+            ],
+            "seo_checks": {
+              "title": true,
+              "meta": true,
+              "headings": true,
+              "internal_link": true,
+              "citations": true
+            }
+          },
+          "evidence": [
+            {
+              "source_id": "00000000-0000-4000-8000-000000000002",
+              "source_version": 1,
+              "chunk_id": "mock-guide",
+              "locator": "mock:paragraph:1",
+              "quote": "The guide compares living areas for newcomers.",
+              "source_url": "https://example.org/qq04-mock",
+              "license": "Synthetic fixture only",
+              "attribution": "QQ-04 mock"
+            }
+          ]
+        },
+        "cta": "Request the guide",
+        "assets": [
+          {
+            "asset_id": "d6b6a567-b9d4-46ad-b58f-a1b97005a3c7",
+            "workspace_id": "00000000-0000-4000-8000-000000000001",
+            "version": 1,
+            "url": "https://example.org/mock-image.png",
+            "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "license": "Synthetic test fixture, not a real TripC asset",
+            "attribution": "QQ test fixture",
+            "status": "approved",
+            "synthetic": true
+          }
+        ]
+      }
+    }
+  },
+  "prerequisites": [
+    {
+      "role": "research",
+      "operation": "research.run",
+      "artifact": {
+        "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "research",
+        "storage": "ai_run_store"
+      }
+    },
+    {
+      "role": "seo",
+      "operation": "seo.local_draft",
+      "artifact": {
+        "artifact_id": "079dec1a-7bda-5796-ae5a-4298a88afb7f",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "34b828a6a2f9b82a0b2b3f226d9dd238f8d08eb8d143e16b1dd56856efb4bc0a",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "seo",
+        "storage": "ai_run_store"
+      }
+    }
+  ],
+  "output": {
+    "schema_version": "1.0.0",
+    "run_id": "00ab8f6c-ad51-5db4-8a41-fdf525581bd0",
+    "operation": "content.repurpose",
+    "result": {
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "profile_version": 1,
+      "version": 1,
+      "status": "draft",
+      "missing_facts": [],
+      "input_artifact_refs": [
+        {
+          "artifact_id": "079dec1a-7bda-5796-ae5a-4298a88afb7f",
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "content_hash": "34b828a6a2f9b82a0b2b3f226d9dd238f8d08eb8d143e16b1dd56856efb4bc0a",
+          "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+          "role": "seo",
+          "storage": "ai_run_store"
+        }
+      ],
+      "requires_human_approval": true,
+      "applied": false,
+      "synthetic": true,
+      "pack_id": "764d942c-3d79-5e2e-a3da-f97a510030d8",
+      "parent_content_id": "6ed0d004-295c-557b-99f7-b8fc4508c45a",
+      "parent_version": 1,
+      "caption": "Explore living areas guide. Request the guide",
+      "cta": "Request the guide",
+      "channels": [
+        "facebook",
+        "tiktok"
+      ],
+      "channel_mode": "manual_review_pack",
+      "image_assets": [
+        {
+          "asset_id": "d6b6a567-b9d4-46ad-b58f-a1b97005a3c7",
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "url": "https://example.org/mock-image.png",
+          "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "license": "Synthetic test fixture, not a real TripC asset",
+          "attribution": "QQ test fixture",
+          "status": "approved",
+          "synthetic": true
+        }
+      ],
+      "alt_text": "Supporting image for the cited local guide.",
+      "citations": [
+        {
+          "source_id": "00000000-0000-4000-8000-000000000002",
+          "source_version": 1,
+          "chunk_id": "mock-guide",
+          "locator": "mock:paragraph:1",
+          "quote": "The guide compares living areas for newcomers.",
+          "source_url": "https://example.org/qq04-mock",
+          "license": "Synthetic fixture only",
+          "attribution": "QQ-04 mock"
+        }
+      ],
+      "video_asset_ref": null,
+      "tiktok_privacy_level": "SELF_ONLY"
+    },
+    "evidence": [
+      {
+        "source_id": "00000000-0000-4000-8000-000000000002",
+        "source_version": 1,
+        "chunk_id": "mock-guide",
+        "locator": "mock:paragraph:1",
+        "quote": "The guide compares living areas for newcomers.",
+        "source_url": "https://example.org/qq04-mock",
+        "license": "Synthetic fixture only",
+        "attribution": "QQ-04 mock"
+      }
+    ],
+    "warnings": [
+      "MANUAL_PACK_REQUIRES_APPROVAL_AND_CHANNEL_CAPABILITY"
+    ],
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "latency_ms": 0,
+      "provider_cost_usd": 0.0,
+      "llm_calls": 1,
+      "embedding_calls": 0,
+      "embedding_input_tokens": 0
+    },
+    "model_version": "fake/w1-deterministic-1",
+    "prompt_version": "content-v1",
+    "input_version": 1,
+    "trace_id": "six-role-content.repurpose",
+    "artifact": {
+      "artifact_id": "98d4e72c-7c94-5dfb-8a5e-d37c0673b16f",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "content_hash": "27df7d588298927b1f135ebe540b3eba0c1fa4e2249b8a6cfcadc0befa627dce",
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "role": "content",
+      "storage": "ai_run_store"
+    }
+  },
+  "checks": [
+    {
+      "name": "synthetic_is_explicit",
+      "passed": true,
+      "detail": "Fixture output is marked synthetic"
+    },
+    {
+      "name": "human_approval_required",
+      "passed": true,
+      "detail": "Output cannot bypass owner approval"
+    },
+    {
+      "name": "not_applied",
+      "passed": true,
+      "detail": "Agent did not apply/send/publish changes"
+    },
+    {
+      "name": "draft_only",
+      "passed": true,
+      "detail": "status=draft"
+    },
+    {
+      "name": "has_social_pack",
+      "passed": true,
+      "detail": "Caption, CTA and channels exist"
+    },
+    {
+      "name": "parent_version_pinned",
+      "passed": true,
+      "detail": "Parent article and version are pinned"
+    },
+    {
+      "name": "asset_refs_present",
+      "passed": true,
+      "detail": "Asset references are explicit"
+    }
+  ]
+}

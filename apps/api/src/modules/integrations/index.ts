@@ -23,6 +23,7 @@ export {
 } from './eventSchema';
 export {
   getConnectionStatus,
+  getWorkspaceConnectionStatus,
   probeOwnership,
   syncMetrics,
   runSync,

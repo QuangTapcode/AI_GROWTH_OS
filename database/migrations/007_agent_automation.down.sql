@@ -1,2 +1,2 @@
-DROP TABLE IF EXISTS agent_automation_handoffs;
-DROP TABLE IF EXISTS agent_automation;
+DROP TABLE IF EXISTS agent_automation_handoffs CASCADE;
+DROP TABLE IF EXISTS agent_automation CASCADE;

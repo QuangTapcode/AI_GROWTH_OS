@@ -7,7 +7,7 @@ interface DashboardHeaderProps {
   workspaceName: string;
   currentPageTitle?: string;
   searchPlaceholder?: string;
-  user: { name: string; role: string };
+  user?: { name: string; role: string };
   notificationsCount?: number;
 }
 
@@ -15,7 +15,7 @@ export default function DashboardHeader({
   workspaceName,
   currentPageTitle = "Overview",
   searchPlaceholder,
-  user,
+  user = { name: "Owner", role: "Owner" },
   notificationsCount = 0,
 }: DashboardHeaderProps) {
   const placeholderText =

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface JsonPayloadModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export default function JsonPayloadModal({
   title,
   payload,
 }: JsonPayloadModalProps) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -40,7 +42,7 @@ export default function JsonPayloadModal({
         <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/70">
           <div className="flex items-center gap-2 font-mono text-xs text-blue-400">
             <span>{"{ }"}</span>
-            <span className="font-semibold text-slate-200 truncate">{title} · Raw Payload</span>
+            <span className="font-semibold text-slate-200 truncate">{title} · {t.common.rawPayload}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -48,7 +50,7 @@ export default function JsonPayloadModal({
               onClick={handleCopy}
               className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
             >
-              {copied ? "Copied!" : "Copy JSON"}
+              {copied ? t.common.copied : t.common.copyJson}
             </button>
             <button
               type="button"
@@ -67,13 +69,13 @@ export default function JsonPayloadModal({
 
         {/* Footer */}
         <div className="px-5 py-2.5 bg-slate-900/50 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-          <span>Format: JSON Schema 2020-12</span>
+          <span>{t.common.jsonSchemaFormat}</span>
           <button
             type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-white text-xs cursor-pointer"
           >
-            Close
+            {t.common.close}
           </button>
         </div>
       </div>

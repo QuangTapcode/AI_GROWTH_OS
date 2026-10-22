@@ -5,7 +5,7 @@ import AppShell from "@/features/shell/AppShell";
 import { useWorkspace } from "@/features/shell/WorkspaceProvider";
 import { ErrorBlock, LoadingBlock, Toast } from "@/features/shell/StatusViews";
 import CreateTaskModal, { type TaskDraft } from "@/features/workflows/components/CreateTaskModal";
-import { growthApi } from "@/lib/api";
+import { ApiError, growthApi } from "@/lib/api";
 import { toIsoDate } from "@/lib/format";
 import { useApiData } from "@/lib/useApiData";
 import KpiMetricsRow from "./KpiMetricsRow";
@@ -29,6 +29,7 @@ function DashboardContent() {
   const [rangeDays, setRangeDays] = useState<(typeof RANGES)[number]>(30);
   const [taskDraft, setTaskDraft] = useState<Partial<TaskDraft> | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const { data, error, loading, reload } = useApiData(`${workspace.id}:${rangeDays}`, async (signal) => {
     const [tasks, approvals, artifacts, exceptions, report, previous, sessions] = await Promise.all([
@@ -54,6 +55,27 @@ function DashboardContent() {
   const handleRefresh = () => {
     reload();
     refreshAttention();
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await growthApi.syncMetrics(workspace.id, periodRange(rangeDays));
+      const failed = result.results.filter((item) => item.status === "error");
+      const unavailable = result.results.filter((item) => item.status === "skipped" || item.status === "error");
+      setToast(
+        failed.length
+          ? `Metrics synced partially (${result.points_saved} points). ${failed.map((item) => item.provider).join(", ")} failed.`
+          : result.points_saved === 0 && unavailable.length
+          ? `No metrics synced. Configure ${unavailable.map((item) => item.provider).join(", ")} first.`
+          : `Metrics sync finished: ${result.points_saved} points saved.`,
+      );
+      handleRefresh();
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.message : "Metrics sync failed. Check provider credentials.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -103,6 +125,16 @@ function DashboardContent() {
             <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
+          </button>
+
+          <button
+            type="button"
+            title="Pull the latest GA4, Search Console and Meta Ads metrics"
+            onClick={handleSync}
+            disabled={!canEdit || syncing}
+            className="bg-white border border-slate-200/90 hover:border-blue-300 hover:text-blue-700 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 shadow-xs cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {syncing ? "Syncing…" : "Sync metrics"}
           </button>
 
           {/* Primary CTA: Create growth task */}

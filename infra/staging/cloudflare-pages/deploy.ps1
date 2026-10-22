@@ -19,7 +19,13 @@ $work = Join-Path $stagingRoot '.runtime/pages-build'
 $ga4Id = 'G-8LQN27Y8QQ'
 
 if (-not $ApiOrigin) {
-    $ApiOrigin = (& (Join-Path $stagingRoot 'tunnel.ps1') | Select-Object -Last 1)
+    $namedOriginPath = Join-Path $stagingRoot '.runtime/api-origin.txt'
+    if (Test-Path -LiteralPath $namedOriginPath) {
+        $ApiOrigin = (Get-Content -Raw -LiteralPath $namedOriginPath).Trim()
+        Write-Output ('Using configured named tunnel origin: ' + $ApiOrigin)
+    } else {
+        $ApiOrigin = (& (Join-Path $stagingRoot 'tunnel.ps1') | Select-Object -Last 1)
+    }
 }
 if ($ApiOrigin -notmatch '^https://[^/]+$') { throw ('ApiOrigin must look like https://host (got ' + $ApiOrigin + ')') }
 # Hostname quick tunnel mới cần vài giây để DNS phân giải được

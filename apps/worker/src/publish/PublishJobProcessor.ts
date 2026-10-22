@@ -20,7 +20,7 @@ export interface PublishContext {
   jobId: string;
   workspaceId: string;
   contentId: string;
-  channel: 'Website' | 'Facebook' | 'Instagram' | 'Newsletter';
+  channel: 'Website' | 'Facebook' | 'TikTok' | 'Instagram' | 'Newsletter';
   scheduledAt: Date;
   idempotencyKey: string;
   bodyMarkdown: string;
@@ -32,6 +32,9 @@ export interface PublishContext {
   utmCampaign?: string;
   expectedVersion: number;
   contentHash: string;
+  linkUrl?: string;
+  mediaUrl?: string;
+  mediaType?: 'video' | 'image';
   /** TQ-06 gateway recheck tại execution (MY-05): approval/version/hash. */
   approvalId?: string;
   gatewayCheck?: (req: {
@@ -96,6 +99,9 @@ export class PublishJobProcessor {
       scheduledAt: ctx.scheduledAt,
       idempotencyKey: ctx.idempotencyKey,
       workspaceId: ctx.workspaceId,
+      linkUrl: ctx.linkUrl,
+      mediaUrl: ctx.mediaUrl,
+      mediaType: ctx.mediaType,
     };
 
     let result: CmsPublishResult;
@@ -135,7 +141,7 @@ export class PublishJobProcessor {
    * Generate manual pack for social channels when live publishing is unavailable.
    * Caller stores pack as artifact and labels it 'manual-pack' in UI.
    */
-  generateManualPack(ctx: PublishContext, channels: ('Facebook' | 'Instagram')[]): ManualPack[] {
+  generateManualPack(ctx: PublishContext, channels: ('Facebook' | 'TikTok' | 'Instagram')[]): ManualPack[] {
     const job: any = {
       contentId: ctx.contentId,
       workspaceId: ctx.workspaceId,

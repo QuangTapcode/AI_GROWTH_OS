@@ -22,6 +22,16 @@ function Get-TunnelProcess($state) {
     return $process
 }
 
+function Test-TunnelHealth([string]$url) {
+    if ($url -notmatch '^https://[^/]+$') { return $false }
+    try {
+        $health = Invoke-RestMethod -Uri ($url + '/v1/health') -TimeoutSec 5
+        return $health.status -eq 'ok'
+    } catch {
+        return $false
+    }
+}
+
 $state = if (Test-Path -LiteralPath $statePath) { Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json } else { $null }
 
 if ($Stop) {
@@ -36,8 +46,15 @@ if ($Stop) {
 }
 
 if ($state -and (Get-TunnelProcess $state)) {
-    Write-Output $state.Url
-    exit 0
+    if (Test-TunnelHealth $state.Url) {
+        Write-Output $state.Url
+        exit 0
+    }
+
+    # The quick tunnel can be revoked while cloudflared stays alive. Do not
+    # hand a dead URL back to deploy.ps1; replace the managed process instead.
+    Stop-Process -Id $state.ProcessId -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $statePath -ErrorAction SilentlyContinue
 }
 
 if (-not (Test-Path -LiteralPath $Cloudflared)) {

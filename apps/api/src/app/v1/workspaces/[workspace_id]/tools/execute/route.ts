@@ -1,5 +1,7 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateUser } from "@/lib/auth";
+import { authenticateUser, type AuthUser } from "@/lib/auth";
+import { query } from "@/lib/db";
 import { resolveTenantContext } from "@/lib/tenant";
 import { AppError, handleApiError } from "@/lib/errors";
 import {
@@ -11,13 +13,44 @@ import {
 } from "@/modules/integrations/gateway";
 import type { IntegrationProvider } from "@/modules/integrations/types";
 
+/**
+ * Server-to-server worker calls cannot use the browser's short-lived session
+ * token. The internal automation token is accepted only for this route, is
+ * checked against the configured workspace owner, and never exposed to the
+ * browser or included in audit params.
+ */
+async function authenticateAutomationCaller(
+  req: NextRequest,
+  workspaceId: string,
+): Promise<AuthUser | null> {
+  const configured = process.env.AUTOMATION_INTERNAL_TOKEN ?? "";
+  const supplied = req.headers.get("x-automation-token") ?? "";
+  if (!configured || !supplied) return null;
+  const expected = Buffer.from(configured);
+  const actual = Buffer.from(supplied);
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
+  const row = (await query<{ id: string; email: string; full_name: string }>(
+    `SELECT u.id,u.email,u.full_name
+       FROM agent_automation aa
+       JOIN users u ON u.id=aa.actor_id
+       JOIN memberships m ON m.workspace_id=aa.workspace_id AND m.user_id=aa.actor_id
+      WHERE aa.workspace_id=$1 AND m.role='owner' AND m.status='active'`,
+    [workspaceId],
+  )).rows[0];
+  if (!row) throw new AppError(403, "FORBIDDEN", "Automation owner is not active");
+  return { id: row.id, email: row.email, name: row.full_name };
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { workspace_id: string } }
 ) {
   try {
-    const user = authenticateUser(req);
-    const tenantCtx = await resolveTenantContext(user, params.workspace_id);
+    const automationUser = await authenticateAutomationCaller(req, params.workspace_id);
+    const user = automationUser ?? authenticateUser(req);
+    const tenantCtx = automationUser
+      ? { user, workspaceId: params.workspace_id, role: "owner" as const }
+      : await resolveTenantContext(user, params.workspace_id);
 
     const body = await req.json();
     const parseResult = executeToolSchema.safeParse(body);

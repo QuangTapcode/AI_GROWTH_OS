@@ -31,6 +31,7 @@ const CHANNEL_ROUTE: Record<string, ChannelRoute> = {
   Website: { provider: 'website_cms', capability: 'publish_cms_post' },
   Newsletter: { provider: 'website_cms', capability: 'publish_cms_post' },
   Facebook: { provider: 'facebook_page', capability: 'publish_page_post' },
+  TikTok: { provider: 'tiktok', capability: 'publish_tiktok_video' },
   Instagram: { provider: 'instagram_business', capability: 'publish_ig_media' },
 };
 
@@ -56,7 +57,8 @@ function denialFrom(body: unknown, status: number): string {
 export function createGatewayCheck(): GatewayCheckFn | null {
   const baseUrl = process.env['API_BASE_URL'];
   if (!baseUrl) return null;
-  const token = process.env['WORKER_GATEWAY_TOKEN'] ?? 'dev_owner';
+  const userToken = process.env['WORKER_GATEWAY_TOKEN'];
+  const automationToken = process.env['AUTOMATION_INTERNAL_TOKEN'];
   const timeoutMs = Number(process.env['GATEWAY_REQUEST_TIMEOUT_MS'] ?? 5000);
 
   return async (req) => {
@@ -64,13 +66,23 @@ export function createGatewayCheck(): GatewayCheckFn | null {
     if (!route) {
       return { authorized: false, denialReason: `UNSUPPORTED_CHANNEL: ${req.channel}` };
     }
+    // TikTok Direct Post is opt-in until the app has passed TikTok review and
+    // the workspace has an approved media URL. Existing deployments therefore
+    // remain manual by default.
+    if (req.channel === 'TikTok' && process.env.TIKTOK_DIRECT_POST_ENABLED !== 'true') {
+      return { authorized: false, denialReason: 'UNSUPPORTED_CHANNEL: TikTok direct post is disabled' };
+    }
     const url = `${baseUrl.replace(/\/+$/, '')}/v1/workspaces/${encodeURIComponent(req.workspaceId)}/tools/execute`;
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(userToken
+            ? { Authorization: `Bearer ${userToken}` }
+            : automationToken
+              ? { 'X-Automation-Token': automationToken }
+              : { Authorization: 'Bearer dev_owner' }),
         },
         body: JSON.stringify({
           provider: route.provider,

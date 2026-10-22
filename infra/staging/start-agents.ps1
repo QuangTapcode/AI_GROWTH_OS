@@ -1,4 +1,4 @@
-param([ValidateSet('fake','live')][string]$Mode = 'live', [string]$Model = 'qwen3:8b', [switch]$ProductionApi)
+param([ValidateSet('fake','live')][string]$Mode = 'live', [string]$Model = 'qwen3:4b-instruct', [switch]$ProductionApi)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $runtime = Join-Path $PSScriptRoot '.runtime'
@@ -22,10 +22,22 @@ $userInfo = $dbUri.UserInfo.Split(':',2)
 $env:QUEUE_USER = [Uri]::UnescapeDataString($userInfo[0])
 $env:QUEUE_PASSWORD = [Uri]::UnescapeDataString($userInfo[1])
 $env:API_BASE_URL = 'http://127.0.0.1:4000'
+function Read-EnvValue([string]$path, [string]$name) {
+  $line = Get-Content -LiteralPath $path | Where-Object { $_ -match ('^' + [regex]::Escape($name) + '=') } | Select-Object -First 1
+  if (-not $line) { return '' }
+  return $line.Substring($name.Length + 1).Trim()
+}
+$env:INTEGRATION_MODE = if ($value = Read-EnvValue $apiEnv 'INTEGRATION_MODE') { $value } else { 'fake' }
+# Publishing secrets stay server-side, but both API and worker need the same
+# runtime values. Never echo these variables to logs or the UI.
+foreach ($name in @('FACEBOOK_PAGE_ID','FACEBOOK_PAGE_ACCESS_TOKEN','TIKTOK_ACCESS_TOKEN','TIKTOK_OPEN_ID','TIKTOK_DIRECT_POST_ENABLED','TIKTOK_API_BASE_URL')) {
+  Set-Item -Path ("Env:" + $name) -Value (Read-EnvValue $apiEnv $name)
+}
 $env:AI_PROVIDER_MODE = 'live' # HTTP adapter in either mode
 $env:AI_SERVICE_BASE_URL = 'http://127.0.0.1:5000'
 $env:LLM_PROVIDER_MODE = $Mode
 $env:LLM_MODEL = $Model
+$env:AI_INGEST_URL_ALLOWLIST = 'tripc.vn,danangfantasticity.com,vietnam.travel,hiyorigardentower.com,enostaspace.com,booking.cali.vn'
 $env:INTERNAL_AI_AUTH_TOKEN = $env:AUTOMATION_INTERNAL_TOKEN
 function Start-AgentProcess($name, $exe, $arguments, $directory, $port) {
   if ($port -and (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)) { throw "Port $port already in use; inspect the existing process before restarting." }
