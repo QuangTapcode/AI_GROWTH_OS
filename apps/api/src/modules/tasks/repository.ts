@@ -1,6 +1,7 @@
 import pool, { query, withTransaction } from "../../lib/db";
 import { CreateWorkflowTaskInput, UpdateTaskStatusInput, CreateArtifactInput } from "./schemas";
 import { propagateUpstreamTaskFailure } from "./dag";
+import { AppError } from "../../lib/errors";
 
 export interface WorkflowTaskRow {
   id: string;
@@ -15,6 +16,7 @@ export interface WorkflowTaskRow {
   payload: Record<string, any>;
   result_ref?: string | null;
   error_details?: Record<string, any> | null;
+  error?: Record<string, any> | null;
   retry_count: number;
   max_retries: number;
   started_at?: string | null;
@@ -22,6 +24,14 @@ export interface WorkflowTaskRow {
   created_at: string;
   updated_at: string;
   dependencies?: string[];
+}
+
+export function mapTaskRow(row: any): WorkflowTaskRow {
+  if (!row) return row;
+  return {
+    ...row,
+    error: row.error_details ?? null,
+  };
 }
 
 export interface ContentArtifactRow {
@@ -86,7 +96,7 @@ export async function createTaskWithDependencies(
 
     await client.query("COMMIT");
     createdTask.dependencies = input.dependencies || [];
-    return createdTask;
+    return mapTaskRow(createdTask);
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -129,7 +139,7 @@ export async function listTasks(
 
   sql += ` ORDER BY t.created_at DESC`;
   const res = await query<WorkflowTaskRow>(sql, params);
-  return res.rows;
+  return res.rows.map(mapTaskRow);
 }
 
 export async function getTaskById(
@@ -148,7 +158,7 @@ export async function getTaskById(
     WHERE t.workspace_id = $1 AND t.id = $2
   `;
   const res = await query<WorkflowTaskRow>(sql, [workspaceId, taskId]);
-  return res.rows[0] || null;
+  return res.rows[0] ? mapTaskRow(res.rows[0]) : null;
 }
 
 export async function updateTaskStatus(
@@ -187,7 +197,7 @@ export async function updateTaskStatus(
       await propagateUpstreamTaskFailure(client, workspaceId, taskId, input.status);
     }
 
-    return updated;
+    return updated ? mapTaskRow(updated) : null;
   });
 }
 
@@ -218,7 +228,7 @@ export async function requeueFailedTask(
        VALUES ($1, $2, 'task.retry_requested', 'workflow_task', $3, $4, $5)`,
       [workspaceId, actorId, taskId, task.input_version, JSON.stringify({ retry_count: task.retry_count })]
     );
-    return task;
+    return mapTaskRow(task);
   });
 }
 
@@ -226,6 +236,28 @@ export async function createArtifact(
   workspaceId: string,
   input: CreateArtifactInput
 ): Promise<ContentArtifactRow> {
+  // Idempotency: Nếu artifact liên kết với một task_id, kiểm tra xem phiên bản đó đã tồn tại chưa
+  if (input.task_id) {
+    const existing = await query<ContentArtifactRow>(
+      `SELECT * FROM content_artifacts 
+       WHERE workspace_id = $1 AND task_id = $2 AND version = $3`,
+      [workspaceId, input.task_id, input.version]
+    );
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      // Nếu cùng content_hash -> Idempotent replay, trả về bản ghi hiện có
+      if (row.content_hash === input.content_hash) {
+        return row;
+      }
+      // Nếu khác content_hash -> Xung đột phiên bản (kẻ xấu hoặc lỗi đổi dữ liệu mà không tăng version)
+      throw new AppError(
+        409,
+        "ARTIFACT_VERSION_CONFLICT",
+        `Artifact for task '${input.task_id}' version ${input.version} already exists with a different content hash`
+      );
+    }
+  }
+
   const sql = `
     INSERT INTO content_artifacts (
       workspace_id, task_id, version, content_hash, context_snapshot_id,

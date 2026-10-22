@@ -209,6 +209,7 @@
           },
           "result_ref": { "type": "string", "format": "uuid", "nullable": true },
           "error": { "type": "object", "nullable": true },
+          "error_details": { "type": "object", "nullable": true },
           "retry_count": { "type": "integer", "minimum": 0, "default": 0 },
           "max_retries": { "type": "integer", "default": 2 },
           "created_at": { "type": "string", "format": "date-time" },
@@ -231,7 +232,8 @@
             "type": "array",
             "items": { "type": "string", "format": "uuid" }
           },
-          "priority": { "type": "integer", "default": 3 }
+          "priority": { "type": "integer", "default": 3 },
+          "payload": { "type": "object" }
         }
       },
       "Artifact": {
@@ -258,6 +260,46 @@
             "items": { "$ref": "#/components/schemas/EvidenceRef" }
           },
           "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ArtifactCreateRequest": {
+        "type": "object",
+        "required": ["role", "operation", "artifact_type", "title", "content_hash"],
+        "properties": {
+          "task_id": { "type": "string", "format": "uuid", "nullable": true },
+          "version": { "type": "integer", "minimum": 1, "default": 1 },
+          "content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "context_snapshot_id": { "type": "string", "format": "uuid", "nullable": true },
+          "role": {
+            "type": "string",
+            "enum": ["research", "growth_lead", "seo", "content", "community", "performance"]
+          },
+          "operation": { "type": "string" },
+          "artifact_type": { "type": "string" },
+          "title": { "type": "string" },
+          "storage": {
+            "type": "string",
+            "enum": ["ai_run_store", "postgres_ledger"],
+            "default": "postgres_ledger"
+          },
+          "payload": { "type": "object" },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "object" }
+          }
+        }
+      },
+      "CampaignPlanSubmitRequest": {
+        "type": "object",
+        "required": ["artifact_id", "workspace_id", "version", "content_hash", "role"],
+        "properties": {
+          "artifact_id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "version": { "type": "integer", "minimum": 1 },
+          "content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "role": { "type": "string", "enum": ["growth_lead"] },
+          "context_snapshot_id": { "type": "string", "format": "uuid" },
+          "storage": { "type": "string", "default": "ai_run_store" }
         }
       },
       "ApprovalRecord": {
@@ -750,6 +792,69 @@
             }
           }
         }
+      },
+      "post": {
+        "summary": "Create or register a content artifact (Idempotent replay supported)",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ArtifactCreateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Artifact registered successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Artifact" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "description": "Artifact version conflict" },
+          "422": { "description": "Validation failed" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/campaign-plans": {
+      "post": {
+        "summary": "Submit a Growth Lead campaign plan artifact for transactional acceptance and DAG enqueue",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CampaignPlanSubmitRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Campaign plan accepted and DAG root task queued",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay of previously accepted plan"
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "description": "Plan ID/version content mismatch" },
+          "422": { "description": "Validation failed or circular dependency detected" }
+        }
       }
     },
     "/v1/workspaces/{workspace_id}/artifacts/{artifact_id}": {
@@ -796,6 +901,43 @@
               }
             }
           }
+        }
+      },
+      "post": {
+        "summary": "Create an approval request",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["target_type", "target_id", "target_version", "target_hash"],
+                "properties": {
+                  "target_type": { "type": "string", "enum": ["source", "content", "artifact", "task", "campaign"] },
+                  "target_id": { "type": "string", "format": "uuid" },
+                  "target_version": { "type": "integer", "minimum": 1 },
+                  "target_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Approval request created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApprovalRecord" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "description": "Validation failed" }
         }
       }
     },
