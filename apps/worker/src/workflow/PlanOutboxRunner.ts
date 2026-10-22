@@ -60,8 +60,9 @@ export class PlanOutboxRunner {
         payload.score_factors = task.payload.input.score_factors ?? {};
       } else if (task.operation === 'community.response') {
         payload.question = task.payload.input.question;
-      } else if (task.operation === 'analytics.report') {
+      } else if (task.operation === 'analytics.report' || task.operation === 'experiment.hypothesis') {
         payload.metrics = task.payload.input.metrics_artifact_id ? await load(task.payload.input.metrics_artifact_id) : null;
+        if (task.operation === 'experiment.hypothesis') payload.experiment = task.payload.input.experiment;
       } else if (task.operation === 'learning.analyze') {
         const input = task.payload.input;
         payload.performance = input.performance_artifact_id ? await load(input.performance_artifact_id) : null;

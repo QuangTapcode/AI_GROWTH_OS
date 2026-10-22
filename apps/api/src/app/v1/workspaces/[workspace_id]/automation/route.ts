@@ -108,6 +108,27 @@ export async function POST(req: NextRequest, { params }: Context) {
               metrics_artifact_id: z.string().uuid(),
             })
             .strict(),
+          z
+            .object({
+              operation: z.literal("experiment.hypothesis"),
+              metrics_artifact_id: z.string().uuid().optional(),
+              experiment: z
+                .object({
+                  hypothesis: z.string().min(1).max(500),
+                  control_variant: z.string().min(1).max(200),
+                  treatment_variant: z.string().min(1).max(200),
+                  primary_metric: z.string().min(1).max(100),
+                  period: z
+                    .object({
+                      start: z.string().datetime({ offset: true }),
+                      end: z.string().datetime({ offset: true }),
+                    })
+                    .strict(),
+                  grouping: z.string().min(1).max(100),
+                })
+                .strict(),
+            })
+            .strict(),
         ]),
       })
       .strict();
@@ -116,7 +137,7 @@ export async function POST(req: NextRequest, { params }: Context) {
       throw new AppError(
         422,
         "INVALID_EVENT",
-        "Provide event_id and typed community/metrics input",
+        "Provide event_id and typed community/metrics/experiment input",
       );
     const context = (
       await pool.query(
