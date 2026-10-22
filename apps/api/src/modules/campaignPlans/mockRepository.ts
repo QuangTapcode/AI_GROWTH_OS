@@ -1,4 +1,5 @@
 import { canonicalJson } from '../../lib/hash';
+import { validateTaskGraph } from '../tasks/dag';
 import type { CampaignPlan } from './schemas';
 import { PlanError, type AcceptedPlan, type PlanContext, type PlanRepository, type StoredArtifact } from './service';
 
@@ -32,6 +33,10 @@ export class MockPlanRepository implements PlanRepository {
       return { record: structuredClone(existing), deduplicated: true };
     }
     if (this.failNextCommit) { this.failNextCommit = false; throw new Error('Mock commit failed'); }
+    const graphCheck = validateTaskGraph(plan.tasks.map(t => ({ id: t.task_id, dependencies: t.depends_on })));
+    if (!graphCheck.valid) {
+      throw new PlanError('CYCLIC_DEPENDENCY', graphCheck.error || 'Campaign plan contains a circular dependency', 422);
+    }
     const record: AcceptedPlan = {
       plan: structuredClone(plan),
       task_states: Object.fromEntries(plan.tasks.map(t => [t.task_id, t.depends_on.length ? 'blocked' : 'ready'])),

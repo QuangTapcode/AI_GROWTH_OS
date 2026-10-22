@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
+import { validateTaskGraph } from '../tasks/dag';
 import type { ArtifactRef, CampaignPlan } from './schemas';
 import { PlanError, type AcceptedPlan, type PlanContext, type PlanRepository, type StoredArtifact } from './service';
 
@@ -86,6 +87,10 @@ export class PgPlanRepository implements PlanRepository {
         if (!same(previous.plan, plan)) throw new PlanError('PLAN_CONFLICT', 'Plan ID/version content changed', 409);
         await db.query('COMMIT');
         return { record: previous.record as AcceptedPlan, deduplicated: true };
+      }
+      const graphCheck = validateTaskGraph(plan.tasks.map(t => ({ id: t.task_id, dependencies: t.depends_on })));
+      if (!graphCheck.valid) {
+        throw new PlanError('CYCLIC_DEPENDENCY', graphCheck.error || 'Campaign plan contains a circular dependency', 422);
       }
       await db.query('INSERT INTO campaigns(id,workspace_id,name,utm_campaign) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING', [plan.plan_id, plan.workspace_id, plan.objective.slice(0, 255), `plan-${plan.plan_id}`]);
       const campaign = (await db.query('SELECT workspace_id FROM campaigns WHERE id=$1 FOR SHARE', [plan.plan_id])).rows[0];

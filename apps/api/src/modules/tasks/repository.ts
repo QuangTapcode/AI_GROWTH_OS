@@ -1,5 +1,6 @@
 import pool, { query, withTransaction } from "../../lib/db";
 import { CreateWorkflowTaskInput, UpdateTaskStatusInput, CreateArtifactInput } from "./schemas";
+import { propagateUpstreamTaskFailure } from "./dag";
 
 export interface WorkflowTaskRow {
   id: string;
@@ -155,30 +156,39 @@ export async function updateTaskStatus(
   taskId: string,
   input: UpdateTaskStatusInput
 ): Promise<WorkflowTaskRow | null> {
-  const isTerminal = input.status === "completed" || input.status === "failed" || input.status === "cancelled";
-  const completedAtClause = isTerminal ? ", completed_at = NOW()" : "";
-  const startedAtClause = input.status === "running" ? ", started_at = COALESCE(started_at, NOW())" : "";
+  return withTransaction(async (client) => {
+    const isTerminal = input.status === "completed" || input.status === "failed" || input.status === "cancelled";
+    const completedAtClause = isTerminal ? ", completed_at = NOW()" : "";
+    const startedAtClause = input.status === "running" ? ", started_at = COALESCE(started_at, NOW())" : "";
 
-  const sql = `
-    UPDATE workflow_tasks
-    SET status = $1,
-        result_ref = COALESCE($2, result_ref),
-        error_details = COALESCE($3, error_details),
-        updated_at = NOW()
-        ${completedAtClause}
-        ${startedAtClause}
-    WHERE workspace_id = $4 AND id = $5
-    RETURNING *
-  `;
-  const res = await query<WorkflowTaskRow>(sql, [
-    input.status,
-    input.result_ref || null,
-    input.error_details ? JSON.stringify(input.error_details) : null,
-    workspaceId,
-    taskId,
-  ]);
+    const sql = `
+      UPDATE workflow_tasks
+      SET status = $1,
+          result_ref = COALESCE($2, result_ref),
+          error_details = COALESCE($3, error_details),
+          updated_at = NOW()
+          ${completedAtClause}
+          ${startedAtClause}
+      WHERE workspace_id = $4 AND id = $5
+      RETURNING *
+    `;
+    const res = await client.query<WorkflowTaskRow>(sql, [
+      input.status,
+      input.result_ref || null,
+      input.error_details ? JSON.stringify(input.error_details) : null,
+      workspaceId,
+      taskId,
+    ]);
 
-  return res.rows[0] || null;
+    const updated = res.rows[0] || null;
+
+    // Nếu task cha bị FAILED hoặc CANCELLED, tự động cascade hủy toàn bộ các task con downstream
+    if (updated && (input.status === "failed" || input.status === "cancelled")) {
+      await propagateUpstreamTaskFailure(client, workspaceId, taskId, input.status);
+    }
+
+    return updated;
+  });
 }
 
 /**
