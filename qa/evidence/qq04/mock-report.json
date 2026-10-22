@@ -152,7 +152,11 @@
             "url": "https://example.org/qq04-mock",
             "fetched_at": "2026-01-01T00:00:00Z",
             "confidence": "hypothesis",
-            "demand_estimate": null
+            "demand_estimate": null,
+            "keywords": [
+              "Living areas guide"
+            ],
+            "user_need": "Understand local living options before making a decision."
           }
         ],
         "missing_facts": [],
@@ -166,12 +170,21 @@
         "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
         "workspace_id": "00000000-0000-4000-8000-000000000001",
         "version": 1,
-        "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+        "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
         "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
         "role": "research",
         "storage": "ai_run_store"
       },
-      "cta": "Request the newcomer guide (MOCK)"
+      "cta": "Request the newcomer guide (MOCK)",
+      "deadline": "2026-11-04T10:00:00Z",
+      "score_factors": {
+        "demand": 3,
+        "business_relevance": 3,
+        "growth_potential": 3,
+        "content_gap": 3,
+        "freshness": 3,
+        "conversion_potential": 3
+      }
     },
     "prompt_version": "growth-lead-v1"
   },
@@ -204,7 +217,11 @@
           "url": "https://example.org/qq04-mock",
           "fetched_at": "2026-01-01T00:00:00Z",
           "confidence": "hypothesis",
-          "demand_estimate": null
+          "demand_estimate": null,
+          "keywords": [
+            "Living areas guide"
+          ],
+          "user_need": "Understand local living options before making a decision."
         }
       ],
       "missing_facts": [],
@@ -238,14 +255,14 @@
       "embedding_input_tokens": 0
     },
     "model_version": "fake/w1-deterministic-1",
-    "prompt_version": "research-v1",
+    "prompt_version": "research-v2",
     "input_version": 1,
     "trace_id": "qq04-mock-research",
     "artifact": {
       "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
       "workspace_id": "00000000-0000-4000-8000-000000000001",
       "version": 1,
-      "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+      "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
       "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
       "role": "research",
       "storage": "ai_run_store"
@@ -256,7 +273,7 @@
     "run_id": "4b12494a-fdd6-530c-add1-2e48b45b1bbd",
     "operation": "strategy.generate",
     "result": {
-      "contract_version": "growth-lead-plan-v1",
+      "contract_version": "growth-lead-plan-v2",
       "plan_id": "32466218-e270-5175-94d9-79959d6caa8d",
       "workspace_id": "00000000-0000-4000-8000-000000000001",
       "input_version": 1,
@@ -283,13 +300,17 @@
         "url": "https://example.org/qq04-mock",
         "fetched_at": "2026-01-01T00:00:00Z",
         "confidence": "hypothesis",
-        "demand_estimate": null
+        "demand_estimate": null,
+        "keywords": [
+          "Living areas guide"
+        ],
+        "user_need": "Understand local living options before making a decision."
       },
       "research_artifact": {
         "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
         "workspace_id": "00000000-0000-4000-8000-000000000001",
         "version": 1,
-        "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+        "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
         "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
         "role": "research",
         "storage": "ai_run_store"
@@ -309,7 +330,7 @@
               "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
               "workspace_id": "00000000-0000-4000-8000-000000000001",
               "version": 1,
-              "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+              "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
               "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
               "role": "research",
               "storage": "ai_run_store"
@@ -335,7 +356,8 @@
               "Return a draft for human review before publication."
             ]
           },
-          "requires_human_approval": true
+          "requires_human_approval": true,
+          "deadline": "2026-11-04T10:00:00Z"
         },
         {
           "task_id": "7469b889-944e-5a60-9b4b-8f3c50f80ddc",
@@ -353,7 +375,7 @@
               "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
               "workspace_id": "00000000-0000-4000-8000-000000000001",
               "version": 1,
-              "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+              "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
               "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
               "role": "research",
               "storage": "ai_run_store"
@@ -382,13 +404,29 @@
               "Adapt the approved SEO draft; identify real image assets or report missing assets."
             ]
           },
-          "requires_human_approval": true
+          "requires_human_approval": true,
+          "deadline": "2026-11-04T10:00:00Z"
         }
       ],
       "missing_facts": [],
       "requires_human_approval": true,
       "applied": false,
-      "synthetic": true
+      "synthetic": true,
+      "opportunity_score": {
+        "factors": {
+          "demand": 3,
+          "business_relevance": 3,
+          "growth_potential": 3,
+          "content_gap": 3,
+          "freshness": 3,
+          "conversion_potential": 3
+        },
+        "score": 729,
+        "estimated": true,
+        "label": "estimated",
+        "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
+        "source": "operator_estimate_not_search_volume"
+      }
     },
     "evidence": [
       {
@@ -423,7 +461,7 @@
       "artifact_id": "b3f340ba-1c21-563e-9020-6a9857ceb3c1",
       "workspace_id": "00000000-0000-4000-8000-000000000001",
       "version": 1,
-      "content_hash": "0069b8ad4fd4b1e55bbea0b8db63a554b5a848e174cd5ccfcb2b589734535b80",
+      "content_hash": "153bdadd5469831dec36f1ee5437ab74adcb3b3e47ade2b4e6f546c32c93794f",
       "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
       "role": "growth_lead",
       "storage": "ai_run_store"
