@@ -1,0 +1,67 @@
+{
+  "passed": true,
+  "provider_mode": "live",
+  "pipeline_report": "live-db-pipeline.json",
+  "source_summary": "qa/QQ_test/results/2026-10-17T16-36-30-131Z-20137c/summary.json",
+  "source_summary_sha256": "0599911400f810181352c660f11a3100db518eaea802e5478d4ad6266c133912",
+  "note": "The legacy runner ai boundary reflects --ai flags only. The full pipeline report records actual HTTP transport and provider mode.",
+  "runner_summary": {
+    "run_id": "2026-10-17T16-36-30-131Z-20137c",
+    "started_at": "2026-10-17T16:36:30.146Z",
+    "mode": "--db",
+    "commit": "e5c64937c30a588fb263d19922c7cc5c126c15cb",
+    "branch": "main",
+    "working_tree_dirty": true,
+    "node": "v24.14.1",
+    "boundaries": {
+      "database": "disposable PostgreSQL",
+      "api_routes": "in-process handlers",
+      "unit": "not_used",
+      "ai": "not_used"
+    },
+    "stages": [
+      {
+        "id": "QQ-DB-001",
+        "exit_code": 0,
+        "migrations": [
+          "001_initial_core_schema.sql",
+          "002_workflow_content_ledger.sql",
+          "003_campaign_plan_outbox.sql",
+          "004_learning_task_dedup.sql"
+        ]
+      },
+      {
+        "id": "be-integration",
+        "exit_code": 0,
+        "signal": null,
+        "log": "be-integration.log",
+        "tests": {
+          "total": 41,
+          "passed": 41,
+          "failed": 0,
+          "pending": 0
+        }
+      },
+      {
+        "id": "worker-db",
+        "exit_code": 0,
+        "signal": null,
+        "log": "worker-db.log",
+        "tests": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0,
+          "pending": 0
+        }
+      }
+    ],
+    "cleanup": "passed",
+    "database": {
+      "name": "qq_test_1792254990322_057c91",
+      "host": "127.0.0.1",
+      "port": "15432"
+    },
+    "finished_at": "2026-10-17T16:38:58.658Z",
+    "passed": true
+  }
+}

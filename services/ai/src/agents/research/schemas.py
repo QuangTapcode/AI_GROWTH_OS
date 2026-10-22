@@ -35,6 +35,8 @@ class ResearchIdea(BaseModel):
     rationale: str = Field(min_length=1, max_length=300)
     chunk_id: str = Field(min_length=1, max_length=120)
     quote: str = Field(min_length=1, max_length=400)
+    keywords: list[str] = Field(min_length=1, max_length=5)
+    user_need: str = Field(min_length=1, max_length=160)
 
 
 class ResearchDraft(BaseModel):
@@ -53,6 +55,9 @@ class ResearchFinding(BaseModel):
     fetched_at: datetime
     confidence: Literal["hypothesis"] = "hypothesis"
     demand_estimate: None = None
+    # Defaults keep persisted v1 artifacts readable; new runs always populate these.
+    keywords: list[str] = Field(default_factory=list, max_length=5)
+    user_need: str | None = None
 
 
 class ResearchBrief(BaseModel):

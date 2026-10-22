@@ -1,5 +1,17 @@
 # Contract changelog
 
+## 17/10/2026 — CR-004 six-role pilot candidate
+
+Dedicated pipelines for all six roles and learning, Research v2 keywords/user_need, plan v2 deadlines/estimated score, scoped draft APIs, PostgreSQL context/ledger/outbox and owner-gated dependency/learning tasks. [Compatibility and validation](changes/CR-004-six-role-pilot-integration.md). Candidate schemas are reviewable; production freeze/signoff remains pending.
+
+## 16/10/2026 — QQ-01/02/03 reviewer checks, candidate
+
+Research preflight yêu cầu snapshot pin và profile version; trả `SNAPSHOT_REQUIRED`/`PROFILE_VERSION_REQUIRED` khi thiếu. Output guard loại quote whitespace. Input validation chặt hơn, consumer cần migrate; chưa ghi nhận reviewer approval/version freeze. [CR-002 update](changes/CR-002-six-agent-pipelines.md), [30 reviewer test cases](../docs/coordination/sprint-3-weeks/bao-cao/2026-10-16-QQ01-03-TEST-CASES.md).
+
+## 15/10/2026 — CR-003 QQ-04 implementation candidate
+
+Growth Lead `opportunity.score`, `strategy.generate`, `brief.generate` dùng typed payload và campaign/task proposal `growth-lead-v1`; learning vẫn bootstrap. Schema bundle, backend plan validator và mock transaction/outbox có evidence local. Chưa mount HTTP route, chưa nối PostgreSQL/broker; public OpenAPI giữ nguyên. Consumer migration/version review trong [CR-003](changes/CR-003-growth-lead-plans.md).
+
 ## 1.1.0 — 15/10/2026 — First Slice Freeze: Task, Artifact, Approval (TQ-01)
 
 - Đóng băng OpenAPI 3.1.0 contract (`contracts/schemas/openapi.json`) phiên bản 1.1.0:

@@ -119,4 +119,3 @@
 | 5 | Kiểm thử cơ chế `idempotency\_key` chống trùng lặp lead (HTTP 409) | Đã test | QA Engineer |
 
 | 6 | Xác thực quy trình phê duyệt Level 2 (In Review -> Approved) | Đã sẵn sàng | Product Manager |
-

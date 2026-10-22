@@ -2,7 +2,7 @@
 
 Owner: Quang Quang. Task: QQ-06 trong [TODO cá nhân](../../../../../docs/coordination/sprint-3-weeks/QUANG-QUANG.md). Reviewer chất lượng: Thiệu; business rules: Dương; HTTP boundary: Mỹ/Thiệu Quang.
 
-**Trạng thái:** khu vực triển khai đã tạo; các operation `community.response` hiện vẫn dùng bootstrap handler. Không dùng thư mục/registry này làm bằng chứng pipeline đã hoàn thành.
+**Trạng thái:** dedicated handler đã được đăng ký cho `community.response`; pipeline dùng shared RAG/retrieval và chỉ trả draft có evidence. Phần end-to-end qua connector, lead persistence và live campaign vẫn cần nghiệm thu theo [checklist sáu agent](../../../../../docs/coordination/AGENT-TEST-DEV-TODO.md).
 
 - Input: question + approved knowledge + published refs.
 - Output/handoff: reply draft + evidence, lead/escalation proposal → human approval hoặc lead owner.

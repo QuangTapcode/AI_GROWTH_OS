@@ -1,7 +1,7 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
-import { withTransaction } from "@/lib/db";
+import { AppError } from "../../lib/errors";
+import { AuthUser } from "../../lib/auth";
+import { assertActiveSession, resolveTenantContext, requireRole } from "../../lib/tenant";
+import { withTransaction } from "../../lib/db";
 import {
   createWorkspaceSchema,
   addMemberSchema,
@@ -11,6 +11,7 @@ import {
 import * as repo from "./repository";
 
 export async function listUserWorkspaces(user: AuthUser) {
+  await assertActiveSession(user);
   await repo.ensureUserExists(user.id, user.email, user.name);
   const items = await repo.listWorkspacesForUser(user.id);
   return { items };
@@ -27,6 +28,7 @@ export async function getWorkspaceDetail(user: AuthUser, workspaceId: string) {
 }
 
 export async function createWorkspace(user: AuthUser, rawInput: unknown) {
+  await assertActiveSession(user);
   const parseResult = createWorkspaceSchema.safeParse(rawInput);
   if (!parseResult.success) {
     const fieldErrors: Record<string, string[]> = {};
@@ -102,6 +104,22 @@ export async function addWorkspaceMember(
 
   // Lấy hoặc tạo tài khoản user theo email
   const targetUser = await repo.findOrCreateUserByEmail(input.email, input.full_name);
+
+  // Chặn đứng Workspace Lockout: Không cho phép hạ cấp Owner duy nhất còn lại của workspace
+  if (input.role !== "owner") {
+    const existingMembers = await repo.listMembers(workspaceId);
+    const existingTarget = existingMembers.find((m) => m.user_id === targetUser.id);
+    if (existingTarget && existingTarget.role === "owner") {
+      const ownerCount = await repo.countActiveOwners(workspaceId);
+      if (ownerCount <= 1) {
+        throw new AppError(
+          400,
+          "CANNOT_DOWNGRADE_LAST_OWNER",
+          "Cannot downgrade the last owner of a workspace"
+        );
+      }
+    }
+  }
 
   // Thêm hoặc cập nhật membership
   await repo.addOrUpdateMembership(workspaceId, targetUser.id, input.role);

@@ -8,6 +8,10 @@ import * as workspaceRoute from "../../../apps/api/src/app/v1/workspaces/route";
 import * as detailRoute from "../../../apps/api/src/app/v1/workspaces/[workspace_id]/route";
 import * as sourceRoute from "../../../apps/api/src/app/v1/workspaces/[workspace_id]/sources/[source_id]/route";
 import * as reviewRoute from "../../../apps/api/src/app/v1/workspaces/[workspace_id]/sources/[source_id]/review/route";
+import * as tasks from "../../../apps/api/src/modules/tasks/service";
+import * as campaigns from "../../../apps/api/src/modules/campaigns/service";
+import * as approvals from "../../../apps/api/src/modules/approvals/service";
+import * as taskRoute from "../../../apps/api/src/app/v1/workspaces/[workspace_id]/tasks/route";
 
 const sourceInput = {
   title: "QQ synthetic housing guide", kind: "text", url_or_blob: "Synthetic text for merge verification",
@@ -71,8 +75,9 @@ afterAll(async () => { await pool.end(); });
 describe("QQ BE merge — database", () => {
   it("QQ-DB-002: migrated tables and vector(768) match BE/AI boundary", async () => {
     const result = await query<{ name: string }>("SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public'");
-    expect(result.rows.map(row => row.name)).toEqual(expect.arrayContaining([
+expect(result.rows.map((row: { name: string }) => row.name)).toEqual(expect.arrayContaining([
       "users", "workspaces", "memberships", "business_profiles", "sources", "source_chunks", "source_facts", "growth_goals", "agent_tasks",
+      "workflow_tasks", "task_dependencies", "content_artifacts", "content_versions", "approvals",
     ]));
     const column = await query<{ type: string }>(
       "SELECT format_type(atttypid, atttypmod) AS type FROM pg_attribute WHERE attrelid = 'source_chunks'::regclass AND attname = 'embedding'",
@@ -82,6 +87,74 @@ describe("QQ BE merge — database", () => {
   it("QQ-DB-003: foreign-key constraint prevents orphan memberships", async () => {
     await expect(query("INSERT INTO memberships(workspace_id,user_id,role) VALUES($1,$2,'viewer')", [randomUUID(), f.owner.id]))
       .rejects.toMatchObject({ code: "23503" });
+  });
+});
+
+describe("QQ my_be merge — workflow/ledger PostgreSQL", () => {
+  const taskInput = { role: "seo", operation: "seo.local_draft", payload: { synthetic: true } };
+  const artifactInput = { role: "growth_lead", operation: "strategy.generate", artifact_type: "campaign_plan",
+    title: "QQ synthetic plan", content_hash: "a".repeat(64), payload: { synthetic: true }, evidence: [] };
+
+  it("QQ-MY-001: persists campaign, SEO/social tasks and dependency links", async () => {
+    const campaign = await campaigns.createWorkspaceCampaign(f.editor, f.workspace.id,
+      { name: "QQ mock campaign", utm_campaign: "qq-test" });
+    const seo = await tasks.createWorkspaceTask(f.editor, f.workspace.id, { ...taskInput, campaign_id: campaign.id });
+    const social = await tasks.createWorkspaceTask(f.editor, f.workspace.id,
+      { role: "content", operation: "content.repurpose", campaign_id: campaign.id, dependencies: [seo.id] });
+    const read = await tasks.getWorkspaceTaskDetail(f.viewer, f.workspace.id, social.id);
+    expect(read.dependencies).toEqual([seo.id]);
+    expect(read.campaign_id).toBe(campaign.id);
+    expect(read.status).toBe("pending");
+    expect((await tasks.listWorkspaceTasks(f.viewer, f.workspace.id, { campaign_id: campaign.id })).items).toHaveLength(2);
+  });
+
+  it("QQ-MY-002: rejects unknown roles without persisting task", async () => {
+    await expect(tasks.createWorkspaceTask(f.editor, f.workspace.id, { ...taskInput, role: "admin" }))
+      .rejects.toMatchObject(appError(422, "VALIDATION_FAILED"));
+    expect((await query("SELECT id FROM workflow_tasks WHERE workspace_id=$1", [f.workspace.id])).rowCount).toBe(0);
+  });
+
+  it("QQ-MY-003: foreign dependency creates neither task nor dependency row", async () => {
+    const foreign = await tasks.createWorkspaceTask(f.outsider, f.otherWorkspace.id, taskInput);
+    await expect(tasks.createWorkspaceTask(f.editor, f.workspace.id, { ...taskInput, dependencies: [foreign.id] }))
+      .rejects.toMatchObject(appError(422, "INVALID_DEPENDENCY"));
+    expect((await query("SELECT id FROM workflow_tasks WHERE workspace_id=$1", [f.workspace.id])).rowCount).toBe(0);
+    expect((await query("SELECT task_id FROM task_dependencies WHERE workspace_id=$1", [f.workspace.id])).rowCount).toBe(0);
+  });
+
+  it("QQ-MY-004: artifact cannot link a foreign task or be read from another workspace", async () => {
+    const foreign = await tasks.createWorkspaceTask(f.outsider, f.otherWorkspace.id, taskInput);
+    await expect(tasks.createWorkspaceArtifact(f.editor, f.workspace.id, { ...artifactInput, task_id: foreign.id }))
+      .rejects.toMatchObject(appError(422, "INVALID_TASK_REF"));
+    const artifact = await tasks.createWorkspaceArtifact(f.editor, f.workspace.id, artifactInput);
+    expect((await tasks.getWorkspaceArtifactDetail(f.viewer, f.workspace.id, artifact.id)).content_hash).toBe(artifactInput.content_hash);
+    await expect(tasks.getWorkspaceArtifactDetail(f.outsider, f.otherWorkspace.id, artifact.id))
+      .rejects.toMatchObject(appError(404, "NOT_FOUND"));
+  });
+
+  it("QQ-MY-005: approval RBAC and stale-hash checks precede persisted owner decision", async () => {
+    const artifact = await tasks.createWorkspaceArtifact(f.editor, f.workspace.id, artifactInput);
+    const approval = await approvals.createWorkspaceApproval(f.editor, f.workspace.id,
+      { target_type: "artifact", target_id: artifact.id, target_version: 1, target_hash: artifact.content_hash });
+    const input = { decision: "approve", expected_version: 1, expected_hash: artifact.content_hash };
+    await expect(approvals.reviewWorkspaceApproval(f.editor, f.workspace.id, approval.id, input))
+      .rejects.toMatchObject(appError(403));
+    await expect(approvals.reviewWorkspaceApproval(f.owner, f.workspace.id, approval.id, { ...input, expected_hash: "b".repeat(64) }))
+      .rejects.toMatchObject(appError(409, "CONTENT_HASH_MISMATCH"));
+    expect((await approvals.getWorkspaceApprovalDetail(f.viewer, f.workspace.id, approval.id)).status).toBe("pending");
+    const reviewed = await approvals.reviewWorkspaceApproval(f.owner, f.workspace.id, approval.id, input);
+    expect(reviewed.status).toBe("approved");
+    expect(reviewed.actor_id).toBe(f.owner.id);
+    expect(reviewed.actor_role).toBe("owner");
+  });
+
+  it("QQ-MY-006: task route authorizes viewer/editor and persists successful request", async () => {
+    const params = { params: { workspace_id: f.workspace.id } };
+    await expectEnvelope(await taskRoute.POST(request("POST", f.viewer, taskInput), params), 403, "PERMISSION_DENIED");
+    const response = await taskRoute.POST(request("POST", f.editor, taskInput), params);
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect((await tasks.getWorkspaceTaskDetail(f.viewer, f.workspace.id, body.id)).role).toBe("seo");
   });
 });
 

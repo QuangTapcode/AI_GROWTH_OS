@@ -1,0 +1,224 @@
+{
+  "generated_at": "2026-10-21T16:53:46.324019+00:00",
+  "role": "performance",
+  "operation": "analytics.report",
+  "mode": "fake",
+  "synthetic": true,
+  "verdict": "PASS",
+  "input": {
+    "workspace_id": "00000000-0000-4000-8000-000000000001",
+    "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+    "job_id": "7d6febf2-47be-4adf-b403-b3b7ea0dfbc6",
+    "request": {
+      "job_id": "7d6febf2-47be-4adf-b403-b3b7ea0dfbc6",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "operation": "analytics.report",
+      "input_version": 1,
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "trace_id": "six-role-analytics.report",
+      "synthetic": true,
+      "approved_source_versions": [
+        {
+          "source_id": "00000000-0000-4000-8000-000000000002",
+          "version": 1
+        }
+      ],
+      "payload": {
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "business_profile": {
+          "company": "TripC MOCK",
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "audiences": [
+            "English-speaking newcomers"
+          ],
+          "services": [
+            "Local living information MOCK"
+          ],
+          "topic_priority": [
+            "Living areas guide"
+          ]
+        },
+        "snapshot": {
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "snapshot_id": "00000000-0000-4000-8000-000000000003",
+          "sources": [
+            {
+              "source_id": "00000000-0000-4000-8000-000000000002",
+              "workspace_id": "00000000-0000-4000-8000-000000000001",
+              "version": 1,
+              "status": "approved",
+              "provenance": {
+                "license": "Synthetic fixture only",
+                "attribution": "QQ-04 mock",
+                "source_url": "https://example.org/qq04-mock",
+                "retrieved_at": "2026-01-01T00:00:00Z"
+              },
+              "chunks": [
+                {
+                  "chunk_id": "mock-guide",
+                  "text": "The guide compares living areas for newcomers.",
+                  "locator": "mock:paragraph:1"
+                }
+              ]
+            }
+          ]
+        },
+        "goal_context": {
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "objective": "Prepare a newcomer guide and social drafts"
+        },
+        "metrics": {
+          "artifact": {
+            "artifact_id": "54b066dc-fb34-46d5-b6c6-0790fe6c4de7",
+            "workspace_id": "00000000-0000-4000-8000-000000000001",
+            "version": 1,
+            "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+            "role": null,
+            "content_hash": "83231a6df1f804efe6f434690ae346ca14aee3049bc7ee69538172c6cc720b2e",
+            "storage": "ai_run_store"
+          },
+          "result": {
+            "workspace_id": "00000000-0000-4000-8000-000000000001",
+            "snapshot_id": "5eb188d4-b816-4489-9f14-49a42f75e072",
+            "version": 1,
+            "window_start": "2026-10-01T00:00:00Z",
+            "window_end": "2026-10-07T00:00:00Z",
+            "qualified_visits": 12,
+            "leads": 2,
+            "impressions": 100,
+            "clicks": 20,
+            "synthetic": true
+          },
+          "evidence": []
+        }
+      }
+    }
+  },
+  "prerequisites": [
+    {
+      "role": "research",
+      "operation": "research.run",
+      "artifact": {
+        "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "version": 1,
+        "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
+        "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+        "role": "research",
+        "storage": "ai_run_store"
+      }
+    }
+  ],
+  "output": {
+    "schema_version": "1.0.0",
+    "run_id": "54bc1566-93fe-510b-83bc-26db45f42fe1",
+    "operation": "analytics.report",
+    "result": {
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "profile_version": 1,
+      "version": 1,
+      "status": "draft",
+      "missing_facts": [],
+      "input_artifact_refs": [
+        {
+          "artifact_id": "54b066dc-fb34-46d5-b6c6-0790fe6c4de7",
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "content_hash": "83231a6df1f804efe6f434690ae346ca14aee3049bc7ee69538172c6cc720b2e",
+          "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+          "role": null,
+          "storage": "ai_run_store"
+        }
+      ],
+      "requires_human_approval": true,
+      "applied": false,
+      "synthetic": true,
+      "metrics": {
+        "qualified_visits": 12,
+        "leads": 2,
+        "impressions": 100,
+        "clicks": 20
+      },
+      "window": {
+        "start": "2026-10-01T00:00:00+00:00",
+        "end": "2026-10-07T00:00:00+00:00"
+      },
+      "metric_snapshot_id": "5eb188d4-b816-4489-9f14-49a42f75e072",
+      "observations": [
+        "Observed qualified_visits: 12.",
+        "Observed leads: 2.",
+        "Observed impressions: 100.",
+        "Observed clicks: 20."
+      ],
+      "proposal": "Review the cited aggregate window before proposing the next content test.",
+      "attribution": "aggregate_observation_only_not_causal",
+      "spend_mutation_allowed": false
+    },
+    "evidence": [],
+    "warnings": [
+      "NO_CAUSAL_OR_ROI_CLAIM"
+    ],
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "latency_ms": 0,
+      "provider_cost_usd": 0.0,
+      "llm_calls": 0,
+      "embedding_calls": 0,
+      "embedding_input_tokens": 0
+    },
+    "model_version": "fake/w1-deterministic-1",
+    "prompt_version": "performance-v1",
+    "input_version": 1,
+    "trace_id": "six-role-analytics.report",
+    "artifact": {
+      "artifact_id": "d2ca6da2-32a2-5b3a-8be4-93985e73453f",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "content_hash": "2295eb0bb75c2fd241562ad2d7f0b237aed28bb9a0bae47482fd7d8f5038f0c8",
+      "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
+      "role": "performance",
+      "storage": "ai_run_store"
+    }
+  },
+  "checks": [
+    {
+      "name": "synthetic_is_explicit",
+      "passed": true,
+      "detail": "Fixture output is marked synthetic"
+    },
+    {
+      "name": "human_approval_required",
+      "passed": true,
+      "detail": "Output cannot bypass owner approval"
+    },
+    {
+      "name": "not_applied",
+      "passed": true,
+      "detail": "Agent did not apply/send/publish changes"
+    },
+    {
+      "name": "draft_only",
+      "passed": true,
+      "detail": "status=draft"
+    },
+    {
+      "name": "snapshot_and_window",
+      "passed": true,
+      "detail": "Snapshot and time window are pinned"
+    },
+    {
+      "name": "no_spend_mutation",
+      "passed": true,
+      "detail": "Budget mutation is disabled"
+    },
+    {
+      "name": "metrics_are_preserved",
+      "passed": true,
+      "detail": "Report preserves the provided metric values"
+    }
+  ]
+}

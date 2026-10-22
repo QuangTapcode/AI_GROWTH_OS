@@ -1,4 +1,4 @@
-import pool, { query } from "@/lib/db";
+import pool, { query, withTransaction } from "../../lib/db";
 import { CreateWorkflowTaskInput, UpdateTaskStatusInput, CreateArtifactInput } from "./schemas";
 
 export interface WorkflowTaskRow {
@@ -103,7 +103,7 @@ export async function listTasks(
            COALESCE(
              (SELECT json_agg(td.depends_on_task_id) 
               FROM task_dependencies td 
-              WHERE td.task_id = t.id), 
+              WHERE td.task_id = t.id AND td.workspace_id = t.workspace_id), 
              '[]'::json
            ) as dependencies
     FROM workflow_tasks t
@@ -140,7 +140,7 @@ export async function getTaskById(
            COALESCE(
              (SELECT json_agg(td.depends_on_task_id) 
               FROM task_dependencies td 
-              WHERE td.task_id = t.id), 
+              WHERE td.task_id = t.id AND td.workspace_id = t.workspace_id), 
              '[]'::json
            ) as dependencies
     FROM workflow_tasks t
@@ -179,6 +179,37 @@ export async function updateTaskStatus(
   ]);
 
   return res.rows[0] || null;
+}
+
+/**
+ * Đưa task failed về queued để worker chạy lại; xóa lỗi cũ, giữ retry_count làm lịch sử.
+ * Điều kiện status = 'failed' nằm trong WHERE nên hai request song song chỉ một bên thành công.
+ */
+export async function requeueFailedTask(
+  workspaceId: string,
+  taskId: string,
+  actorId: string
+): Promise<WorkflowTaskRow | null> {
+  return withTransaction(async (client) => {
+    const res = await client.query<WorkflowTaskRow>(
+      `UPDATE workflow_tasks
+       SET status = 'queued', error_details = NULL, started_at = NULL, completed_at = NULL, updated_at = NOW()
+       WHERE workspace_id = $1 AND id = $2 AND status = 'failed'
+       RETURNING *`,
+      [workspaceId, taskId]
+    );
+    const task = res.rows[0];
+    if (!task) return null;
+    await client.query(`UPDATE plan_task_outbox SET status='pending',attempts=0,lease_until=NULL,error_code=NULL
+      WHERE workspace_id=$1 AND task_id=$2 AND input_version=$3 AND status='failed'`,
+      [workspaceId, taskId, task.input_version]);
+    await client.query(
+      `INSERT INTO audit_events (workspace_id, actor_id, action, entity_type, entity_id, entity_version, details)
+       VALUES ($1, $2, 'task.retry_requested', 'workflow_task', $3, $4, $5)`,
+      [workspaceId, actorId, taskId, task.input_version, JSON.stringify({ retry_count: task.retry_count })]
+    );
+    return task;
+  });
 }
 
 export async function createArtifact(

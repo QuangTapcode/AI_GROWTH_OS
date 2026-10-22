@@ -1,4 +1,6 @@
-import { query } from "@/lib/db";
+import type { PoolClient } from "pg";
+import { query, withTransaction } from "../../lib/db";
+import { AppError } from "../../lib/errors";
 import { CreateApprovalInput, ReviewApprovalInput } from "./schemas";
 
 export interface ApprovalRow {
@@ -82,13 +84,20 @@ export async function listApprovals(
 export async function getTargetInfo(
   workspaceId: string,
   targetType: string,
-  targetId: string
+  targetId: string,
+  client?: PoolClient,
+  forUpdate: boolean = false
 ): Promise<TargetMetadata | null> {
+  const runQuery = client
+    ? <T extends import("pg").QueryResultRow = any>(text: string, params?: any[]) => client.query<T>(text, params)
+    : query;
+  const lock = forUpdate ? " FOR UPDATE" : "";
+
   if (targetType === "content") {
-    const res = await query<{ id: string; version: number; content_hash: string; status: string }>(
+    const res = await runQuery<{ id: string; version: number; content_hash: string; status: string }>(
       `SELECT id, COALESCE(current_version, 1) as version, COALESCE(content_hash, '') as content_hash, status 
        FROM contents 
-       WHERE workspace_id = $1 AND id = $2`,
+       WHERE workspace_id = $1 AND id = $2${lock}`,
       [workspaceId, targetId]
     );
     if (res.rows.length === 0) return null;
@@ -101,10 +110,10 @@ export async function getTargetInfo(
   }
 
   if (targetType === "source") {
-    const res = await query<{ id: string; version: number; content_hash: string; status: string }>(
+    const res = await runQuery<{ id: string; version: number; content_hash: string; status: string }>(
       `SELECT id, version, COALESCE(content_hash, '') as content_hash, status 
        FROM sources 
-       WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL`,
+       WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL${lock}`,
       [workspaceId, targetId]
     );
     if (res.rows.length === 0) return null;
@@ -117,10 +126,10 @@ export async function getTargetInfo(
   }
 
   if (targetType === "artifact") {
-    const res = await query<{ id: string; version: number; content_hash: string }>(
+    const res = await runQuery<{ id: string; version: number; content_hash: string }>(
       `SELECT id, version, content_hash 
        FROM content_artifacts 
-       WHERE workspace_id = $1 AND id = $2`,
+       WHERE workspace_id = $1 AND id = $2${lock}`,
       [workspaceId, targetId]
     );
     if (res.rows.length === 0) return null;
@@ -132,7 +141,243 @@ export async function getTargetInfo(
     };
   }
 
+  if (targetType === "task") {
+    const res = await runQuery<{ id: string; version: number; status: string }>(
+      `SELECT id, input_version as version, status 
+       FROM workflow_tasks 
+       WHERE workspace_id = $1 AND id = $2${lock}`,
+      [workspaceId, targetId]
+    );
+    if (res.rows.length === 0) return null;
+    return {
+      id: res.rows[0].id,
+      version: Number(res.rows[0].version),
+      content_hash: "",
+      status: res.rows[0].status,
+    };
+  }
+
+  if (targetType === "campaign") {
+    const res = await runQuery<{ id: string }>(
+      `SELECT id 
+       FROM campaigns 
+       WHERE workspace_id = $1 AND id = $2${lock}`,
+      [workspaceId, targetId]
+    );
+    if (res.rows.length === 0) return null;
+    return {
+      id: res.rows[0].id,
+      version: 1,
+      content_hash: "",
+      status: "active",
+    };
+  }
+
   return null;
+}
+
+export async function executeApprovalReviewTransaction(
+  workspaceId: string,
+  approvalId: string,
+  input: ReviewApprovalInput,
+  actorId: string,
+  actorRole: string,
+  targetType?: string,
+  targetId?: string
+): Promise<ApprovalRow> {
+  return withTransaction(async (client) => {
+    // 1. SELECT ... FOR UPDATE trên bản ghi approval để tuần tự hóa các yêu cầu phê duyệt đồng thời (chống TOCTOU race condition)
+    const approvalRes = await client.query<ApprovalRow>(
+      `SELECT * FROM approvals WHERE workspace_id = $1 AND id = $2 FOR UPDATE`,
+      [workspaceId, approvalId]
+    );
+    const approval = approvalRes.rows[0];
+    if (!approval) {
+      throw new AppError(404, "NOT_FOUND", "Approval record not found");
+    }
+
+    // 2. Chặn xung đột: Kiểm tra trạng thái pending ngay bên trong transaction
+    if (approval.status !== "pending") {
+      throw new AppError(
+        409,
+        "APPROVAL_ALREADY_REVIEWED",
+        `Approval record has already been reviewed (current status: ${approval.status}). Concurrent reviews are not allowed.`
+      );
+    }
+
+    const effectiveTargetType = targetType || approval.target_type;
+    const effectiveTargetId = targetId || approval.target_id;
+
+    // 3. Khóa và kiểm tra đối tượng đích trong cùng transaction (FOR UPDATE)
+    const target = await getTargetInfo(workspaceId, effectiveTargetType, effectiveTargetId, client, true);
+    if (!target) {
+      throw new AppError(404, "NOT_FOUND", `Approval target '${effectiveTargetType}:${effectiveTargetId}' not found`);
+    }
+
+    // 4. Atomic Optimistic Concurrency Control: So khớp expected_version và expected_hash
+    if (target.version !== input.expected_version) {
+      throw new AppError(
+        409,
+        "VERSION_CONFLICT",
+        `Stale version conflict. Target current version is ${target.version}, but expected ${input.expected_version}. Please reload.`
+      );
+    }
+
+    if (target.content_hash && target.content_hash !== input.expected_hash) {
+      throw new AppError(
+        409,
+        "CONTENT_HASH_MISMATCH",
+        `Content hash mismatch. Target content was modified after review request was generated. Please reload.`
+      );
+    }
+
+    // 5. Cập nhật bản ghi approval với điều kiện atomic: status = 'pending'
+    const nextStatus = input.decision === "approve" ? "approved" : input.decision === "reject" ? "rejected" : "revoked";
+
+    const sql = `
+      UPDATE approvals
+      SET status = $1,
+          decision = $2,
+          actor_id = $3,
+          actor_role = $4,
+          review_note = COALESCE($5, review_note),
+          updated_at = NOW()
+      WHERE workspace_id = $6 AND id = $7 AND status = 'pending'
+      RETURNING *
+    `;
+    const updatedApprovalRes = await client.query<ApprovalRow>(sql, [
+      nextStatus,
+      input.decision,
+      actorId,
+      actorRole,
+      input.review_note || null,
+      workspaceId,
+      approvalId,
+    ]);
+
+    if (updatedApprovalRes.rowCount === 0) {
+      throw new AppError(
+        409,
+        "APPROVAL_ALREADY_REVIEWED",
+        `Approval record was modified concurrently. Concurrent reviews are not allowed.`
+      );
+    }
+
+    // 6. Cập nhật đối tượng đích với điều kiện version nguyên tử
+    if (effectiveTargetType === "content") {
+      if (input.decision === "approve") {
+        const updateContent = await client.query(
+          `UPDATE contents 
+           SET status = 'approved', approved_by = $1, published_at = NOW() 
+           WHERE workspace_id = $2 AND id = $3 AND COALESCE(current_version, 1) = $4`,
+          [actorId, workspaceId, effectiveTargetId, input.expected_version]
+        );
+        if (updateContent.rowCount === 0) {
+          throw new AppError(409, "VERSION_CONFLICT", "Target content version was modified concurrently");
+        }
+      } else {
+        const updateContent = await client.query(
+          `UPDATE contents 
+           SET status = 'draft', approved_by = NULL, published_at = NULL 
+           WHERE workspace_id = $1 AND id = $2 AND COALESCE(current_version, 1) = $3`,
+          [workspaceId, effectiveTargetId, input.expected_version]
+        );
+        if (updateContent.rowCount === 0) {
+          throw new AppError(409, "VERSION_CONFLICT", "Target content version was modified concurrently");
+        }
+      }
+    } else if (effectiveTargetType === "source") {
+      const sourceStatus = input.decision === "approve" ? "approved" : input.decision === "reject" ? "rejected" : "revoked";
+      const updateSource = await client.query(
+        `UPDATE sources 
+         SET status = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW() 
+         WHERE workspace_id = $3 AND id = $4 AND version = $5`,
+        [sourceStatus, actorId, workspaceId, effectiveTargetId, input.expected_version]
+      );
+      if (updateSource.rowCount === 0) {
+        throw new AppError(409, "VERSION_CONFLICT", "Target source version was modified concurrently");
+      }
+    } else if (effectiveTargetType === "task") {
+      const taskStatus = input.decision === "approve" ? "queued" : "cancelled";
+      const updateTask = await client.query(
+        `UPDATE workflow_tasks 
+         SET status = $1, updated_at = NOW() 
+         WHERE workspace_id = $2 AND id = $3 AND input_version = $4`,
+        [taskStatus, workspaceId, effectiveTargetId, input.expected_version]
+      );
+      if (updateTask.rowCount === 0) {
+        throw new AppError(409, "VERSION_CONFLICT", "Target task version was modified concurrently");
+      }
+    } else if (effectiveTargetType === "artifact" && input.decision === "approve") {
+      // AI workers persist the artifact first and expose it through the
+      // approval ledger. Approving that artifact must also close the linked
+      // workflow task and open any dependency-ready children; otherwise the
+      // review UI says approved while the pipeline remains stuck forever.
+      const linked = (await client.query<{ id: string }>(
+        `SELECT id
+           FROM workflow_tasks
+          WHERE workspace_id = $1 AND result_ref = $2 AND status = 'awaiting_approval'
+          FOR UPDATE`,
+        [workspaceId, effectiveTargetId],
+      )).rows[0];
+      if (linked) {
+        await client.query(
+          `UPDATE workflow_tasks
+              SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+            WHERE workspace_id = $1 AND id = $2 AND status = 'awaiting_approval'`,
+          [workspaceId, linked.id],
+        );
+        const children = (await client.query<{ id: string; input_version: number; operation: string }>(
+          `SELECT child.id, child.input_version, child.operation
+             FROM workflow_tasks child
+            WHERE child.workspace_id = $1
+              AND child.status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM task_dependencies edge
+                 WHERE edge.workspace_id = $1
+                   AND edge.task_id = child.id
+                   AND edge.depends_on_task_id = $2
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                  FROM task_dependencies edge
+                  JOIN workflow_tasks parent ON parent.id = edge.depends_on_task_id
+                 WHERE edge.workspace_id = $1
+                   AND edge.task_id = child.id
+                   AND parent.status <> 'completed'
+              )
+            FOR UPDATE`,
+          [workspaceId, linked.id],
+        )).rows;
+        for (const child of children) {
+          await client.query(
+            `UPDATE workflow_tasks SET status = 'queued', updated_at = NOW()
+              WHERE workspace_id = $1 AND id = $2 AND status = 'pending'`,
+            [workspaceId, child.id],
+          );
+          await client.query(
+            `INSERT INTO plan_task_outbox(workspace_id, task_id, input_version, operation)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (task_id, input_version) DO NOTHING`,
+            [workspaceId, child.id, child.input_version, child.operation],
+          );
+        }
+      }
+    }
+
+    // 7. Cascade Invalidation nguyên tử trong transaction: Nếu thu hồi nguồn (source revoke)
+    if (input.decision === "revoke" && effectiveTargetType === "source") {
+      await invalidateApprovalsForTarget(
+        workspaceId,
+        "source",
+        effectiveTargetId,
+        "SOURCE_REVOKED",
+        client
+      );
+    }
+
+    return updatedApprovalRes.rows[0];
+  });
 }
 
 export async function applyApprovalReview(
@@ -202,13 +447,24 @@ export async function updateTargetApprovalStatus(
       [sourceStatus, actorId, workspaceId, targetId]
     );
   }
+
+  if (targetType === "task") {
+    const taskStatus = decision === "approve" ? "queued" : "cancelled";
+    await query(
+      `UPDATE workflow_tasks 
+       SET status = $1, updated_at = NOW() 
+       WHERE workspace_id = $2 AND id = $3`,
+      [taskStatus, workspaceId, targetId]
+    );
+  }
 }
 
 export async function invalidateApprovalsForTarget(
   workspaceId: string,
   targetType: string,
   targetId: string,
-  reason: string = "STALE_VERSION"
+  reason: string = "STALE_VERSION",
+  client?: PoolClient
 ): Promise<number> {
   const sql = `
     UPDATE approvals
@@ -216,8 +472,12 @@ export async function invalidateApprovalsForTarget(
         invalidated_reason = $1,
         invalidated_at = NOW(),
         updated_at = NOW()
-    WHERE workspace_id = $2 AND target_type = $3 AND target_id = $4 AND status = 'approved'
+    WHERE workspace_id = $2 AND target_type = $3 AND target_id = $4 AND status IN ('approved', 'pending')
   `;
+  if (client) {
+    const res = await client.query(sql, [reason, workspaceId, targetType, targetId]);
+    return res.rowCount || 0;
+  }
   const res = await query(sql, [reason, workspaceId, targetType, targetId]);
   return res.rowCount || 0;
 }

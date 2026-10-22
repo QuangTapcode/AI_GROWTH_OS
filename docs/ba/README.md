@@ -2,6 +2,14 @@
 
 Owner: BA; PO duyệt scope/AC. Vùng sửa: `docs/ba/**`; quản tài liệu nguồn ở `docs/sources/`. Đọc [SCOPE](SCOPE.md) và task W1–W4-BA trong [TODO](../../TODO.md).
 
+Tài liệu từ nhánh `duong`, tích hợp 16/10/2026 theo [sprint 7 người / 3 tuần](../coordination/sprint-3-weeks/README.md):
+
+- [DU-01: Acceptance criteria TripC](acceptance/DU-01_TripC_Acceptance_Criteria.md).
+- [DU-02: Field dictionary](data-dictionary/DU-02_Field_Dictionary_Core.md).
+- [DU-03: Chuẩn bị nguồn và checklist demo](tasks/DU-03_Source_Preparation_and_Demo_Checklist.md).
+
+Các mô tả lịch 4 tuần bên dưới là baseline cũ. Việc merge tài liệu không thay reviewer acceptance hoặc xác minh nguồn/ảnh trong hệ thống.
+
 BA làm độc lập bằng Markdown, PRD/kế hoạch 4 tuần và prototype review; chuẩn bị theo lô trước 1–2 ngày, QA review AC trước code.
 
 - `stories/`: một feature một file `ST-Mxx-xxx.md`, mã M01–M16 mới; dùng [template](stories/TEMPLATE.md).

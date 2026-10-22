@@ -1,4 +1,4 @@
-> **Baseline 14/10/2026:** xem [cấu trúc 6 agent](../../docs/architecture/SIX-AGENT-RESTRUCTURE.md) và [TODO Quang Quang](../../docs/coordination/sprint-3-weeks/QUANG-QUANG.md). Registry sáu role đã có; Research dedicated và live HTTP artifact được triển khai trong QQ-01–03, các role Marketing còn lại tiếp tục theo backlog. Hướng dẫn shared RAG/runtime dưới đây tiếp tục dùng.
+> **17/10/2026 candidate:** all six roles and learning have dedicated schemas/handlers; PostgreSQL/outbox/owner-gated handoff verified with synthetic data and real HTTP/model. [Handoff, tests, remaining release gates](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-17-QQ-ALL-HANDOFF.md). Production acceptance requires independent reviewer signoff.
 
 # AI engineer — Agents, RAG và evaluation
 
@@ -49,6 +49,7 @@ The AI schema normalizes these DB names to its internal names (`source_id`, `chu
 | `knowledge.answer` | `question`, `snapshot` | English answer + evidence (source/version/chunk/locator/quote) + warnings; thiếu giá/địa chỉ/availability → `missing_fact_keys`. |
 | `growth_map.suggest` | profile, approved facts, goal context | audiences/topics/channels/KPIs/goal suggestions, `applied=false`, `target=null`. |
 | `research.run` | profile/goal, approved snapshot, inventory | Research brief có URL/fetched_at/quote/fit/missing facts; handoff Growth Lead, prompt research-v1. |
+| `opportunity.score`, `strategy.generate`, `brief.generate` | profile/goal, pinned snapshot, research brief/artifact, CTA | Campaign proposal + SEO/social briefs, dependencies và refs; missing facts → blocked; prompt growth-lead-v1. [QQ-04](src/agents/growth_lead/README.md). |
 | Các operation Marketing còn lại | `payload` tự do | Bootstrap generic; chưa phải dedicated pipeline. |
 
 **Run bền vững:** khóa `job_id + operation + input_version`; run lưu ở `AI_RUN_STORE_PATH` (mặc định `services/ai/var/runs.sqlite3`, đã git-ignore). Restart → run dở thành `failed/RUN_INTERRUPTED/retryable`, worker gửi lại đúng request để chạy tiếp. Tối đa 2 LLM calls/job (kể cả repair, không reset khi retry/restart), 2 attempts/run, deadline tính từ lần accept đầu. Chỉ chạy **một process** uvicorn (concurrency AI = 1). Nơi lưu run chính thức còn chờ Mỹ chốt (CR-001).
@@ -93,6 +94,6 @@ Baseline W1-PM-02: Ollama local đã smoke trên workstation, qwen3:4b-instruct 
 
 ## QQ-01–03: bàn giao trước review
 
-[CR-002](../../contracts/changes/CR-002-six-agent-pipelines.md) · [Handoff/evidence](../../docs/coordination/sprint-3-weeks/QQ01-03-HANDOFF.md). Registry: `GET /internal/v1/agents` (internal bearer auth). Mọi run mới persist artifact ID/hash/version trong AI store; snapshot-sourced Growth Map chỉ dùng facts verified. `research.run` yêu cầu payload typed; consumer cũ cần migrate.
+[CR-002](../../contracts/changes/CR-002-six-agent-pipelines.md) · [Handoff/evidence](../../docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-QQ01-03-HANDOFF.md). Registry: `GET /internal/v1/agents` (internal bearer auth). Mọi run mới persist artifact ID/hash/version trong AI store; snapshot-sourced Growth Map chỉ dùng facts verified. `research.run` yêu cầu payload typed; consumer cũ cần migrate.
 
 Live HTTP smoke độc lập: `python services/ai/scripts/smoke_qq01_03.py --mode live` từ repo root, dùng process/store/token riêng và TEST approval/profile, không ghi business DB.

@@ -83,7 +83,7 @@
 |embedding|Vector(768)|Có|Vector nhúng 768 chiều sử dụng tiện ích mở rộng pgvector (HNSW index) phục vụ tìm kiếm ngữ nghĩa.|
 |provenance\_tag|String|Có|Mã định danh nguồn gốc dùng để trích dẫn (provenance) vào nội dung nhằm chống ảo giác (hallucination).|
 
-### 
+###
 
 ### 4\. NHÓM CHIẾN LƯỢC \& CƠ HỘI TĂNG TRƯỞNG (GOALS \& OPPORTUNITIES)
 
@@ -99,7 +99,7 @@
 |timeframe\_days|Integer|Có|Khoảng thời gian thực hiện (ví dụ: 90 ngày hoặc 30 ngày).|
 |primary\_conversion|String|Có|Hành vi chuyển đổi cốt lõi (ví dụ: Signup / Lead form).|
 
-###### 
+######
 
 ###### 4.2. Bảng growth\_opportunities (Cơ hội tăng trưởng do Opportunity Engine phát hiện)
 
@@ -156,7 +156,7 @@
 |scheduled\_at|Timestamp|Có|Thời gian dự kiến xuất bản (chuẩn UTC / Asia/Ho\_Chi\_Minh).|
 |job\_status|Enum|Có|Trạng thái job: Pending\_Approval, Approved, Scheduled, Publishing, Published, Failed.|
 
-###### 
+######
 
 ### 6\. NHÓM TIẾP NHẬN KHÁCH HÀNG QUAN TÂM \& KẾT NỐI (LEAD INTAKE \& CONNECTORS)
 
@@ -245,6 +245,3 @@
 |action\_desc|Text|Có|Mô tả chi tiết hành động (ví dụ: Duyệt bài viết, thay đổi offer, kích hoạt Kill-switch).|
 |ip\_address|String|Không|Địa chỉ IP thực hiện.|
 |created\_at|Timestamp|Có|Thời điểm ghi nhận log (chính xác theo UTC).|
-
-
-

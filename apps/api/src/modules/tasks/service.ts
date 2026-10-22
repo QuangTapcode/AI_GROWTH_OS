@@ -1,6 +1,6 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
+import { AppError } from "../../lib/errors";
+import { AuthUser } from "../../lib/auth";
+import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import {
   createWorkflowTaskSchema,
   updateTaskStatusSchema,
@@ -10,6 +10,7 @@ import {
   CreateArtifactInput,
 } from "./schemas";
 import * as repo from "./repository";
+import { getCampaignById } from "../campaigns/repository";
 
 export async function createWorkspaceTask(
   user: AuthUser,
@@ -32,6 +33,18 @@ export async function createWorkspaceTask(
   }
 
   const input: CreateWorkflowTaskInput = parseResult.data;
+
+  // Xác thực campaign nếu có: Phải tồn tại và thuộc đúng workspace này (chống Cross-Tenant Campaign Injection)
+  if (input.campaign_id) {
+    const campaign = await getCampaignById(workspaceId, input.campaign_id);
+    if (!campaign) {
+      throw new AppError(
+        422,
+        "INVALID_CAMPAIGN_REF",
+        `Referenced campaign '${input.campaign_id}' does not exist in this workspace`
+      );
+    }
+  }
 
   // Xác thực các task dependency: Nếu có dependency, chúng phải tồn tại và thuộc cùng workspace này
   if (input.dependencies && input.dependencies.length > 0) {
@@ -100,8 +113,45 @@ export async function updateWorkspaceTaskStatus(
     throw new AppError(404, "NOT_FOUND", "Workflow task not found");
   }
 
+  // Chặn đứng việc đảo ngược trạng thái nếu task đã rơi vào terminal status ('completed', 'cancelled')
+  const TERMINAL_STATUSES = ["completed", "cancelled"];
+  if (
+    TERMINAL_STATUSES.includes(existingTask.status) &&
+    parseResult.data.status !== existingTask.status
+  ) {
+    throw new AppError(
+      409,
+      "INVALID_STATE_TRANSITION",
+      `Cannot transition task from terminal status '${existingTask.status}' to '${parseResult.data.status}'`
+    );
+  }
+
+  // Xác thực result_ref nếu có: Phải tồn tại và thuộc cùng workspace này (chống Cross-Tenant Reference / IDOR)
+  if (parseResult.data.result_ref) {
+    const linkedArtifact = await repo.getArtifactById(workspaceId, parseResult.data.result_ref);
+    if (!linkedArtifact) {
+      throw new AppError(
+        422,
+        "INVALID_RESULT_REF",
+        `Referenced result artifact '${parseResult.data.result_ref}' does not exist in this workspace`
+      );
+    }
+  }
+
   const updatedTask = await repo.updateTaskStatus(workspaceId, taskId, parseResult.data);
   return updatedTask;
+}
+
+export async function retryWorkspaceTask(user: AuthUser, workspaceId: string, taskId: string) {
+  const tenantCtx = await resolveTenantContext(user, workspaceId);
+  requireRole(tenantCtx, ["owner", "editor"]);
+
+  const task = await repo.requeueFailedTask(workspaceId, taskId, user.id);
+  if (task) return task;
+
+  const existing = await repo.getTaskById(workspaceId, taskId);
+  if (!existing) throw new AppError(404, "NOT_FOUND", "Workflow task not found");
+  throw new AppError(409, "INVALID_STATE_TRANSITION", `Only failed tasks can be retried (current status: ${existing.status})`);
 }
 
 export async function createWorkspaceArtifact(

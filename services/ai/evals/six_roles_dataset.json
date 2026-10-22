@@ -1,0 +1,161 @@
+{
+  "version": "qq-six-roles-2026-10-17-v1",
+  "synthetic": true,
+  "rubric": {
+    "pass": "All declared contract/guardrail cases pass; citations/hash/version/approval and limits preserved.",
+    "semantic_review": "Independent QA and BA must review editorial usefulness and audience/offer fit.",
+    "release": "Real approved business sources/assets and independent signoff required for production."
+  },
+  "cases": [
+    {
+      "id": "SIX-01",
+      "scenario": "research",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-02",
+      "scenario": "plan",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-03",
+      "scenario": "seo",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-04",
+      "scenario": "content",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-05",
+      "scenario": "community",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-06",
+      "scenario": "performance",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-07",
+      "scenario": "learning",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-08",
+      "scenario": "tenant:research",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-09",
+      "scenario": "tenant:plan",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-10",
+      "scenario": "tenant:seo",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-11",
+      "scenario": "tenant:content",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-12",
+      "scenario": "tenant:community",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-13",
+      "scenario": "tenant:performance",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-14",
+      "scenario": "tenant:learning",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-15",
+      "scenario": "approval:research",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-16",
+      "scenario": "approval:plan",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-17",
+      "scenario": "approval:seo",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-18",
+      "scenario": "approval:content",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-19",
+      "scenario": "approval:community",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-20",
+      "scenario": "approval:performance",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-21",
+      "scenario": "approval:learning",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-22",
+      "scenario": "tampered_seo_parent",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-23",
+      "scenario": "tampered_content_parent",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-24",
+      "scenario": "foreign_asset",
+      "expectation": "422 scope/approval/hash rejection"
+    },
+    {
+      "id": "SIX-25",
+      "scenario": "missing_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-26",
+      "scenario": "zero_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-27",
+      "scenario": "missing_learning_metrics",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-28",
+      "scenario": "learning_quota",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-29",
+      "scenario": "learning_max",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    },
+    {
+      "id": "SIX-30",
+      "scenario": "community_price",
+      "expectation": "Dedicated output, grounded provenance, draft only or explicit insufficient_data/limit"
+    }
+  ]
+}

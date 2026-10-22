@@ -1,35 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { DbWorkflowStore } from '../src/workflow/DbWorkflowStore';
 import { WorkflowRunner } from '../src/workflow/WorkflowRunner';
+import { Pool } from 'pg';
 
 /**
  * Test tích hợp DbWorkflowStore (MY-03 hoàn thiện) trên Postgres thật.
- * - Chạy khi có DATABASE_URL (mặc định infra local:
- *   postgres://postgres:postgres@localhost:15432/ai_growth_os).
- * - Không có DB → skip, không fail CI local.
+ * - Chạy khi có DATABASE_URL trỏ tới database test đã migrate.
+ * - Không có cấu hình → explicit skip; cấu hình sai phải fail.
  */
-const DATABASE_URL =
-  process.env.DATABASE_URL ??
-  'postgres://postgres:postgres@localhost:15432/ai_growth_os';
-
-async function canConnect(): Promise<boolean> {
-  try {
-    const probe = new DbWorkflowStore(DATABASE_URL);
-    await probe.getWorkflow('__probe__');
-    await probe.destroy();
-    return true;
-  } catch {
-    return false;
-  }
-}
+const DATABASE_URL = process.env.DATABASE_URL;
 
 describe('DbWorkflowStore — Postgres (MY-03)', () => {
-  it('roundtrip workflow/task/dedup event trên DB thật', async () => {
-    if (!(await canConnect())) {
-      console.warn('SKIP dbWorkflow.test: no Postgres at ' + DATABASE_URL);
-      return;
-    }
-    const store = new DbWorkflowStore(DATABASE_URL);
+  it.skipIf(!DATABASE_URL)('roundtrip workflow/task/dedup event trên DB thật', async () => {
+    const store = new DbWorkflowStore(DATABASE_URL!);
     try {
       const runner = new WorkflowRunner({
         store,
@@ -52,6 +35,15 @@ describe('DbWorkflowStore — Postgres (MY-03)', () => {
         ],
       });
       expect(wf.id).toBe(wfId);
+      expect((await store.getWorkflow(wfId))?.workspace_id).toBe('ws-db-test');
+      const probe = new Pool({ connectionString: DATABASE_URL });
+      try {
+        const rows = await probe.query(
+          `SELECT workspace_id FROM workflow_tasks WHERE payload->>'workflow_id' = $1`, [wfId],
+        );
+        expect(rows.rows).toHaveLength(3);
+        expect(new Set(rows.rows.map(row => row.workspace_id)).size).toBe(1);
+      } finally { await probe.end(); }
 
       const first = await runner.dispatch(wfId);
       expect(first.waiting.length).toBe(1);

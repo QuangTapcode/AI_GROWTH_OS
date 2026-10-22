@@ -23,6 +23,7 @@ export {
 } from './eventSchema';
 export {
   getConnectionStatus,
+  getWorkspaceConnectionStatus,
   probeOwnership,
   syncMetrics,
   runSync,
@@ -35,3 +36,14 @@ export {
   type ChannelMode,
   type ChannelDecision,
 } from './stubs';
+export {
+  authorizeToolExecution,
+  globalToolAuditSink,
+  MemoryToolAuditSink,
+  type ActionType,
+  type AgentRole,
+  type ToolExecutionRequest,
+  type ToolAuditLog,
+  type ToolAuditSink,
+  type AuthorizeResult,
+} from './gateway';

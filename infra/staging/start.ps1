@@ -39,6 +39,15 @@ foreach ($service in $services) {
     }
 }
 
+# Keep the API and the live worker on the same internal scheduler token. Next
+# reads .env.local itself, but an explicit process env value makes the token
+# inherited by every staging service deterministic across restarts.
+$apiEnvPath = Join-Path $repoRoot 'apps/api/.env.local'
+$automationTokenLine = Get-Content -LiteralPath $apiEnvPath | Where-Object { $_ -match '^AUTOMATION_INTERNAL_TOKEN=' } | Select-Object -First 1
+if ($automationTokenLine) {
+    $env:AUTOMATION_INTERNAL_TOKEN = $automationTokenLine.Substring('AUTOMATION_INTERNAL_TOKEN='.Length).Trim()
+}
+
 New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
 try {
     foreach ($service in $services) {

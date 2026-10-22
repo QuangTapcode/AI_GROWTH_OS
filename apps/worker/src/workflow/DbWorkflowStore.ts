@@ -149,7 +149,7 @@ export class DbWorkflowStore implements WorkflowStore {
         WORKFLOW_MARKER_ROLE,
         WORKFLOW_MARKER_OPERATION,
         'pending',
-        JSON.stringify({ kind: 'workflow', workflow_id: wf.id, state: wf.state }),
+        JSON.stringify({ kind: 'workflow', workflow_id: wf.id, workspace_id: wf.workspace_id, state: wf.state }),
       ],
     );
   }
@@ -198,8 +198,9 @@ export class DbWorkflowStore implements WorkflowStore {
 
   async insertTask(task: WorkflowTask): Promise<void> {
     const id = toDbUuid(task.id);
-    const ws = toDbUuid(task.workflow_id);
-    await ensureWorkspace(this.pool, ws);
+    const workflow = await this.getWorkflow(task.workflow_id);
+    if (!workflow) throw new Error('WORKFLOW_NOT_FOUND');
+    const ws = toDbUuid(workflow.workspace_id);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');

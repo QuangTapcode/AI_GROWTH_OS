@@ -2,7 +2,7 @@
 
 Owner: Quang Quang. Task: QQ-05 trong [TODO cá nhân](../../../../../docs/coordination/sprint-3-weeks/QUANG-QUANG.md). Reviewer chất lượng: Thiệu; business rules: Dương; HTTP boundary: Mỹ/Thiệu Quang.
 
-**Trạng thái:** khu vực triển khai đã tạo; các operation `seo.audit, seo.local_draft, content.refresh` hiện vẫn dùng bootstrap handler. Không dùng thư mục/registry này làm bằng chứng pipeline đã hoàn thành.
+**Trạng thái:** dedicated pipeline/schema/prompt cho `seo.audit`, `seo.local_draft`, `content.refresh` đã được đăng ký. Approval/version/hash gate ở BE vẫn là điều kiện để publish.
 
 - Input: SEO brief + approved facts + inventory.
 - Output/handoff: blog/FAQ, title/meta, citations, checklist và version → Content và human approval.

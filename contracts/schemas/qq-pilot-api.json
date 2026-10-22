@@ -1,0 +1,553 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "QQ pilot integration candidate",
+    "version": "1.2.0-candidate.20261017",
+    "description": "Additive candidate to frozen public OpenAPI 1.1.0; independent API/worker/BA review pending. HTTP response envelopes reuse existing API conventions."
+  },
+  "paths": {
+    "/v1/workspaces/{workspace_id}/knowledge-contexts": {
+      "post": {
+        "summary": "Issue immutable current DB context (owner/editor)",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; see actual typed service response"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Inactive/insufficient workspace role"
+          },
+          "409": {
+            "description": "Version/hash/idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid input, stale context/source, missing data or synthetic gate"
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/ai-tasks": {
+      "post": {
+        "summary": "Enqueue scoped draft; replay 200, changed payload 409 (owner/editor)",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Success; see actual typed service response"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Inactive/insufficient workspace role"
+          },
+          "409": {
+            "description": "Version/hash/idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid input, stale context/source, missing data or synthetic gate"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "task_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "context_snapshot_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "synthetic": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "input": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "const": "research.run"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "const": "strategy.generate"
+                          },
+                          "research_artifact_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "cta": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "deadline": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "score_factors": {
+                            "type": "object",
+                            "properties": {
+                              "demand": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 5
+                              },
+                              "business_relevance": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 5
+                              },
+                              "growth_potential": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 5
+                              },
+                              "content_gap": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 5
+                              },
+                              "freshness": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 5
+                              },
+                              "conversion_potential": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 5
+                              }
+                            },
+                            "required": [
+                              "demand",
+                              "business_relevance",
+                              "growth_potential",
+                              "content_gap",
+                              "freshness",
+                              "conversion_potential"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "research_artifact_id",
+                          "cta",
+                          "deadline"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "const": "community.response"
+                          },
+                          "question": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 1000
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "question"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "const": "analytics.report"
+                          },
+                          "metrics_artifact_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "const": "learning.analyze"
+                          },
+                          "performance_artifact_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "lead_summary_artifact_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "iteration": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3,
+                            "default": 0
+                          },
+                          "max_iterations": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 3,
+                            "default": 3
+                          },
+                          "task_quota": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "default": 1
+                          }
+                        },
+                        "required": [
+                          "operation"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "context_snapshot_id",
+                  "input"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/campaign-plans": {
+      "post": {
+        "summary": "Validate persisted plan and atomically create campaign/DAG/outbox; replay 200; synthetic blocked",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success; see actual typed service response"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Inactive/insufficient workspace role"
+          },
+          "409": {
+            "description": "Version/hash/idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid input, stale context/source, missing data or synthetic gate"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "artifact_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "content_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "context_snapshot_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "research",
+                      "growth_lead"
+                    ]
+                  },
+                  "storage": {
+                    "const": "ai_run_store"
+                  }
+                },
+                "required": [
+                  "artifact_id",
+                  "workspace_id",
+                  "version",
+                  "content_hash",
+                  "context_snapshot_id",
+                  "role",
+                  "storage"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/tasks/{task_id}/approve": {
+      "post": {
+        "summary": "Owner pins output and opens internal dependencies, no publish",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; see actual typed service response"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Inactive/insufficient workspace role"
+          },
+          "409": {
+            "description": "Version/hash/idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid input, stale context/source, missing data or synthetic gate"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "expected_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "expected_version",
+                  "expected_hash"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/learning-tasks": {
+      "post": {
+        "summary": "Owner approves learning artifact and enqueues bounded next tasks; synthetic blocked",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success; see actual typed service response"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Inactive/insufficient workspace role"
+          },
+          "409": {
+            "description": "Version/hash/idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid input, stale context/source, missing data or synthetic gate"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "artifact_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "content_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "context_snapshot_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "research",
+                      "growth_lead"
+                    ]
+                  },
+                  "storage": {
+                    "const": "ai_run_store"
+                  }
+                },
+                "required": [
+                  "artifact_id",
+                  "workspace_id",
+                  "version",
+                  "content_hash",
+                  "context_snapshot_id",
+                  "role",
+                  "storage"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

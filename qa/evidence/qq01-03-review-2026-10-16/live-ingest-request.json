@@ -1,0 +1,30 @@
+{
+  "job_id": "ec99f74e-d40e-4ca2-ac11-6cb6b1b16ced",
+  "workspace_id": "ab360f92-bf3d-49c8-839d-ed1c72f5f057",
+  "operation": "knowledge.ingest",
+  "input_version": 1,
+  "trace_id": "qq-review-knowledge.ingest",
+  "synthetic": true,
+  "context_snapshot_id": null,
+  "approved_source_versions": [],
+  "payload": {
+    "source": {
+      "source_id": "1bab6446-7a30-41a8-aa77-bf3a2b9be965",
+      "version": 1,
+      "workspace_id": "ab360f92-bf3d-49c8-839d-ed1c72f5f057",
+      "kind": "text",
+      "title": "Da Nang | Vietnam Tourism",
+      "text": "With broad beaches, fantastic street food, the fabled Hai Van Pass, and a growing collection of cafes, restaurants, and bars, it’s no wonder the residents of Da Nang sport some of the broadest smiles in the country. The warm sands of My Khe Beach sweep south …",
+      "provenance": {
+        "license": "Evidence-only excerpt; publication rights not verified",
+        "attribution": "Vietnam Tourism, public page",
+        "source_url": "https://vietnam.travel/places-to-go/south-central-coast-central-highlands/da-nang",
+        "retrieved_at": "2026-10-16T05:23:45.324059+00:00"
+      }
+    }
+  },
+  "constraints": {
+    "timeout_seconds": 600,
+    "max_provider_calls": 2
+  }
+}

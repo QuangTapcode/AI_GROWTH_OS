@@ -1,8 +1,9 @@
 """Six marketing roles and their existing operation codes.
 
-This is routing metadata, not a tool permission enforcement layer. Research has
-a dedicated handler; remaining marketing operations use bootstrap handlers.
-Knowledge ingest/answer and growth_map.suggest remain shared existing services.
+This is routing metadata, not a tool permission enforcement layer. The role
+handlers are registered in ``app.operations``; backend/executor code still
+enforces tools, tenant scope and human approval. Knowledge ingest/answer and
+growth_map.suggest remain shared services.
 """
 from __future__ import annotations
 

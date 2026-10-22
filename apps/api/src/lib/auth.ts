@@ -1,10 +1,13 @@
 import { NextRequest } from "next/server";
 import { AppError } from "./errors";
+import { looksLikeSessionToken, verifySessionToken } from "./session-token";
 
 export interface AuthUser {
   id: string; // UUID của user
   email: string;
   name: string;
+  /** auth_sessions.id khi đăng nhập bằng mật khẩu; không có với dev token */
+  sessionId?: string;
 }
 
 export type AuthenticatedUser = AuthUser;
@@ -13,6 +16,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 /**
  * Trích xuất Bearer token từ Header và giải mã thông tin User.
+ * Mọi môi trường: access token đã ký do POST /v1/auth/login cấp (lib/session-token).
  * Trong môi trường Local Dev / Pilot:
  * Hỗ trợ dev token định dạng: "dev_user_<uuid>_<role>"
  * hoặc các token dev tiện ích: "dev_owner", "dev_editor", "dev_viewer", hoặc UUID trực tiếp.
@@ -28,6 +32,44 @@ export function authenticateUser(req: NextRequest): AuthUser {
 
   if (!token) {
     throw new AppError(401, "UNAUTHORIZED", "Empty authentication token");
+  }
+
+  if (looksLikeSessionToken(token)) {
+    const claims = verifySessionToken(token);
+    const user: AuthUser = { id: claims.sub, email: claims.email, name: claims.name };
+    if (claims.sid) user.sessionId = claims.sid;
+    return user;
+  }
+
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // CHẶN ĐỨNG DEV TOKENS TRÊN PRODUCTION:
+  if (isProduction && process.env.ALLOW_INSECURE_DEV_AUTH !== "true") {
+    if (
+      token.startsWith("dev_user_") ||
+      token === "owner" ||
+      token === "dev_owner" ||
+      token === "editor" ||
+      token === "dev_editor" ||
+      token === "viewer" ||
+      token === "dev_viewer"
+    ) {
+      throw new AppError(
+        401,
+        "UNAUTHORIZED",
+        "Dev tokens are strictly forbidden in production environment"
+      );
+    }
+
+    if (UUID_REGEX.test(token)) {
+      throw new AppError(
+        401,
+        "UNAUTHORIZED",
+        "Unsigned raw UUID tokens are forbidden in production. Signed JWT/OAuth token required"
+      );
+    }
+
+    throw new AppError(401, "UNAUTHORIZED", "Invalid production authentication token format");
   }
 
   // Token giả lập cho dev/testing định dạng: "dev_user_<uuid>_<role>" hoặc "dev_user_<uuid>"

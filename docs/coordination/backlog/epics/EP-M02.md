@@ -5,7 +5,7 @@
 - Contributors: Quang Quang, Thiệu Quang, Mỹ, Tiến, Huyền, Trường, Dương, Thiệu; vai trò: AI, BE, FE, UI/UX, BA, Tester 1, Tester 2. Thiệu làm cả hai lane; Quang Quang dùng chung thời gian AI/PM/PO.
 - Tuần: 1; ngày bắt đầu: 2; hạn mục tiêu: ngày 5 tính từ kickoff, chưa là ngày lịch.
 - Milestones: Ingestion/source review/RAG tích hợp trước demo ngày 5.
-- Effort: S/M/L theo [W1-PM-02](../../W1-PM-02.md); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.
+- Effort: S/M/L theo W1-PM-02 (tài liệu cũ đã xóa); không yêu cầu timesheet. Story estimate/technical checks bổ sung khi triển khai, epic vẫn planned.
 - Tasks liên quan: W1-BA-03, W1-FE-02, W1-BE-02, W1-AI-02, W1-QA2-02; chi tiết trong [TODO](../../../../TODO.md).
 
 ## Phụ thuộc và ranh giới

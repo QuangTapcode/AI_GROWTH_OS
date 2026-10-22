@@ -1362,6 +1362,6 @@
     "pilot_decisions":  "../PILOT.md",
     "source_plan":  "../SOURCES.md",
     "implementation_status":  "not_started",
-    "planning_decisions": "../W1-PM-02.md",
-    "operations_plan": "../W1-PM-03.md"
+    "planning_decisions": "../sprint-3-weeks/README.md",
+    "operations_plan": "../RISKS.md"
 }

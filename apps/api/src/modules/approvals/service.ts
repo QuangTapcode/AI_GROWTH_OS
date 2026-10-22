@@ -1,6 +1,6 @@
-import { AppError } from "@/lib/errors";
-import { AuthUser } from "@/lib/auth";
-import { resolveTenantContext, requireRole } from "@/lib/tenant";
+import { AppError } from "../../lib/errors";
+import { AuthUser } from "../../lib/auth";
+import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import {
   reviewApprovalSchema,
   createApprovalSchema,
@@ -33,52 +33,15 @@ export async function reviewWorkspaceApproval(
 
   const input: ReviewApprovalInput = parseResult.data;
 
-  // 3. Lấy bản ghi approval
-  const approval = await repo.getApprovalById(workspaceId, approvalId);
-  if (!approval) {
-    throw new AppError(404, "NOT_FOUND", "Approval record not found");
-  }
-
-  // 4. Lấy thông tin đối tượng đích (content, source, artifact)
-  const target = await repo.getTargetInfo(workspaceId, approval.target_type, approval.target_id);
-  if (!target) {
-    throw new AppError(404, "NOT_FOUND", `Approval target '${approval.target_type}:${approval.target_id}' not found`);
-  }
-
-  // 5. OPTIMISTIC CONCURRENCY CONTROL: So khớp phiên bản
-  if (target.version !== input.expected_version) {
-    throw new AppError(
-      409,
-      "VERSION_CONFLICT",
-      `Stale version conflict. Target current version is ${target.version}, but expected ${input.expected_version}. Please reload.`
-    );
-  }
-
-  // 6. OPTIMISTIC CONCURRENCY CONTROL: So khớp mã băm SHA-256
-  if (target.content_hash && target.content_hash !== input.expected_hash) {
-    throw new AppError(
-      409,
-      "CONTENT_HASH_MISMATCH",
-      `Content hash mismatch. Target content was modified after review request was generated. Please reload.`
-    );
-  }
-
-  // 7. Áp dụng quyết định phê duyệt
-  const updatedApproval = await repo.applyApprovalReview(
+  // 3. Toàn bộ quá trình kiểm tra OCC (expected_version, expected_hash), khóa dòng (FOR UPDATE),
+  // cập nhật trạng thái phê duyệt, cập nhật đối tượng đích và thu hồi nguồn downstream
+  // đều được thực thi NGUYÊN TỬ bên trong 1 Database Transaction duy nhất chống TOCTOU race condition.
+  const updatedApproval = await repo.executeApprovalReviewTransaction(
     workspaceId,
     approvalId,
     input,
     user.id,
     tenantCtx.role
-  );
-
-  // 8. Cập nhật trạng thái của đối tượng đích
-  await repo.updateTargetApprovalStatus(
-    workspaceId,
-    approval.target_type,
-    approval.target_id,
-    input.decision,
-    user.id
   );
 
   return updatedApproval;
@@ -104,6 +67,17 @@ export async function createWorkspaceApproval(
   }
 
   const input: CreateApprovalInput = parseResult.data;
+
+  // Kiểm tra sự tồn tại của đối tượng đích trong workspace (chống approval ma / cross-tenant dangling)
+  const target = await repo.getTargetInfo(workspaceId, input.target_type, input.target_id);
+  if (!target) {
+    throw new AppError(
+      404,
+      "NOT_FOUND",
+      `Approval target '${input.target_type}:${input.target_id}' does not exist in this workspace`
+    );
+  }
+
   const approval = await repo.createApprovalRecord(workspaceId, input);
   return approval;
 }

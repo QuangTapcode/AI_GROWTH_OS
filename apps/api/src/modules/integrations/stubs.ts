@@ -1,5 +1,34 @@
 import type { IntegrationProvider, MissingReason, MetricAvailability } from './types';
 import { INTEGRATION_MATRIX, matrixFor } from './matrix';
+import { getConnection } from './repository';
+
+type FacebookProbe = { checkedAt: number; status: 'connected' | 'error'; name?: string };
+const facebookProbes = new Map<string, FacebookProbe>();
+
+async function probeFacebookFromEnv(workspaceId: string): Promise<FacebookProbe | null> {
+  if ((process.env.INTEGRATION_MODE ?? 'fake') !== 'production') return null;
+  const pageId = process.env.FACEBOOK_PAGE_ID?.trim();
+  const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN?.trim();
+  if (!pageId || !token) return null;
+  const cached = facebookProbes.get(workspaceId);
+  if (cached && Date.now() - cached.checkedAt < 60_000) return cached;
+  try {
+    const version = process.env.META_GRAPH_API_VERSION ?? 'v20.0';
+    const response = await fetch(`https://graph.facebook.com/${version}/${encodeURIComponent(pageId)}?fields=id,name&access_token=${encodeURIComponent(token)}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const body = await response.json().catch(() => ({})) as { id?: string; name?: string };
+    const probe: FacebookProbe = response.ok && body.id === pageId
+      ? { checkedAt: Date.now(), status: 'connected', name: body.name }
+      : { checkedAt: Date.now(), status: 'error' };
+    facebookProbes.set(workspaceId, probe);
+    return probe;
+  } catch {
+    const probe: FacebookProbe = { checkedAt: Date.now(), status: 'error' };
+    facebookProbes.set(workspaceId, probe);
+    return probe;
+  }
+}
 
 /**
  * W1-MY-06 — GA4/GSC stubs.
@@ -11,15 +40,15 @@ import { INTEGRATION_MATRIX, matrixFor } from './matrix';
 export interface IntegrationConnectionStatus {
   provider: IntegrationProvider;
   workspace_id: string;
-  status: 'not_connected';
-  missing_reason: MissingReason;
+  status: 'not_connected' | 'connecting' | 'connected' | 'error' | 'revoked';
+  missing_reason: MissingReason | null;
   /** Property/property-lookup ref — null khi chưa kết nối (không bịa) */
   property_ref: string | null;
   /** Scopes đã cấp — rỗng khi chưa connect */
   scopes: string[];
   /** Không bao giờ chứa secret/credential */
   credential_ref: null;
-  capabilities: Array<{ capability: string; status: 'not_connected' }>;
+  capabilities: Array<{ capability: string; status: 'not_connected' | 'connecting' | 'connected' | 'error' | 'revoked' }>;
 }
 
 /** Stub connection status (W1: mọi workspace chưa có credentials). */
@@ -40,6 +69,42 @@ export function getConnectionStatus(workspaceId: string, provider: IntegrationPr
   };
 }
 
+/**
+ * Resolve persisted tenant connector metadata. The sync stub above remains the
+ * deterministic test default; HTTP boundaries use this async resolver so a
+ * verified OAuth connection changes the publishing decision without exposing
+ * tokens.
+ */
+export async function getWorkspaceConnectionStatus(workspaceId: string, provider: IntegrationProvider): Promise<IntegrationConnectionStatus> {
+  const base = getConnectionStatus(workspaceId, provider);
+  const connection = await getConnection(workspaceId, provider);
+  if (!connection && provider === 'facebook_page') {
+    const probe = await probeFacebookFromEnv(workspaceId);
+    if (probe) {
+      return {
+        ...base,
+        status: probe.status,
+        missing_reason: probe.status === 'connected' ? null : 'FACEBOOK_PAGE_PERMISSION_MISSING',
+        property_ref: process.env.FACEBOOK_PAGE_ID ?? null,
+        scopes: probe.status === 'connected' ? ['pages_manage_posts'] : [],
+        capabilities: base.capabilities.map((capability) => ({ capability: capability.capability, status: probe.status })),
+      };
+    }
+  }
+  if (!connection) return base;
+  const effectiveStatus = connection.status === 'connected' && !connection.verified_at
+    ? 'connecting'
+    : connection.status;
+  return {
+    ...base,
+    status: effectiveStatus,
+    missing_reason: effectiveStatus === 'connected' ? null : base.missing_reason,
+    property_ref: connection.account_ref,
+    scopes: connection.scopes,
+    capabilities: base.capabilities.map((capability) => ({ capability: capability.capability, status: effectiveStatus })),
+  };
+}
+
 export interface OwnershipProbeResult {
   provider: IntegrationProvider;
   site_or_property: string;
@@ -55,12 +120,18 @@ export function probeOwnership(
   provider: IntegrationProvider,
   siteOrProperty: string,
 ): OwnershipProbeResult {
+  const verifyRow = matrixFor(provider).find(
+    (r) => r.capability === 'verify_site_ownership' || r.probe === 'site_verification',
+  );
   return {
     provider,
     site_or_property: siteOrProperty,
     status: 'not_connected',
     checked: false,
-    missing_reason: matrixFor(provider)[0]?.default_missing_reason ?? 'PROBE_REQUIRES_CONNECTED_ACCOUNT',
+    missing_reason:
+      verifyRow?.default_missing_reason ??
+      matrixFor(provider)[0]?.default_missing_reason ??
+      'PROBE_REQUIRES_CONNECTED_ACCOUNT',
     verified: null,
   };
 }
@@ -123,7 +194,7 @@ export function supportMatrix(): typeof INTEGRATION_MATRIX {
 export type ChannelMode = 'live' | 'manual';
 
 export interface ChannelDecision {
-  channel: 'website' | 'facebook' | 'instagram';
+  channel: 'website' | 'facebook' | 'tiktok' | 'instagram';
   provider: IntegrationProvider;
   mode: ChannelMode;
   /** Nhãn hiển thị trên social pack khi mode=manual */
@@ -162,6 +233,7 @@ export function socialChannelDecision(input: {
   return [
     decide('website', 'website_cms', 'publish_cms_post', 'CMS_NOT_PUBLISHED'),
     decide('facebook', 'facebook_page', 'publish_page_post', 'FACEBOOK_PAGE_PERMISSION_MISSING'),
+    decide('tiktok', 'tiktok', 'publish_tiktok_video', 'TIKTOK_ACCOUNT_NOT_CONNECTED'),
     decide('instagram', 'instagram_business', 'publish_ig_media', 'INSTAGRAM_ACCOUNT_NOT_LINKED'),
   ];
 }

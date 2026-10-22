@@ -1,7 +1,7 @@
 import { PoolClient } from "pg";
-import { query } from "@/lib/db";
+import { query } from "../../lib/db";
 import { CreateWorkspaceInput } from "./schemas";
-import { Role } from "@/lib/tenant";
+import { Role } from "../../lib/tenant";
 
 export interface WorkspaceRow {
   id: string;
@@ -11,6 +11,7 @@ export interface WorkspaceRow {
   default_language: string;
   created_at: string;
   updated_at: string;
+  role?: Role;
 }
 
 export interface MemberRow {
@@ -82,7 +83,7 @@ export async function findOrCreateUserByEmail(
  */
 export async function listWorkspacesForUser(userId: string): Promise<WorkspaceRow[]> {
   const sql = `
-    SELECT w.id, w.name, w.slug, w.timezone, w.default_language, w.created_at, w.updated_at
+    SELECT w.id, w.name, w.slug, w.timezone, w.default_language, w.created_at, w.updated_at, m.role
     FROM workspaces w
     INNER JOIN memberships m ON m.workspace_id = w.id
     WHERE m.user_id = $1 AND m.status = 'active'

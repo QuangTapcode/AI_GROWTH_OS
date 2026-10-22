@@ -36,21 +36,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** Executor gọi CMS thật, lưu immutable snapshot/publication; social live theo capability hoặc manual pack có nhãn; caption/ảnh/UTM đúng version.
 - **Phụ thuộc:** TQ-04 (contract D6, tích hợp D7), MY-02.
 - **Reviewer:** Thiệu Quang + Tiến.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Tiến review) · PR/build: worker tsc sạch, vitest `src/publish 8 tests` pass, routing `operationsRouting 4/4` pass · Evidence: `apps/worker/src/publish/CmsPublisher.ts` (MockCmsPublisher + PublisherRegistry + defaultRegistry), `PublishJobProcessor.ts` (idempotency `publish:ws:content:channel:version`, timeout→reconcile trước retry, manual pack), `ManualPackGenerator.ts` (pack FB/IG label `manual-pack` + UTM), wiring `src/jobs/operations.ts createWiredHandler('publish')` · Blocker: CMS thật (`PILOT_CMS_API_KEY`/`CMS_BASE_URL` chưa có trong env) + immutable snapshot/publication BE (TQ-04) để đạt `integrated`.
 
 ### [ ] MY-05 · D9 · M · Scheduled publish/reconcile và invalidation
 
 - **Làm / đầu ra / Done:** Lưu UTC + timezone; recheck approval/source/account tại execution; timeout đối soát trước retry; không tạo hai bài cùng idempotency key.
 - **Phụ thuộc:** MY-04, TQ-04; gateway contract được TQ bàn giao D7 trong TQ-04.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Thiệu review) · PR/build: worker tsc sạch, `reconciliation.test.ts 7/7` + `publishProcessor 8 tests` pass · Evidence: `apps/worker/src/reconcile/ReconciliationService.ts` (duplicate_prevented/retry_allowed/still_unknown, UTC ISO, retry cap 2, recoverable filter), `PublishJobProcessor` reconcile path + `PublishContext.gatewayCheck` recheck approval/version/hash tại execution (fail fast `GATEWAY_DENIED`, 2 test mới), gateway TQ-06 `tools/execute` đã merge · **Nối gateway thật qua HTTP:** `src/publish/GatewayRecheckClient.ts` (mới) — `POST {API_BASE_URL}/v1/workspaces/{ws}/tools/execute`, Bearer `WORKER_GATEWAY_TOKEN`, map channel→provider/capability theo matrix, **fail-closed** (4xx/5xx/network → deny), wiring `operations.ts` (payload `approvalId`), 5 test stub fetch `gatewayRecheckClient.test.ts`; thiếu `API_BASE_URL` → bỏ qua recheck (hành vi cũ) · Blocker: schedule BE; chạy live cần API server + approval record thật (dev token `dev_owner`).
 
 ### [ ] MY-06 · D10 · M · Community intake và metrics ingestion
 
 - **Làm / đầu ra / Done:** Form/webhook supported có dedup; lead DB/owner handoff; GA4/GSC/Meta snapshots khi có quyền, nếu thiếu ghi missing; reply chỉ gửi sau duyệt và đúng quyền.
 - **Phụ thuộc:** TQ-05, MY-02.
 - **Reviewer:** Thiệu Quang + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` (chờ Thiệu Quang + Thiệu review) · PR/build: worker tsc sạch, `leadIntake 9 tests + metricsStub 5 tests` pass, API `vitest 72/72` (TQ-05), PG smoke `tasks/pgLeadSmoke.ts` chạy thật trên Postgres 003 · Evidence: `apps/worker/src/leads/LeadIntakeService.ts` (validate email/UTM/consent, key `lead:ws:hash`, dedup, status/owner), **`PgLeadStore.ts` (mới: raw SQL pg Pool theo pattern `DbWorkflowStore`, transaction BEGIN/ROLLBACK/COMMIT, `autoPgStore()` đọc `DATABASE_URL` → PG, không thì in-memory)**, smoke `dedup_ok:true` cùng leadId + row trong bảng `leads`, `src/metrics/MetricsIngestionStub.ts` (`insufficient_data`, hourly dedup event), wiring `operations.ts createWiredHandler('lead'/'metrics')`, TQ-05 `modules/leads/` PG + migration 003 đã merge · **Test PG gating (thay smoke tay):** `tests/pgLeadStore.test.ts` (tự skip khi không có Postgres) — roundtrip intake/dedup/list/updateStatus, **race 2 request song song** (unique constraint `uq_leads_workspace_idempotency` đã có sẵn trong migration 003 + `insertLead` bắt `23505` trả row đã commit), persist-fail không half-write; sửa `LeadIntakeService(null)` = in-memory tường minh (trước `?? autoPgStore()` khiến null vẫn auto PG) · Blocker: reply approval flow (chờ QQ-06) để đạt `integrated` — persistence PG đã xong.
 
 ## Tuần 3 — 29/10–04/11/2026
 
@@ -59,21 +59,21 @@ Mỗi task cần cập nhật: trạng thái (`ready/in_progress/local_verified/
 - **Làm / đầu ra / Done:** metrics_synced/lead_created/approval_changed/publication_completed tạo đúng task; report theo lịch configurable; max iterations/cost và idempotency qua restart.
 - **Phụ thuộc:** MY-06, QQ-06.
 - **Reviewer:** Quang Quang + Thiệu.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` phần worker (chờ Quang Quang review; chờ QQ-06 handler để `integrated`) · PR/build: worker `feedbackEventScheduler 7/7 + metricsStub 5/5` pass · Evidence: `apps/worker/src/events/FeedbackEventScheduler.ts` (6 event types, dedup `type:ws:hash`, maxIterations 5/costCap 0, `insufficient_data` flag), `MetricsIngestionStub.buildMetricsSyncedEvent`, TQ-07 outbox/reports đã merge · Blocker: QQ-06 Community/Performance handler (AI consumer cho event).
 
 ### [ ] MY-08 · D13 · M · Diễn tập recovery và lỗi tích hợp
 
 - **Làm / đầu ra / Done:** Kill/restart, timeout publish, revoked connector/source, retry cap và queue backlog; lưu evidence một task chỉ tạo một side effect.
 - **Phụ thuộc:** TH-07.
 - **Reviewer:** Thiệu + Thiệu Quang.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` mock (chờ TH-07 E2E env để `integrated`) · PR/build: worker `recoveryDrill 11/11` pass · Evidence: `apps/worker/src/recovery/RecoveryDrill.ts` (6 scenario + runAllDrills, evidence string) · **Drill một phần trên PG thật:** `tests/my08DrillPg.test.ts` (gating) — (1) queue backlog: workflow dở dang trong PG, worker mới `resume` drain tới awaiting_approval, event dedup; (2) revoked connector: gateway deny → publish fail fast `GATEWAY_DENIED`, CMS 0 call · Sửa flaky `killRecovery.test.ts` (root cause: fixture treo bằng Promise không giữ event loop → Node thoát code=0; thêm keep-alive interval + fail-fast khi child exit sớm, 5/5 lần pass) · Blocker: TH-07 E2E (kill thật, CMS timeout thật, revoked thật).
 
 ### [ ] MY-09 · D15 · M · Bàn giao runbooks và connector limits
 
 - **Làm / đầu ra / Done:** Start/stop, backup/restore, rotate credential, retry/resume/manual fallback; artifact mẫu và support matrix thật; phối hợp demo.
 - **Phụ thuộc:** MY-08, TH-08.
 - **Reviewer:** Thiệu Quang + Quang Quang.
-- **Theo dõi:** `ready` · PR/build: chưa có · Evidence: chưa có · Blocker: chưa ghi nhận (cập nhật khi nhận việc).
+- **Theo dõi:** `local_verified` skeleton (chờ TH-08 verdict để done) · PR/build: chưa cần build · Evidence: `apps/worker/src/runbooks/MY-RUNBOOKS.md` (start/stop, pg_dump/psql, rollback, rotate token, retry max 2, manual fallback, support matrix thật, escalation) khớp TQ-09 release config (`.env.example`, openapi 1.1.0, migrations 001..004) · Blocker: TH-08 UAT/restore verdict.
 
 ## Khi trễ
 

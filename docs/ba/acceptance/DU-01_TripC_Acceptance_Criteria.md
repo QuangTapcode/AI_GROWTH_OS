@@ -113,4 +113,3 @@ Dựa trên tài liệu PRD, các tham số vận hành thực tế cho khách h
 
 
 * **Lead Owner** (Người phụ trách nhận lead): Đội ngũ Sales / Telesale của TripC (tiếp nhận thông tin khách hàng qua bảng phân công lead tối giản).
-

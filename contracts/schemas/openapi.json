@@ -290,6 +290,138 @@
           "expected_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
           "review_note": { "type": "string" }
         }
+      },
+      "WorkspaceLeadRecord": {
+        "type": "object",
+        "required": ["id", "site_id", "workspace_id", "email", "name", "interest_topic", "lead_status", "captured_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "site_id": { "type": "string" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "name": { "type": "string" },
+          "phone_number": { "type": "string", "nullable": true },
+          "interest_topic": { "type": "string" },
+          "lead_status": { "type": "string", "enum": ["New", "Assigned", "Contacted", "Converted", "Archived"] },
+          "lead_owner": { "type": "string", "format": "uuid", "nullable": true },
+          "notes": { "type": "string", "nullable": true },
+          "utm_source": { "type": "string", "nullable": true },
+          "utm_medium": { "type": "string", "nullable": true },
+          "utm_campaign": { "type": "string", "nullable": true },
+          "utm_content": { "type": "string", "nullable": true },
+          "captured_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UpdateWorkspaceLeadRequest": {
+        "type": "object",
+        "properties": {
+          "lead_status": { "type": "string", "enum": ["New", "Assigned", "Contacted", "Converted", "Archived"] },
+          "lead_owner": { "type": "string", "format": "uuid", "nullable": true },
+          "notes": { "type": "string" }
+        }
+      },
+      "ToolExecutionRequest": {
+        "type": "object",
+        "required": ["provider", "capability", "action_type"],
+        "properties": {
+          "actor_role": { "type": "string", "enum": ["research", "growth_lead", "seo", "content", "community", "performance", "owner", "editor", "viewer"] },
+          "provider": { "type": "string", "enum": ["ga4", "gsc", "facebook_page", "instagram_business", "meta_ads", "website_cms"] },
+          "capability": { "type": "string" },
+          "action_type": { "type": "string", "enum": ["read", "draft", "publish"] },
+          "params": { "type": "object" },
+          "approval_id": { "type": "string", "format": "uuid" },
+          "expected_version": { "type": "integer", "minimum": 1 },
+          "expected_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      },
+      "ToolAuditLog": {
+        "type": "object",
+        "required": ["id", "workspace_id", "actor_id", "actor_role", "provider", "capability", "action_type", "status", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "actor_id": { "type": "string", "format": "uuid" },
+          "actor_role": { "type": "string" },
+          "provider": { "type": "string" },
+          "capability": { "type": "string" },
+          "action_type": { "type": "string", "enum": ["read", "draft", "publish"] },
+          "status": { "type": "string", "enum": ["granted", "denied"] },
+          "denial_reason": { "type": "string", "nullable": true },
+          "approval_id": { "type": "string", "format": "uuid", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WorkspaceReport": {
+        "type": "object",
+        "required": ["workspace_id", "period", "kpis", "summary", "generated_at"],
+        "properties": {
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "timezone": { "type": "string" },
+              "currency": { "type": "string" }
+            }
+          },
+          "kpis": { "type": "object" },
+          "summary": { "type": "object" },
+          "generated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SystemExceptionRecord": {
+        "type": "object",
+        "required": ["id", "workspace_id", "code", "title", "severity", "status", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "code": { "type": "string" },
+          "title": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "source_task_id": { "type": "string", "format": "uuid", "nullable": true },
+          "assigned_owner": { "type": "string", "format": "uuid", "nullable": true },
+          "status": { "type": "string", "enum": ["open", "investigating", "resolved", "ignored"] },
+          "description": { "type": "string", "nullable": true },
+          "resolution_note": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "resolved_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "CreateExceptionRequest": {
+        "type": "object",
+        "required": ["code", "title"],
+        "properties": {
+          "code": { "type": "string" },
+          "title": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "source_task_id": { "type": "string", "format": "uuid" },
+          "assigned_owner": { "type": "string", "format": "uuid" },
+          "description": { "type": "string" }
+        }
+      },
+      "UpdateExceptionRequest": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["open", "investigating", "resolved", "ignored"] },
+          "assigned_owner": { "type": "string", "format": "uuid", "nullable": true },
+          "resolution_note": { "type": "string" }
+        }
+      },
+      "OutboxEventRecord": {
+        "type": "object",
+        "required": ["id", "workspace_id", "event_type", "dedup_key", "status", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "workspace_id": { "type": "string", "format": "uuid" },
+          "event_type": { "type": "string" },
+          "dedup_key": { "type": "string" },
+          "payload": { "type": "object" },
+          "status": { "type": "string", "enum": ["pending", "processing", "published", "failed"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "published_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
       }
     },
     "responses": {
@@ -722,6 +854,319 @@
             }
           },
           "422": { "description": "Validation error (invalid email or missing consent)" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/leads": {
+      "get": {
+        "summary": "List leads in workspace (sales handoff & pipeline)",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "lead_status", "in": "query", "schema": { "type": "string", "enum": ["New", "Assigned", "Contacted", "Converted", "Archived"] } },
+          { "name": "lead_owner", "in": "query", "schema": { "type": "string" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of workspace leads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/WorkspaceLeadRecord" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/leads/{lead_id}": {
+      "get": {
+        "summary": "Get workspace lead detail by ID",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "lead_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace lead details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorkspaceLeadRecord" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "description": "Lead not found in this workspace" }
+        }
+      },
+      "patch": {
+        "summary": "Update lead status, sales owner, or advisory notes",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "lead_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateWorkspaceLeadRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated lead record",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorkspaceLeadRecord" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "description": "Validation error in update payload" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/tools/execute": {
+      "post": {
+        "summary": "Authorize and execute an external tool/connector through the Security Gateway",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ToolExecutionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool authorized and executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "audit_id": { "type": "string", "format": "uuid" },
+                    "status": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Unsupported capability" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "Role unauthorized, approval not granted, or ads mutation forbidden" },
+          "404": { "description": "Approval record not found" },
+          "409": { "description": "Version or hash mismatch with approval" }
+        }
+      },
+      "get": {
+        "summary": "List audit logs of tool executions and denials in workspace",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of tool execution audit entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/ToolAuditLog" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/reports": {
+      "get": {
+        "summary": "Get workspace report with real metrics snapshot and missing reasons",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "from", "in": "query", "schema": { "type": "string" } },
+          { "name": "to", "in": "query", "schema": { "type": "string" } },
+          { "name": "timezone", "in": "query", "schema": { "type": "string", "default": "Asia/Bang_Chi_Minh" } },
+          { "name": "currency", "in": "query", "schema": { "type": "string", "default": "VND" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace metrics and performance report",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorkspaceReport" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/exceptions": {
+      "get": {
+        "summary": "List system and business exceptions in workspace with owners",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["open", "investigating", "resolved", "ignored"] } },
+          { "name": "severity", "in": "query", "schema": { "type": "string", "enum": ["low", "medium", "high", "critical"] } },
+          { "name": "assigned_owner", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of system exceptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/SystemExceptionRecord" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "summary": "Create a new system exception with assigned owner",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateExceptionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Exception created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SystemExceptionRecord" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/exceptions/{exception_id}": {
+      "patch": {
+        "summary": "Update exception status, assigned owner, or resolution note",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "exception_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateExceptionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated exception record",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SystemExceptionRecord" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "description": "Exception not found" }
+        }
+      }
+    },
+    "/v1/workspaces/{workspace_id}/outbox": {
+      "post": {
+        "summary": "Record outbox event with deduplication key for agent consistency",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["event_type", "dedup_key"],
+                "properties": {
+                  "event_type": { "type": "string" },
+                  "dedup_key": { "type": "string" },
+                  "payload": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Event already recorded (deduplicated)" },
+          "201": { "description": "New outbox event recorded" }
+        }
+      },
+      "get": {
+        "summary": "List outbox events (safe & idempotent according to RFC 9110)",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "status", "in": "query", "required": false, "schema": { "type": "string", "enum": ["pending", "processing", "published", "failed"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of workspace outbox events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/OutboxEventRecord" } }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

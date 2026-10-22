@@ -2,7 +2,7 @@
 
 05/10/2026 · W1-PM-01 · Owner/reviewer theo roster đã xác nhận; PO/PM: Quang Quang. Website/CMS Next.js tối giản cho TripC đã chọn, conversion form thành công; năm seed nguồn đã khảo sát ở [SOURCES](../SOURCES.md), corpus chưa crawl. Epic planned, chưa triển khai hoặc Done.
 
-[SCOPE](../../ba/SCOPE.md) · [TODO](../../../TODO.md) · [TEAM](../TEAM.md) · [PILOT](../PILOT.md) · [task W1-PM-01](../W1-PM-01.md) · [registry JSON](epics.json)
+[SCOPE](../../ba/SCOPE.md) · [TODO](../../../TODO.md) · [TEAM](../TEAM.md) · [PILOT](../PILOT.md) · task W1-PM-01 (tài liệu cũ đã xóa) · [registry JSON](epics.json)
 
 | Epic | Owner bàn giao | Reviewers | Ngày bắt đầu → mục tiêu | Build dependencies |
 | --- | --- | --- | --- | --- |
@@ -35,7 +35,7 @@
 
 ## Ready, effort và review
 
-Story Ready cần AC chi tiết/estimate/reviewer/contract/design/quyền dữ liệu. BA phân rã epic thành stories sau; effort tương đối/local budget/limits đã lập tại [W1-PM-02](../W1-PM-02.md), engineering estimates cần rà theo lát triển khai, probes/quyền thuộc W1-PM-03/W1-BE-04. Không coi epic file là feature đã xây hoặc PO đã nghiệm thu code.
+Story Ready cần AC chi tiết/estimate/reviewer/contract/design/quyền dữ liệu. BA phân rã epic thành stories sau; effort tương đối/local budget/limits đã lập tại W1-PM-02 (tài liệu cũ đã xóa), engineering estimates cần rà theo lát triển khai, probes/quyền thuộc W1-PM-03/W1-BE-04. Không coi epic file là feature đã xây hoặc PO đã nghiệm thu code.
 
 Đội thực tế 8 người; Quang Quang kiêm AI/PM/PO, Thiệu là một Tester làm hai lane, hai FE và hai BE có phân vùng trong TEAM. Không dùng capacity kế hoạch 7 người + PM riêng để cam kết. Reviewer của từng epic đã có tên; khi chia task, code review cần owner chuyên môn theo đúng vùng file.
 

@@ -59,6 +59,7 @@ interface AiRunStatus {
     evidence?: unknown[];
     warnings?: string[];
     model_version?: string;
+    prompt_version?: string;
     schema_version?: string;
     artifact?: Record<string, unknown> | null;
   } | null;
@@ -175,6 +176,7 @@ export class HttpAiAdapter implements AiAdapter {
     return {
       output: status.result.result ?? {},
       model: status.result.model_version ?? '',
+      prompt_version: status.result.prompt_version,
       schema_version: status.result.schema_version ?? SCHEMA_VERSION,
       run_id: status.run_id,
       artifact: status.result.artifact ?? null,

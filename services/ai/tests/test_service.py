@@ -11,6 +11,7 @@ from conftest import run_job, wait_for_run
 from evals.fixtures import WS_A, ingest_text_payload, job as make_job
 from src.app.providers import ProviderError
 from src.app.schemas import Usage
+from examples.growth_lead_request import mock_research_request
 
 
 def generic_job(**overrides: Any) -> dict[str, Any]:
@@ -18,7 +19,7 @@ def generic_job(**overrides: Any) -> dict[str, Any]:
         "schema_version": "1.0.0",
         "job_id": str(uuid4()),
         "workspace_id": str(uuid4()),
-        "operation": "content.generate",
+        "operation": "health.check",
         "input_version": 1,
         "trace_id": "test-trace",
         "synthetic": True,
@@ -148,9 +149,11 @@ def test_idempotency_key_is_job_operation_input_version(client) -> None:
     assert next_version.status_code == 202
     assert next_version.json()["run_id"] != run_id
 
-    other_operation = client.post("/internal/v1/runs", json={**job, "operation": "content.repurpose"})
+    other = mock_research_request()
+    other["job_id"] = job["job_id"]
+    other_operation = client.post("/internal/v1/runs", json=other)
     assert other_operation.status_code == 202
-    assert other_operation.json()["operation"] == "content.repurpose"
+    assert other_operation.json()["operation"] == "research.run"
 
 
 def test_restart_marks_unfinished_run_retryable_then_resumes(make_client) -> None:

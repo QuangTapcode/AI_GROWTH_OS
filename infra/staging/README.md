@@ -1,10 +1,16 @@
 # Local staging cho AI Growth OS
 
-Bootstrap tối giản tạo hai giao diện Next.js và một API chạy trên máy Windows. Hai frontend kiểm tra API thật qua HTTP; môi trường này chưa triển khai authentication, CMS, database persistence hay queue nghiệp vụ.
+Hai giao diện Next.js và một API chạy trên máy Windows, dữ liệu trong Postgres local (`infra/local`), đăng nhập email/mật khẩu. Connector GA4/GSC/Meta có live sync nhưng chỉ hoạt động sau khi cấu hình credential server-side; staging mặc định vẫn fail-closed.
 
 ## Bật staging
 
-Yêu cầu Node.js major 24 (`24.14.1` đã dùng), npm và PowerShell trên Windows. Từ repository root:
+Yêu cầu Node.js major 24 (`24.14.1` đã dùng), npm, Docker Desktop và PowerShell trên Windows. Từ repository root, lần đầu sau khi clone:
+
+```powershell
+.\infra\staging\setup-local.ps1
+```
+
+Script kéo image và chạy `infra/local/bootstrap.ps1` (Postgres 127.0.0.1:15432, SearXNG 127.0.0.1:18081), ghi `apps/api/.env.local` (`DATABASE_URL` từ `infra/local/.env`, `AUTH_SECRET` ngẫu nhiên), rồi `db:migrate` + `db:seed`. Chạy lại an toàn; đã có Docker stack thì dùng `-SkipInfra`. Sau đó:
 
 ```powershell
 .\infra\staging\start.ps1
@@ -18,7 +24,39 @@ Script cài dependencies bằng `npm ci` khi thiếu, tạo `.env.local` từ `.
 | Web quản trị | http://localhost:3000 | /health |
 | API | http://localhost:4000 | /health và /v1/health |
 
-Server chỉ bind `127.0.0.1`. Đây là staging local; `https://aigrowthos-staging.pages.dev/` vẫn là trang thông báo riêng trên Cloudflare Pages, chưa phục vụ các app/API này. GA4/GSC đã thiết lập cho URL công khai đó; bootstrap local không gửi telemetry vào GA4.
+Server chỉ bind `127.0.0.1`. GA4/GSC đã thiết lập cho URL công khai `https://aigrowthos-staging.pages.dev/`; bootstrap local không gửi telemetry vào GA4.
+
+## Public staging trên Cloudflare Pages
+
+`https://aigrowthos-staging.pages.dev/` phục vụ `apps/web` (static export). Request `/v1/*` đi qua Pages Function (`cloudflare-pages/v1-proxy.template.js`) tới API local qua Cloudflare Tunnel:
+
+```powershell
+.\infra\staging\start.ps1                      # API phải chạy ở 127.0.0.1:4000
+.\infra\staging\cloudflare-pages\deploy.ps1    # bật tunnel (nếu chưa), build, deploy branch main
+.\infra\staging\tunnel.ps1 -Stop               # tắt tunnel → pages.dev báo API_UNREACHABLE
+```
+
+- Cần `cloudflared.exe` ở `%LOCALAPPDATA%\cloudflared\` (bản chính thức từ GitHub release, kiểm tra chữ ký Cloudflare, Inc.) và `wrangler` đã đăng nhập tài khoản sở hữu project.
+- Quick tunnel (`*.trycloudflare.com`) không cần domain nhưng URL đổi mỗi lần khởi động lại và không có SLA. Đây chỉ là fallback kiểm thử; `tunnel.ps1` kiểm tra `/v1/health` trước khi tái sử dụng state và tự thay tunnel khi URL bị thu hồi.
+- API qua tunnel chạy `next start` (NODE_ENV=production): token dev bị chặn, chỉ đăng nhập bằng mật khẩu. Đổi mật khẩu tài khoản demo sau khi chia sẻ link.
+
+### API ổn định trên `api.growthos.vn`
+
+Named Tunnel giữ nguyên hostname sau reboot và loại bỏ lỗi 530 do Quick Tunnel bị thu hồi. Cần một lần đăng nhập Cloudflare và một CNAME DNS:
+
+```powershell
+& "$env:LOCALAPPDATA\cloudflared\cloudflared.exe" tunnel login
+.\infra\staging\named-tunnel.ps1 -InstallTask
+```
+
+Script tạo tunnel `aigrowthos-api`, cấu hình `api.growthos.vn` → API local, rồi đăng ký Scheduled Task tự khởi động lại khi đăng nhập Windows. Nếu zone không nằm trong Cloudflare, script sẽ in target dạng `<tunnel-id>.cfargotunnel.com`; thêm CNAME `api` trỏ tới target đó tại nhà cung cấp DNS (hiện domain đang dùng MatBao), sau đó chạy:
+
+```powershell
+.\infra\staging\cloudflare-pages\deploy.ps1 -ApiOrigin https://api.growthos.vn
+```
+
+Pages chỉ cần deploy lại một lần với hostname cố định. Không commit `~/.cloudflared/*.json` hoặc `aigrowthos-api.yml`; đó là credentials riêng của máy chạy API.
+- `deploy.ps1 -SkipDeploy` chỉ build vào `.runtime/pages-build` để xem trước bằng `wrangler pages dev out`.
 
 ## Kiểm tra
 

@@ -1,0 +1,182 @@
+[
+  {
+    "case_id": "QQ01-A01",
+    "task_id": "QQ-01",
+    "test_name": "test_QQ01_A01_bundle_matches_executable_contract",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ01-A02",
+    "task_id": "QQ-01",
+    "test_name": "test_QQ01_A02_marketing_roles_cannot_publish_or_mutate_ads",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ01-A03",
+    "task_id": "QQ-01",
+    "test_name": "test_QQ01_A03_only_one_provider_call_is_active_per_process",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ01-A04",
+    "task_id": "QQ-01",
+    "test_name": "test_QQ01_A04_repair_budget_does_not_reset_across_operations",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ01-A05",
+    "task_id": "QQ-01",
+    "test_name": "test_QQ01_A05_seven_owners_and_declared_caps_match_runtime",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ02-A01",
+    "task_id": "QQ-02",
+    "test_name": "test_research_requires_versioned_pinned_context[QQ02_A01_job_pin]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ02-A02",
+    "task_id": "QQ-02",
+    "test_name": "test_research_requires_versioned_pinned_context[QQ02_A02_snapshot_id]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ02-A03",
+    "task_id": "QQ-02",
+    "test_name": "test_research_requires_versioned_pinned_context[QQ02_A03_both]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ02-A04",
+    "task_id": "QQ-02",
+    "test_name": "test_research_requires_versioned_pinned_context[QQ02_A04_profile_version]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ02-A05",
+    "task_id": "QQ-02",
+    "test_name": "test_QQ02_A05_artifact_hash_scope_version_and_retry_survive_restart",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A01",
+    "task_id": "QQ-03",
+    "test_name": "test_unapproved_research_never_reaches_provider[QQ03_A01_imported]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A02",
+    "task_id": "QQ-03",
+    "test_name": "test_unapproved_research_never_reaches_provider[QQ03_A02_processing]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A03",
+    "task_id": "QQ-03",
+    "test_name": "test_unapproved_research_never_reaches_provider[QQ03_A03_needs_review]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A04",
+    "task_id": "QQ-03",
+    "test_name": "test_unapproved_research_never_reaches_provider[QQ03_A04_rejected]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A05",
+    "task_id": "QQ-03",
+    "test_name": "test_unapproved_research_never_reaches_provider[QQ03_A05_revoked]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A06",
+    "task_id": "QQ-03",
+    "test_name": "test_unapproved_research_never_reaches_provider[QQ03_A06_deleted]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A07",
+    "task_id": "QQ-03",
+    "test_name": "test_unapproved_research_never_reaches_provider[QQ03_A07_unpinned]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A08",
+    "task_id": "QQ-03",
+    "test_name": "test_unapproved_research_never_reaches_provider[QQ03_A08_stale]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A09",
+    "task_id": "QQ-03",
+    "test_name": "test_invalid_public_source_metadata_blocks_handoff[QQ03_A09_file_url]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A10",
+    "task_id": "QQ-03",
+    "test_name": "test_invalid_public_source_metadata_blocks_handoff[QQ03_A10_missing_url]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A11",
+    "task_id": "QQ-03",
+    "test_name": "test_invalid_public_source_metadata_blocks_handoff[QQ03_A11_future_date]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A12",
+    "task_id": "QQ-03",
+    "test_name": "test_invalid_public_source_metadata_blocks_handoff[QQ03_A12_naive_date]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A13",
+    "task_id": "QQ-03",
+    "test_name": "test_invalid_public_source_metadata_blocks_handoff[QQ03_A13_missing_date]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A14",
+    "task_id": "QQ-03",
+    "test_name": "test_fabricated_model_output_never_becomes_an_opportunity[QQ03_A14_fake_quote]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A15",
+    "task_id": "QQ-03",
+    "test_name": "test_fabricated_model_output_never_becomes_an_opportunity[QQ03_A15_blank_quote]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A16",
+    "task_id": "QQ-03",
+    "test_name": "test_fabricated_model_output_never_becomes_an_opportunity[QQ03_A16_fake_chunk]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A17",
+    "task_id": "QQ-03",
+    "test_name": "test_fabricated_model_output_never_becomes_an_opportunity[QQ03_A17_fake_demand]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A18",
+    "task_id": "QQ-03",
+    "test_name": "test_fabricated_model_output_never_becomes_an_opportunity[QQ03_A18_fake_price]",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A19",
+    "task_id": "QQ-03",
+    "test_name": "test_QQ03_A19_valid_opportunity_preserves_provenance_and_missing_facts",
+    "status": "passed"
+  },
+  {
+    "case_id": "QQ03-A20",
+    "task_id": "QQ-03",
+    "test_name": "test_QQ03_A20_duplicate_topics_and_inventory_are_not_handed_off",
+    "status": "passed"
+  }
+]

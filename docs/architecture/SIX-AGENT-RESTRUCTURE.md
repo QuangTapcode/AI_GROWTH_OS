@@ -40,7 +40,7 @@ design/                       Trường: common components và spec theo flow
 qa/                           Thiệu: hai lane, fixtures, evidence
 docs/coordination/
    sprint-3-weeks/              Baseline hiện hành + bảy TODO cá nhân
-   sprint-3-weeks/CLEANUP.md    Biên bản loại checklist cũ và thành phần giữ lại
+   sprint-3-weeks/bao-cao/      Báo cáo/handoff, tên bắt đầu bằng YYYY-MM-DD
 ```
 
 Research đã có pipeline.py/schemas.py; năm thư mục còn lại chứa hướng dẫn triển khai, chưa có handler chuyên trách. Khi triển khai, thêm `pipeline.py` + `schemas.py` tại role tương ứng và đăng ký handler ở operations.py. Không import TypeScript source từ Python. Không di chuyển RAG/growth_map hiện có chỉ để đổi tên thư mục.
@@ -88,6 +88,6 @@ Operation `content.generate` tiếp tục thuộc Content để tương thích; 
 5. TQ-04/MY-04–06/TI-04–07: duyệt/publish/lead/metrics/UI.
 6. QQ-07/TH-07–09: đóng vòng, failure tests, evidence và release decision.
 
-[Bản đồ tái sử dụng](../coordination/sprint-3-weeks/REUSE-MAP.md) · [TODO tổng](../../TODO.md).
+[Bản đồ tái sử dụng](../coordination/sprint-3-weeks/bao-cao/2026-10-14-REUSE-MAP.md) · [TODO tổng](../../TODO.md).
 
-[Handoff QQ-01–03](../coordination/sprint-3-weeks/QQ01-03-HANDOFF.md) ghi rõ phạm vi AI boundary và các dependency BE còn lại.
+[Handoff QQ-01–03](../coordination/sprint-3-weeks/bao-cao/2026-10-14-QQ01-03-HANDOFF.md) ghi rõ phạm vi AI boundary và các dependency BE còn lại.
