@@ -857,6 +857,47 @@
         }
       }
     },
+    "/v1/workspaces/{workspace_id}/learning-tasks": {
+      "post": {
+        "summary": "Approve Growth Lead learning artifact and enqueue next-iteration research task",
+        "description": "Requires active workspace owner. Validates bounded iteration (<= 3), aggregate inputs, hash provenance, and transactionally enqueues deduplicated research.run task with approval ledger entry.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "workspace_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CampaignPlanSubmitRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Learning tasks accepted and enqueued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["task_ids", "approval_required_for_outputs"],
+                  "properties": {
+                    "task_ids": {
+                      "type": "array",
+                      "items": { "type": "string", "format": "uuid" }
+                    },
+                    "approval_required_for_outputs": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "Permission denied - only workspace owner can approve learning tasks" },
+          "422": { "description": "Validation failed, stale context, or invalid iteration/quota bounds" }
+        }
+      }
+    },
     "/v1/workspaces/{workspace_id}/artifacts/{artifact_id}": {
       "get": {
         "summary": "Get specific artifact details and evidence",

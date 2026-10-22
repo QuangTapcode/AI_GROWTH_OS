@@ -5,6 +5,7 @@ export interface StoredArtifact {
   ref: ArtifactRef;
   result: unknown;
   evidence: unknown[];
+  operation?: string;
 }
 /** Loaded by backend from authenticated workspace context, never from request body. */
 export interface PlanContext {

@@ -51,12 +51,13 @@ export class PgPlanRepository implements PlanRepository {
     const ref = item.ref;
     if (sha256Hex(canonicalJson({ result: item.result, evidence: item.evidence })) !== ref.content_hash)
       throw new PlanError('ARTIFACT_HASH_MISMATCH', 'Cannot persist corrupt AI artifact');
+    const op = item.operation ?? (ref.role === 'research' ? 'research.run' : 'strategy.generate');
     await this.pool.query(`INSERT INTO content_artifacts(id,workspace_id,version,content_hash,context_snapshot_id,role,operation,artifact_type,title,storage,payload,evidence)
       VALUES($1,$2,$3,$4,$5,$6,$7,'ai_result',$6,'ai_run_store',$8,$9) ON CONFLICT(id) DO NOTHING`,
       [ref.artifact_id, ref.workspace_id, ref.version, ref.content_hash, ref.context_snapshot_id, ref.role,
-        ref.role === 'research' ? 'research.run' : 'strategy.generate', JSON.stringify({ artifact: ref, result: item.result }), JSON.stringify(item.evidence)]);
+        op, JSON.stringify({ artifact: ref, result: item.result }), JSON.stringify(item.evidence)]);
     const existing = await this.loadArtifact(ref.workspace_id, ref.artifact_id);
-    if (!existing || !same(existing, item)) throw new PlanError('ARTIFACT_CONFLICT', 'Artifact IDs are immutable', 409);
+    if (!existing || !same({ ref: existing.ref, result: existing.result, evidence: existing.evidence }, { ref: item.ref, result: item.result, evidence: item.evidence })) throw new PlanError('ARTIFACT_CONFLICT', 'Artifact IDs are immutable', 409);
   }
 
   async loadArtifact(workspaceId: string, artifactId: string): Promise<StoredArtifact | undefined> {
