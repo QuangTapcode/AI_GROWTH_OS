@@ -1,13 +1,15 @@
 import uuid
 import requests
+import json
+import os
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:5001"
 HEADERS = {"Authorization": "Bearer w1-dev-token-qa-only"}
 
 def test_w1_qq_06_staging_gate_verdict():
     """QA Nghiệm thu W1-QQ-06: Staging Integration, End-to-End Pipeline & Gate Verdict"""
     
-    print("\n🚀 [QA GATE] Bắt đầu kiểm tra toàn trình hệ thống Staging...")
+    print("\n [QA GATE] Bắt đầu kiểm tra toàn trình hệ thống Staging...")
     
     # 1. Kiểm tra trạng thái sẵn sàng của hệ thống (Health & Ready)
     health_res = requests.get(f"{BASE_URL}/healthz")
@@ -17,10 +19,16 @@ def test_w1_qq_06_staging_gate_verdict():
     assert ready_res.status_code == 200, "Staging Ready Check thất bại!"
     print("   -> [PASS] Hệ thống Backend và Provider sẵn sàng.")
 
-    # 2. Chạy thử một chuỗi Pipeline hoàn chỉnh: Ingest -> Answer
-    workspace_id = str(uuid.uuid4())
+    # 2. Đọc Fixtures để lấy Workspace ID chuẩn (Thay thế Placeholder)
+    fixture_path = os.path.join(os.path.dirname(__file__), "w1_tenant_fixtures.json")
+    with open(fixture_path, "r", encoding="utf-8") as f:
+        fixtures = json.load(f)
+    
+    # Lấy tenant_id của "TripC Da Nang" từ file json
+    workspace_id = fixtures["tenants"][0]["tenant_id"] 
     job_id = str(uuid.uuid4())
     
+    # 3. Chạy thử một chuỗi Pipeline hoàn chỉnh: Ingest -> Answer
     payload = {
         "job_id": job_id,
         "workspace_id": workspace_id,
@@ -54,9 +62,9 @@ def test_w1_qq_06_staging_gate_verdict():
     
     run_data = run_res.json()
     run_id = run_data.get("run_id")
-    print(f"   -> [PASS] Job E2E đã khởi tạo thành công với Run ID: {run_id}")
+    print(f"   -> [PASS] Job E2E đã khởi tạo thành công cho Tenant {workspace_id} với Run ID: {run_id}")
     
-    # 3. KẾT LUẬN GATE VERDICT
+
     print("\n==================================================")
     print("🏆 GATE VERDICT: PASSED (APPROVED FOR STAGING RELEASE)")
     print("==================================================")

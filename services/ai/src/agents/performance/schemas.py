@@ -24,8 +24,31 @@ class MetricsData(BaseModel):
         return self
 
 
+class ExperimentPeriod(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    start: datetime
+    end: datetime
+
+    @model_validator(mode="after")
+    def valid_period(self):
+        if self.start.tzinfo is None or self.end.tzinfo is None or self.end <= self.start:
+            raise ValueError("Experiment requires an ordered timezone-aware period")
+        return self
+
+
+class ExperimentSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    hypothesis: str = Field(min_length=1, max_length=500)
+    control_variant: str = Field(min_length=1, max_length=200)
+    treatment_variant: str = Field(min_length=1, max_length=200)
+    primary_metric: str = Field(min_length=1, max_length=100)
+    period: ExperimentPeriod
+    grouping: str = Field(min_length=1, max_length=100)
+
+
 class PerformancePayload(MarketingContext):
     metrics: ArtifactInput | None = None
+    experiment: ExperimentSpec | None = None
 
 
 class PerformanceReport(DraftResult):
@@ -34,5 +57,6 @@ class PerformanceReport(DraftResult):
     metric_snapshot_id: UUID | None
     observations: list[str]
     proposal: str | None
+    experiment: ExperimentSpec | None = None
     attribution: str = "aggregate_observation_only_not_causal"
     spend_mutation_allowed: bool = False

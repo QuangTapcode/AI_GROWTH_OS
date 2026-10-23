@@ -8054,6 +8054,14 @@
             "maxItems": 10,
             "title": "Assets",
             "type": "array"
+          },
+          "target_channels": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Target Channels",
+            "type": "array"
           }
         },
         "required": [
@@ -8424,6 +8432,23 @@
             },
             "title": "Citations",
             "type": "array"
+          },
+          "video_asset_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Video Asset Ref"
+          },
+          "tiktok_privacy_level": {
+            "default": "SELF_ONLY",
+            "title": "Tiktok Privacy Level",
+            "type": "string"
           }
         },
         "required": [
@@ -10134,6 +10159,75 @@
             "title": "EvidenceRef",
             "type": "object"
           },
+          "ExperimentPeriod": {
+            "additionalProperties": false,
+            "properties": {
+              "start": {
+                "format": "date-time",
+                "title": "Start",
+                "type": "string"
+              },
+              "end": {
+                "format": "date-time",
+                "title": "End",
+                "type": "string"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "title": "ExperimentPeriod",
+            "type": "object"
+          },
+          "ExperimentSpec": {
+            "additionalProperties": false,
+            "properties": {
+              "hypothesis": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Hypothesis",
+                "type": "string"
+              },
+              "control_variant": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Control Variant",
+                "type": "string"
+              },
+              "treatment_variant": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Treatment Variant",
+                "type": "string"
+              },
+              "primary_metric": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Primary Metric",
+                "type": "string"
+              },
+              "period": {
+                "$ref": "#/$defs/ExperimentPeriod"
+              },
+              "grouping": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Grouping",
+                "type": "string"
+              }
+            },
+            "required": [
+              "hypothesis",
+              "control_variant",
+              "treatment_variant",
+              "primary_metric",
+              "period",
+              "grouping"
+            ],
+            "title": "ExperimentSpec",
+            "type": "object"
+          },
           "GoalContext": {
             "additionalProperties": false,
             "properties": {
@@ -10971,6 +11065,17 @@
               }
             ],
             "default": null
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ExperimentSpec"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -10983,6 +11088,75 @@
       },
       "output_schema": {
         "$defs": {
+          "ExperimentPeriod": {
+            "additionalProperties": false,
+            "properties": {
+              "start": {
+                "format": "date-time",
+                "title": "Start",
+                "type": "string"
+              },
+              "end": {
+                "format": "date-time",
+                "title": "End",
+                "type": "string"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "title": "ExperimentPeriod",
+            "type": "object"
+          },
+          "ExperimentSpec": {
+            "additionalProperties": false,
+            "properties": {
+              "hypothesis": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Hypothesis",
+                "type": "string"
+              },
+              "control_variant": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Control Variant",
+                "type": "string"
+              },
+              "treatment_variant": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Treatment Variant",
+                "type": "string"
+              },
+              "primary_metric": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Primary Metric",
+                "type": "string"
+              },
+              "period": {
+                "$ref": "#/$defs/ExperimentPeriod"
+              },
+              "grouping": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Grouping",
+                "type": "string"
+              }
+            },
+            "required": [
+              "hypothesis",
+              "control_variant",
+              "treatment_variant",
+              "primary_metric",
+              "period",
+              "grouping"
+            ],
+            "title": "ExperimentSpec",
+            "type": "object"
+          },
           "RunArtifact": {
             "additionalProperties": false,
             "properties": {
@@ -11164,6 +11338,17 @@
               }
             ],
             "title": "Proposal"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ExperimentSpec"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "attribution": {
             "default": "aggregate_observation_only_not_causal",

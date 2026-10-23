@@ -121,6 +121,27 @@ def test_metrics_distinguish_zero_from_missing(client, mode):
     assert result["spend_mutation_allowed"] is False
 
 
+def test_experiment_hypothesis_is_grounded_and_non_mutating(client):
+    base = mock_research_request()
+    experiment = {
+        "hypothesis": "A clearer CTA increases qualified visits",
+        "control_variant": "Original CTA",
+        "treatment_variant": "Specific CTA",
+        "primary_metric": "qualified_visits",
+        "period": {"start": "2026-10-01T00:00:00Z", "end": "2026-10-20T23:59:59Z"},
+        "grouping": "landing_page",
+    }
+    body = run_job(client, request(base, "experiment.hypothesis", {"metrics": metrics(base), "experiment": experiment}))
+    assert body["status"] == "completed", body
+    result = body["result"]["result"]
+    assert result["status"] == "draft"
+    assert result["metrics"] == {"qualified_visits": 12, "leads": 2, "impressions": 100, "clicks": 20}
+    assert result["experiment"] == experiment
+    assert result["spend_mutation_allowed"] is False
+    assert result["attribution"] == "aggregate_observation_only_not_causal"
+    assert "causal impact" in result["proposal"].lower()
+
+
 @pytest.mark.parametrize("stop", ["missing", "max_iterations", "task_quota", "duplicate"])
 def test_learning_is_bounded_and_never_invents_metrics(client, stop):
     base, _, _, _, _, performance, *_ = chain(client)
