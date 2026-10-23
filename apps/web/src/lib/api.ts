@@ -136,7 +136,14 @@ export const growthApi = {
     apiRequest<{ items: Lead[]; total: number }>(`${ws(workspaceId)}/leads?limit=100`, { signal }),
   retryTask: (workspaceId: string, taskId: string) =>
     apiRequest<WorkflowTask>(`${ws(workspaceId)}/tasks/${encodeURIComponent(taskId)}/retry`, { method: "POST", body: {} }),
+  createAiRun: (workspaceId: string, body: { operation: "research.run" }) =>
+    apiRequest<unknown>(`${ws(workspaceId)}/ai-tasks`, { method: "POST", body }),
 
+  createKnowledgeContext: (workspaceId: string) =>
+    apiRequest<Record<string, unknown>>(`${ws(workspaceId)}/knowledge-contexts`, {
+      method: "POST",
+      body: {},
+    }),
   listTasks: (workspaceId: string, signal?: AbortSignal) =>
     apiRequest<ListResponse<WorkflowTask>>(`${ws(workspaceId)}/tasks`, { signal }),
   createTask: (workspaceId: string, input: CreateTaskInput) =>

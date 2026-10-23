@@ -41,7 +41,7 @@ class ResearchIdea(BaseModel):
 
 class ResearchDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    ideas: list[ResearchIdea] = Field(max_length=3)
+    ideas: list[ResearchIdea] = Field(max_length=2)
 
 
 class ResearchFinding(BaseModel):

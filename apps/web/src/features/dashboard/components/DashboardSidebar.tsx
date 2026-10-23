@@ -259,9 +259,8 @@ export default function DashboardSidebar({
           <button
             type="button"
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className={`w-full bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-all ${
-              isDropdownOpen ? "ring-2 ring-white/30 bg-white/15" : ""
-            }`}
+            className={`w-full bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-all ${isDropdownOpen ? "ring-2 ring-white/30 bg-white/15" : ""
+              }`}
           >
             <div className="flex items-center gap-2.5 text-left min-w-0">
               <div
@@ -279,9 +278,8 @@ export default function DashboardSidebar({
               </div>
             </div>
             <svg
-              className={`w-4 h-4 text-blue-200/80 shrink-0 transition-transform duration-200 ${
-                isDropdownOpen ? "rotate-180" : ""
-              }`}
+              className={`w-4 h-4 text-blue-200/80 shrink-0 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""
+                }`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -311,11 +309,10 @@ export default function DashboardSidebar({
                       key={ws.id}
                       type="button"
                       onClick={() => handleSelectWorkspace(ws)}
-                      className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer ${
-                        isSelected
+                      className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer ${isSelected
                           ? "bg-blue-600 text-white font-semibold shadow-xs"
                           : "text-slate-200 hover:bg-white/10"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div
@@ -336,11 +333,10 @@ export default function DashboardSidebar({
                       <div className="flex items-center gap-1.5 shrink-0 pl-2">
                         {ws.tag && (
                           <span
-                            className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
-                              isSelected
+                            className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${isSelected
                                 ? "bg-white/20 text-white"
                                 : "bg-slate-800 text-slate-300"
-                            }`}
+                              }`}
                           >
                             {ws.tag}
                           </span>
@@ -363,7 +359,6 @@ export default function DashboardSidebar({
                   );
                 })}
               </div>
-
             </div>
           )}
         </div>
@@ -377,11 +372,10 @@ export default function DashboardSidebar({
                 key={item.id}
                 type="button"
                 onClick={() => handleNav(item.id, item.href)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-                  isActive
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${isActive
                     ? "bg-white text-[#1d4ed8] font-bold shadow-sm"
                     : "text-blue-100/90 hover:bg-white/10 hover:text-white"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <span
@@ -393,13 +387,12 @@ export default function DashboardSidebar({
                 </div>
                 {item.badge && (
                   <span
-                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      item.badgeColor === "red"
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${item.badgeColor === "red"
                         ? "bg-rose-500 text-white"
                         : isActive
-                        ? "bg-blue-100 text-[#1d4ed8]"
-                        : "bg-blue-500 text-white"
-                    }`}
+                          ? "bg-blue-100 text-[#1d4ed8]"
+                          : "bg-blue-500 text-white"
+                      }`}
                   >
                     {item.badge}
                   </span>
@@ -419,7 +412,12 @@ export default function DashboardSidebar({
         </div>
 
         <div className="space-y-1">
-          <div role="link" tabIndex={0} onClick={() => router.push("/workspace#profile")} className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/workspace#profile")}
+            className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between"
+          >
             <div className="flex items-center gap-2.5">
               <svg
                 className="w-4 h-4 text-blue-200"
@@ -445,7 +443,12 @@ export default function DashboardSidebar({
             </div>
           </div>
 
-          <div role="link" tabIndex={0} onClick={() => router.push("/workspace#integrations")} className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between">
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/workspace#integrations")}
+            className="px-3 py-2 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-between"
+          >
             <div className="flex items-center gap-2.5">
               <svg
                 className="w-4 h-4 text-blue-200"
@@ -471,6 +474,32 @@ export default function DashboardSidebar({
             </div>
           </div>
 
+          {/* Knowledge Contexts */}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/knowledge-contexts")}
+            className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
+          >
+            <svg
+              className="w-4 h-4 text-blue-200"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+              />
+            </svg>
+            <span className="text-xs font-medium text-white">
+              Knowledge Contexts
+            </span>
+          </div>
+
+          {/* Help & documentation */}
           <div className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5">
             <svg
               className="w-4 h-4 text-blue-200"
