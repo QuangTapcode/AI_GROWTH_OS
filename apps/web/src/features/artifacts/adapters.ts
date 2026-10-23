@@ -11,6 +11,7 @@ import {
   shortCode,
   timeAgo,
 } from "@/lib/format";
+import { extractPlanResult, formatDocumentMarkdown } from "@/features/review-queue/adapters";
 import type { ArtifactDeliverable, ArtifactStatus, HighIntentCard, PipelineNode } from "./types";
 
 /** Chuyển content_artifacts (+ approvals, task) sang kiểu hiển thị của màn Artifacts. */
@@ -76,9 +77,9 @@ function cards(payload: Record<string, unknown>): HighIntentCard[] {
       kdText: "",
     }));
   }
-  return payloadArray<Item>(payload, "topic_clusters")
-    .slice(0, 6)
-    .map((c, i) => ({
+  const clusters = payloadArray<Item>(payload, "topic_clusters");
+  if (clusters.length > 0) {
+    return clusters.slice(0, 6).map((c, i) => ({
       number: String(i + 1).padStart(2, "0"),
       badge: "cluster",
       badgeType: "info" as const,
@@ -87,6 +88,53 @@ function cards(payload: Record<string, unknown>): HighIntentCard[] {
       volume: "",
       kdText: "",
     }));
+  }
+
+  // Real CampaignPlan result (Growth Lead) fallback
+  const planResult = extractPlanResult(payload);
+  const selected = planResult.selected_opportunity as Record<string, unknown> | undefined;
+  const tasks = Array.isArray(planResult.tasks) ? (planResult.tasks as Array<Record<string, unknown>>) : [];
+  const scoreObj = planResult.opportunity_score as Record<string, unknown> | undefined;
+
+  const resultCards: HighIntentCard[] = [];
+  if (selected && typeof selected === "object") {
+    resultCards.push({
+      number: "01",
+      badge: scoreObj?.score !== undefined ? `Score ${scoreObj.score}` : "Opportunity",
+      badgeType: "commercial",
+      title: String(selected.topic ?? "Target Opportunity"),
+      description: String(selected.rationale ?? selected.user_need ?? ""),
+      volume: scoreObj?.score !== undefined ? `Score ${scoreObj.score}/1000` : "",
+      kdText: selected.confidence ? `Confidence: ${selected.confidence}` : "",
+    });
+    if (selected.user_need) {
+      resultCards.push({
+        number: "02",
+        badge: "user need",
+        badgeType: "intent",
+        title: String(selected.user_need),
+        description: String(selected.audience_fit ?? "Target Audience Fit"),
+        volume: "Audience Fit",
+        kdText: "Da Nang",
+      });
+    }
+  }
+
+  tasks.forEach((t) => {
+    const brief = (t.brief ?? {}) as Record<string, unknown>;
+    const role = String(t.role ?? "Task").toUpperCase();
+    resultCards.push({
+      number: String(resultCards.length + 1).padStart(2, "0"),
+      badge: String(t.role ?? "task"),
+      badgeType: "info",
+      title: `${role}: ${String(brief.topic ?? brief.cta ?? role)}`,
+      description: brief.cta ? `CTA: ${String(brief.cta)}` : `${role} task deliverable`,
+      volume: brief.intent ? `Intent: ${brief.intent}` : "",
+      kdText: "Queued",
+    });
+  });
+
+  return resultCards.slice(0, 6);
 }
 
 function pipelineNodes(artifact: ContentArtifact, approval: Approval | undefined): PipelineNode[] {
@@ -122,15 +170,37 @@ export function toArtifactDeliverable(
   const nodes = pipelineNodes(artifact, approval);
   const completed = nodes.filter((n) => n.status === "Completed" || n.status === "Selected").length;
   const active = nodes.find((n) => n.status !== "Completed") ?? nodes[nodes.length - 1];
-  const document = payloadString(artifact.payload, "document_markdown");
+  const document = formatDocumentMarkdown(artifact.payload ?? {});
   const statusText = approval
     ? `${humanize(approval.status)} ${timeAgo(approval.updated_at)}${approval.review_note ? ` · "${approval.review_note}"` : ""}`
     : "Not sent for review";
 
+  const planResult = extractPlanResult(artifact.payload ?? {});
+  const selected = planResult.selected_opportunity as Record<string, unknown> | undefined;
+
+  const rawTitle = artifact.title;
+  const displayTitle =
+    rawTitle && rawTitle !== artifact.role && rawTitle !== "ai_result"
+      ? rawTitle
+      : selected?.topic
+      ? String(selected.topic)
+      : planResult.objective
+      ? String(planResult.objective)
+      : artifact.title;
+
+  const executiveInsight =
+    payloadString(artifact.payload, "summary") ??
+    payloadString(planResult, "summary") ??
+    (planResult.objective
+      ? `${planResult.objective}.${selected?.rationale ? ` Rationale: ${selected.rationale}` : ""}`
+      : selected?.rationale
+      ? String(selected.rationale)
+      : "The agent did not provide a summary.");
+
   return {
     id: artifact.id,
     code: shortCode("ART", artifact.id),
-    title: artifact.title,
+    title: displayTitle,
     version: `v${artifact.version}`,
     nextVersion: Math.max(...lineage.map((a) => a.version)) + 1,
     category: humanize(artifact.artifact_type).toUpperCase(),
@@ -141,7 +211,7 @@ export function toArtifactDeliverable(
     workspaceTag: context.workspaceName,
     agent: agentLabel(artifact.role),
     versionsCount: lineage.length,
-    executiveInsight: payloadString(artifact.payload, "summary") ?? "The agent did not provide a summary.",
+    executiveInsight,
     cards: cards(artifact.payload),
     pipeline: {
       pipelineId: task ? shortCode("TSK", task.id) : "—",

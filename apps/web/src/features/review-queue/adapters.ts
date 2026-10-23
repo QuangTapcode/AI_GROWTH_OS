@@ -25,24 +25,142 @@ interface Cluster {
   hypothesis?: string;
 }
 
+export function extractPlanResult(payload: Record<string, unknown>): Record<string, unknown> {
+  if (payload.result && typeof payload.result === "object" && !Array.isArray(payload.result)) {
+    return payload.result as Record<string, unknown>;
+  }
+  return payload;
+}
+
+export function formatDocumentMarkdown(payload: Record<string, unknown>): string | undefined {
+  const directDoc = payloadString(payload, "document_markdown");
+  if (directDoc) return directDoc;
+
+  const planResult = extractPlanResult(payload);
+  const selected = planResult.selected_opportunity as Record<string, unknown> | undefined;
+  const objective = payloadString(planResult, "objective");
+  const tasks = Array.isArray(planResult.tasks) ? (planResult.tasks as Array<Record<string, unknown>>) : [];
+  const scoreObj = planResult.opportunity_score as Record<string, unknown> | undefined;
+
+  if (!selected && !objective && tasks.length === 0) return undefined;
+
+  const topic = selected?.topic ? String(selected.topic) : "Campaign Strategy";
+  const lines: string[] = [
+    `# Strategic Campaign Plan: ${topic}`,
+    "",
+    objective ? `**Objective**: ${objective}` : "",
+    scoreObj?.score !== undefined ? `**Opportunity Score**: ${scoreObj.score} / 1000` : "",
+    selected?.audience_fit ? `**Target Audience**: ${selected.audience_fit}` : "",
+    selected?.user_need ? `**User Need**: ${selected.user_need}` : "",
+    "",
+  ];
+
+  if (selected?.rationale) {
+    lines.push("## Strategic Rationale");
+    lines.push(String(selected.rationale));
+    lines.push("");
+  }
+
+  if (selected?.offer_fit) {
+    lines.push("## Offer Fit");
+    lines.push(Array.isArray(selected.offer_fit) ? selected.offer_fit.map((o) => `- ${o}`).join("\n") : String(selected.offer_fit));
+    lines.push("");
+  }
+
+  if (tasks.length > 0) {
+    lines.push("## Downstream Deliverable Briefs (DAG)");
+    tasks.forEach((t, idx) => {
+      const role = String(t.role ?? "task").toUpperCase();
+      const brief = (t.brief ?? {}) as Record<string, unknown>;
+      lines.push(`### ${idx + 1}. ${role} Task: ${brief.topic ?? role}`);
+      if (brief.intent) lines.push(`- **Intent**: ${brief.intent}`);
+      if (brief.cta) lines.push(`- **CTA**: ${brief.cta}`);
+      if (Array.isArray(brief.offer)) lines.push(`- **Offer**: ${brief.offer.join(", ")}`);
+      if (Array.isArray(brief.angles)) lines.push(`- **Angles**: ${brief.angles.join(", ")}`);
+      if (Array.isArray(brief.channels)) lines.push(`- **Channels**: ${brief.channels.join(", ")}`);
+      lines.push("");
+    });
+  }
+
+  return lines.filter((l, i, arr) => !(l === "" && arr[i - 1] === "")).join("\n").trim();
+}
+
 function topicClusters(payload: Record<string, unknown>): TopicCluster[] {
   const clusters = payloadArray<Cluster>(payload, "topic_clusters");
-  const source =
-    clusters.length > 0
-      ? clusters.map((c) => ({ title: c.title, description: c.description, badge: "" }))
-      : payloadArray<Cluster>(payload, "opportunities").length > 0
-      ? payloadArray<Cluster>(payload, "opportunities").map((o) => ({ title: o.topic, description: o.hypothesis, badge: o.intent ?? "" }))
-      : payloadArray<Cluster>(payload, "keywords").map((k) => ({ title: k.keyword, description: k.note, badge: k.intent ?? "" }));
-  return source
-    .filter((c) => c.title)
-    .slice(0, 6)
-    .map((c, i) => ({
+  if (clusters.length > 0) {
+    return clusters.slice(0, 6).map((c, i) => ({
       id: `cluster-${i}`,
       letter: String.fromCharCode(65 + i),
       title: c.title ?? "",
       description: c.description ?? "",
-      serpVoidBadge: c.badge ? humanize(c.badge) : "",
+      serpVoidBadge: "",
     }));
+  }
+  const opportunities = payloadArray<Cluster>(payload, "opportunities");
+  if (opportunities.length > 0) {
+    return opportunities.slice(0, 6).map((o, i) => ({
+      id: `cluster-${i}`,
+      letter: String.fromCharCode(65 + i),
+      title: o.topic ?? "",
+      description: o.hypothesis ?? "",
+      serpVoidBadge: o.intent ? humanize(o.intent) : "",
+    }));
+  }
+  const keywords = payloadArray<Cluster>(payload, "keywords");
+  if (keywords.length > 0) {
+    return keywords.slice(0, 6).map((k, i) => ({
+      id: `cluster-${i}`,
+      letter: String.fromCharCode(65 + i),
+      title: k.keyword ?? "",
+      description: k.note ?? "",
+      serpVoidBadge: k.intent ? humanize(k.intent) : "",
+    }));
+  }
+
+  // Fallback to real CampaignPlan result (Growth Lead)
+  const planResult = extractPlanResult(payload);
+  const selected = planResult.selected_opportunity as Record<string, unknown> | undefined;
+  const tasks = Array.isArray(planResult.tasks) ? (planResult.tasks as Array<Record<string, unknown>>) : [];
+  const scoreObj = planResult.opportunity_score as Record<string, unknown> | undefined;
+
+  const dynamicItems: Array<{ title: string; description: string; badge: string }> = [];
+
+  if (selected && typeof selected === "object") {
+    dynamicItems.push({
+      title: String(selected.topic ?? "Primary Campaign Opportunity"),
+      description: `${String(selected.rationale ?? "")}${selected.audience_fit ? ` (Audience: ${selected.audience_fit})` : ""}`,
+      badge: scoreObj?.score !== undefined ? `Score: ${scoreObj.score}` : "Strategic Pick",
+    });
+    if (selected.user_need) {
+      dynamicItems.push({
+        title: `User Need: ${String(selected.user_need)}`,
+        description: `Offer Fit: ${Array.isArray(selected.offer_fit) ? selected.offer_fit.join(", ") : String(selected.offer_fit ?? "Verified housing & coworking")}`,
+        badge: selected.confidence ? `Confidence: ${selected.confidence}` : "User Intent",
+      });
+    }
+  }
+
+  for (const t of tasks) {
+    const brief = (t.brief ?? {}) as Record<string, unknown>;
+    const role = String(t.role ?? "Task").toUpperCase();
+    const taskTopic = String(brief.topic ?? brief.cta ?? `${role} Deliverable`);
+    const angles = Array.isArray(brief.angles) ? brief.angles.join(", ") : "";
+    const offer = Array.isArray(brief.offer) ? brief.offer.join(", ") : "";
+    const desc = brief.cta ? `CTA: ${brief.cta}${angles ? ` · Angles: ${angles}` : ""}` : (offer ? `Offer: ${offer}` : `${role} task brief`);
+    dynamicItems.push({
+      title: `${role}: ${taskTopic}`,
+      description: desc,
+      badge: String(brief.intent ?? t.role ?? "Queued"),
+    });
+  }
+
+  return dynamicItems.slice(0, 6).map((c, i) => ({
+    id: `cluster-${i}`,
+    letter: String.fromCharCode(65 + i),
+    title: c.title,
+    description: c.description,
+    serpVoidBadge: c.badge ? humanize(c.badge) : "",
+  }));
 }
 
 function validations(approval: Approval, artifact: ContentArtifact | undefined): ValidationBadge[] {
@@ -126,11 +244,43 @@ export function toReviewItem(
       ? `Revoked${approval.invalidated_reason ? `: ${approval.invalidated_reason}` : ""}`
       : approval.review_note ?? undefined;
 
+  const planResult = extractPlanResult(payload);
+  const selected = planResult.selected_opportunity as Record<string, unknown> | undefined;
+
+  const rawTitle = artifact?.title;
+  const displayTitle =
+    rawTitle && rawTitle !== artifact?.role && rawTitle !== "ai_result"
+      ? rawTitle
+      : selected?.topic
+      ? String(selected.topic)
+      : planResult.objective
+      ? String(planResult.objective)
+      : artifact?.title ?? `${humanize(approval.target_type)} ${shortCode("ID", approval.target_id)}`;
+
+  const summary =
+    payloadString(payload, "summary") ??
+    payloadString(planResult, "summary") ??
+    (planResult.objective
+      ? `${planResult.objective}.${selected?.rationale ? ` Rationale: ${selected.rationale}` : ""}`
+      : selected?.rationale
+      ? String(selected.rationale)
+      : "The agent did not provide a summary.");
+
+  const targetCluster =
+    payloadString(payload, "target_cluster") ??
+    payloadString(planResult, "target_cluster") ??
+    (selected?.topic ? String(selected.topic) : "—");
+
+  const targetLocale =
+    payloadString(payload, "target_locale") ??
+    payloadString(planResult, "target_locale") ??
+    (selected?.audience_fit ? "Da Nang (Expats & Nomads)" : "—");
+
   return {
     id: approval.id,
     taskId: task ? shortCode("TSK", task.id) : "—",
     runId: shortCode("APR", approval.id),
-    title: artifact?.title ?? `${humanize(approval.target_type)} ${shortCode("ID", approval.target_id)}`,
+    title: displayTitle,
     version: `v${approval.target_version}`,
     category: artifact ? humanize(artifact.artifact_type).toUpperCase() : approval.target_type.toUpperCase(),
     timeAgo: timeAgo(approval.created_at),
@@ -138,13 +288,13 @@ export function toReviewItem(
     status,
     statusTag,
     agent: artifact ? agentLabel(artifact.role) : "—",
-    targetCluster: payloadString(payload, "target_cluster") ?? "—",
-    targetLocale: payloadString(payload, "target_locale") ?? "—",
+    targetCluster,
+    targetLocale,
     latency: task ? formatDuration(durationBetween(task.started_at, task.completed_at)) : "—",
     stagesCompletedText: `${steps.filter((s) => s.status === "completed").length} of ${steps.length} stages completed`,
     pipelineSteps: steps,
     validations: validations(approval, artifact),
-    executiveSummary: payloadString(payload, "summary") ?? "The agent did not provide a summary.",
+    executiveSummary: summary,
     topicClusters: topicClusters(payload),
     jsonPayload: { approval, artifact: artifact ?? null },
     rejectionReason,
@@ -152,7 +302,7 @@ export function toReviewItem(
       approval.status === "pending"
         ? "The output is pinned at this version and hash. Nothing moves forward until an owner decides."
         : `Decision recorded ${formatDateTime(approval.updated_at)}${approval.review_note ? ` · "${approval.review_note}"` : ""}.`,
-    documentContent: payloadString(payload, "document_markdown") ?? undefined,
+    documentContent: formatDocumentMarkdown(payload),
   };
 }
 

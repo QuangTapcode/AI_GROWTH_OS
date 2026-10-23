@@ -182,13 +182,13 @@ def markdown_report(report: dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run one AI Growth OS agent and save inspectable evidence")
     parser.add_argument("--role", choices=sorted(ROLE_OPERATIONS), required=True)
-    parser.add_argument("--mode", choices=["fake", "live"], default="fake")
+    parser.add_argument("--mode", choices=["fake", "live", "gemini"], default="fake")
     parser.add_argument("--out", type=Path, required=True, help="Output JSON path; Markdown is written next to it")
     parser.add_argument("--request", type=Path, help="Optional JSON JobRequest; skips the built-in fixture and prerequisites")
     args = parser.parse_args()
 
     with TemporaryDirectory(prefix=f"single-{args.role}-") as directory:
-        settings = replace(Settings(), provider_mode=args.mode, run_store_path=str(Path(directory) / "runs.sqlite3"))
+        settings = replace(Settings.from_env(), provider_mode=args.mode, run_store_path=str(Path(directory) / "runs.sqlite3"))
         with TestClient(create_app(settings)) as client:
             if args.request:
                 target = json.loads(args.request.read_text(encoding="utf-8"))
