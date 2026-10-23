@@ -21,6 +21,12 @@ PROMPT_VERSION = "research-v2"
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 
 
+def _normalize_text(text: str) -> str:
+    """Chuẩn hóa text: collapse whitespace, trim, case-insensitive cho so sánh quote."""
+    import re
+    return re.sub(r"\s+", " ", text.strip()).lower()
+
+
 def validate_research(job: JobRequest, payload: ResearchPayload, settings: Settings) -> list[tuple[str, str]]:
     problems = context_problems(job, payload.business_profile, payload.goal_context, payload.snapshot)
     if not job.context_snapshot_id or not payload.snapshot.snapshot_id:
@@ -54,12 +60,19 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
         if fetched is None or fetched.tzinfo is None or fetched > now:
             missing.append(f"source:{source.source_id}:fetched_at")
             continue
+        # --- THÊM MÃ MỚI: check source đã thu hồi ---
+        prov = source.provenance
+        if getattr(prov, "revoked", False):
+            missing.append("revoked_source")
+            continue
+        # -----------------
         for chunk in source.chunks:
             if chunk.chunk_id in candidates:
                 raise OperationError("DUPLICATE_CHUNK_ID", "Research chunk IDs must be unique")
             # Sensitive facts belong to verified structured facts, not research excerpts.
             if has_price_claim(chunk.text) or sensitive_keys_in(chunk.text):
                 warnings.append("SENSITIVE_EXCERPT_EXCLUDED")
+                missing.append("content_filtered_by_guardrails")
                 continue
             candidates[chunk.chunk_id] = (source, chunk, valid_url, fetched)
 
@@ -106,7 +119,7 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     seen = set()
     for idea in draft.ideas:
         ref = selected.get(idea.chunk_id)
-        if ref is None or not idea.quote.strip() or idea.quote not in ref[1].text:
+        if ref is None or not idea.quote.strip() or _normalize_text(idea.quote) not in _normalize_text(ref[1].text):
             warnings.append("UNGROUNDED_IDEA_DROPPED")
             continue
         explanations = (idea.audience_fit, idea.offer_fit, idea.rationale, idea.user_need)
@@ -135,6 +148,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                          keywords=idea.keywords, user_need=idea.user_need))
     if not findings:
         missing.append("grounded_opportunities")
+        if "content_filtered_by_guardrails" in missing:
+            missing.append("no_eligible_chunks_after_guardrails")
     brief = ResearchBrief(brief_id=uuid5(NAMESPACE_URL, f"research:{ctx.job.job_id}:{ctx.job.input_version}"),
                           workspace_id=ctx.job.workspace_id, profile_version=payload.business_profile.version,
                           context_snapshot_id=payload.snapshot.snapshot_id,

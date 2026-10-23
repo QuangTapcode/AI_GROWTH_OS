@@ -85,6 +85,8 @@ function Operations() {
   const [message, setMessage] = useState("");
   const [role, setRole] = useState("all");
   const [selected, setSelected] = useState<Task | null>(null);
+  const [runBusy, setRunBusy] = useState(false);
+  const [runMessage, setRunMessage] = useState("");
   useEffect(() => {
     const timer = window.setInterval(reload, 5000);
     return () => window.clearInterval(timer);
@@ -129,6 +131,21 @@ function Operations() {
       setMessage((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+  async function runResearch() {
+    setRunBusy(true);
+    setRunMessage("");
+    try {
+      // Đầu vào chỉ gồm operation; backend lấy workspace, business profile
+      // và nguồn đã duyệt từ workspace_id.
+      await growthApi.createAiRun(workspace.id, { operation: "research.run" });
+      setRunMessage("Đã tạo research run. Worker sẽ nhận task trong hàng đợi.");
+      reload();
+    } catch (e) {
+      setRunMessage(`Lỗi: ${(e as Error).message || "Unknown error"}`);
+    } finally {
+      setRunBusy(false);
     }
   }
   const tasks = data?.tasks ?? [];
@@ -300,7 +317,7 @@ function Operations() {
                       {running
                         ? `${running} đang chạy`
                         : latest
-                          ? `${latest.synthetic ? "Demo: " : ""}${labels[latest.status]}`
+                          ? `${latest.synthetic ? "Demo: " : ""}${labels[latest.status] ?? latest.status}`
                           : "Chưa có task"}
                     </span>
                   </div>
@@ -317,7 +334,10 @@ function Operations() {
                     >
                       Lọc task
                     </button>
-                    <Link href={`/agents/${id}`} className="text-xs font-bold text-blue-700 hover:underline">
+                    <Link
+                      href={`/agents/${id}`}
+                      className="text-xs font-bold text-blue-700 hover:underline"
+                    >
                       Xem chi tiết →
                     </Link>
                   </div>
@@ -389,10 +409,30 @@ function Operations() {
               </table>
             </div>
             {!tasks.length && (
-              <p className="p-8 text-center text-slate-500">
-                Chưa có task. Chuẩn bị nguồn đã duyệt và knowledge context, sau
-                đó chọn Chạy ngay.
-              </p>
+              <div className="p-8 text-center text-slate-500">
+                <p>
+                  Chuẩn bị nguồn đã duyệt và knowledge context, sau đó chọn{" "}
+                  <button
+                    type="button"
+                    disabled={runBusy}
+                    onClick={runResearch}
+                    className="underline text-blue-600 hover:text-blue-800 disabled:opacity-40"
+                  >
+                    Chạy nghiên cứu ngay
+                  </button>
+                  .
+                </p>
+                {runBusy && (
+                  <p className="mt-4 text-sm font-medium">
+                    Đang tạo nghiên cứu...
+                  </p>
+                )}
+                {runMessage && (
+                  <p role="status" className="mt-2 text-sm">
+                    {runMessage}
+                  </p>
+                )}
+              </div>
             )}
             <p className="p-4 text-xs text-slate-400">
               Dữ liệu cập nhật: {date(data.observed_at)} · Thứ tự: Research →
