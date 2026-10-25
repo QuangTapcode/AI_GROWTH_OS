@@ -137,3 +137,26 @@ def test_html_parser_ignores_scripts() -> None:
     segments, title = parse_html("<title>T</title><style>.x{}</style><p>One</p><p>Two</p>", "https://vietnam.travel/")
     assert title == "T"
     assert [segment.text for segment in segments] == ["One", "Two"]
+
+
+def test_html_extraction_drops_page_chrome_but_keeps_article_text() -> None:
+    html = (
+        '<html class="client-js vector-toc-available"><body>'
+        '<a class="mw-jump-link" href="#content">Jump to content</a>'
+        '<div class="vector-toc"><ul><li>Contents<li>1 Understand</ul></div>'
+        '<main id="content"><h1>Da Nang</h1><p>Coworking spaces serve remote workers.'
+        '<div class="navbox"><div><p>Other cities</div></div>'
+        '<p>My Khe Beach runs along the east.</main>'
+        '<div role="navigation">Main page</div><footer>Privacy policy</footer></body></html>'
+    )
+    segments, _ = parse_html(html, "https://en.wikivoyage.org/wiki/Da_Nang")
+    text = " ".join(s.text for s in segments)
+    assert "Coworking spaces serve remote workers." in text and "My Khe Beach runs along the east." in text
+    assert not any(noise in text for noise in ("Jump to content", "Contents", "Other cities", "Main page", "Privacy policy"))
+
+
+def test_streamed_content_outside_a_placeholder_main_is_kept() -> None:
+    # Next.js streams the article into <div hidden id="S:2">; the <main> is only a placeholder.
+    html = '<main><p>Loading</p></main><div hidden id="S:2"><p>' + "Da Nang tourism overview. " * 20 + "</p></div>"
+    segments, _ = parse_html(html, "https://danangfantasticity.com/en/about-da-nang-city")
+    assert "Da Nang tourism overview." in " ".join(s.text for s in segments)

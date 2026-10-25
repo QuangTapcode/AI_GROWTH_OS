@@ -29,6 +29,8 @@ export interface AiRunRequest {
   model_version?: string;
   /** Đánh dấu fixture; chỉ dùng với input TEST/provenance hợp lệ */
   synthetic?: boolean;
+  /** Per-job run deadline; AI still caps it at AI_JOB_DEADLINE_SECONDS (local models need more than the 120s default) */
+  timeout_seconds?: number;
 }
 
 export interface AiRunResult {

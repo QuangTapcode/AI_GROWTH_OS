@@ -22,7 +22,15 @@ DEFAULT_URL_ALLOWLIST = (
     "hiyorigardentower.com",
     "enostaspace.com",
     "booking.cali.vn",
+    # TripC first-party site (client-rendered; the worker sends rendered HTML).
+    "tripc.ai",
+    "tripc.vn",
+    # Open-license references (CC BY-SA 4.0) for research; attribution is stored per source.
+    "en.wikivoyage.org",
+    "en.wikipedia.org",
 )
+# Wikimedia and other publishers reject anonymous bots; identify the crawler and a contact URL.
+DEFAULT_INGEST_USER_AGENT = "AI-Growth-OS-ingest/0.1 (+https://tripc.vn; research source ingest)"
 
 
 def _int_env(name: str, default: int) -> int:
@@ -74,6 +82,7 @@ class Settings:
     max_retrieved_chunks: int = 6
     url_fetch_timeout_seconds: int = 30
     ingest_url_allowlist: tuple[str, ...] = DEFAULT_URL_ALLOWLIST
+    ingest_user_agent: str = DEFAULT_INGEST_USER_AGENT
     run_store_path: str = str(SERVICE_ROOT / "var" / "runs.sqlite3")
 
     @classmethod
@@ -107,6 +116,7 @@ class Settings:
             max_retrieved_chunks=_int_env("AI_MAX_RETRIEVED_CHUNKS", 6),
             url_fetch_timeout_seconds=_int_env("AI_URL_FETCH_TIMEOUT_SECONDS", 30),
             ingest_url_allowlist=_list_env("AI_INGEST_URL_ALLOWLIST", DEFAULT_URL_ALLOWLIST),
+            ingest_user_agent=os.getenv("AI_INGEST_USER_AGENT", DEFAULT_INGEST_USER_AGENT).strip() or DEFAULT_INGEST_USER_AGENT,
             run_store_path=os.getenv("AI_RUN_STORE_PATH", str(SERVICE_ROOT / "var" / "runs.sqlite3")),
         )
         settings.validate()

@@ -4,6 +4,8 @@ Owner: Quang Quang. Task: QQ-05 trong [TODO cá nhân](../../../../../docs/coord
 
 **Trạng thái:** dedicated pipeline/schema/prompt cho `content.generate`, `content.repurpose`, `content.quality_check` đã đăng ký. Social pack target mặc định là Facebook + TikTok và luôn ở draft/manual approval cho đến khi connector được verify.
 
+**Facebook (xong):** khi target có `facebook`, cùng một lần gọi model trả thêm `facebook` (prompt `prompts/content-v3-facebook.md`): hook trước "See more", thân bài 2-4 ý từ bài SEO, câu hỏi thảo luận tùy chọn, tối đa 2 hashtag. Code tự ghép CTA chính xác thành `facebook.text`, chặn link/URL và số/giá không có nguồn. Bài Facebook text không cần ảnh. Automation đăng Page dùng `facebook.text`, fallback `caption`. **TikTok:** chưa có variant riêng (đang dùng `caption` chung).
+
 - Input: social brief + parent blog/version + approved assets.
 - Output/handoff: caption/CTA/file ảnh/variants có parent refs → human approval → executor.
 - Tool scope dự kiến: content/asset draft; publish qua executor. Gateway backend phải enforce; prompt không cấp quyền.

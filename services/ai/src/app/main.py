@@ -74,7 +74,8 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
 
     def deadline_seconds(job: JobRequest, operation: Operation) -> int:
         limit = settings.embedding_job_deadline_seconds if operation.deadline_kind == "embedding" else settings.job_deadline_seconds
-        return max(job.constraints.timeout_seconds, limit, 600)
+        # The service limit is a hard cap; a job may only ask for less, never more.
+        return min(job.constraints.timeout_seconds, limit)
 
     def request_hash(job: JobRequest) -> str:
         # trace_id may change between retries of the same logical request.

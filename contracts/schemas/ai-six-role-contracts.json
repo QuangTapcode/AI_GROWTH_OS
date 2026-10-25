@@ -1497,6 +1497,83 @@
             ],
             "title": "SourceProvenance",
             "type": "object"
+          },
+          "TrendSignal": {
+            "additionalProperties": false,
+            "description": "One web search result observed by the backend discovery step (metadata only, no page text).",
+            "properties": {
+              "signal_id": {
+                "format": "uuid",
+                "title": "Signal Id",
+                "type": "string"
+              },
+              "query": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Query",
+                "type": "string"
+              },
+              "rank": {
+                "maximum": 50,
+                "minimum": 1,
+                "title": "Rank",
+                "type": "integer"
+              },
+              "title": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "url": {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "title": "Url",
+                "type": "string"
+              },
+              "domain": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Domain",
+                "type": "string"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "title": "Observed At",
+                "type": "string"
+              },
+              "previous_rank": {
+                "anyOf": [
+                  {
+                    "maximum": 50,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Previous Rank"
+              },
+              "is_new": {
+                "default": false,
+                "title": "Is New",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "signal_id",
+              "query",
+              "rank",
+              "title",
+              "url",
+              "domain",
+              "observed_at"
+            ],
+            "title": "TrendSignal",
+            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -1529,6 +1606,14 @@
             },
             "maxItems": 100,
             "title": "Content Inventory",
+            "type": "array"
+          },
+          "trend_signals": {
+            "items": {
+              "$ref": "#/$defs/TrendSignal"
+            },
+            "maxItems": 30,
+            "title": "Trend Signals",
             "type": "array"
           }
         },
@@ -1717,6 +1802,26 @@
                 ],
                 "default": null,
                 "title": "User Need"
+              },
+              "evidence_updated": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Evidence Updated"
+              },
+              "trend_signals": {
+                "items": {
+                  "$ref": "#/$defs/TrendSignal"
+                },
+                "maxItems": 5,
+                "title": "Trend Signals",
+                "type": "array"
               }
             },
             "required": [
@@ -1729,6 +1834,115 @@
               "fetched_at"
             ],
             "title": "ResearchFinding",
+            "type": "object"
+          },
+          "TrendCoverage": {
+            "additionalProperties": false,
+            "description": "Approved excerpts mentioning every word of a searched topic. 0 is a certain source gap;\na positive count is a lexical mention, not a judgement that the topic is well covered.",
+            "properties": {
+              "query": {
+                "title": "Query",
+                "type": "string"
+              },
+              "topic": {
+                "title": "Topic",
+                "type": "string"
+              },
+              "signal_count": {
+                "minimum": 0,
+                "title": "Signal Count",
+                "type": "integer"
+              },
+              "covered_chunks": {
+                "minimum": 0,
+                "title": "Covered Chunks",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "query",
+              "topic",
+              "signal_count",
+              "covered_chunks"
+            ],
+            "title": "TrendCoverage",
+            "type": "object"
+          },
+          "TrendSignal": {
+            "additionalProperties": false,
+            "description": "One web search result observed by the backend discovery step (metadata only, no page text).",
+            "properties": {
+              "signal_id": {
+                "format": "uuid",
+                "title": "Signal Id",
+                "type": "string"
+              },
+              "query": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Query",
+                "type": "string"
+              },
+              "rank": {
+                "maximum": 50,
+                "minimum": 1,
+                "title": "Rank",
+                "type": "integer"
+              },
+              "title": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "url": {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "title": "Url",
+                "type": "string"
+              },
+              "domain": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Domain",
+                "type": "string"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "title": "Observed At",
+                "type": "string"
+              },
+              "previous_rank": {
+                "anyOf": [
+                  {
+                    "maximum": 50,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Previous Rank"
+              },
+              "is_new": {
+                "default": false,
+                "title": "Is New",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "signal_id",
+              "query",
+              "rank",
+              "title",
+              "url",
+              "domain",
+              "observed_at"
+            ],
+            "title": "TrendSignal",
             "type": "object"
           }
         },
@@ -1789,6 +2003,13 @@
             "title": "Missing Facts",
             "type": "array"
           },
+          "trend_coverage": {
+            "items": {
+              "$ref": "#/$defs/TrendCoverage"
+            },
+            "title": "Trend Coverage",
+            "type": "array"
+          },
           "handoff_role": {
             "const": "growth_lead",
             "default": "growth_lead",
@@ -1835,9 +2056,9 @@
         "research.run": "dedicated"
       },
       "prompt_versions": {
-        "research.run": "research-v2"
+        "research.run": "research-v5"
       },
-      "prompt_version": "research-v2",
+      "prompt_version": "research-v5",
       "schema_operations": [
         "research.run"
       ]
@@ -2453,6 +2674,13 @@
                 "title": "Missing Facts",
                 "type": "array"
               },
+              "trend_coverage": {
+                "items": {
+                  "$ref": "#/$defs/TrendCoverage"
+                },
+                "title": "Trend Coverage",
+                "type": "array"
+              },
               "handoff_role": {
                 "const": "growth_lead",
                 "default": "growth_lead",
@@ -2559,6 +2787,26 @@
                 ],
                 "default": null,
                 "title": "User Need"
+              },
+              "evidence_updated": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Evidence Updated"
+              },
+              "trend_signals": {
+                "items": {
+                  "$ref": "#/$defs/TrendSignal"
+                },
+                "maxItems": 5,
+                "title": "Trend Signals",
+                "type": "array"
               }
             },
             "required": [
@@ -3160,6 +3408,115 @@
             ],
             "title": "SourceProvenance",
             "type": "object"
+          },
+          "TrendCoverage": {
+            "additionalProperties": false,
+            "description": "Approved excerpts mentioning every word of a searched topic. 0 is a certain source gap;\na positive count is a lexical mention, not a judgement that the topic is well covered.",
+            "properties": {
+              "query": {
+                "title": "Query",
+                "type": "string"
+              },
+              "topic": {
+                "title": "Topic",
+                "type": "string"
+              },
+              "signal_count": {
+                "minimum": 0,
+                "title": "Signal Count",
+                "type": "integer"
+              },
+              "covered_chunks": {
+                "minimum": 0,
+                "title": "Covered Chunks",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "query",
+              "topic",
+              "signal_count",
+              "covered_chunks"
+            ],
+            "title": "TrendCoverage",
+            "type": "object"
+          },
+          "TrendSignal": {
+            "additionalProperties": false,
+            "description": "One web search result observed by the backend discovery step (metadata only, no page text).",
+            "properties": {
+              "signal_id": {
+                "format": "uuid",
+                "title": "Signal Id",
+                "type": "string"
+              },
+              "query": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Query",
+                "type": "string"
+              },
+              "rank": {
+                "maximum": 50,
+                "minimum": 1,
+                "title": "Rank",
+                "type": "integer"
+              },
+              "title": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "url": {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "title": "Url",
+                "type": "string"
+              },
+              "domain": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Domain",
+                "type": "string"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "title": "Observed At",
+                "type": "string"
+              },
+              "previous_rank": {
+                "anyOf": [
+                  {
+                    "maximum": 50,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Previous Rank"
+              },
+              "is_new": {
+                "default": false,
+                "title": "Is New",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "signal_id",
+              "query",
+              "rank",
+              "title",
+              "url",
+              "domain",
+              "observed_at"
+            ],
+            "title": "TrendSignal",
+            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -3525,6 +3882,26 @@
                 ],
                 "default": null,
                 "title": "User Need"
+              },
+              "evidence_updated": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Evidence Updated"
+              },
+              "trend_signals": {
+                "items": {
+                  "$ref": "#/$defs/TrendSignal"
+                },
+                "maxItems": 5,
+                "title": "Trend Signals",
+                "type": "array"
               }
             },
             "required": [
@@ -3676,6 +4053,83 @@
               "acceptance"
             ],
             "title": "TaskBrief",
+            "type": "object"
+          },
+          "TrendSignal": {
+            "additionalProperties": false,
+            "description": "One web search result observed by the backend discovery step (metadata only, no page text).",
+            "properties": {
+              "signal_id": {
+                "format": "uuid",
+                "title": "Signal Id",
+                "type": "string"
+              },
+              "query": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Query",
+                "type": "string"
+              },
+              "rank": {
+                "maximum": 50,
+                "minimum": 1,
+                "title": "Rank",
+                "type": "integer"
+              },
+              "title": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "url": {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "title": "Url",
+                "type": "string"
+              },
+              "domain": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Domain",
+                "type": "string"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "title": "Observed At",
+                "type": "string"
+              },
+              "previous_rank": {
+                "anyOf": [
+                  {
+                    "maximum": 50,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Previous Rank"
+              },
+              "is_new": {
+                "default": false,
+                "title": "Is New",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "signal_id",
+              "query",
+              "rank",
+              "title",
+              "url",
+              "domain",
+              "observed_at"
+            ],
+            "title": "TrendSignal",
             "type": "object"
           }
         },
@@ -8187,6 +8641,62 @@
             "title": "EvidenceRef",
             "type": "object"
           },
+          "FacebookPost": {
+            "additionalProperties": false,
+            "properties": {
+              "hook": {
+                "maxLength": 150,
+                "minLength": 1,
+                "title": "Hook",
+                "type": "string"
+              },
+              "body": {
+                "maxLength": 1500,
+                "minLength": 1,
+                "title": "Body",
+                "type": "string"
+              },
+              "discussion_question": {
+                "anyOf": [
+                  {
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Discussion Question"
+              },
+              "hashtags": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 2,
+                "title": "Hashtags",
+                "type": "array"
+              },
+              "cta": {
+                "title": "Cta",
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 2200,
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              }
+            },
+            "required": [
+              "hook",
+              "body",
+              "cta",
+              "text"
+            ],
+            "title": "FacebookPost",
+            "type": "object"
+          },
           "ImageAsset": {
             "additionalProperties": false,
             "properties": {
@@ -8399,6 +8909,25 @@
             "title": "Caption",
             "type": "string"
           },
+          "hook": {
+            "default": "",
+            "title": "Hook",
+            "type": "string"
+          },
+          "key_points": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Key Points",
+            "type": "array"
+          },
+          "hashtags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hashtags",
+            "type": "array"
+          },
           "cta": {
             "title": "Cta",
             "type": "string"
@@ -8409,6 +8938,17 @@
             },
             "title": "Channels",
             "type": "array"
+          },
+          "facebook": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FacebookPost"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "channel_mode": {
             "default": "manual_review_pack",
@@ -8477,11 +9017,11 @@
         "content.quality_check": "dedicated"
       },
       "prompt_versions": {
-        "content.generate": "content-v1",
-        "content.repurpose": "content-v1",
-        "content.quality_check": "content-v1"
+        "content.generate": "content-v3",
+        "content.repurpose": "content-v3",
+        "content.quality_check": "content-v3"
       },
-      "prompt_version": "content-v1",
+      "prompt_version": "content-v3",
       "schema_operations": [
         "content.generate",
         "content.repurpose",

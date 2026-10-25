@@ -26,5 +26,5 @@ def research_request(*, job_id: UUID, workspace_id: UUID, snapshot: dict,
                                                 for s in knowledge.sources
                                                 if s.status == "approved" and s.deleted_at is None
                                                 and s.workspace_id == workspace_id],
-                      prompt_version="research-v2", synthetic=synthetic,
+                      prompt_version="research-v5", synthetic=synthetic,
                       payload=payload.model_dump(mode="json"))

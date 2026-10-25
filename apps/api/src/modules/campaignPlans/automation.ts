@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { defaultSearch, refreshDiscoveryIfStale } from "../research/discovery";
 import type { Pool } from "pg";
 import { enqueueAiTask } from "./aiTasks";
 import { PgPlanRepository } from "./pgRepository";
@@ -69,7 +70,9 @@ async function scheduleFacebookArtifact(
   )).rows[0];
   if (!channel) return;
   const result = row.payload.result;
-  const body = typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
+  // Prefer the Facebook-specific post (hook, body, question, exact CTA) over the generic caption.
+  const facebook = result.facebook as { text?: unknown } | null | undefined;
+  const body = typeof facebook?.text === "string" ? facebook.text : typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
   const content = (await db.query<{ id: string }>(
     `INSERT INTO contents (workspace_id,title,body_markdown,type,status,created_by,approved_by,current_version,content_hash,artifact_id)
      VALUES($1,$2,$3,'social_post','approved','ai',$4,$5,$6,$7)
@@ -207,6 +210,7 @@ export async function tickAutomation(
 ) {
   const lock = await pool.connect();
   let acquired = false;
+  let discoveryWarning: string | null = null;
   try {
     acquired = (
       await lock.query(
@@ -350,6 +354,13 @@ export async function tickAutomation(
         )
       ).rowCount;
       if (!active && !unfinished) {
+        // Fresh search landscape for this research run. A search outage must not block
+        // research on the existing approved snapshot; it is reported as last_error instead.
+        try {
+          await refreshDiscoveryIfStale(pool, workspaceId, defaultSearch(), settings.interval_hours);
+        } catch (error) {
+          discoveryWarning = `DISCOVERY_FAILED: ${(error as Error).message}`;
+        }
         const child = await enqueue(
           `research:${workspaceId}:${new Date(settings.next_run_at).toISOString()}`,
           { operation: "research.run" },
@@ -365,10 +376,10 @@ export async function tickAutomation(
       }
     }
     await pool.query(
-      "UPDATE agent_automation SET last_tick_at=now(),last_error=NULL WHERE workspace_id=$1",
-      [workspaceId],
+      "UPDATE agent_automation SET last_tick_at=now(),last_error=$2 WHERE workspace_id=$1",
+      [workspaceId, discoveryWarning],
     );
-    return { status: "ok" };
+    return discoveryWarning ? { status: "ok", warning: discoveryWarning } : { status: "ok" };
   } catch (error) {
     await pool.query(
       "UPDATE agent_automation SET last_tick_at=now(),last_error=$2 WHERE workspace_id=$1",

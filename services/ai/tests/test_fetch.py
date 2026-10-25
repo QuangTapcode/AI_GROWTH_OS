@@ -8,13 +8,14 @@ from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Iterator
 
+import httpx
 import pytest
 
 from conftest import run_job
 from evals.fixtures import SOURCE_IDS, WS_A, job
 from src.app.config import Settings
 from src.app.runtime import OperationError
-from src.rag.parsing import fetch_url
+from src.rag.parsing import _robots_cache, check_robots_allowed, fetch_url
 
 
 ROUTES = {
@@ -25,11 +26,15 @@ ROUTES = {
     "/pdf": (200, {"Content-Type": "application/pdf"}, b"%PDF-1.4"),
     "/missing": (404, {"Content-Type": "text/html"}, b"no"),
     "/error": (500, {"Content-Type": "text/html"}, b"err"),
+    "/robots.txt": (200, {"Content-Type": "text/plain"}, b"User-agent: *\nDisallow: /private\n"),
+    "/private": (200, {"Content-Type": "text/html"}, b"<p>Members only.</p>"),
 }
+SEEN_USER_AGENTS: list[str] = []
 
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
+        SEEN_USER_AGENTS.append(self.headers.get("User-Agent", ""))
         status, headers, body = ROUTES.get(self.path, (404, {}, b""))
         self.send_response(status)
         for name, value in headers.items():
@@ -95,3 +100,28 @@ def test_ingest_fetches_url_when_html_not_supplied(make_client, server: str) -> 
     assert result["url"] == f"{server}/page"
     assert result["title"] == "Guide"
     assert result["chunks"][0]["url"] == f"{server}/page"
+
+
+def test_robots_txt_disallow_is_respected(server: str) -> None:
+    assert fetch_error(f"{server}/private").code == "ROBOTS_DISALLOWED"
+    final_url, _ = fetch(f"{server}/page")
+    assert final_url == f"{server}/page"
+    # Publishers such as Wikimedia reject anonymous bots; the crawler names itself and a contact URL.
+    assert SEEN_USER_AGENTS and all("AI-Growth-OS-ingest" in ua and "https://" in ua for ua in SEEN_USER_AGENTS)
+
+
+@pytest.mark.parametrize("status,allowed", [(404, True), (403, True), (503, False)])
+def test_robots_status_follows_rfc_9309(status: int, allowed: bool) -> None:
+    _robots_cache.clear()
+    transport = httpx.MockTransport(lambda request: httpx.Response(status, text="User-agent: *\nDisallow: /"))
+
+    async def check() -> None:
+        async with httpx.AsyncClient(transport=transport) as client:
+            await check_robots_allowed(client, "https://robots.example/page", "test-agent")
+
+    if allowed:
+        asyncio.run(check())
+    else:
+        with pytest.raises(OperationError) as caught:
+            asyncio.run(check())
+        assert (caught.value.code, caught.value.retryable) == ("ROBOTS_UNAVAILABLE", True)

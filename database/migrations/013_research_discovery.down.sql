@@ -1,0 +1,3 @@
+ALTER TABLE sources DROP COLUMN IF EXISTS ingest_error;
+ALTER TABLE sources DROP COLUMN IF EXISTS ingest_attempts;
+DROP TABLE IF EXISTS trend_signals CASCADE;

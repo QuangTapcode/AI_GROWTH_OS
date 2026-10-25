@@ -37,7 +37,7 @@ $env:AI_PROVIDER_MODE = 'live' # HTTP adapter in either mode
 $env:AI_SERVICE_BASE_URL = 'http://127.0.0.1:5000'
 $env:LLM_PROVIDER_MODE = $Mode
 $env:LLM_MODEL = $Model
-$env:AI_INGEST_URL_ALLOWLIST = 'tripc.vn,danangfantasticity.com,vietnam.travel,hiyorigardentower.com,enostaspace.com,booking.cali.vn'
+$env:AI_INGEST_URL_ALLOWLIST = 'tripc.vn,danangfantasticity.com,vietnam.travel,hiyorigardentower.com,enostaspace.com,booking.cali.vn,en.wikivoyage.org,en.wikipedia.org,tripc.ai'
 $env:INTERNAL_AI_AUTH_TOKEN = $env:AUTOMATION_INTERNAL_TOKEN
 function Start-AgentProcess($name, $exe, $arguments, $directory, $port) {
   if ($port -and (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)) { throw "Port $port already in use; inspect the existing process before restarting." }

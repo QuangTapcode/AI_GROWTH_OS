@@ -68,11 +68,28 @@ export class PlanOutboxRunner {
         payload.performance = input.performance_artifact_id ? await load(input.performance_artifact_id) : null;
         payload.lead_summary = input.lead_summary_artifact_id ? await load(input.lead_summary_artifact_id) : null;
         payload.iteration = input.iteration; payload.max_iterations = input.max_iterations; payload.task_quota = input.task_quota;
-      } else if (task.operation !== 'research.run') throw new Error('UNKNOWN_PLAN_OPERATION');
+      } else if (task.operation === 'research.run') {
+        // Latest search landscape observed before the task: metadata only, never page text.
+        // Rank in the previous run (same query + URL) tells Research what is new or rising.
+        payload.trend_signals = (await this.pool.query(`WITH runs AS (SELECT discovery_run_id, max(observed_at) AS at FROM trend_signals
+            WHERE workspace_id=$1 AND observed_at<=$2 GROUP BY discovery_run_id ORDER BY at DESC LIMIT 2),
+          cur AS (SELECT discovery_run_id FROM runs ORDER BY at DESC LIMIT 1),
+          prev AS (SELECT discovery_run_id FROM runs ORDER BY at ASC LIMIT 1 OFFSET 0)
+          SELECT s.id AS signal_id, s.query, s.rank, s.title, s.url, s.domain, s.observed_at, p.rank AS previous_rank,
+            (p.id IS NULL AND (SELECT count(*) FROM runs) > 1 AND EXISTS (SELECT 1 FROM trend_signals q WHERE q.workspace_id=s.workspace_id
+              AND q.discovery_run_id=(SELECT discovery_run_id FROM prev) AND q.query=s.query)) AS is_new
+          FROM trend_signals s LEFT JOIN trend_signals p ON p.workspace_id=s.workspace_id AND (SELECT count(*) FROM runs) > 1
+            AND p.discovery_run_id=(SELECT discovery_run_id FROM prev) AND p.query=s.query AND p.url=s.url
+          WHERE s.workspace_id=$1 AND s.discovery_run_id=(SELECT discovery_run_id FROM cur)
+          ORDER BY s.rank, s.query LIMIT 30`, [claimed.workspace_id, task.created_at])).rows
+          .map((row: { observed_at: Date | string }) => ({ ...row, observed_at: new Date(row.observed_at).toISOString() }));
+      } else throw new Error('UNKNOWN_PLAN_OPERATION');
       await this.pool.query("UPDATE workflow_tasks SET status='running',started_at=COALESCE(started_at,now()),updated_at=now() WHERE id=$1 AND status NOT IN ('completed','cancelled','failed')", [task.id]);
       const result = await this.ai.run({ operation: 'content', aiOperation: task.operation, input: payload,
         job_id: task.id, workspace_id: claimed.workspace_id, input_version: task.input_version,
         trace_id: `plan-task:${task.id}`, context_snapshot_id: context.snapshot_id,
+        // Draft generation on a local model exceeds the 120s default; AI caps this at its job deadline.
+        timeout_seconds: 600,
         approved_source_versions: context.snapshot.sources.map((s: { source_id: string; version: number }) => ({ source_id: s.source_id, version: s.version })),
         synthetic: Boolean(task.payload.synthetic || (payload.research as { result?: { synthetic?: boolean } })?.result?.synthetic ||
           (payload.source_article as { result?: { synthetic?: boolean } })?.result?.synthetic ||

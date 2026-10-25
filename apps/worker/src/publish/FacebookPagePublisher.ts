@@ -76,8 +76,18 @@ export class FacebookPagePublisher implements CmsPublisher {
   }
 }
 
+// Facebook renders plain text: drop markdown syntax but keep paragraph breaks
+// and hashtags (`#Brand`), which the Content social pack relies on.
 function toPlainText(markdown: string): string {
-  return markdown.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim();
+  return markdown
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/^[ \t]*#{1,6}[ \t]+/gm, '')
+    .replace(/^[ \t]*>[ \t]?/gm, '')
+    .replace(/\*\*|__|`/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 async function readJson(response: Response): Promise<Record<string, any>> {

@@ -135,6 +135,7 @@ export class HttpAiAdapter implements AiAdapter {
       ...(req.prompt_version ? { prompt_version: req.prompt_version } : {}),
       ...(req.model_version ? { model_version: req.model_version } : {}),
       ...(req.synthetic ? { synthetic: true } : {}),
+      ...(req.timeout_seconds ? { constraints: { timeout_seconds: req.timeout_seconds } } : {}),
     };
   }
 

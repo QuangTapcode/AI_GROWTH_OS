@@ -12,6 +12,7 @@ from ...app.config import Settings
 from ...rag.chunking import estimate_tokens
 from ...rag.retrieval import eligible_sources
 from ..context import context_problems
+from ..research.pipeline import STALE_AFTER_YEARS
 from .schemas import CampaignPlan, CampaignTask, GrowthLeadPayload, OpportunitySelection, TaskBrief
 
 PROMPT_VERSION = "growth-lead-v1"
@@ -57,6 +58,9 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
     p: GrowthLeadPayload = ctx.payload
     research = p.research
     missing = set(research.missing_facts)
+    # Research coverage notes (gaps on other topics, dated excerpts of other findings) are shown
+    # but do not block; only facts about the selected opportunity do.
+    advisory = {fact for fact in missing if fact.startswith(("source_gap:", "stale_evidence:"))}
     if not p.business_profile.audiences:
         missing.add("target_audience")
     if not p.business_profile.products and not p.business_profile.services:
@@ -80,6 +84,9 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         if choice.finding_index >= len(research.findings):
             raise OperationError("INVALID_OPPORTUNITY", "Selected opportunity is not in research")
         selected = research.findings[choice.finding_index]
+        if selected.evidence_updated is not None and selected.evidence_updated < datetime.now(timezone.utc).year - STALE_AFTER_YEARS:
+            advisory.discard(f"stale_evidence:{selected.evidence_updated}")
+            missing.add(f"stale_evidence:{selected.evidence_updated}")
         for role, operation, deliverable in (("seo", "seo.local_draft", "seo_article_draft"),
                                               ("content", "content.repurpose", "social_pack_draft")):
             task_id = uuid5(NAMESPACE_URL, f"{ctx.job.job_id}:{ctx.job.input_version}:{role}")
@@ -109,7 +116,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
     plan = CampaignPlan(plan_id=uuid5(NAMESPACE_URL, f"plan:{ctx.job.job_id}:{ctx.job.input_version}"),
                         workspace_id=ctx.job.workspace_id, input_version=ctx.job.input_version,
                         profile_version=p.business_profile.version, context_snapshot_id=ctx.job.context_snapshot_id,
-                        status="blocked" if missing else "proposed",
+                        status="blocked" if missing - advisory else "proposed",
                         objective=(p.goal_context.objective if p.goal_context else None) or "Prepare grounded SEO and social drafts",
                         selected_opportunity=selected, research_artifact=p.research_artifact,
                         tasks=tasks, missing_facts=sorted(missing),
