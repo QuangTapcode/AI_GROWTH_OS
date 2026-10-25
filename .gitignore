@@ -33,3 +33,6 @@ services/ai/var/
 
 # Generated pilot corpus (rebuild with python -m corpus.build)
 services/ai/corpus/out/
+
+# Worker runtime job state (FileJobStore)
+apps/worker/.worker-state/

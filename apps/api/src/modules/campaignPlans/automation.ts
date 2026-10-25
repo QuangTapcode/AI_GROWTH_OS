@@ -339,18 +339,20 @@ export async function tickAutomation(
       const active = (
         await pool.query(
           `SELECT 1 FROM workflow_tasks t JOIN agent_automation_handoffs h ON h.task_id=t.id
-        WHERE t.workspace_id=$1 AND t.status IN ('queued','running','pending','awaiting_approval')
+        WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2 AND t.status IN ('queued','running','pending','awaiting_approval')
         AND t.operation IN ('research.run','strategy.generate') LIMIT 1`,
-          [workspaceId],
+          [workspaceId, context.snapshot_id],
         )
       ).rowCount;
       // Avoid opening a new campaign while its internal work or approval is outstanding.
+      // Work pinned to an older knowledge context can never finish (STALE_CONTEXT), so it
+      // must not hold the schedule hostage after the owner approves new sources.
       const unfinished = (
         await pool.query(
-          `SELECT 1 FROM workflow_tasks t WHERE t.workspace_id=$1 AND t.campaign_id IN
+          `SELECT 1 FROM workflow_tasks t WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2 AND t.campaign_id IN
         (SELECT plan_id FROM campaign_plan_acceptances WHERE workspace_id=$1)
         AND t.status IN ('queued','running','pending','awaiting_approval') LIMIT 1`,
-          [workspaceId],
+          [workspaceId, context.snapshot_id],
         )
       ).rowCount;
       if (!active && !unfinished) {
