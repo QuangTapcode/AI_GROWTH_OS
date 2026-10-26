@@ -51,6 +51,13 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+
+def budget_key(job_id, input_version: int) -> str:
+    """LLM calls are capped per logical request. A retry of the same input version shares the
+    cap (restarts never reset it); a new input version, which the service requires to re-run a
+    failed job, is a new request with its own cap."""
+    return f"{job_id}:{input_version}"
+
 class RunStore:
     def __init__(self, path: str) -> None:
         if path != ":memory:":
@@ -163,6 +170,7 @@ class RunStore:
             self._db.execute(f"UPDATE runs SET {assignments} WHERE run_id=?", (*fields.values(), str(run_id)))
 
     def try_consume_call(self, job_id: str, cap: int) -> bool:
+        # job_id here is the budget key from budget_key(), one per (job, input_version).
         with self._lock:
             self._db.execute("INSERT OR IGNORE INTO job_calls (job_id, provider_calls) VALUES (?, 0)", (job_id,))
             cursor = self._db.execute(
@@ -186,7 +194,7 @@ class RunStore:
             input_version=row["input_version"],
             status=row["status"],
             attempt=row["attempt"],
-            provider_calls=self.provider_calls(row["job_id"]),
+            provider_calls=self.provider_calls(budget_key(row["job_id"], row["input_version"])),
             max_provider_calls=row["max_provider_calls"],
             retryable=bool(row["retryable"]),
             result=result,

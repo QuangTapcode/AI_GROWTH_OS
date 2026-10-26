@@ -1,10 +1,24 @@
 from pathlib import Path
+import re
 from ...app.runtime import OperationError, OperationOutcome
-from ..contracts import artifact_problems, call_draft, ensure_grounded, evidence_problems, result_fields, stable_id, validate_context
+from ..contracts import artifact_problems, call_grounded_draft, evidence_problems, result_fields, stable_id, validate_context
 from .schemas import SeoArticle, SeoDraft
 
-PROMPT_VERSION = "seo-v1"
-SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts/seo-v1.md").read_text(encoding="utf-8")
+PROMPT_VERSION = "seo-v2"
+SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
+LEADING_HASHES = re.compile(r"^[#\s]+")
+
+
+def render(sections) -> tuple[list[str], str]:
+    """Render model sections as Markdown in code, so every heading exists in the body."""
+    rendered, headings = [], []
+    for section in sections:
+        heading = LEADING_HASHES.sub("", section.heading).strip()
+        if not heading:
+            continue
+        headings.append(heading)
+        rendered.append(f"## {heading}\n\n{section.body.strip()}")
+    return headings, "\n\n".join(rendered)
 
 
 def validate_seo(job, p, settings):
@@ -20,25 +34,27 @@ async def run_seo(ctx):
     finding = findings[p.finding_index]
     topic = finding["topic"]
     keyword = (finding.get("keywords") or [topic])[0]
-    draft = await call_draft(ctx, SYSTEM_PROMPT,
+    grounding = [finding["evidence"]["quote"], topic, p.cta]
+    draft = await call_grounded_draft(ctx, SYSTEM_PROMPT,
         {"topic": topic, "keyword": keyword, "user_need": finding.get("user_need"),
          "research_quote": finding["evidence"]["quote"], "cta": p.cta}, SeoDraft,
         lambda: {"title": topic[:70], "meta_description": f"Explore {topic.lower()} using cited research."[:160],
-                 "headings": ["Overview", "Next steps"],
-                 "body_markdown": f"## Overview\n\n{finding['evidence']['quote']}\n\n## Next steps\n\n{p.cta}"})
-    ensure_grounded(" ".join([draft.title, draft.meta_description, draft.body_markdown, *draft.headings]),
-                    [finding["evidence"]["quote"], topic, p.cta])
+                 "sections": [{"heading": "Overview", "body": finding["evidence"]["quote"]},
+                              {"heading": "Next steps", "body": p.cta}]},
+        lambda d: " ".join([d.title, d.meta_description, render(d.sections)[1]]), grounding)
+    headings, article = render(draft.sections)
     # Citation identifiers and internal CTA are assembled in code, never invented by a model.
-    body = draft.body_markdown + "\n\n" + "\n".join(f"[source:{e.chunk_id}]({e.source_url})" for e in p.research.evidence)
+    body = article + "\n\n" + "\n".join(f"[source:{e.chunk_id}]({e.source_url})" for e in p.research.evidence)
     body += f"\n\n[Request information](/contact) — {p.cta}"
-    checks = {"title": bool(draft.title), "meta": bool(draft.meta_description),
-              "headings": all(f"## {h}" in body for h in draft.headings), "internal_link": "](/contact)" in body,
+    checks = {"title": bool(draft.title.strip()), "meta": bool(draft.meta_description.strip()),
+              "headings": len(headings) >= 2 and all(f"## {h}" in body for h in headings), "internal_link": "](/contact)" in body,
               "citations": bool(p.research.evidence)}
     if not all(checks.values()):
-        raise OperationError("SEO_CHECK_FAILED", "Draft does not satisfy required headings/metadata/citations")
+        failed = ", ".join(name for name, ok in checks.items() if not ok)
+        raise OperationError("SEO_CHECK_FAILED", f"Draft does not satisfy required headings/metadata/citations (failed: {failed})")
     missing = list(p.research.result.get("missing_facts", []))
     output = SeoArticle(**result_fields(ctx, [p.research]), article_id=stable_id(ctx, "article"),
         status="draft" if not missing else "insufficient_data", missing_facts=missing,
         title=draft.title, meta_description=draft.meta_description, primary_keyword=keyword,
-        headings=draft.headings, body_markdown=body, cta=p.cta, citations=p.research.evidence, seo_checks=checks)
+        headings=headings, body_markdown=body, cta=p.cta, citations=p.research.evidence, seo_checks=checks)
     return OperationOutcome(result=output.model_dump(mode="json"), evidence=p.research.evidence)

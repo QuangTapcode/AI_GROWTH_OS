@@ -13,6 +13,7 @@ from ...rag.chunking import estimate_tokens
 from ...rag.retrieval import eligible_sources
 from ..context import context_problems
 from ..research.pipeline import STALE_AFTER_YEARS
+from .scoring import SOURCE as SCORE_SOURCE, derive_factors
 from .schemas import CampaignPlan, CampaignTask, GrowthLeadPayload, OpportunitySelection, TaskBrief
 
 PROMPT_VERSION = "growth-lead-v1"
@@ -107,9 +108,14 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         missing.add("grounded_opportunities")
     factor_names = ("demand", "business_relevance", "growth_potential", "content_gap", "freshness", "conversion_potential")
     factors = {name: p.score_factors.get(name) for name in factor_names}
+    source, basis = "operator_estimate_not_search_volume", None
+    if selected is not None and not p.score_factors:
+        # No operator estimate: derive transparent heuristics from the cited research signals.
+        factors, basis = derive_factors(selected, research.trend_coverage, p.business_profile, p.cta)
+        source = SCORE_SOURCE
     # JSON consumers such as PostgreSQL/JavaScript parse 3.0 as 3. Keep the
     # artifact's canonical hash stable across that serialization boundary.
-    factors = {key: int(value) if value is not None and value.is_integer() else value for key, value in factors.items()}
+    factors = {key: int(value) if value is not None and float(value).is_integer() else value for key, value in factors.items()}
     score = math.prod(factors.values()) if all(value is not None for value in factors.values()) else None
     if isinstance(score, float) and score.is_integer():
         score = int(score)
@@ -124,7 +130,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                         opportunity_score={"factors": factors, "score": score, "estimated": True,
                             "label": "estimated" if score is not None else "insufficient_data",
                             "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
-                            "source": "operator_estimate_not_search_volume"})
+                            "source": source, **({"basis": basis} if basis else {})})
     return OperationOutcome(result=plan.model_dump(mode="json"),
                             evidence=[selected.evidence] if selected else [],
                             warnings=["MOCK_DATA_NOT_FOR_PUBLICATION"] if plan.synthetic else [])

@@ -211,18 +211,25 @@ export async function requeueFailedTask(
   actorId: string
 ): Promise<WorkflowTaskRow | null> {
   return withTransaction(async (client) => {
+    // AI runs are idempotent per (job_id, input_version): resending the same version
+    // returns the stored failure. Plan tasks therefore retry as a new input version.
+    const planTask = (await client.query(
+      "SELECT 1 FROM plan_task_outbox WHERE workspace_id=$1 AND task_id=$2 LIMIT 1", [workspaceId, taskId]
+    )).rowCount === 1;
     const res = await client.query<WorkflowTaskRow>(
       `UPDATE workflow_tasks
-       SET status = 'queued', error_details = NULL, started_at = NULL, completed_at = NULL, updated_at = NOW()
+       SET status = 'queued', error_details = NULL, started_at = NULL, completed_at = NULL, updated_at = NOW(),
+           input_version = input_version + CASE WHEN $3 THEN 1 ELSE 0 END
        WHERE workspace_id = $1 AND id = $2 AND status = 'failed'
        RETURNING *`,
-      [workspaceId, taskId]
+      [workspaceId, taskId, planTask]
     );
     const task = res.rows[0];
     if (!task) return null;
-    await client.query(`UPDATE plan_task_outbox SET status='pending',attempts=0,lease_until=NULL,error_code=NULL
-      WHERE workspace_id=$1 AND task_id=$2 AND input_version=$3 AND status='failed'`,
-      [workspaceId, taskId, task.input_version]);
+    if (planTask) {
+      await client.query(`INSERT INTO plan_task_outbox(workspace_id,task_id,input_version,operation) VALUES($1,$2,$3,$4)
+        ON CONFLICT(task_id,input_version) DO NOTHING`, [workspaceId, taskId, task.input_version, task.operation]);
+    }
     await client.query(
       `INSERT INTO audit_events (workspace_id, actor_id, action, entity_type, entity_id, entity_version, details)
        VALUES ($1, $2, 'task.retry_requested', 'workflow_task', $3, $4, $5)`,

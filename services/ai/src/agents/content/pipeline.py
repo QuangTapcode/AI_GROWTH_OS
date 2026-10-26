@@ -15,7 +15,10 @@ def facebook_post(draft, article, cta):
     """Facebook Page variant: hook above "See more", short body, optional question, exact CTA."""
     hashtags = [tag for tag in (t.strip() for t in draft.hashtags) if re.fullmatch(r"#\w+", tag)]
     hook, body, question = draft.hook.strip(), draft.body.strip(), (draft.discussion_question or "").strip()
-    text = "\n\n".join(part for part in [hook, body, question, cta, " ".join(hashtags)] if part)
+    if question and question.casefold() in body.casefold():
+        # Models sometimes end the body with the same question; post it once.
+        question = ""
+    text ="\n\n".join(part for part in [hook, body, question, cta, " ".join(hashtags)] if part)
     if LINK.search(text):
         raise OperationError("UNSUPPORTED_CONTENT_CLAIM", "Facebook draft must not contain links")
     ensure_grounded(text, [article["body_markdown"], article["title"], cta])

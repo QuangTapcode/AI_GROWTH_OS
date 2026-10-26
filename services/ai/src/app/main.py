@@ -28,7 +28,7 @@ from .errors import APIError, install_error_handling
 from .logging_config import configure_logging, log_event
 from .operations import OPERATIONS, Operation
 from .providers import Provider, ProviderError, build_provider
-from .run_store import RunStore
+from .run_store import RunStore, budget_key
 from .runtime import CallBudget, OperationError, RunContext
 from .schemas import SCHEMA_VERSION, AIResult, HealthResponse, JobRequest, RunStatus, RunArtifact
 from ..agents.registry import AGENT_ROLES, ROLE_TOOLS, role_for_operation
@@ -118,7 +118,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     log_event(logger, "ai_run_failed", **fields, error_code="DEADLINE_EXCEEDED")
                     return
                 store.mark_running(run_id)
-                ctx = RunContext(job, payload, settings, provider, CallBudget(store, str(job.job_id), call_cap(job)), logger)
+                ctx = RunContext(job, payload, settings, provider, CallBudget(store, budget_key(job.job_id, job.input_version), call_cap(job)), logger)
                 log_event(
                     logger,
                     "ai_run_started",

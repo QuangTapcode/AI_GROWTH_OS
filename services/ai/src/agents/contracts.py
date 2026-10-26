@@ -124,3 +124,21 @@ async def call_draft(ctx, system, data, model, fake):
 
 def aware_past(value: datetime):
     return value.tzinfo is not None and value <= datetime.now(timezone.utc)
+
+
+async def call_grounded_draft(ctx, system, data, model, fake, text_of, grounding):
+    """Draft once; if it states numbers/prices absent from the inputs, ask for one grounded rewrite.
+
+    Small local models add stock phrases such as "24/7"; naming the offending tokens fixes
+    most drafts within the per-job call cap. The rewrite is checked by the same guard.
+    """
+    draft = await call_draft(ctx, system, data, model, fake)
+    text = text_of(draft)
+    numbers, price = unsupported_numbers(text, grounding), has_price_claim(text)
+    if (numbers or price) and ctx.budget.remaining() > 0:
+        issues = ", ".join(numbers) + (" and a price" if price else "")
+        note = (f"\nRevision required: the previous draft contained claims not supported by the inputs ({issues}). "
+                "Rewrite it without any numbers, prices, durations or availability claims that are not in the inputs.")
+        draft = await call_draft(ctx, system + note, data, model, fake)
+    ensure_grounded(text_of(draft), grounding)
+    return draft

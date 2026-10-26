@@ -90,6 +90,8 @@ class TrendCoverage(BaseModel):
     topic: str
     signal_count: int = Field(ge=0)
     covered_chunks: int = Field(ge=0)
+    # Distinct domains ranking for the query: how crowded the topic already is.
+    distinct_domains: int = Field(default=0, ge=0)
 
 
 class ResearchBrief(BaseModel):

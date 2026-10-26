@@ -134,3 +134,31 @@ def test_research_coverage_notes_do_not_block_but_stale_selected_evidence_does(c
     assert gap["status"] == "proposed" and "source_gap:coworking" in gap["missing_facts"]
     stale = plan(["stale_evidence:2018"], evidence_updated=2018)
     assert stale["status"] == "blocked" and "stale_evidence:2018" in stale["missing_facts"]
+
+
+def test_score_is_derived_from_research_signals_when_no_operator_estimate(client):
+    from datetime import datetime, timezone
+    from src.agents.growth_lead.scoring import SOURCE, derive_factors
+    from src.agents.research.schemas import ResearchFinding, TrendCoverage
+    from src.app.schemas import BusinessProfile
+    now = datetime.now(timezone.utc).isoformat()
+    signal = lambda rank, prev=None, new=False: {"signal_id": str(uuid4()), "query": "Da Nang coworking expats", "rank": rank,
+        "title": "Coworking in Da Nang", "url": f"https://x.example/{rank}", "domain": "x.example", "observed_at": now,
+        "previous_rank": prev, "is_new": new}
+    finding = ResearchFinding(topic="Coworking for remote workers", audience_fit="Fits.", offer_fit="TripC lists coworking options.",
+        rationale="Excerpt.", url="https://tripc.ai/blog/x", fetched_at=now, keywords=["coworking"], user_need="Work.",
+        evidence={"source_id": str(uuid4()), "source_version": 1, "chunk_id": "c", "quote": "Coworking spaces near the beach.",
+                  "source_url": "https://tripc.ai/blog/x"},
+        trend_signals=[signal(1, 2), signal(3, new=True), signal(6, 9)])
+    profile = BusinessProfile(company="TripC", products=["housing", "coworking"])
+    coverage = [TrendCoverage(query="Da Nang coworking expats", topic="coworking", signal_count=10, covered_chunks=8, distinct_domains=10)]
+    factors, basis = derive_factors(finding, coverage, profile, "Ask TripC")
+    assert factors == {"demand": 4, "business_relevance": 3, "growth_potential": 4, "content_gap": 2, "freshness": 4, "conversion_potential": 3}
+    assert "not search volume" in basis["demand"] and set(basis) == set(factors)
+    stale, _ = derive_factors(finding.model_copy(update={"evidence_updated": 2018, "trend_signals": []}), [], profile, None)
+    assert stale["freshness"] == 1 and stale["demand"] == 1 and stale["conversion_potential"] == 2
+
+    job = request_for(client)
+    job["payload"].pop("score_factors", None)
+    result = run_job(client, job)["result"]["result"]["opportunity_score"]
+    assert result["source"] == SOURCE and result["label"] == "estimated" and result["score"] is not None and result["basis"]

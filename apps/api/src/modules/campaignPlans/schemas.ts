@@ -16,6 +16,13 @@ const findingSchema = z.object({
   url: z.string().url(), fetched_at: z.string().datetime({ offset: true }),
   confidence: z.literal('hypothesis'), demand_estimate: z.null(),
   keywords: z.array(text).max(5).optional(), user_need: text.nullable().optional(),
+  // research-v5: dated evidence and the search results matched to the finding (metadata only).
+  evidence_updated: z.number().int().min(1990).max(2100).nullable().optional(),
+  trend_signals: z.array(z.object({
+    signal_id: z.string().uuid(), query: text, rank: z.number().int().min(1).max(50), title: text,
+    url: z.string().url(), domain: text, observed_at: z.string().datetime({ offset: true }),
+    previous_rank: z.number().int().min(1).max(50).nullable().optional(), is_new: z.boolean().optional(),
+  }).strict()).max(5).optional(),
 }).strict();
 export const planSchema = z.object({
   contract_version: z.enum(['growth-lead-plan-v1', 'growth-lead-plan-v2']), plan_id: z.string().uuid(),
@@ -47,7 +54,10 @@ export const planSchema = z.object({
       freshness: z.number().finite().min(0).max(5).nullable(), conversion_potential: z.number().finite().min(0).max(5).nullable() }).strict(),
     score: z.number().finite().nonnegative().nullable(), estimated: z.literal(true), label: z.enum(['estimated', 'insufficient_data']),
     formula: z.literal('demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential'),
-    source: z.literal('operator_estimate_not_search_volume'),
+    source: z.enum(['operator_estimate_not_search_volume', 'derived_from_research_signals_not_search_volume']),
+    // Per-factor explanation when the score is derived from research signals.
+    basis: z.record(z.enum(['demand', 'business_relevance', 'growth_potential', 'content_gap', 'freshness', 'conversion_potential']),
+      z.string().min(1).max(300)).optional(),
   }).strict().optional(),
 }).strict();
 export type ArtifactRef = z.infer<typeof artifactRefSchema>;

@@ -87,3 +87,12 @@ def test_live_facebook_draft_rejects_links_and_invented_numbers(client, make_cli
     provider = FacebookProvider({"hook": "Living areas guide", "body": body, "discussion_question": None, "hashtags": []})
     out = run_job(make_client(provider=provider, provider_mode="live"), job)
     assert out["status"] == "failed" and out["error_code"] == "UNSUPPORTED_CONTENT_CLAIM", out
+
+
+def test_question_already_in_body_is_posted_once(client, make_client):
+    _, job = content_job(client, channels=["facebook"])
+    question = "Which area are you considering?"
+    provider = FacebookProvider({"hook": "Choosing a living area?", "body": "• Living areas guide\n\n" + question,
+                                 "discussion_question": question, "hashtags": []})
+    post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
+    assert post["text"].count(question) == 1 and post["discussion_question"] is None

@@ -203,7 +203,9 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     coverage, priority = [], []
     for query, topic, words, count in trend_topics(payload.trend_signals, payload.business_profile.locations):
         covering = [key for key in by_relevance if all(has_term(w, terms(candidates[key][1].text)) for w in words)]
-        coverage.append(TrendCoverage(query=query, topic=topic, signal_count=count, covered_chunks=len(covering)))
+        domains = {s.domain for s in payload.trend_signals if s.query == query}
+        coverage.append(TrendCoverage(query=query, topic=topic, signal_count=count, covered_chunks=len(covering),
+                                      distinct_domains=len(domains)))
         if covering:
             priority.append(covering[0])
         else:

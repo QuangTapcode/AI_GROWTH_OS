@@ -1,0 +1,463 @@
+{
+  "generated_at": "2026-10-26T03:38:33.051839+00:00",
+  "workspace": "tripc",
+  "synthetic": false,
+  "goal": {
+    "id": "383bf6bf-5abe-4494-8295-707c982d1831",
+    "status": "active",
+    "baseline": null,
+    "objective": "Grow qualified organic traffic and lead requests from English-speaking expats moving to Da Nang",
+    "budget_usd": 0,
+    "period_days": 90,
+    "target_value": 15,
+    "workspace_id": "10000000-0000-4000-8000-000000000001",
+    "primary_metric": "leads",
+    "primary_conversion": "generate_lead",
+    "target_qualified_visits": 300
+  },
+  "automation": {
+    "enabled": true,
+    "interval_hours": 24,
+    "cta": "Ask TripC for a Da Nang housing and workspace shortlist",
+    "auto_approve_outputs": true,
+    "last_error": null
+  },
+  "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+  "research": {
+    "id": "a38e85d2-528d-59f1-bef1-cbc0aabed7d5",
+    "task_status": "completed",
+    "input_version": 1,
+    "run_metadata": {
+      "run_id": "fd16b967-9514-5993-b64d-011574ea418e",
+      "trace_id": "plan-task:01cf235a-36df-4bab-a7d0-696f4b25958b",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "research-v5",
+      "provider_calls": 1
+    },
+    "result": {
+      "status": "ready_for_handoff",
+      "applied": false,
+      "brief_id": "0e5e732f-9f23-58a5-83fd-faef11568199",
+      "findings": [
+        {
+          "url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+          "topic": "Optimize work environment for expats with flexible workspace solutions",
+          "evidence": {
+            "quote": "Where you work should depend on what you need to do that day rather than on which environment looks most appealing.",
+            "license": "TripC first-party content",
+            "locator": "paragraph:25-26",
+            "chunk_id": "b68f3dc8-15c1-4a9b-887d-ae2d52433f3e",
+            "source_id": "d6c61961-d6a8-4544-b1b3-953abde4f608",
+            "source_url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+            "attribution": "TripC",
+            "source_version": 2
+          },
+          "keywords": [
+            "work environment",
+            "flexible workspace",
+            "home office setup"
+          ],
+          "offer_fit": "TripC provides coworking and housing options that support flexible work setups.",
+          "rationale": "Workspaces should align with daily tasks, not just aesthetics.",
+          "user_need": "Expats require workspaces that adapt to their daily tasks and schedules.",
+          "confidence": "hypothesis",
+          "fetched_at": "2026-10-25T17:46:59.175000Z",
+          "audience_fit": "English-speaking expats need adaptable workspaces for varying tasks.",
+          "trend_signals": [
+            {
+              "url": "https://www.this-is-vietnam.com/da-nang-coworking-guide/",
+              "rank": 6,
+              "query": "Da Nang coworking expats",
+              "title": "Da Nang Coworking Guide: Best Spaces for Remote Work",
+              "domain": "www.this-is-vietnam.com",
+              "is_new": false,
+              "signal_id": "e7b964af-c093-4ac0-9ffe-2a96b1f37fdd",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 9
+            }
+          ],
+          "demand_estimate": null,
+          "evidence_updated": null
+        }
+      ],
+      "synthetic": false,
+      "handoff_role": "growth_lead",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "missing_facts": [],
+      "trend_coverage": [
+        {
+          "query": "Da Nang coworking expats",
+          "topic": "coworking",
+          "signal_count": 10,
+          "covered_chunks": 8,
+          "distinct_domains": 9
+        },
+        {
+          "query": "Da Nang housing expats",
+          "topic": "housing",
+          "signal_count": 10,
+          "covered_chunks": 2,
+          "distinct_domains": 7
+        },
+        {
+          "query": "Da Nang living areas expats",
+          "topic": "living areas",
+          "signal_count": 10,
+          "covered_chunks": 3,
+          "distinct_domains": 9
+        }
+      ],
+      "profile_version": 1,
+      "handoff_operation": "opportunity.score",
+      "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+      "requires_human_approval": true
+    }
+  },
+  "growth_lead": {
+    "id": "3c7cb147-c9f3-57dc-9598-349b561374a7",
+    "task_status": "completed",
+    "input_version": 1,
+    "run_metadata": {
+      "run_id": "67cf9809-892a-5520-84ad-c40553821487",
+      "trace_id": "plan-task:198f6109-b250-4adc-a893-f2afa85a2e00",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "growth-lead-v1",
+      "provider_calls": 1
+    },
+    "result": {
+      "tasks": [
+        {
+          "role": "seo",
+          "brief": {
+            "cta": "Ask TripC for a Da Nang housing and workspace shortlist",
+            "offer": [
+              "housing",
+              "living_areas",
+              "coworking",
+              "gym",
+              "food",
+              "events"
+            ],
+            "topic": "Optimize work environment for expats with flexible workspace solutions",
+            "intent": "informational",
+            "audience": [
+              "English-speaking expats living or planning to live in Da Nang"
+            ],
+            "offer_fit": "TripC provides coworking and housing options that support flexible work setups.",
+            "acceptance": [
+              "Use cited research and verified snapshot facts only.",
+              "Report missing facts; do not invent demand, price or availability.",
+              "Return a draft for human review before publication."
+            ],
+            "deliverable": "seo_article_draft",
+            "audience_fit": "English-speaking expats need adaptable workspaces for varying tasks."
+          },
+          "tools": [
+            "knowledge.read",
+            "content.draft"
+          ],
+          "task_id": "cbd9fcce-aa82-52fe-b666-629f9b71c6ac",
+          "deadline": "2026-11-01T19:21:43.418000Z",
+          "operation": "seo.local_draft",
+          "depends_on": [],
+          "input_artifact_refs": [
+            {
+              "role": "research",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "a38e85d2-528d-59f1-bef1-cbc0aabed7d5",
+              "content_hash": "e4e9cf0bd8483e44dd6e58b734d62bb2b929477c0cd4a053af048d449b21e676",
+              "workspace_id": "10000000-0000-4000-8000-000000000001",
+              "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+            }
+          ],
+          "requires_human_approval": true,
+          "dependency_artifact_from": []
+        },
+        {
+          "role": "content",
+          "brief": {
+            "cta": "Ask TripC for a Da Nang housing and workspace shortlist",
+            "offer": [
+              "housing",
+              "living_areas",
+              "coworking",
+              "gym",
+              "food",
+              "events"
+            ],
+            "topic": "Optimize work environment for expats with flexible workspace solutions",
+            "intent": "informational",
+            "audience": [
+              "English-speaking expats living or planning to live in Da Nang"
+            ],
+            "offer_fit": "TripC provides coworking and housing options that support flexible work setups.",
+            "acceptance": [
+              "Use cited research and verified snapshot facts only.",
+              "Report missing facts; do not invent demand, price or availability.",
+              "Return a draft for human review before publication.",
+              "Adapt the approved SEO draft; identify real image assets or report missing assets."
+            ],
+            "deliverable": "social_pack_draft",
+            "audience_fit": "English-speaking expats need adaptable workspaces for varying tasks."
+          },
+          "tools": [
+            "knowledge.read",
+            "content.draft"
+          ],
+          "task_id": "ba701e75-d317-5a87-916a-30268966f6e3",
+          "deadline": "2026-11-01T19:21:43.418000Z",
+          "operation": "content.repurpose",
+          "depends_on": [
+            "cbd9fcce-aa82-52fe-b666-629f9b71c6ac"
+          ],
+          "input_artifact_refs": [
+            {
+              "role": "research",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "a38e85d2-528d-59f1-bef1-cbc0aabed7d5",
+              "content_hash": "e4e9cf0bd8483e44dd6e58b734d62bb2b929477c0cd4a053af048d449b21e676",
+              "workspace_id": "10000000-0000-4000-8000-000000000001",
+              "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+            }
+          ],
+          "requires_human_approval": true,
+          "dependency_artifact_from": [
+            "cbd9fcce-aa82-52fe-b666-629f9b71c6ac"
+          ]
+        }
+      ],
+      "status": "proposed",
+      "applied": false,
+      "plan_id": "bde4517d-4f1e-5455-8bd9-1032df4b32a7",
+      "objective": "Grow qualified organic traffic and lead requests from English-speaking expats moving to Da Nang",
+      "synthetic": false,
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "input_version": 1,
+      "missing_facts": [],
+      "profile_version": 1,
+      "contract_version": "growth-lead-plan-v2",
+      "selection_method": "model_selection_from_grounded_research",
+      "opportunity_score": {
+        "basis": {
+          "demand": "1 matching search titles, best rank 6; visibility proxy, not search volume",
+          "freshness": "source fetched 0 days ago",
+          "content_gap": "up to 9 distinct domains rank for ['Da Nang coworking expats']; more competitors, smaller gap",
+          "growth_potential": "1 new/rising and 0 falling matched titles since the previous search",
+          "business_relevance": "profile offer terms in topic/keywords/offer fit: ['coworking', 'housing']",
+          "conversion_potential": "offer and CTA present; no conversion data yet"
+        },
+        "label": "estimated",
+        "score": 768,
+        "source": "derived_from_research_signals_not_search_volume",
+        "factors": {
+          "demand": 2,
+          "freshness": 4,
+          "content_gap": 2,
+          "growth_potential": 4,
+          "business_relevance": 4,
+          "conversion_potential": 3
+        },
+        "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
+        "estimated": true
+      },
+      "research_artifact": {
+        "role": "research",
+        "storage": "ai_run_store",
+        "version": 1,
+        "artifact_id": "a38e85d2-528d-59f1-bef1-cbc0aabed7d5",
+        "content_hash": "e4e9cf0bd8483e44dd6e58b734d62bb2b929477c0cd4a053af048d449b21e676",
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+      },
+      "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+      "selected_opportunity": {
+        "url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+        "topic": "Optimize work environment for expats with flexible workspace solutions",
+        "evidence": {
+          "quote": "Where you work should depend on what you need to do that day rather than on which environment looks most appealing.",
+          "license": "TripC first-party content",
+          "locator": "paragraph:25-26",
+          "chunk_id": "b68f3dc8-15c1-4a9b-887d-ae2d52433f3e",
+          "source_id": "d6c61961-d6a8-4544-b1b3-953abde4f608",
+          "source_url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+          "attribution": "TripC",
+          "source_version": 2
+        },
+        "keywords": [
+          "work environment",
+          "flexible workspace",
+          "home office setup"
+        ],
+        "offer_fit": "TripC provides coworking and housing options that support flexible work setups.",
+        "rationale": "Workspaces should align with daily tasks, not just aesthetics.",
+        "user_need": "Expats require workspaces that adapt to their daily tasks and schedules.",
+        "confidence": "hypothesis",
+        "fetched_at": "2026-10-25T17:46:59.175000Z",
+        "audience_fit": "English-speaking expats need adaptable workspaces for varying tasks.",
+        "trend_signals": [
+          {
+            "url": "https://www.this-is-vietnam.com/da-nang-coworking-guide/",
+            "rank": 6,
+            "query": "Da Nang coworking expats",
+            "title": "Da Nang Coworking Guide: Best Spaces for Remote Work",
+            "domain": "www.this-is-vietnam.com",
+            "is_new": false,
+            "signal_id": "e7b964af-c093-4ac0-9ffe-2a96b1f37fdd",
+            "observed_at": "2026-10-25T17:14:09.470000Z",
+            "previous_rank": 9
+          }
+        ],
+        "demand_estimate": null,
+        "evidence_updated": null
+      },
+      "requires_human_approval": true
+    }
+  },
+  "seo": {
+    "id": "9b4c4057-b0d7-5fdd-b497-27bbebc19715",
+    "task_status": "completed",
+    "input_version": 4,
+    "run_metadata": {
+      "run_id": "491a519d-3796-5628-a335-a0cfab112400",
+      "trace_id": "plan-task:cbd9fcce-aa82-52fe-b666-629f9b71c6ac",
+      "input_version": 4,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "seo-v2",
+      "provider_calls": 2
+    },
+    "result": {
+      "cta": "Ask TripC for a Da Nang housing and workspace shortlist",
+      "title": "Flexible Workspaces for Expats: Adapting to Daily Needs",
+      "status": "draft",
+      "applied": false,
+      "version": 4,
+      "headings": [
+        "Adaptable Workspaces for Dynamic Schedules",
+        "Prioritizing Task-Specific Environments",
+        "Designing for Expats' Unique Needs"
+      ],
+      "citations": [
+        {
+          "quote": "Where you work should depend on what you need to do that day rather than on which environment looks most appealing.",
+          "license": "TripC first-party content",
+          "locator": "paragraph:25-26",
+          "chunk_id": "b68f3dc8-15c1-4a9b-887d-ae2d52433f3e",
+          "source_id": "d6c61961-d6a8-4544-b1b3-953abde4f608",
+          "source_url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+          "attribution": "TripC",
+          "source_version": 2
+        }
+      ],
+      "synthetic": false,
+      "article_id": "4b053b30-19ec-567c-a4b8-9a2f7a92c390",
+      "seo_checks": {
+        "meta": true,
+        "title": true,
+        "headings": true,
+        "citations": true,
+        "internal_link": true
+      },
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "body_markdown": "## Adaptable Workspaces for Dynamic Schedules\n\nExpats often juggle varied tasks and time zones. A flexible work environment allows shifting between focused work, collaboration, and relaxation. The research emphasizes that workspace choices should align with daily priorities, not just aesthetics. This adaptability ensures productivity without rigid constraints.\n\n## Prioritizing Task-Specific Environments\n\nDesigning workspaces around specific tasksâ€”like deep work, meetings, or creative projectsâ€”enhances efficiency. For example, quiet zones for concentration or collaborative areas for virtual teams. This approach aligns with the principle that 'where you work should depend on what you need to do that day.'\n\n## Designing for Expats' Unique Needs\n\nFlexible work environments must account for cultural and personal preferences. Modular furniture, tech compatibility, and comfort are key. By tailoring spaces to individual routines, expats can maintain work-life balance while adapting to new environments.\n\n[source:b68f3dc8-15c1-4a9b-887d-ae2d52433f3e](https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide)\n\n[Request information](/contact) â€” Ask TripC for a Da Nang housing and workspace shortlist",
+      "missing_facts": [],
+      "primary_keyword": "work environment",
+      "profile_version": 1,
+      "meta_description": "Optimize expat work environments with flexible solutions. Adapt daily tasks with workspace that evolves with your needs.",
+      "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+      "input_artifact_refs": [
+        {
+          "role": "research",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "a38e85d2-528d-59f1-bef1-cbc0aabed7d5",
+          "content_hash": "e4e9cf0bd8483e44dd6e58b734d62bb2b929477c0cd4a053af048d449b21e676",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+        }
+      ],
+      "requires_human_approval": true
+    }
+  },
+  "content": {
+    "id": "1922dc23-e0a8-5abf-b1a2-3ac25b752bdd",
+    "task_status": "completed",
+    "input_version": 1,
+    "run_metadata": {
+      "run_id": "1141fcda-a399-5ff7-8e26-08c1f18a21a9",
+      "trace_id": "plan-task:ba701e75-d317-5a87-916a-30268966f6e3",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "content-v3",
+      "provider_calls": 1
+    },
+    "result": {
+      "cta": "Ask TripC for a Da Nang housing and workspace shortlist",
+      "hook": "Need a workspace that adapts to your busy expat life? Flexible setups help balance focused work, collaboration, and downtime. Task-specific zones boost efficiency, while modular designs cater to cultural needs. Prioritize comfort and tech compatibility for seamless remote work. Ask TripC for a Da Nang housing and workspace shortlist. #ExpatsInDaNang #RemoteWorkTips",
+      "status": "draft",
+      "applied": false,
+      "caption": "Need a workspace that adapts to your busy expat life? Flexible setups help balance focused work, collaboration, and downtime. Task-specific zones boost efficiency, while modular designs cater to cultural needs. Prioritize comfort and tech compatibility for seamless remote work. Ask TripC for a Da Nang housing and workspace shortlist. #ExpatsInDaNang #RemoteWorkTips",
+      "pack_id": "2dcb479d-b431-506a-ad35-6d0ff807339a",
+      "version": 1,
+      "alt_text": "A modern, modular workspace with adjustable furniture and tech setup, ideal for expats needing flexible work environments",
+      "channels": [
+        "facebook"
+      ],
+      "facebook": {
+        "cta": "Ask TripC for a Da Nang housing and workspace shortlist",
+        "body": "Flexible workspaces let you switch between deep work, meetings, and relaxation. Design areas for specific tasks like quiet zones for focus or collaborative hubs for virtual teams. Tailor setups to your routines and cultural needs with modular furniture and tech-friendly layouts. Whatâ€™s your ideal workspace setup for expat life?",
+        "hook": "Expats, your workspace should match your daily tasksâ€”here's how",
+        "text": "Expats, your workspace should match your daily tasksâ€”here's how\n\nFlexible workspaces let you switch between deep work, meetings, and relaxation. Design areas for specific tasks like quiet zones for focus or collaborative hubs for virtual teams. Tailor setups to your routines and cultural needs with modular furniture and tech-friendly layouts. Whatâ€™s your ideal workspace setup for expat life?\n\nWhatâ€™s your ideal workspace setup for expat life?\n\nAsk TripC for a Da Nang housing and workspace shortlist\n\n#ExpatsInDaNang #RemoteWorkTips",
+        "hashtags": [
+          "#ExpatsInDaNang",
+          "#RemoteWorkTips"
+        ],
+        "discussion_question": "Whatâ€™s your ideal workspace setup for expat life?"
+      },
+      "hashtags": [
+        "#ExpatsInDaNang",
+        "#RemoteWorkTips"
+      ],
+      "citations": [
+        {
+          "quote": "Where you work should depend on what you need to do that day rather than on which environment looks most appealing.",
+          "license": "TripC first-party content",
+          "locator": "paragraph:25-26",
+          "chunk_id": "b68f3dc8-15c1-4a9b-887d-ae2d52433f3e",
+          "source_id": "d6c61961-d6a8-4544-b1b3-953abde4f608",
+          "source_url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+          "attribution": "TripC",
+          "source_version": 2
+        }
+      ],
+      "synthetic": false,
+      "key_points": [],
+      "channel_mode": "manual_review_pack",
+      "image_assets": [],
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "missing_facts": [],
+      "parent_version": 4,
+      "profile_version": 1,
+      "video_asset_ref": null,
+      "parent_content_id": "4b053b30-19ec-567c-a4b8-9a2f7a92c390",
+      "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+      "input_artifact_refs": [
+        {
+          "role": "seo",
+          "storage": "ai_run_store",
+          "version": 4,
+          "artifact_id": "9b4c4057-b0d7-5fdd-b497-27bbebc19715",
+          "content_hash": "72621c3e4d1fab879c9d67717da3d2a482f55956b8aec4c4b08954813f992106",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+        }
+      ],
+      "tiktok_privacy_level": "SELF_ONLY",
+      "requires_human_approval": true
+    }
+  },
+  "publishing_jobs": 0
+}

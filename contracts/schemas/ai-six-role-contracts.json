@@ -1857,6 +1857,12 @@
                 "minimum": 0,
                 "title": "Covered Chunks",
                 "type": "integer"
+              },
+              "distinct_domains": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Distinct Domains",
+                "type": "integer"
               }
             },
             "required": [
@@ -3429,6 +3435,12 @@
               "covered_chunks": {
                 "minimum": 0,
                 "title": "Covered Chunks",
+                "type": "integer"
+              },
+              "distinct_domains": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Distinct Domains",
                 "type": "integer"
               }
             },
@@ -7219,11 +7231,11 @@
         "content.refresh": "dedicated"
       },
       "prompt_versions": {
-        "seo.audit": "seo-v1",
-        "seo.local_draft": "seo-v1",
-        "content.refresh": "seo-v1"
+        "seo.audit": "seo-v2",
+        "seo.local_draft": "seo-v2",
+        "content.refresh": "seo-v2"
       },
-      "prompt_version": "seo-v1",
+      "prompt_version": "seo-v2",
       "schema_operations": [
         "seo.audit",
         "seo.local_draft",

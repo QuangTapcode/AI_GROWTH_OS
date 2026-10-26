@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { activeGoal, goalContext } from '../growthGoals/service';
 import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { validateTaskGraph } from '../tasks/dag';
@@ -9,7 +10,7 @@ type Db = Pool | PoolClient;
 const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 
 export class PgPlanRepository implements PlanRepository {
-  constructor(private pool: Pool) {}
+  constructor(private pool: Pool, private options: { requireApprovedArtifactId?: string } = {}) {}
 
   /** Backend issues context from approved DB rows; callers cannot approve sources here. */
   async issueContext(workspaceId: string, options: { goal?: unknown; assets?: unknown[] } = {}) {
@@ -37,11 +38,13 @@ export class PgPlanRepository implements PlanRepository {
       }
       const id = randomUUID();
       const snapshot = { workspace_id: workspaceId, snapshot_id: id, sources };
+      // The active growth goal is pinned with the snapshot unless a caller supplies one explicitly.
+      const goal = options.goal !== undefined ? options.goal : goalContext(await activeGoal(db, workspaceId));
       await db.query('UPDATE knowledge_contexts SET current=false WHERE workspace_id=$1 AND current', [workspaceId]);
       await db.query('INSERT INTO knowledge_contexts(snapshot_id,workspace_id,profile_version,profile,snapshot,goal,assets) VALUES($1,$2,$3,$4,$5,$6,$7)',
-        [id, workspaceId, profile.version, JSON.stringify(profile), JSON.stringify(snapshot), JSON.stringify(options.goal ?? null), JSON.stringify(options.assets ?? [])]);
+        [id, workspaceId, profile.version, JSON.stringify(profile), JSON.stringify(snapshot), JSON.stringify(goal ?? null), JSON.stringify(options.assets ?? [])]);
       await db.query('COMMIT');
-      return { workspace_id: workspaceId, business_profile: profile, snapshot, goal_context: options.goal ?? null,
+      return { workspace_id: workspaceId, business_profile: profile, snapshot, goal_context: goal ?? null,
         approved_source_versions: sources.map(s => ({ source_id: s.source_id, version: s.version })), context_snapshot_id: id };
     } catch (error) { await db.query('ROLLBACK'); throw error; }
     finally { db.release(); }
@@ -84,6 +87,13 @@ export class PgPlanRepository implements PlanRepository {
       await db.query('BEGIN');
       // Serialize accepts and snapshot issuance in this workspace; no broker side effects here.
       await db.query('SELECT id FROM workspaces WHERE id=$1 FOR UPDATE', [plan.workspace_id]);
+      if (this.options.requireApprovedArtifactId) {
+        const approved = (await db.query(`SELECT p.id FROM approvals p JOIN content_artifacts a
+          ON a.workspace_id=p.workspace_id AND a.id=p.target_id AND a.version=p.target_version AND a.content_hash=p.target_hash
+          WHERE p.workspace_id=$1 AND p.target_id=$2 AND p.target_type='artifact' AND p.status='approved'
+          AND a.context_snapshot_id=$3 FOR SHARE OF p,a`, [plan.workspace_id, this.options.requireApprovedArtifactId, context.snapshot_id])).rows[0];
+        if (!approved) throw new PlanError('PLAN_APPROVAL_REQUIRED', 'Approve the exact Growth Lead plan version before starting SEO', 409);
+      }
       if (!same(await this.context(db, plan.workspace_id, true), context)) throw new PlanError('STALE_CONTEXT', 'Context changed during validation');
       const previous = (await db.query('SELECT plan,record FROM campaign_plan_acceptances WHERE workspace_id=$1 AND plan_id=$2 AND input_version=$3', [plan.workspace_id, plan.plan_id, plan.input_version])).rows[0];
       if (previous) {
