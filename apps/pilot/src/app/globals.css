@@ -32,3 +32,20 @@ footer { margin-top: 36px; display: flex; justify-content: space-between; gap: 2
   .connection-card { align-items: flex-start; flex-direction: column; }
 }
 
+
+/* Guides */
+.post-list { list-style: none; padding: 0; display: grid; gap: 16px; }
+.post-list li { background: white; border: 1px solid #dce5e1; border-radius: 14px; padding: 18px 20px; }
+.post-list a { font-size: 19px; font-weight: 700; }
+.article article { max-width: 720px; margin-top: 40px; }
+.article h1 { font-size: clamp(30px, 5vw, 44px); }
+.article h2 { margin-top: 32px; }
+.cta { margin: 28px 0 8px; }
+.sources ul { padding-left: 18px; }
+.request { max-width: 720px; margin-top: 48px; background: white; border: 1px solid #dce5e1; border-radius: 18px; padding: 24px; }
+.lead-form { display: grid; gap: 14px; }
+.lead-form label { display: grid; gap: 6px; font-size: 14px; }
+.lead-form input[type="text"], .lead-form input:not([type]), .lead-form input[type="email"] { padding: 11px 12px; border: 1px solid #c6d4ce; border-radius: 10px; font: inherit; }
+.lead-form .consent { display: flex; gap: 10px; align-items: flex-start; }
+.notice { color: #225a46; }
+.error { color: #9b2c2c; }

@@ -342,8 +342,11 @@
             "title": "Role"
           },
           "storage": {
-            "const": "ai_run_store",
             "default": "ai_run_store",
+            "enum": [
+              "ai_run_store",
+              "postgres_ledger"
+            ],
             "title": "Storage",
             "type": "string"
           }
@@ -2062,9 +2065,9 @@
         "research.run": "dedicated"
       },
       "prompt_versions": {
-        "research.run": "research-v5"
+        "research.run": "research-v6"
       },
-      "prompt_version": "research-v5",
+      "prompt_version": "research-v6",
       "schema_operations": [
         "research.run"
       ]
@@ -2876,8 +2879,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }
@@ -3977,8 +3983,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }
@@ -4197,10 +4206,22 @@
             "type": "string"
           },
           "selection_method": {
-            "const": "model_selection_from_grounded_research",
             "default": "model_selection_from_grounded_research",
+            "enum": [
+              "model_selection_from_grounded_research",
+              "derived_score_ranking"
+            ],
             "title": "Selection Method",
             "type": "string"
+          },
+          "ranked_opportunities": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 3,
+            "title": "Ranked Opportunities",
+            "type": "array"
           },
           "selected_opportunity": {
             "anyOf": [
@@ -4900,8 +4921,11 @@
                   "title": "Role"
                 },
                 "storage": {
-                  "const": "ai_run_store",
                   "default": "ai_run_store",
+                  "enum": [
+                    "ai_run_store",
+                    "postgres_ledger"
+                  ],
                   "title": "Storage",
                   "type": "string"
                 }
@@ -5574,8 +5598,11 @@
                   "title": "Role"
                 },
                 "storage": {
-                  "const": "ai_run_store",
                   "default": "ai_run_store",
+                  "enum": [
+                    "ai_run_store",
+                    "postgres_ledger"
+                  ],
                   "title": "Storage",
                   "type": "string"
                 }
@@ -6330,8 +6357,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }
@@ -7083,8 +7113,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }
@@ -7231,11 +7264,11 @@
         "content.refresh": "dedicated"
       },
       "prompt_versions": {
-        "seo.audit": "seo-v2",
-        "seo.local_draft": "seo-v2",
-        "content.refresh": "seo-v2"
+        "seo.audit": "seo-v3",
+        "seo.local_draft": "seo-v3",
+        "content.refresh": "seo-v3"
       },
-      "prompt_version": "seo-v2",
+      "prompt_version": "seo-v3",
       "schema_operations": [
         "seo.audit",
         "seo.local_draft",
@@ -7940,8 +7973,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }
@@ -8828,8 +8864,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }
@@ -9029,11 +9068,11 @@
         "content.quality_check": "dedicated"
       },
       "prompt_versions": {
-        "content.generate": "content-v3",
-        "content.repurpose": "content-v3",
-        "content.quality_check": "content-v3"
+        "content.generate": "content-v4",
+        "content.repurpose": "content-v4",
+        "content.quality_check": "content-v4"
       },
-      "prompt_version": "content-v3",
+      "prompt_version": "content-v4",
       "schema_operations": [
         "content.generate",
         "content.repurpose",
@@ -10206,8 +10245,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }
@@ -11043,8 +11085,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }
@@ -11758,8 +11803,11 @@
                 "title": "Role"
               },
               "storage": {
-                "const": "ai_run_store",
                 "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
                 "title": "Storage",
                 "type": "string"
               }

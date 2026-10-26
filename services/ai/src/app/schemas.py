@@ -107,7 +107,8 @@ class RunArtifact(BaseModel):
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     context_snapshot_id: UUID | None = None
     role: str | None = None
-    storage: Literal["ai_run_store"] = "ai_run_store"
+    # postgres_ledger: aggregates created by the backend (first-party metrics, lead counts), not by an AI run.
+    storage: Literal["ai_run_store", "postgres_ledger"] = "ai_run_store"
 
 
 class AIResult(BaseModel):

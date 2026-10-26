@@ -2,7 +2,7 @@
 
 Owner: Quang Quang. Task: QQ-03 trong [TODO cá nhân](../../../../../docs/coordination/sprint-3-weeks/QUANG-QUANG.md). Reviewer chất lượng: Thiệu; business rules: Dương; HTTP boundary: Mỹ/Thiệu Quang.
 
-**Trạng thái (26/10):** `research-v5` chạy live trên dữ liệu thật của TripC (qwen3:8b, `synthetic=false`) và bàn giao được cho Growth Lead. Evidence: [research-real-2026-10-26](../../../../../qa/evidence/research-real-2026-10-26/research-real-pipeline.json). Chưa có chữ ký reviewer.
+**Trạng thái (26/10):** `research-v6` chạy live trên dữ liệu thật của TripC (qwen3:8b, `synthetic=false`) và bàn giao được cho Growth Lead. Evidence: [research-real-2026-10-26](../../../../../qa/evidence/research-real-2026-10-26/research-real-pipeline.json). Chưa có chữ ký reviewer.
 
 ## Luồng dữ liệu thật
 

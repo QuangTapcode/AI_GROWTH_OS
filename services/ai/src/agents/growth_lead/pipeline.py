@@ -74,7 +74,21 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         missing.add("profile_version")
     selected = None
     tasks = []
-    if research.status == "ready_for_handoff" and research.findings:
+    selection_method, ranking, derived = "model_selection_from_grounded_research", [], None
+    if research.status == "ready_for_handoff" and research.findings and not p.score_factors:
+        # No operator estimate: rank every finding by the same transparent derived score and
+        # pick the best; the model is not asked to choose blindly between hypotheses.
+        scored = []
+        for index, finding in enumerate(research.findings):
+            factors_i, basis_i = derive_factors(finding, research.trend_coverage, p.business_profile, p.cta)
+            scored.append((math.prod(factors_i.values()), index, factors_i, basis_i))
+        scored.sort(key=lambda row: (-row[0], row[1]))
+        ranking = [{"finding_index": index, "topic": research.findings[index].topic, "score": score}
+                   for score, index, _, _ in scored]
+        best = scored[0]
+        selected, derived = research.findings[best[1]], (best[2], best[3])
+        selection_method = "derived_score_ranking"
+    elif research.status == "ready_for_handoff" and research.findings:
         user = json.dumps({"profile": p.business_profile.model_dump(mode="json"),
                            "goal": p.goal_context.model_dump(mode="json") if p.goal_context else None,
                            "findings": [x.model_dump(mode="json") for x in research.findings]}, ensure_ascii=False)
@@ -85,6 +99,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         if choice.finding_index >= len(research.findings):
             raise OperationError("INVALID_OPPORTUNITY", "Selected opportunity is not in research")
         selected = research.findings[choice.finding_index]
+    if selected is not None:
         if selected.evidence_updated is not None and selected.evidence_updated < datetime.now(timezone.utc).year - STALE_AFTER_YEARS:
             advisory.discard(f"stale_evidence:{selected.evidence_updated}")
             missing.add(f"stale_evidence:{selected.evidence_updated}")
@@ -104,14 +119,14 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                                       tools=["knowledge.read", "content.draft"], depends_on=dependencies,
                                       input_artifact_refs=[p.research_artifact],
                                       dependency_artifact_from=dependencies, brief=brief, deadline=p.deadline))
-    else:
+    if selected is None:
         missing.add("grounded_opportunities")
     factor_names = ("demand", "business_relevance", "growth_potential", "content_gap", "freshness", "conversion_potential")
     factors = {name: p.score_factors.get(name) for name in factor_names}
     source, basis = "operator_estimate_not_search_volume", None
-    if selected is not None and not p.score_factors:
-        # No operator estimate: derive transparent heuristics from the cited research signals.
-        factors, basis = derive_factors(selected, research.trend_coverage, p.business_profile, p.cta)
+    if derived is not None:
+        # No operator estimate: transparent heuristics from the cited research signals.
+        factors, basis = derived
         source = SCORE_SOURCE
     # JSON consumers such as PostgreSQL/JavaScript parse 3.0 as 3. Keep the
     # artifact's canonical hash stable across that serialization boundary.
@@ -124,6 +139,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                         profile_version=p.business_profile.version, context_snapshot_id=ctx.job.context_snapshot_id,
                         status="blocked" if missing - advisory else "proposed",
                         objective=(p.goal_context.objective if p.goal_context else None) or "Prepare grounded SEO and social drafts",
+                        selection_method=selection_method, ranked_opportunities=ranking,
                         selected_opportunity=selected, research_artifact=p.research_artifact,
                         tasks=tasks, missing_facts=sorted(missing),
                         synthetic=ctx.job.synthetic or research.synthetic or ctx.settings.provider_mode == "fake",

@@ -29,7 +29,10 @@ export const planSchema = z.object({
   workspace_id: z.string().uuid(), input_version: z.number().int().positive(),
   profile_version: z.number().int().positive().nullable(), context_snapshot_id: z.string().uuid(),
   status: z.enum(['proposed', 'blocked']), objective: text,
-  selection_method: z.literal('model_selection_from_grounded_research'),
+  selection_method: z.enum(['model_selection_from_grounded_research', 'derived_score_ranking']),
+  ranked_opportunities: z.array(z.object({
+    finding_index: z.number().int().min(0).max(2), topic: text, score: z.number().finite().nonnegative().nullable(),
+  }).strict()).max(3).optional(),
   selected_opportunity: findingSchema.nullable(), research_artifact: artifactRefSchema,
   tasks: z.array(z.object({
     task_id: z.string().uuid(), role: z.enum(['seo', 'content']),

@@ -9,7 +9,8 @@ Owner: Quang Quang. Task: QQ-04, QQ-07 trong [TODO cá nhân](../../../../../doc
 - **Mục tiêu:** `PUT /v1/workspaces/:id/growth-goal` (owner) lưu goal + KPI vào `growth_goals`/`growth_kpis`; knowledge context mới tự ghim goal đang active (`goal_context`). Baseline để `null` cho tới khi có connector đo được — null không phải 0.
 - **Điểm cơ hội:** nếu không có `score_factors` của người vận hành, [`scoring.py`](scoring.py) suy 6 yếu tố 0–5 từ tín hiệu Research (tiêu đề khớp/thứ hạng, biến động, số domain cạnh tranh, ngày bằng chứng, khớp offer/CTA) với `source=derived_from_research_signals_not_search_volume` và `basis` giải thích từng yếu tố. Không phải search volume hay dự báo chuyển đổi.
 - **Chặn:** chỉ chặn khi thiếu dữ liệu của cơ hội được chọn; `source_gap:*` và `stale_evidence:*` của finding khác chỉ là ghi chú.
-- **Còn thiếu:** `learning.analyze` cần metrics thật (GA4/GSC) và lead aggregate để khép vòng; hiện trả `insufficient_data`.
+- **Chọn cơ hội:** Research v6 trả tối đa 3 ý (mỗi chủ đề xu hướng có nguồn một ý); khi không có điểm của người vận hành, Growth Lead xếp hạng tất cả bằng cùng điểm tự suy (`selection_method=derived_score_ranking`, `ranked_opportunities`) và SEO viết đúng ý được chọn.
+- **Vòng rút kinh nghiệm (26/10):** bài SEO đã duyệt được đăng lên website TripC (`apps/pilot`, `auto_publish_website` hoặc `POST /site-posts`); website ghi page view / CTA click ẩn danh (`site_events`, truy cập nội bộ không tính). Autopilot tạo `metrics.snapshot` + `lead.aggregate` (`storage=postgres_ledger`) cho context hiện tại → `analytics.report` → `learning.analyze` → owner duyệt `POST /learning-tasks` → `research.run` vòng sau. Lượt hiển thị/click tìm kiếm khai báo `search_console_not_connected`, không ghi 0. Local đo được 0 khách thật cho tới khi website public.
 
 - Input: research + goals + report artifacts.
 - Output/handoff: campaign/task proposal, briefs, learning, next-task proposal → SEO, Content và worker validate plan.

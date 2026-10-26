@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from ..app.schemas import BusinessProfile, EvidenceRef, GoalContext, JobRequest, KnowledgeSnapshot, RunArtifact
 from ..app.runtime import OperationError, RunContext
 from ..guardrails.facts import has_price_claim, unsupported_numbers
+from ..guardrails.support import unsupported_sentences
 from ..rag.chunking import estimate_tokens
 from ..rag.retrieval import eligible_sources
 from .context import context_problems
@@ -127,18 +128,35 @@ def aware_past(value: datetime):
 
 
 async def call_grounded_draft(ctx, system, data, model, fake, text_of, grounding):
-    """Draft once; if it states numbers/prices absent from the inputs, ask for one grounded rewrite.
+    """Draft once; if it states unsupported numbers/prices or sentences the sources lack,
+    ask for one grounded rewrite naming them.
 
-    Small local models add stock phrases such as "24/7"; naming the offending tokens fixes
-    most drafts within the per-job call cap. The rewrite is checked by the same guard.
+    Small local models add stock phrases ("24/7") and plausible extras ("modular furniture").
+    Naming the offending tokens and sentences fixes most drafts within the per-job call cap.
+    Numbers/prices still fail closed; callers strip sentences that remain unsupported.
     """
     draft = await call_draft(ctx, system, data, model, fake)
     text = text_of(draft)
-    numbers, price = unsupported_numbers(text, grounding), has_price_claim(text)
-    if (numbers or price) and ctx.budget.remaining() > 0:
-        issues = ", ".join(numbers) + (" and a price" if price else "")
-        note = (f"\nRevision required: the previous draft contained claims not supported by the inputs ({issues}). "
-                "Rewrite it without any numbers, prices, durations or availability claims that are not in the inputs.")
+    numbers, price, loose = unsupported_numbers(text, grounding), has_price_claim(text), unsupported_sentences(text, grounding)
+    if (numbers or price or loose) and ctx.budget.remaining() > 0:
+        issues = []
+        if numbers or price:
+            issues.append("numbers or prices not in the inputs: " + ", ".join(numbers) + (" and a price" if price else ""))
+        if loose:
+            issues.append("sentences adding details the source does not state: " + " | ".join(loose[:5]))
+        note = ("\nRevision required: the previous draft contained " + "; ".join(issues) + ". Rewrite it using only details "
+                "stated in the source passage and inputs. Drop examples, features, amenities, products, durations, "
+                "availability or advice the source does not mention.")
         draft = await call_draft(ctx, system + note, data, model, fake)
     ensure_grounded(text_of(draft), grounding)
     return draft
+
+
+def source_passages(snapshot, evidence) -> list[str]:
+    """Full approved chunk text behind each cited excerpt (the quote alone is too thin to write from)."""
+    wanted = {e.chunk_id for e in evidence}
+    return [chunk.text for source in snapshot.sources for chunk in source.chunks if chunk.chunk_id in wanted]
+
+
+def profile_grounding(profile) -> str:
+    return " ".join([profile.company, *profile.audiences, *profile.locations, *profile.products, *profile.services]).replace("_", " ")

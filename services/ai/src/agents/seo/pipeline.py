@@ -1,10 +1,14 @@
 from pathlib import Path
 import re
 from ...app.runtime import OperationError, OperationOutcome
-from ..contracts import artifact_problems, call_grounded_draft, evidence_problems, result_fields, stable_id, validate_context
-from .schemas import SeoArticle, SeoDraft
+from ...app.schemas import EvidenceRef
+from ...guardrails.support import strip_unsupported
+from ..contracts import (artifact_problems, call_grounded_draft, evidence_problems, profile_grounding, result_fields,
+                         source_passages, stable_id, validate_context)
+from .schemas import SeoArticle, SeoDraft, SeoSection
 
-PROMPT_VERSION = "seo-v2"
+PROMPT_VERSION = "seo-v3"
+MAX_PASSAGE_CHARS = 2400
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 LEADING_HASHES = re.compile(r"^[#\s]+")
 
@@ -34,21 +38,34 @@ async def run_seo(ctx):
     finding = findings[p.finding_index]
     topic = finding["topic"]
     keyword = (finding.get("keywords") or [topic])[0]
-    grounding = [finding["evidence"]["quote"], topic, p.cta]
+    # Write from the whole approved chunk behind the quote; the quote alone left the model inventing detail.
+    # Cite only the selected finding, so social copy downstream is grounded on the same topic.
+    cited = [EvidenceRef.model_validate(finding["evidence"])]
+    passages = source_passages(p.snapshot, cited)
+    passage = (passages[0] if passages else finding["evidence"]["quote"])[:MAX_PASSAGE_CHARS]
+    grounding = [passage, finding["evidence"]["quote"], topic, keyword, finding.get("user_need") or "", p.cta,
+                 profile_grounding(p.business_profile)]
     draft = await call_grounded_draft(ctx, SYSTEM_PROMPT,
         {"topic": topic, "keyword": keyword, "user_need": finding.get("user_need"),
-         "research_quote": finding["evidence"]["quote"], "cta": p.cta}, SeoDraft,
+         "research_quote": finding["evidence"]["quote"], "source_passage": passage, "cta": p.cta}, SeoDraft,
         lambda: {"title": topic[:70], "meta_description": f"Explore {topic.lower()} using cited research."[:160],
                  "sections": [{"heading": "Overview", "body": finding["evidence"]["quote"]},
                               {"heading": "Next steps", "body": p.cta}]},
         lambda d: " ".join([d.title, d.meta_description, render(d.sections)[1]]), grounding)
-    headings, article = render(draft.sections)
+    # Sentences still unsupported after the rewrite are removed, never published.
+    sections, removed = [], []
+    for section in draft.sections:
+        body, dropped = strip_unsupported(section.body, grounding)
+        removed += dropped
+        if body:
+            sections.append(SeoSection(heading=section.heading, body=body))
+    headings, article = render(sections)
     # Citation identifiers and internal CTA are assembled in code, never invented by a model.
-    body = article + "\n\n" + "\n".join(f"[source:{e.chunk_id}]({e.source_url})" for e in p.research.evidence)
-    body += f"\n\n[Request information](/contact) — {p.cta}"
+    body = article + "\n\n" + "\n".join(f"[source:{e.chunk_id}]({e.source_url})" for e in cited)
+    body +=f"\n\n[Request information](/contact) — {p.cta}"
     checks = {"title": bool(draft.title.strip()), "meta": bool(draft.meta_description.strip()),
               "headings": len(headings) >= 2 and all(f"## {h}" in body for h in headings), "internal_link": "](/contact)" in body,
-              "citations": bool(p.research.evidence)}
+              "citations": bool(cited)}
     if not all(checks.values()):
         failed = ", ".join(name for name, ok in checks.items() if not ok)
         raise OperationError("SEO_CHECK_FAILED", f"Draft does not satisfy required headings/metadata/citations (failed: {failed})")
@@ -56,5 +73,6 @@ async def run_seo(ctx):
     output = SeoArticle(**result_fields(ctx, [p.research]), article_id=stable_id(ctx, "article"),
         status="draft" if not missing else "insufficient_data", missing_facts=missing,
         title=draft.title, meta_description=draft.meta_description, primary_keyword=keyword,
-        headings=headings, body_markdown=body, cta=p.cta, citations=p.research.evidence, seo_checks=checks)
-    return OperationOutcome(result=output.model_dump(mode="json"), evidence=p.research.evidence)
+        headings=headings, body_markdown=body, cta=p.cta, citations=cited, seo_checks=checks)
+    return OperationOutcome(result=output.model_dump(mode="json"), evidence=cited,
+                            warnings=[f"UNSUPPORTED_SENTENCES_REMOVED:{len(removed)}"] if removed else [])

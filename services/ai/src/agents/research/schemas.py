@@ -59,7 +59,8 @@ class ResearchIdea(BaseModel):
 
 class ResearchDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    ideas: list[ResearchIdea] = Field(max_length=2)
+    # One idea per searched topic that approved excerpts support, so Growth Lead has a real choice.
+    ideas: list[ResearchIdea] = Field(max_length=3)
 
 
 class ResearchFinding(BaseModel):

@@ -18,7 +18,7 @@ from ...rag.retrieval import eligible_sources, lexical_overlap, terms
 from ..context import context_problems
 from .schemas import ResearchBrief, ResearchDraft, ResearchFinding, ResearchPayload, TrendCoverage, TrendSignal
 
-PROMPT_VERSION = "research-v5"
+PROMPT_VERSION = "research-v6"
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 # Search landscape rows shown to the model; the rest stay available for deterministic matching.
 MAX_LANDSCAPE_IN_PROMPT = 12
@@ -211,6 +211,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
         else:
             missing.append(f"source_gap:{topic}")
     ranked = list(dict.fromkeys(priority + by_relevance))
+    base["topics"] = [c.topic for c in coverage if c.covered_chunks]
+    used += estimate_tokens(json.dumps(base["topics"]))
     for key in ranked:
         chunk = candidates[key][1]
         excerpt = {"chunk_id": key, "text": chunk.text}

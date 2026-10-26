@@ -45,7 +45,7 @@ function Start-AgentProcess($name, $exe, $arguments, $directory, $port) {
   @{ name=$name; pid=$process.Id; started_at=$process.StartTime.ToUniversalTime().ToString('o') } | ConvertTo-Json | Set-Content (Join-Path $runtime "$name.process.json")
   Write-Output "$name started (PID $($process.Id))"
 }
-foreach ($name in @('api','web','ai','worker')) {
+foreach ($name in @('api','web','pilot','ai','worker')) {
   $statePath = Join-Path $runtime "$name.process.json"
   if (Test-Path $statePath) {
     $state = Get-Content $statePath | ConvertFrom-Json
@@ -56,6 +56,8 @@ foreach ($name in @('api','web','ai','worker')) {
 $apiCommand = if ($ProductionApi) { 'start' } else { 'dev' }
 Start-AgentProcess 'api' (Get-Command node.exe).Source @('--env-file=.env.local','node_modules/next/dist/bin/next',$apiCommand,'--hostname','127.0.0.1','--port','4000') (Join-Path $repo 'apps/api') 4000
 Start-AgentProcess 'web' (Get-Command node.exe).Source @('node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3000') (Join-Path $repo 'apps/web') 3000
+# Public TripC site (first-party publishing + measurement); build apps/pilot before starting.
+Start-AgentProcess 'pilot' (Get-Command node.exe).Source @('node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3001') (Join-Path $repo 'apps/pilot') 3001
 Start-AgentProcess 'ai' (Get-Command python.exe).Source @('-m','uvicorn','src.app.main:app','--app-dir','services/ai','--host','127.0.0.1','--port','5000') $repo 5000
 Start-AgentProcess 'worker' (Get-Command node.exe).Source @('--import','tsx','src/main.ts') (Join-Path $repo 'apps/worker') 0
 Write-Output 'Dashboard: http://localhost:3000/agents (requires login). Logs: infra/staging/.runtime/'

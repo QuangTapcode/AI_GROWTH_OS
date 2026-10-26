@@ -30,8 +30,10 @@ async def run_performance(ctx):
     experiment: ExperimentSpec | None = p.experiment
     data = MetricsData.model_validate(p.metrics.result) if p.metrics else None
     values = {key: getattr(data, key) if data else None for key in METRICS}
-    missing = [key for key, value in values.items() if value is None]
+    excused = {key: reason for key, reason in (data.unavailable.items() if data else []) if values.get(key) is None}
+    missing = [key for key, value in values.items() if value is None and key not in excused]
     observations = [f"Observed {key}: {value}." for key, value in values.items() if value is not None]
+    observations += [f"{key} not measured: {reason}." for key, reason in excused.items()]
     fields = result_fields(ctx, [p.metrics] if p.metrics else [])
     proposal = None
     if not missing:

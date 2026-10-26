@@ -38,3 +38,7 @@ export const FIXTURE_SITES: Record<string, SiteRecord> = {
 export function resolveSite(siteId: string): SiteRecord | null {
   return FIXTURE_SITES[siteId] ?? null;
 }
+/** Active public site of a workspace (server-side registry; the site id is never taken from a client). */
+export function siteForWorkspace(workspaceId: string): SiteRecord | null {
+  return Object.values(FIXTURE_SITES).find((s) => s.workspace_id === workspaceId && s.status === 'active') ?? null;
+}

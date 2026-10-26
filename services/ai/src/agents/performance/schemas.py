@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from ..contracts import ArtifactInput, DraftResult, MarketingContext
@@ -16,6 +17,10 @@ class MetricsData(BaseModel):
     impressions: int | None = Field(default=None, ge=0)
     clicks: int | None = Field(default=None, ge=0)
     synthetic: bool = False
+    # Metrics whose source is not connected, with the reason (e.g. no Search Console). Only a
+    # declared, null metric is excused; an undeclared null still counts as missing data.
+    unavailable: dict[Literal["impressions", "clicks"], str] = Field(default_factory=dict, max_length=2)
+    source: str | None = Field(default=None, max_length=50)
 
     @model_validator(mode="after")
     def valid_window(self):

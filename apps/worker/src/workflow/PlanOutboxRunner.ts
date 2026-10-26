@@ -42,6 +42,11 @@ export class PlanOutboxRunner {
       if (task.operation === 'seo.local_draft') {
         payload.cta = task.payload.brief.cta;
         payload.research = await load(task.payload.input_artifact_refs[0].artifact_id);
+        // Write about the opportunity Growth Lead selected (its brief topic), not whichever finding is first.
+        const findings = ((payload.research as { result?: { findings?: { topic?: string }[] } }).result?.findings) ?? [];
+        const selected = findings.findIndex((f) => f.topic === task.payload.brief.topic);
+        if (selected < 0) throw new Error('SELECTED_FINDING_MISSING');
+        payload.finding_index = selected;
       } else if (task.operation === 'content.repurpose') {
         payload.cta = task.payload.brief.cta;
         const parent = (await this.pool.query("SELECT result_ref FROM workflow_tasks WHERE workspace_id=$1 AND id=$2 AND status='completed'", [claimed.workspace_id, task.payload.depends_on[0]])).rows[0];
@@ -140,7 +145,7 @@ export class PlanOutboxRunner {
     } catch (error) {
       console.error('[plan-outbox]', error);
       const permanent = (error as { permanent?: boolean }).permanent === true ||
-        ['TASK_NOT_RUNNABLE', 'TASK_DEADLINE_EXCEEDED', 'STALE_CONTEXT', 'SOURCE_NOT_APPROVED', 'DEPENDENCY_NOT_APPROVED', 'UNKNOWN_PLAN_OPERATION', 'INVALID_AI_ARTIFACT', 'ARTIFACT_HASH_MISMATCH'].includes((error as Error).message);
+        ['TASK_NOT_RUNNABLE', 'TASK_DEADLINE_EXCEEDED', 'SELECTED_FINDING_MISSING', 'STALE_CONTEXT', 'SOURCE_NOT_APPROVED', 'DEPENDENCY_NOT_APPROVED', 'UNKNOWN_PLAN_OPERATION', 'INVALID_AI_ARTIFACT', 'ARTIFACT_HASH_MISMATCH'].includes((error as Error).message);
       const owned = await this.pool.query("UPDATE plan_task_outbox SET status=$2::varchar,lease_until=NULL,error_code=$3::text WHERE id=$1::uuid AND status='claimed' AND attempts=$4::integer RETURNING task_id", [claimed.id, permanent || claimed.attempts >= 3 ? 'failed' : 'pending', (error as Error).message, claimed.attempts]);
       if (owned.rowCount && !permanent && claimed.attempts < 3) await this.pool.query("UPDATE workflow_tasks SET status='queued',error_details=$2,updated_at=now() WHERE id=$1 AND status='running'", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);
       if (owned.rowCount && (permanent || claimed.attempts >= 3)) await this.pool.query("UPDATE workflow_tasks SET status='failed',error_details=$2,updated_at=now() WHERE id=$1 AND status NOT IN('completed','cancelled')", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);

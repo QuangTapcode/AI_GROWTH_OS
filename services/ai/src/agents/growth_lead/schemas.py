@@ -64,7 +64,9 @@ class CampaignPlan(BaseModel):
     context_snapshot_id: UUID
     status: Literal["proposed", "blocked"]
     objective: str
-    selection_method: Literal["model_selection_from_grounded_research"] = "model_selection_from_grounded_research"
+    selection_method: Literal["model_selection_from_grounded_research", "derived_score_ranking"] = "model_selection_from_grounded_research"
+    # Every research finding with its derived score, best first (empty when the model selected).
+    ranked_opportunities: list[dict] = Field(default_factory=list, max_length=3)
     selected_opportunity: ResearchFinding | None
     research_artifact: RunArtifact
     tasks: list[CampaignTask]

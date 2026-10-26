@@ -162,3 +162,30 @@ def test_score_is_derived_from_research_signals_when_no_operator_estimate(client
     job["payload"].pop("score_factors", None)
     result = run_job(client, job)["result"]["result"]["opportunity_score"]
     assert result["source"] == SOURCE and result["label"] == "estimated" and result["score"] is not None and result["basis"]
+
+
+def test_findings_are_ranked_by_derived_score_without_a_model_call(client):
+    from examples.growth_lead_request import growth_lead_request, mock_research_request
+    base = mock_research_request()
+    research = run_job(client, base)["result"]
+    brief = json.loads(json.dumps(research))
+    first = brief["result"]["findings"][0]
+    now = first["fetched_at"]
+    signal = lambda title, rank: {"signal_id": str(uuid4()), "query": "Da Nang living areas expats", "rank": rank, "title": title,
+                                  "url": f"https://x.example/{rank}", "domain": "x.example", "observed_at": now}
+    strong = {**first, "topic": "Living areas guide for services", "trend_signals": [signal("Living areas guide", 1), signal("Areas guide", 2), signal("Living areas", 3)]}
+    weak = {**first, "topic": "Weather overview", "keywords": ["weather"], "trend_signals": []}
+    brief["result"]["findings"] = [weak, strong]
+    brief["evidence"] = [weak["evidence"], strong["evidence"]]
+    canonical = json.dumps({"result": brief["result"], "evidence": brief["evidence"]}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    brief["artifact"]["content_hash"] = hashlib.sha256(canonical.encode()).hexdigest()
+    job = growth_lead_request(base, brief)
+    job["job_id"] = str(uuid4())
+    job["payload"].pop("score_factors", None)
+    body = run_job(client, job)
+    plan = body["result"]["result"]
+    assert plan["selection_method"] == "derived_score_ranking" and body["provider_calls"] == 0
+    assert [r["finding_index"] for r in plan["ranked_opportunities"]] == [1, 0]
+    assert plan["ranked_opportunities"][0]["score"] > plan["ranked_opportunities"][1]["score"]
+    assert plan["selected_opportunity"]["topic"] == "Living areas guide for services"
+    assert plan["opportunity_score"]["score"] == plan["ranked_opportunities"][0]["score"]

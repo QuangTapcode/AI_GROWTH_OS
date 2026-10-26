@@ -1,23 +1,31 @@
-import ApiStatus from "@/features/staging/api-status";
+import Link from "next/link";
+import { listPosts } from "@/lib/site";
+import { PageView } from "@/features/site/measure";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const posts = await listPosts();
   return (
     <main className="shell">
+      <PageView slug={null} />
       <header>
         <a className="brand" href="/">TripC</a>
-        <span className="badge">Local staging</span>
+        <span className="badge">Da Nang · English guides</span>
       </header>
       <section className="hero">
         <p className="eyebrow">Da Nang · English website pilot</p>
         <h1>Your next chapter in Da Nang.</h1>
-        <p className="lead">We’re preparing English guides about housing, coworking and everyday life. This is the initial staging site; articles and the information request form will follow.</p>
+        <p className="lead">Practical, sourced guides about housing, coworking and everyday life for English-speaking newcomers.</p>
       </section>
-      <ApiStatus />
-      <footer className="muted">
-        <span>Initial application bootstrap</span>
-        <a href="http://localhost:3000">Open management staging</a>
-      </footer>
+      <section aria-labelledby="guides">
+        <h2 id="guides">Guides</h2>
+        {posts.length ? <ul className="post-list">{posts.map((post) => <li key={post.slug}>
+          <Link href={`/posts/${post.slug}`}>{post.title}</Link>
+          {post.meta.description && <p className="muted">{post.meta.description}</p>}
+        </li>)}</ul> : <p className="muted">No guides are published yet.</p>}
+      </section>
+      <footer className="muted"><span>© TripC</span></footer>
     </main>
   );
 }
-

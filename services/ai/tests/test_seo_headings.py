@@ -33,7 +33,7 @@ def test_sections_are_rendered_as_markdown_headings_in_code(client, make_client)
     assert result["headings"] == ["Overview?", "Next steps for newcomers"] and result["seo_checks"]["headings"] is True
     assert result["body_markdown"].startswith("## Overview?" + chr(10)) and "## Next steps for newcomers" in result["body_markdown"]
     assert result["body_markdown"].rstrip().endswith("Request the guide")
-    assert out["result"]["prompt_version"] == "seo-v2"
+    assert out["result"]["prompt_version"] == "seo-v3"
 
 
 def test_headings_that_are_only_hashes_do_not_count(client, make_client):

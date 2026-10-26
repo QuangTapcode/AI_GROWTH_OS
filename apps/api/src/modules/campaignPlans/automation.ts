@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { defaultSearch, refreshDiscoveryIfStale } from "../research/discovery";
+import { ensureMeasurementArtifacts } from "../site/measurement";
+import { publishSeoArtifact } from "../site/publish";
 import type { Pool } from "pg";
 import { enqueueAiTask } from "./aiTasks";
 import { PgPlanRepository } from "./pgRepository";
@@ -155,7 +157,7 @@ async function scheduleApprovedFacebookArtifacts(
 }
 
 /** Auto-approval is opt-in and only accepts grounded, non-synthetic, complete outputs. */
-async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: string, publishFacebook: boolean) {
+async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: string, publishFacebook: boolean, publishWebsite = false) {
   const rows = (await pool.query<AutoArtifactRow>(
     `SELECT t.id AS task_id,t.role,t.campaign_id,t.status,t.result_ref,a.version,a.content_hash,a.title,a.artifact_type,a.payload,a.evidence
        FROM workflow_tasks t JOIN content_artifacts a ON a.id=t.result_ref AND a.workspace_id=t.workspace_id
@@ -191,6 +193,8 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
         await db.query("UPDATE workflow_tasks SET status='completed',completed_at=now(),updated_at=now(),error_details=NULL WHERE id=$1", [row.task_id]);
         await queueReadyChildren(db, workspaceId, row.campaign_id);
         if (publishFacebook && row.role === "content") await scheduleFacebookArtifact(db, workspaceId, actorId, row, approvalId, mode);
+        // The owner opted into publishing approved SEO articles to the workspace's own site.
+        if (publishWebsite && row.role === "seo") await publishSeoArtifact(db, workspaceId, row.result_ref, actorId);
       }
       await db.query("COMMIT");
       approved++;
@@ -250,7 +254,8 @@ export async function tickAutomation(
         "Create a current knowledge context with approved sources first",
       );
     if (settings.auto_approve_outputs) {
-      await autoApproveOutputs(pool, workspaceId, settings.actor_id, settings.auto_publish_facebook === true);
+      await autoApproveOutputs(pool, workspaceId, settings.actor_id, settings.auto_publish_facebook === true,
+        settings.auto_publish_website === true);
     }
     if (settings.auto_publish_facebook === true) {
       await scheduleApprovedFacebookArtifacts(pool, workspaceId, settings.actor_id, context.snapshot_id);
@@ -288,6 +293,8 @@ export async function tickAutomation(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, child.task_id],
         );
+        // First-party measurement (site events + leads) pinned to this context for Performance/Learning.
+        await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
         const metric = (
           await pool.query(
             "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='metrics.snapshot' ORDER BY created_at DESC LIMIT 1",
@@ -315,6 +322,7 @@ export async function tickAutomation(
         );
       } else {
         if (task.artifact_payload.result?.status !== "draft") continue;
+        await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
         const leads = (
           await pool.query(
             "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='lead.aggregate' ORDER BY created_at DESC LIMIT 1",

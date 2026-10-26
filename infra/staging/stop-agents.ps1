@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $runtime = Join-Path $PSScriptRoot '.runtime'
-foreach ($name in @('worker','ai','web','api')) {
+foreach ($name in @('worker','ai','pilot','web','api')) {
   $statePath = Join-Path $runtime "$name.process.json"
   if (-not (Test-Path $statePath)) { continue }
   $state = Get-Content $statePath | ConvertFrom-Json

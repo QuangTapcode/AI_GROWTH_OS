@@ -1,27 +1,35 @@
 from pathlib import Path
 import re
 from ...app.runtime import OperationError, OperationOutcome
-from ..contracts import artifact_problems, call_draft, ensure_grounded, evidence_problems, result_fields, stable_id, validate_context
+from ...guardrails.support import strip_unsupported
+from ..contracts import (artifact_problems, call_grounded_draft, ensure_grounded, evidence_problems, profile_grounding,
+                         result_fields, source_passages, stable_id, validate_context)
 from .schemas import ContentDraft, ContentFacebookDraft, FacebookPost, SocialPack
 
-PROMPT_VERSION = "content-v3"
+PROMPT_VERSION = "content-v4"
+MAX_PASSAGE_CHARS = 2400
 PROMPTS = Path(__file__).resolve().parents[3] / "prompts"
 SYSTEM_PROMPT = (PROMPTS / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 FACEBOOK_PROMPT = (PROMPTS / f"{PROMPT_VERSION}-facebook.md").read_text(encoding="utf-8")
 LINK = re.compile(r"https?://|www\.", re.IGNORECASE)
 
 
-def facebook_post(draft, article, cta):
+def facebook_post(draft, grounding, cta):
     """Facebook Page variant: hook above "See more", short body, optional question, exact CTA."""
     hashtags = [tag for tag in (t.strip() for t in draft.hashtags) if re.fullmatch(r"#\w+", tag)]
-    hook, body, question = draft.hook.strip(), draft.body.strip(), (draft.discussion_question or "").strip()
+    hook, question = draft.hook.strip(), (draft.discussion_question or "").strip()
+    # Links fail closed on the model's own draft, before any sentence is removed.
+    if LINK.search(" ".join([hook, draft.body, question])):
+        raise OperationError("UNSUPPORTED_CONTENT_CLAIM", "Facebook draft must not contain links")
+    # Sentences the cited sources do not support are removed before posting.
+    body, _ = strip_unsupported(draft.body.strip(), grounding)
+    if not body:
+        raise OperationError("UNSUPPORTED_CONTENT_CLAIM", "No Facebook sentence is supported by the cited sources")
     if question and question.casefold() in body.casefold():
         # Models sometimes end the body with the same question; post it once.
         question = ""
-    text ="\n\n".join(part for part in [hook, body, question, cta, " ".join(hashtags)] if part)
-    if LINK.search(text):
-        raise OperationError("UNSUPPORTED_CONTENT_CLAIM", "Facebook draft must not contain links")
-    ensure_grounded(text, [article["body_markdown"], article["title"], cta])
+    text = "\n\n".join(part for part in [hook, body, question, cta, " ".join(hashtags)] if part)
+    ensure_grounded(text, grounding)
     return FacebookPost(hook=hook, body=body, discussion_question=question or None, hashtags=hashtags, cta=cta, text=text)
 
 
@@ -58,12 +66,20 @@ async def run_content(ctx):
     if with_facebook:
         demo["facebook"] = {"hook": title[:150], "body": "\n".join(f"• {point}" for point in points) or title,
                             "discussion_question": None, "hashtags": tags[:2]}
-    draft = await call_draft(ctx, SYSTEM_PROMPT + ("\n" + FACEBOOK_PROMPT if with_facebook else ""),
-        {"title": article["title"], "body": article["body_markdown"], "cta": p.cta,
+    # Ground on the approved source chunks behind the article, not only on the model-written article,
+    # so an embellishment that slipped into SEO cannot be repeated in social copy.
+    passage = "\n\n".join(source_passages(p.snapshot, p.source_article.evidence))[:MAX_PASSAGE_CHARS]
+    grounding = [passage, article["title"], *article.get("headings", []), p.cta, profile_grounding(p.business_profile)]
+    def text_of(d):
+        social = [d.facebook.hook, d.facebook.body] if with_facebook else []
+        return " ".join([d.caption, d.alt_text, *social])
+    draft = await call_grounded_draft(ctx, SYSTEM_PROMPT + ("\n" + FACEBOOK_PROMPT if with_facebook else ""),
+        {"title": article["title"], "body": article["body_markdown"], "source_passage": passage, "cta": p.cta,
          "brand_voice": p.business_profile.voice}, ContentFacebookDraft if with_facebook else ContentDraft,
-        lambda: demo)
-    ensure_grounded(draft.caption + " " + draft.alt_text, [article["body_markdown"], article["title"], p.cta])
-    facebook = facebook_post(draft.facebook, article, p.cta) if with_facebook else None
+        lambda: demo, text_of, grounding + [article["body_markdown"]] if not passage else grounding)
+    caption, _ = strip_unsupported(draft.caption, grounding)
+    draft = draft.model_copy(update={"caption": caption or draft.caption})
+    facebook = facebook_post(draft.facebook, grounding, p.cta) if with_facebook else None
     missing = list(article.get("missing_facts", []))
     # Facebook Page text posts do not require an image. TikTok still requires
     # an approved media asset, so keep the asset gate for any TikTok target.

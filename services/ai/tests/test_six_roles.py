@@ -166,3 +166,20 @@ def test_learning_rejects_contact_data_and_replay_preserves_result(client):
     job = request(base, "learning.analyze", {"performance": artifact_input(performance), "lead_summary": leads(base)})
     first = run(client, job)
     assert run(client, job) == first
+
+
+def test_declared_unavailable_search_metrics_do_not_block_a_first_party_report(client):
+    base = mock_research_request()
+    snapshot = metrics(base, missing=True)
+    snapshot["result"].update(qualified_visits=0, leads=0, synthetic=False, source="first_party",
+                              unavailable={"impressions": "search_console_not_connected", "clicks": "search_console_not_connected"})
+    canonical = json.dumps({"result": snapshot["result"], "evidence": []}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    snapshot["artifact"]["content_hash"] = hashlib.sha256(canonical.encode()).hexdigest()
+    result = run_job(client, request(base, "analytics.report", {"metrics": snapshot}))["result"]["result"]
+    assert result["status"] == "draft" and result["missing_facts"] == []
+    assert result["metrics"] == {"qualified_visits": 0, "leads": 0, "impressions": None, "clicks": None}
+    assert "impressions not measured: search_console_not_connected." in result["observations"]
+
+    undeclared = metrics(base, missing=True)
+    result = run_job(client, request(base, "analytics.report", {"metrics": undeclared}))["result"]["result"]
+    assert result["status"] == "insufficient_data" and "impressions" in result["missing_facts"]
