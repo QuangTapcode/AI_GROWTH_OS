@@ -7,6 +7,8 @@ import { enqueueAiTask } from "./aiTasks";
 import { PgPlanRepository } from "./pgRepository";
 import { submitCampaignPlan, PlanError } from "./service";
 import { getWorkspaceConnectionStatus } from "../integrations/stubs";
+import { persistCommunityLead } from "../community/leads";
+import { processReceivedCommunityMessages } from "../community/service";
 
 // Stable IDs make a crash between enqueue and acknowledgement safe to replay.
 export function automationTaskId(key: string) {
@@ -195,6 +197,7 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
         if (publishFacebook && row.role === "content") await scheduleFacebookArtifact(db, workspaceId, actorId, row, approvalId, mode);
         // The owner opted into publishing approved SEO articles to the workspace's own site.
         if (publishWebsite && row.role === "seo") await publishSeoArtifact(db, workspaceId, row.result_ref, actorId);
+        if (row.role === "community") await persistCommunityLead(db, workspaceId, row.result_ref, actorId);
       }
       await db.query("COMMIT");
       approved++;
@@ -260,6 +263,8 @@ export async function tickAutomation(
     if (settings.auto_publish_facebook === true) {
       await scheduleApprovedFacebookArtifacts(pool, workspaceId, settings.actor_id, context.snapshot_id);
     }
+    // Process incoming community inbox messages into workflow tasks
+    await processReceivedCommunityMessages(pool, workspaceId, settings.actor_id, context.snapshot_id);
     const enqueue = (key: string, input: unknown) =>
       enqueueAiTask(pool, workspaceId, settings.actor_id, {
         task_id: automationTaskId(key),

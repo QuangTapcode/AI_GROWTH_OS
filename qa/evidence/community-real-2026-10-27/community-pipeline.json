@@ -1,0 +1,416 @@
+{
+  "generated_at": "2026-10-27T09:37:52.788848+00:00",
+  "workspace": "tripc",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+  "synthetic": false,
+  "agent": "community",
+  "prompt_version": "community-v2",
+  "sources_count": 2,
+  "scenarios": [
+    {
+      "scenario_name": "Vietnamese Nomad Apartment Inquiry with Phone Contact",
+      "question": "Chào TripC, mình đang có kế hoạch chuyển đến Đà Nẵng làm việc từ xa và cần thuê căn hộ gần biển ở khu An Thượng hoặc Mỹ Khê. Cho mình hỏi khu vực nào yên tĩnh và có wifi ổn định để làm việc? Vui lòng tư vấn giúp mình qua số điện thoại 0905123456 nhé.",
+      "author": "Linh Nguyen (Facebook Comment)",
+      "platform": "facebook_comment",
+      "run": {
+        "schema_version": "1.0.0",
+        "run_id": "89c3ec66-9d97-5aa0-8312-649739029bed",
+        "job_id": "4cd63e40-2cb8-4ca9-929d-0f55a35b23d8",
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "operation": "community.response",
+        "input_version": 1,
+        "status": "completed",
+        "attempt": 1,
+        "provider_calls": 1,
+        "max_provider_calls": 2,
+        "retryable": false,
+        "result": {
+          "schema_version": "1.0.0",
+          "run_id": "89c3ec66-9d97-5aa0-8312-649739029bed",
+          "operation": "community.response",
+          "result": {
+            "workspace_id": "10000000-0000-4000-8000-000000000001",
+            "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+            "profile_version": 2,
+            "version": 1,
+            "status": "insufficient_data",
+            "missing_facts": [
+              "verified_lead_owner_and_consent"
+            ],
+            "input_artifact_refs": [],
+            "requires_human_approval": true,
+            "applied": false,
+            "synthetic": true,
+            "reply": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+            "citations": [
+              {
+                "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+                "source_version": 2,
+                "chunk_id": "c1-where-to-stay",
+                "locator": "paragraph:3-5",
+                "quote": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+                "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+                "license": "TripC first-party content",
+                "attribution": "TripC Da Nang Guides"
+              },
+              {
+                "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+                "source_version": 2,
+                "chunk_id": "c3-workcation-wifi",
+                "locator": "paragraph:8-9",
+                "quote": "Reliable high-speed wifi (over 100 Mbps) is widely available in serviced apartments across An Thuong and My Khe, making remote work seamless. Dedicated coworking hubs like Enouvo and DNC offer quiet backup facilities.",
+                "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+                "license": "TripC first-party content",
+                "attribution": "TripC Da Nang Guides"
+              }
+            ],
+            "escalation_required": true,
+            "escalation_reason": "missing_verified_context_or_lead_handoff",
+            "lead_proposal": {
+              "intent": "request_information",
+              "status": "proposed",
+              "owner": null,
+              "requires_consent": true,
+              "persisted": false,
+              "contact": {
+                "phone": "0905123456"
+              }
+            }
+          },
+          "evidence": [
+            {
+              "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+              "source_version": 2,
+              "chunk_id": "c1-where-to-stay",
+              "locator": "paragraph:3-5",
+              "quote": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+              "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+              "license": "TripC first-party content",
+              "attribution": "TripC Da Nang Guides"
+            },
+            {
+              "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+              "source_version": 2,
+              "chunk_id": "c3-workcation-wifi",
+              "locator": "paragraph:8-9",
+              "quote": "Reliable high-speed wifi (over 100 Mbps) is widely available in serviced apartments across An Thuong and My Khe, making remote work seamless. Dedicated coworking hubs like Enouvo and DNC offer quiet backup facilities.",
+              "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+              "license": "TripC first-party content",
+              "attribution": "TripC Da Nang Guides"
+            }
+          ],
+          "warnings": [],
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "latency_ms": 0,
+            "provider_cost_usd": 0.0,
+            "llm_calls": 1,
+            "embedding_calls": 0,
+            "embedding_input_tokens": 0
+          },
+          "model_version": "fake/w1-deterministic-1",
+          "prompt_version": "community-v2",
+          "input_version": 1,
+          "trace_id": "community-real-vn-0905123456",
+          "artifact": {
+            "artifact_id": "e4acea03-d61a-5d70-bfb8-b7a032833a0d",
+            "workspace_id": "10000000-0000-4000-8000-000000000001",
+            "version": 1,
+            "content_hash": "0226d38e9398940317ba74ed1cf2b6738a56c176d1ec63b531aa4cd9b0aaa6f3",
+            "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+            "role": "community",
+            "storage": "ai_run_store"
+          }
+        },
+        "error_code": null,
+        "error_message": null,
+        "deadline_at": "2026-10-27T09:39:52.739004Z",
+        "created_at": "2026-10-27T09:37:52.739020Z",
+        "completed_at": "2026-10-27T09:37:52.748245Z"
+      },
+      "persisted_lead_simulation": {
+        "site_id": "tripc",
+        "utm_source": "community",
+        "utm_medium": "social_comment",
+        "utm_campaign": "expat_inquiry",
+        "lead_status": "New",
+        "contact_name": "Linh Nguyen",
+        "phone_number": "0905123456",
+        "contact_email": "community.4cd63e40@tripc.internal",
+        "interest_topic": "Housing & Community Consultation"
+      }
+    },
+    {
+      "scenario_name": "English Expat Accommodation Inquiry with Email Contact",
+      "question": "Hi TripC team, I am an expat moving to Da Nang next month. Where should I stay during my first two weeks, and do you recommend An Thuong or My Khe for digital nomads? Please send housing details to alex.miller.expat@gmail.com",
+      "author": "Alex Miller (Website Messenger)",
+      "platform": "chat_widget",
+      "run": {
+        "schema_version": "1.0.0",
+        "run_id": "abbfd516-b7b1-5942-a73f-9c1c5993d661",
+        "job_id": "b3c017ce-e450-471f-82b1-f4150b689e9d",
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "operation": "community.response",
+        "input_version": 1,
+        "status": "completed",
+        "attempt": 1,
+        "provider_calls": 1,
+        "max_provider_calls": 2,
+        "retryable": false,
+        "result": {
+          "schema_version": "1.0.0",
+          "run_id": "abbfd516-b7b1-5942-a73f-9c1c5993d661",
+          "operation": "community.response",
+          "result": {
+            "workspace_id": "10000000-0000-4000-8000-000000000001",
+            "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+            "profile_version": 2,
+            "version": 1,
+            "status": "insufficient_data",
+            "missing_facts": [
+              "verified_lead_owner_and_consent"
+            ],
+            "input_artifact_refs": [],
+            "requires_human_approval": true,
+            "applied": false,
+            "synthetic": true,
+            "reply": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+            "citations": [
+              {
+                "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+                "source_version": 2,
+                "chunk_id": "c1-where-to-stay",
+                "locator": "paragraph:3-5",
+                "quote": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+                "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+                "license": "TripC first-party content",
+                "attribution": "TripC Da Nang Guides"
+              },
+              {
+                "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+                "source_version": 2,
+                "chunk_id": "c2-danang-living-areas",
+                "locator": "paragraph:12-14",
+                "quote": "An Thuong tourist quarter is ideal for social digital nomads who enjoy international dining and beach life, while Son Tra and Hai Chau districts provide quieter residential surroundings with lower monthly living costs.",
+                "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+                "license": "TripC first-party content",
+                "attribution": "TripC Da Nang Guides"
+              },
+              {
+                "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+                "source_version": 2,
+                "chunk_id": "c3-workcation-wifi",
+                "locator": "paragraph:8-9",
+                "quote": "Reliable high-speed wifi (over 100 Mbps) is widely available in serviced apartments across An Thuong and My Khe, making remote work seamless. Dedicated coworking hubs like Enouvo and DNC offer quiet backup facilities.",
+                "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+                "license": "TripC first-party content",
+                "attribution": "TripC Da Nang Guides"
+              }
+            ],
+            "escalation_required": true,
+            "escalation_reason": "missing_verified_context_or_lead_handoff",
+            "lead_proposal": {
+              "intent": "request_information",
+              "status": "proposed",
+              "owner": null,
+              "requires_consent": true,
+              "persisted": false,
+              "contact": {
+                "email": "alex.miller.expat@gmail.com"
+              }
+            }
+          },
+          "evidence": [
+            {
+              "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+              "source_version": 2,
+              "chunk_id": "c1-where-to-stay",
+              "locator": "paragraph:3-5",
+              "quote": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+              "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+              "license": "TripC first-party content",
+              "attribution": "TripC Da Nang Guides"
+            },
+            {
+              "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+              "source_version": 2,
+              "chunk_id": "c2-danang-living-areas",
+              "locator": "paragraph:12-14",
+              "quote": "An Thuong tourist quarter is ideal for social digital nomads who enjoy international dining and beach life, while Son Tra and Hai Chau districts provide quieter residential surroundings with lower monthly living costs.",
+              "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+              "license": "TripC first-party content",
+              "attribution": "TripC Da Nang Guides"
+            },
+            {
+              "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+              "source_version": 2,
+              "chunk_id": "c3-workcation-wifi",
+              "locator": "paragraph:8-9",
+              "quote": "Reliable high-speed wifi (over 100 Mbps) is widely available in serviced apartments across An Thuong and My Khe, making remote work seamless. Dedicated coworking hubs like Enouvo and DNC offer quiet backup facilities.",
+              "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+              "license": "TripC first-party content",
+              "attribution": "TripC Da Nang Guides"
+            }
+          ],
+          "warnings": [],
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "latency_ms": 0,
+            "provider_cost_usd": 0.0,
+            "llm_calls": 1,
+            "embedding_calls": 0,
+            "embedding_input_tokens": 0
+          },
+          "model_version": "fake/w1-deterministic-1",
+          "prompt_version": "community-v2",
+          "input_version": 1,
+          "trace_id": "community-real-en-alex",
+          "artifact": {
+            "artifact_id": "a170f199-a2fc-5414-979a-1918063e6858",
+            "workspace_id": "10000000-0000-4000-8000-000000000001",
+            "version": 1,
+            "content_hash": "6e6f990040ba9a2af7fd37c901598582dc9bb26faea20e62a60083ed6b96f8fe",
+            "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+            "role": "community",
+            "storage": "ai_run_store"
+          }
+        },
+        "error_code": null,
+        "error_message": null,
+        "deadline_at": "2026-10-27T09:39:52.761611Z",
+        "created_at": "2026-10-27T09:37:52.761623Z",
+        "completed_at": "2026-10-27T09:37:52.766708Z"
+      },
+      "persisted_lead_simulation": {
+        "site_id": "tripc",
+        "utm_source": "community",
+        "utm_medium": "social_comment",
+        "utm_campaign": "expat_inquiry",
+        "lead_status": "New",
+        "contact_name": "Alex Miller",
+        "contact_email": "alex.miller.expat@gmail.com",
+        "phone_number": null,
+        "interest_topic": "Housing & Community Consultation"
+      }
+    },
+    {
+      "scenario_name": "Pure Informational Inquiry (Auto-Approvable)",
+      "question": "Can you explain the main living areas in Da Nang for newcomers?",
+      "author": "David (Community Forum)",
+      "platform": "website_contact",
+      "run": {
+        "schema_version": "1.0.0",
+        "run_id": "05b6ddd7-d9da-56d2-aa54-750a3acb9f93",
+        "job_id": "99b92474-c5dd-49b4-be0a-915f891edeb3",
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "operation": "community.response",
+        "input_version": 1,
+        "status": "completed",
+        "attempt": 1,
+        "provider_calls": 1,
+        "max_provider_calls": 2,
+        "retryable": false,
+        "result": {
+          "schema_version": "1.0.0",
+          "run_id": "05b6ddd7-d9da-56d2-aa54-750a3acb9f93",
+          "operation": "community.response",
+          "result": {
+            "workspace_id": "10000000-0000-4000-8000-000000000001",
+            "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+            "profile_version": 2,
+            "version": 1,
+            "status": "draft",
+            "missing_facts": [],
+            "input_artifact_refs": [],
+            "requires_human_approval": true,
+            "applied": false,
+            "synthetic": true,
+            "reply": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+            "citations": [
+              {
+                "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+                "source_version": 2,
+                "chunk_id": "c1-where-to-stay",
+                "locator": "paragraph:3-5",
+                "quote": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+                "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+                "license": "TripC first-party content",
+                "attribution": "TripC Da Nang Guides"
+              },
+              {
+                "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+                "source_version": 2,
+                "chunk_id": "c2-danang-living-areas",
+                "locator": "paragraph:12-14",
+                "quote": "An Thuong tourist quarter is ideal for social digital nomads who enjoy international dining and beach life, while Son Tra and Hai Chau districts provide quieter residential surroundings with lower monthly living costs.",
+                "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+                "license": "TripC first-party content",
+                "attribution": "TripC Da Nang Guides"
+              }
+            ],
+            "escalation_required": false,
+            "escalation_reason": null,
+            "lead_proposal": null
+          },
+          "evidence": [
+            {
+              "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+              "source_version": 2,
+              "chunk_id": "c1-where-to-stay",
+              "locator": "paragraph:3-5",
+              "quote": "For your first two weeks in Da Nang, An Thuong and My Khe beach areas offer the most foreigner-friendly environment with walking access to cafes, coworking spaces, and short-term serviced apartments with high-speed fiber wifi.",
+              "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+              "license": "TripC first-party content",
+              "attribution": "TripC Da Nang Guides"
+            },
+            {
+              "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+              "source_version": 2,
+              "chunk_id": "c2-danang-living-areas",
+              "locator": "paragraph:12-14",
+              "quote": "An Thuong tourist quarter is ideal for social digital nomads who enjoy international dining and beach life, while Son Tra and Hai Chau districts provide quieter residential surroundings with lower monthly living costs.",
+              "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+              "license": "TripC first-party content",
+              "attribution": "TripC Da Nang Guides"
+            }
+          ],
+          "warnings": [],
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "latency_ms": 0,
+            "provider_cost_usd": 0.0,
+            "llm_calls": 1,
+            "embedding_calls": 0,
+            "embedding_input_tokens": 0
+          },
+          "model_version": "fake/w1-deterministic-1",
+          "prompt_version": "community-v2",
+          "input_version": 1,
+          "trace_id": "community-real-info-areas",
+          "artifact": {
+            "artifact_id": "803eaf57-dbfc-5d5c-bb1f-6cf19b0707af",
+            "workspace_id": "10000000-0000-4000-8000-000000000001",
+            "version": 1,
+            "content_hash": "4e2a4851d7e141772136e5f8fa76372a3e34aa04e5a58364a14b2d60b6f93124",
+            "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+            "role": "community",
+            "storage": "ai_run_store"
+          }
+        },
+        "error_code": null,
+        "error_message": null,
+        "deadline_at": "2026-10-27T09:39:52.777122Z",
+        "created_at": "2026-10-27T09:37:52.777132Z",
+        "completed_at": "2026-10-27T09:37:52.781819Z"
+      },
+      "is_auto_approvable": true
+    }
+  ]
+}

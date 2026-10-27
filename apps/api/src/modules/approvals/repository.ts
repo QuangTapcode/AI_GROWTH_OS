@@ -363,6 +363,14 @@ export async function executeApprovalReviewTransaction(
           );
         }
       }
+
+      // If approved artifact is from community role, persist any generated lead proposal
+      try {
+        const { persistCommunityLead } = await import('../community/leads');
+        await persistCommunityLead(client, workspaceId, effectiveTargetId, actorId);
+      } catch (err) {
+        // Non-blocking for the approval review itself
+      }
     }
 
     // 7. Cascade Invalidation nguyên tử trong transaction: Nếu thu hồi nguồn (source revoke)
