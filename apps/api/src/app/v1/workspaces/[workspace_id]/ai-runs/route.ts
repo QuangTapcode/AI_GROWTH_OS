@@ -2,43 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/lib/auth';
 import { handleApiError, AppError } from '@/lib/errors';
 import pool from '@/lib/db';
+import { enqueueAiTask } from '@/modules/campaignPlans/aiTasks';
+import { PlanError } from '@/modules/campaignPlans/service';
 
+/**
+ * Start an AI task for this workspace. The request never reaches the AI service directly:
+ * it goes through the same validation as /ai-tasks (active owner/editor, the workspace's
+ * current backend-issued context, artifact ownership) so a caller cannot submit a job for
+ * another workspace, a stale snapshot or arbitrary payload.
+ */
 export async function POST(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
     const actor = authenticateUser(req);
-    const body = await req.json();
-
-    // Kiểm tra quyền truy cập workspace
-    const member = await pool.query(
-      "SELECT role FROM memberships WHERE workspace_id=$1 AND user_id=$2 AND status='active'",
-      [params.workspace_id, actor.id]
-    );
-    if (!member.rows[0]) throw new AppError(403, 'PERMISSION_DENIED', 'Không có quyền truy cập workspace này');
-
-    const aiUrl = process.env.INTERNAL_AI_URL || 'http://localhost:5000';
-    const aiToken = process.env.INTERNAL_AI_AUTH_TOKEN || '';
-
-    const aiRes = await fetch(`${aiUrl}/internal/v1/runs`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(aiToken ? { Authorization: `Bearer ${aiToken}` } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-
-    const aiData = await aiRes.json().catch(() => null);
-
-    if (!aiRes.ok) {
-      throw new AppError(
-        aiRes.status,
-        aiData?.error?.code || 'AI_ERROR',
-        aiData?.error?.message || 'AI service trả về lỗi'
-      );
-    }
-
-    return NextResponse.json(aiData, { status: aiRes.status });
+    const input = await req.json().catch(() => null);
+    const context = (await pool.query(
+      'SELECT snapshot_id FROM knowledge_contexts WHERE workspace_id=$1 AND current', [params.workspace_id],
+    )).rows[0];
+    if (!context) throw new AppError(409, 'MISSING_CONTEXT', 'Create a current knowledge context first');
+    const result = await enqueueAiTask(pool, params.workspace_id, actor.id, { context_snapshot_id: context.snapshot_id, input });
+    return NextResponse.json(result, { status: result.deduplicated ? 200 : 202 });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error instanceof PlanError ? new AppError(error.status, error.code, error.message) : error);
   }
 }
