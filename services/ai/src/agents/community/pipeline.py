@@ -1,10 +1,11 @@
 from pathlib import Path
 import re
+import unicodedata
 from ...app.runtime import OperationOutcome
 from ...app.schemas import EvidenceRef
 from ...guardrails.facts import sensitive_keys_in
 from ...rag.retrieval import eligible_sources, lexical_overlap, terms, _STOPWORDS
-from ..contracts import aware_past, call_draft, ensure_grounded, result_fields, validate_context
+from ..contracts import aware_past, call_draft, call_grounded_draft, ensure_grounded, result_fields, validate_context
 from .schemas import CommunityReply, ReplyDraft
 
 PROMPT_VERSION = "community-v2"
@@ -21,7 +22,13 @@ _INTENT_WORDS = (
 
 
 def unicode_terms(text: str) -> set[str]:
-    return {w.casefold() for w in _UNICODE_WORD.findall(text) if len(w) > 1 and w.casefold() not in _STOPWORDS}
+    raw_words = {w.casefold() for w in _UNICODE_WORD.findall(text) if len(w) > 1}
+    unaccented = {
+        "".join(c for c in unicodedata.normalize("NFD", w) if unicodedata.category(c) != "Mn")
+        for w in raw_words
+    }
+    all_words = raw_words | unaccented
+    return {w for w in all_words if len(w) > 1 and (w not in _STOPWORDS or w in {"an", "in", "to", "do", "me"})}
 
 
 def extract_contact_info(text: str) -> dict[str, str] | None:
@@ -76,14 +83,16 @@ async def run_community(ctx):
             )
             for s, c in selected
         ]
-        draft = await call_draft(
+        grounding = [c.text for s, c in selected]
+        draft = await call_grounded_draft(
             ctx,
             SYSTEM_PROMPT,
             {"question": p.question, "quotes": [e.quote for e in evidence]},
             ReplyDraft,
             lambda: {"reply": evidence[0].quote},
+            lambda d: d.reply,
+            grounding,
         )
-        ensure_grounded(draft.reply, [e.quote for e in evidence])
         reply = draft.reply
 
     q_lower = p.question.casefold()

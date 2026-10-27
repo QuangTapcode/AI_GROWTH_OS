@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS community_messages (
   post_url TEXT,
   status VARCHAR(50) NOT NULL DEFAULT 'received' CHECK (status IN ('received', 'queued', 'replied', 'escalated', 'ignored')),
   task_id UUID REFERENCES workflow_tasks(id) ON DELETE SET NULL,
-  lead_id UUID REFERENCES leads(id) ON DELETE SET NULL,
+  lead_id UUID REFERENCES leads(lead_id) ON DELETE SET NULL,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

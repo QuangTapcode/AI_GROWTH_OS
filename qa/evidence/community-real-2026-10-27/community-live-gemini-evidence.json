@@ -1,0 +1,325 @@
+{
+  "generated_at": "2026-10-27T10:06:15.016794+00:00",
+  "workspace": "tripc",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+  "synthetic": false,
+  "llm_provider": "gemini",
+  "llm_model": "gemini-2.5-flash",
+  "total_live_runs": 3,
+  "scenarios": [
+    {
+      "scenario": "Vietnamese Nomad Inquiry with Phone Contact",
+      "question": "Chào TripC, mình chuẩn bị vào Đà Nẵng làm việc từ xa. Cho mình hỏi khu An Thượng và Mỹ Khê có wifi tốt và coworking space không? Nhờ tư vấn giúp mình qua SĐT 0905123456 nhé.",
+      "author": "Linh Nguyen (Facebook Comment)",
+      "platform": "facebook_comment",
+      "outcome": {
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+        "profile_version": 2,
+        "version": 1,
+        "status": "insufficient_data",
+        "missing_facts": [
+          "verified_lead_owner_and_consent"
+        ],
+        "input_artifact_refs": [],
+        "requires_human_approval": true,
+        "applied": false,
+        "synthetic": false,
+        "reply": "Khu An Thượng có các quán cà phê với internet cáp quang tốc độ cao trên 100 Mbps và các không gian làm việc chung chuyên dụng như Enouvo Space và DNC. Khu vực biển Mỹ Khê cũng cung cấp các căn hộ với wifi tốc độ cao.",
+        "citations": [
+          {
+            "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+            "source_version": 2,
+            "chunk_id": "c1-workcation-anthuong",
+            "locator": "paragraph:5-7",
+            "quote": "An Thuong tourist quarter in My An ward is the expat epicenter of Da Nang, featuring walkable cafes with high-speed fiber internet over 100 Mbps, international dining, and dedicated coworking spaces such as Enouvo Space and DNC.",
+            "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          },
+          {
+            "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+            "source_version": 2,
+            "chunk_id": "c3-first-two-weeks",
+            "locator": "paragraph:3-5",
+            "quote": "For digital nomads arriving in Da Nang, we recommend staying in a serviced studio apartment in An Thuong or My Khe for your first two weeks to explore neighborhoods before committing to a long-term lease.",
+            "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          },
+          {
+            "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+            "source_version": 2,
+            "chunk_id": "c2-workcation-mykhe",
+            "locator": "paragraph:12-14",
+            "quote": "My Khe Beach area offers modern beachfront high-rise apartments with high-speed wifi and panoramic ocean views, providing a peaceful living environment within 5 minutes walking distance to the beach.",
+            "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          }
+        ],
+        "escalation_required": true,
+        "escalation_reason": "missing_verified_context_or_lead_handoff",
+        "lead_proposal": {
+          "intent": "request_information",
+          "status": "proposed",
+          "owner": null,
+          "requires_consent": true,
+          "persisted": false,
+          "contact": {
+            "phone": "0905123456"
+          }
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+          "source_version": 2,
+          "chunk_id": "c1-workcation-anthuong",
+          "locator": "paragraph:5-7",
+          "quote": "An Thuong tourist quarter in My An ward is the expat epicenter of Da Nang, featuring walkable cafes with high-speed fiber internet over 100 Mbps, international dining, and dedicated coworking spaces such as Enouvo Space and DNC.",
+          "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        },
+        {
+          "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+          "source_version": 2,
+          "chunk_id": "c3-first-two-weeks",
+          "locator": "paragraph:3-5",
+          "quote": "For digital nomads arriving in Da Nang, we recommend staying in a serviced studio apartment in An Thuong or My Khe for your first two weeks to explore neighborhoods before committing to a long-term lease.",
+          "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        },
+        {
+          "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+          "source_version": 2,
+          "chunk_id": "c2-workcation-mykhe",
+          "locator": "paragraph:12-14",
+          "quote": "My Khe Beach area offers modern beachfront high-rise apartments with high-speed wifi and panoramic ocean views, providing a peaceful living environment within 5 minutes walking distance to the beach.",
+          "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        }
+      ],
+      "usage": {
+        "input_tokens": 300,
+        "output_tokens": 64,
+        "total_tokens": 364,
+        "latency_ms": 3487,
+        "provider_cost_usd": 0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      },
+      "model": "gemini-2.5-flash"
+    },
+    {
+      "scenario": "English Expat Accommodation Inquiry with Email Contact",
+      "question": "Hi TripC team, I'm an expat moving to Da Nang. Where should I stay during my first two weeks, and what coworking spaces do you recommend in An Thuong? Please send advice to alex.miller.expat@gmail.com",
+      "author": "Alex Miller (Website Messenger)",
+      "platform": "chat_widget",
+      "outcome": {
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+        "profile_version": 2,
+        "version": 1,
+        "status": "insufficient_data",
+        "missing_facts": [
+          "verified_lead_owner_and_consent"
+        ],
+        "input_artifact_refs": [],
+        "requires_human_approval": true,
+        "applied": false,
+        "synthetic": false,
+        "reply": "For your first two weeks in Da Nang, we recommend staying in a serviced studio apartment in An Thuong or My Khe to explore neighborhoods before committing to a long-term lease. An Thuong features dedicated coworking spaces such as Enouvo Space and DNC.",
+        "citations": [
+          {
+            "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+            "source_version": 2,
+            "chunk_id": "c3-first-two-weeks",
+            "locator": "paragraph:3-5",
+            "quote": "For digital nomads arriving in Da Nang, we recommend staying in a serviced studio apartment in An Thuong or My Khe for your first two weeks to explore neighborhoods before committing to a long-term lease.",
+            "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          },
+          {
+            "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+            "source_version": 2,
+            "chunk_id": "c1-workcation-anthuong",
+            "locator": "paragraph:5-7",
+            "quote": "An Thuong tourist quarter in My An ward is the expat epicenter of Da Nang, featuring walkable cafes with high-speed fiber internet over 100 Mbps, international dining, and dedicated coworking spaces such as Enouvo Space and DNC.",
+            "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          },
+          {
+            "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+            "source_version": 2,
+            "chunk_id": "c2-workcation-mykhe",
+            "locator": "paragraph:12-14",
+            "quote": "My Khe Beach area offers modern beachfront high-rise apartments with high-speed wifi and panoramic ocean views, providing a peaceful living environment within 5 minutes walking distance to the beach.",
+            "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          }
+        ],
+        "escalation_required": true,
+        "escalation_reason": "missing_verified_context_or_lead_handoff",
+        "lead_proposal": {
+          "intent": "request_information",
+          "status": "proposed",
+          "owner": null,
+          "requires_consent": true,
+          "persisted": false,
+          "contact": {
+            "email": "alex.miller.expat@gmail.com"
+          }
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+          "source_version": 2,
+          "chunk_id": "c3-first-two-weeks",
+          "locator": "paragraph:3-5",
+          "quote": "For digital nomads arriving in Da Nang, we recommend staying in a serviced studio apartment in An Thuong or My Khe for your first two weeks to explore neighborhoods before committing to a long-term lease.",
+          "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        },
+        {
+          "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+          "source_version": 2,
+          "chunk_id": "c1-workcation-anthuong",
+          "locator": "paragraph:5-7",
+          "quote": "An Thuong tourist quarter in My An ward is the expat epicenter of Da Nang, featuring walkable cafes with high-speed fiber internet over 100 Mbps, international dining, and dedicated coworking spaces such as Enouvo Space and DNC.",
+          "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        },
+        {
+          "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+          "source_version": 2,
+          "chunk_id": "c2-workcation-mykhe",
+          "locator": "paragraph:12-14",
+          "quote": "My Khe Beach area offers modern beachfront high-rise apartments with high-speed wifi and panoramic ocean views, providing a peaceful living environment within 5 minutes walking distance to the beach.",
+          "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        }
+      ],
+      "usage": {
+        "input_tokens": 294,
+        "output_tokens": 58,
+        "total_tokens": 352,
+        "latency_ms": 2519,
+        "provider_cost_usd": 0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      },
+      "model": "gemini-2.5-flash"
+    },
+    {
+      "scenario": "Pure Informational Inquiry (Auto-Approvable)",
+      "question": "Cho mình hỏi khu vực An Thượng và Mỹ Khê tại Đà Nẵng thì nơi nào có quán cà phê và không gian làm việc chung phù hợp với người làm việc từ xa hơn?",
+      "author": "Thanh Tung (Community Group)",
+      "platform": "website_contact",
+      "outcome": {
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+        "profile_version": 2,
+        "version": 1,
+        "status": "draft",
+        "missing_facts": [],
+        "input_artifact_refs": [],
+        "requires_human_approval": true,
+        "applied": false,
+        "synthetic": false,
+        "reply": "Khu vực An Thượng là trung tâm của cộng đồng người nước ngoài tại Đà Nẵng, có nhiều quán cà phê dễ dàng đi bộ với internet cáp quang tốc độ cao trên 100 Mbps, cùng với các không gian làm việc chung chuyên biệt như Enouvo Space và DNC.",
+        "citations": [
+          {
+            "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+            "source_version": 2,
+            "chunk_id": "c3-first-two-weeks",
+            "locator": "paragraph:3-5",
+            "quote": "For digital nomads arriving in Da Nang, we recommend staying in a serviced studio apartment in An Thuong or My Khe for your first two weeks to explore neighborhoods before committing to a long-term lease.",
+            "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          },
+          {
+            "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+            "source_version": 2,
+            "chunk_id": "c1-workcation-anthuong",
+            "locator": "paragraph:5-7",
+            "quote": "An Thuong tourist quarter in My An ward is the expat epicenter of Da Nang, featuring walkable cafes with high-speed fiber internet over 100 Mbps, international dining, and dedicated coworking spaces such as Enouvo Space and DNC.",
+            "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          },
+          {
+            "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+            "source_version": 2,
+            "chunk_id": "c2-workcation-mykhe",
+            "locator": "paragraph:12-14",
+            "quote": "My Khe Beach area offers modern beachfront high-rise apartments with high-speed wifi and panoramic ocean views, providing a peaceful living environment within 5 minutes walking distance to the beach.",
+            "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+            "license": "TripC first-party content",
+            "attribution": "TripC Da Nang Guides"
+          }
+        ],
+        "escalation_required": false,
+        "escalation_reason": null,
+        "lead_proposal": null
+      },
+      "evidence": [
+        {
+          "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+          "source_version": 2,
+          "chunk_id": "c3-first-two-weeks",
+          "locator": "paragraph:3-5",
+          "quote": "For digital nomads arriving in Da Nang, we recommend staying in a serviced studio apartment in An Thuong or My Khe for your first two weeks to explore neighborhoods before committing to a long-term lease.",
+          "source_url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        },
+        {
+          "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+          "source_version": 2,
+          "chunk_id": "c1-workcation-anthuong",
+          "locator": "paragraph:5-7",
+          "quote": "An Thuong tourist quarter in My An ward is the expat epicenter of Da Nang, featuring walkable cafes with high-speed fiber internet over 100 Mbps, international dining, and dedicated coworking spaces such as Enouvo Space and DNC.",
+          "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        },
+        {
+          "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+          "source_version": 2,
+          "chunk_id": "c2-workcation-mykhe",
+          "locator": "paragraph:12-14",
+          "quote": "My Khe Beach area offers modern beachfront high-rise apartments with high-speed wifi and panoramic ocean views, providing a peaceful living environment within 5 minutes walking distance to the beach.",
+          "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+          "license": "TripC first-party content",
+          "attribution": "TripC Da Nang Guides"
+        }
+      ],
+      "usage": {
+        "input_tokens": 282,
+        "output_tokens": 69,
+        "total_tokens": 351,
+        "latency_ms": 24267,
+        "provider_cost_usd": 0,
+        "llm_calls": 1,
+        "embedding_calls": 0,
+        "embedding_input_tokens": 0
+      },
+      "model": "gemini-2.5-flash"
+    }
+  ]
+}
