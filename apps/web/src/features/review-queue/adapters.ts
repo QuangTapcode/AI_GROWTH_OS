@@ -258,6 +258,10 @@ export function toReviewItem(
       : artifact?.title ?? `${humanize(approval.target_type)} ${shortCode("ID", approval.target_id)}`;
 
   const summary =
+    payloadString(planResult, "reply") ??
+    payloadString(planResult, "caption") ??
+    payloadString(planResult, "body_markdown")?.slice(0, 240) ??
+    (Array.isArray(planResult.findings) && planResult.findings.length ? `Phát hiện nghiên cứu: ${planResult.findings.map((finding) => String((finding as Record<string, unknown>).topic ?? "")).join("; ")}` : undefined) ??
     payloadString(payload, "summary") ??
     payloadString(planResult, "summary") ??
     (planResult.objective
@@ -296,7 +300,7 @@ export function toReviewItem(
     validations: validations(approval, artifact),
     executiveSummary: summary,
     topicClusters: topicClusters(payload),
-    jsonPayload: { approval, artifact: artifact ?? null },
+    jsonPayload: { approval, artifact: artifact ?? null, task: task ?? null },
     rejectionReason,
     pipelineNotice:
       approval.status === "pending"

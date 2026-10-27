@@ -15,10 +15,12 @@ export default function ReviewItemsList({
   onSelectItem,
 }: ReviewItemsListProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [agentFilter, setAgentFilter] = useState("");
   const [activeFilterTab, setActiveFilterTab] = useState<"needs_approval" | "all">("needs_approval");
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
+      if (agentFilter && item.agent !== agentFilter) return false;
       const matchesSearch =
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.taskId.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -30,7 +32,7 @@ export default function ReviewItemsList({
       }
       return matchesSearch;
     });
-  }, [items, searchQuery, activeFilterTab]);
+  }, [items, searchQuery, activeFilterTab, agentFilter]);
 
   const renderBadge = (tag: ReviewItem["statusTag"]) => {
     if (tag === "Review") {
@@ -92,6 +94,9 @@ export default function ReviewItemsList({
       </div>
 
       {/* ── Filter Tabs & Sort ── */}
+      <label className="block text-xs font-semibold text-slate-600">Lọc theo agent
+        <select aria-label="Lọc theo agent" value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 bg-white p-2 text-sm"><option value="">Tất cả agent</option>{Array.from(new Set(items.map((item) => item.agent))).map((agent) => <option key={agent} value={agent}>{agent}</option>)}</select>
+      </label>
       <div className="flex items-center justify-between pt-0.5">
         <div className="flex items-center gap-1 bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60">
           <button

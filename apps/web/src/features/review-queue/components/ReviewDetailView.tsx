@@ -3,6 +3,10 @@
 import React, { useState } from "react";
 import { ReviewItem } from "../types";
 import JsonPayloadModal from "./JsonPayloadModal";
+import CommunityReviewModal from "./CommunityReviewModal";
+import ArtifactReviewContent from "./ArtifactReviewContent";
+import ArtifactPreviewModal from "./ArtifactPreviewModal";
+import type { ContentArtifact } from "@/lib/apiTypes";
 
 interface ReviewDetailViewProps {
   item: ReviewItem;
@@ -19,6 +23,9 @@ export default function ReviewDetailView({
 }: ReviewDetailViewProps) {
   const [rejectionReason, setRejectionReason] = useState("");
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
+  const [isCommunityOpen, setIsCommunityOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const isCommunity = (item.jsonPayload.artifact as { operation?: string } | null)?.operation === "community.response";
   const [actionNotice, setActionNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -270,18 +277,22 @@ export default function ReviewDetailView({
 
             {/* Quick Action Icons: { } and Expand */}
             <div className="flex items-center gap-1.5 text-slate-400">
+              {!isCommunity && <button type="button" onClick={() => setIsPreviewOpen(true)} className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800">Xem kết quả</button>}
+              {isCommunity && <button type="button" onClick={() => setIsCommunityOpen(true)} className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800">Xem phản hồi Community</button>}
               <button
                 type="button"
                 onClick={() => setIsJsonModalOpen(true)}
-                title="View JSON Payload"
+                title="Dữ liệu thô (JSON)"
+                aria-label="Dữ liệu thô (JSON)"
                 className="w-7 h-7 rounded-lg hover:bg-slate-200/70 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer font-mono text-xs font-bold"
               >
                 {"{ }"}
               </button>
               <button
                 type="button"
-                onClick={() => setIsJsonModalOpen(true)}
-                title="Expand Full Document"
+                onClick={() => setIsPreviewOpen(true)}
+                title="Phóng to kết quả"
+                aria-label="Phóng to kết quả"
                 className="w-7 h-7 rounded-lg hover:bg-slate-200/70 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -292,7 +303,7 @@ export default function ReviewDetailView({
           </div>
 
           {/* Preview Box Content */}
-          <div className="p-5 space-y-5 text-left">
+          {item.jsonPayload.artifact ? <ArtifactReviewContent artifact={item.jsonPayload.artifact as ContentArtifact} task={item.jsonPayload.task} /> : <div className="p-5 space-y-5 text-left">
             {/* Section 01 */}
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -363,7 +374,7 @@ export default function ReviewDetailView({
                 </pre>
               </div>
             )}
-          </div>
+          </div>}
         </div>
       </div>
 
@@ -425,6 +436,8 @@ export default function ReviewDetailView({
       </div>
 
       {/* JSON Payload Modal */}
+      {isPreviewOpen && <ArtifactPreviewModal item={item} onClose={() => setIsPreviewOpen(false)} />}
+      {isCommunityOpen && <CommunityReviewModal item={item} onClose={() => setIsCommunityOpen(false)} />}
       <JsonPayloadModal
         isOpen={isJsonModalOpen}
         onClose={() => setIsJsonModalOpen(false)}
