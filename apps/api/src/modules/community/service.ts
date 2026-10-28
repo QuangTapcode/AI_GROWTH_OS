@@ -34,7 +34,7 @@ export class CommunityService {
   ): Promise<{ message: CommunityMessageRecord; task_id?: string }> {
     const parsed = receiveMessageInputSchema.safeParse(rawInput);
     if (!parsed.success) {
-      throw new AppError(422, 'VALIDATION_FAILED', 'Invalid community message payload', parsed.error.format());
+      throw new AppError(422, 'VALIDATION_FAILED', 'Invalid community message payload', parsed.error.flatten().fieldErrors);
     }
     const input: ReceiveMessageInput = parsed.data;
 
@@ -89,7 +89,7 @@ export class CommunityService {
   ): Promise<CommunityMessageRecord> {
     const parsed = updateMessageStatusSchema.safeParse(rawInput);
     if (!parsed.success) {
-      throw new AppError(422, 'VALIDATION_FAILED', 'Invalid message status payload', parsed.error.format());
+      throw new AppError(422, 'VALIDATION_FAILED', 'Invalid message status payload', parsed.error.flatten().fieldErrors);
     }
     const input: UpdateMessageStatusInput = parsed.data;
 
