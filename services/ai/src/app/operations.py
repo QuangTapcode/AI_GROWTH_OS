@@ -21,8 +21,20 @@ from ..agents.growth_lead.pipeline import PROMPT_VERSION as LEAD_PROMPT, run_gro
 from ..agents.growth_lead.schemas import GrowthLeadPayload
 from ..agents.seo.pipeline import PROMPT_VERSION as SEO_PROMPT, run_seo, validate_seo
 from ..agents.seo.schemas import SeoPayload
-from ..agents.content.pipeline import PROMPT_VERSION as CONTENT_PROMPT, run_content, validate_content
-from ..agents.content.schemas import ContentPayload
+from ..agents.content.schemas import (
+    CONTENT_GENERATE_PROMPT_VERSION,
+    CONTENT_QUALITY_CHECK_PROMPT_VERSION,
+    CONTENT_REPURPOSE_PROMPT_VERSION,
+    ContentPayload,
+    ContentQualityCheckPayload,
+    ContentRepurposePayload,
+    run_content_generate,
+    run_content_quality_check,
+    run_content_repurpose,
+    validate_content_generate,
+    validate_content_quality_check,
+    validate_content_repurpose,
+)
 from ..agents.community.pipeline import PROMPT_VERSION as COMMUNITY_PROMPT, run_community, validate_community
 from ..agents.community.schemas import CommunityPayload
 from ..agents.performance.pipeline import PROMPT_VERSION as PERFORMANCE_PROMPT, run_performance, validate_performance
@@ -46,7 +58,10 @@ class Operation:
 
 _DEDICATED = (
     *(Operation(name, SEO_PROMPT, run_seo, SeoPayload, validate_seo) for name in ("seo.audit", "seo.local_draft", "content.refresh")),
-    *(Operation(name, CONTENT_PROMPT, run_content, ContentPayload, validate_content) for name in ("content.generate", "content.repurpose", "content.quality_check")),
+    Operation("content.generate", CONTENT_GENERATE_PROMPT_VERSION, run_content_generate, ContentPayload, validate_content_generate),
+    Operation("content.repurpose", CONTENT_REPURPOSE_PROMPT_VERSION, run_content_repurpose, ContentRepurposePayload, validate_content_repurpose),
+    Operation("content.quality_check", CONTENT_QUALITY_CHECK_PROMPT_VERSION, run_content_quality_check, ContentQualityCheckPayload, validate_content_quality_check),
+
     Operation("community.response", COMMUNITY_PROMPT, run_community, CommunityPayload, validate_community),
     *(Operation(name, PERFORMANCE_PROMPT, run_performance, PerformancePayload, validate_performance) for name in ("analytics.report", "experiment.hypothesis")),
     Operation("learning.analyze", LEARNING_PROMPT, run_learning, LearningPayload, validate_learning),

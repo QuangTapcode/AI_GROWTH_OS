@@ -1,5 +1,18 @@
 # Contract changelog
 
+## 2.0.0 — 24/10/2026 — SocialPack v2 Schema Freeze (CM-01)
+
+- Đóng băng schema `SocialPack` v2.0 (`contracts/schemas/social_pack_v2.json`) cho Agent số 4: Content Marketing theo kế hoạch v2.0:
+  - Models cốt lõi: `SocialPack`, `FactItem`, `SentenceMap`, `CTAObject`, `AssetV2`, `AIImageMetadata`, `CitationItem`.
+  - Hỗ trợ đầy đủ Request/Response cho 3 operations: `content.generate`, `content.repurpose`, `content.quality_check`.
+  - Bộ rào chắn xác định:
+    - Kênh phân phối `channels`: chỉ chấp nhận `facebook`, `tiktok`.
+    - Trạng thái `status`: `draft`, `needs_assets`, `insufficient_data`.
+    - Quy tắc Zero-Claim cho câu phi sự thật: câu `hook` và `cta` bắt buộc gán `NONE` hoặc `SYSTEM_CTA` và cấm gắn Fact ID thật; câu `factual` bắt buộc có danh sách Fact ID hợp lệ và tồn tại trong `extracted_facts`.
+    - Chính sách Dual-Asset: ảnh `real_asset` bắt buộc có `url`, `license`, `attribution`; ảnh `ai_generated` bắt buộc có `ai_image_meta` và `alt_text` bắt đầu bằng `[Ảnh minh họa AI]`.
+  - Hàm băm toàn vẹn `content_hash` (SHA-256 trên Canonical JSON nghiệp vụ) phân định minh bạch các trường nội dung vs metadata vòng đời.
+
+
 ## 17/10/2026 — CR-004 six-role pilot candidate
 
 Dedicated pipelines for all six roles and learning, Research v2 keywords/user_need, plan v2 deadlines/estimated score, scoped draft APIs, PostgreSQL context/ledger/outbox and owner-gated dependency/learning tasks. [Compatibility and validation](changes/CR-004-six-role-pilot-integration.md). Candidate schemas are reviewable; production freeze/signoff remains pending.

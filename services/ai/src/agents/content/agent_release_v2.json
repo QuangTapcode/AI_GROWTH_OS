@@ -1,0 +1,136 @@
+{
+  "_invalidation_notice": "INVALID - BỊ CHẶN: Kết quả Release Gate này KHÔNG HỢP LỆ do chạy logic giả lập ngẫu nhiên (mock rng.uniform, hardcode 100.0) tại release_gate.py, chưa từng gọi LLM inference thật trên Held-out Test Set.",
+  "status": "INVALID_BLOCKED_MOCK",
+  "invalidated_at": "2026-10-27T17:00:00+07:00",
+  "bundle_id": "content_agent_release_v2",
+  "bundle_version": "2.0.0",
+  "git_tag": "DELETED",
+  "released_at": "2026-10-25T13:29:43.427558+00:00",
+  "pinned_models": {
+    "generator_model": "claude-3-5-sonnet-20241022",
+    "judge_model": "gemini-1.5-pro-002",
+    "image_model": "flux-1-dev"
+  },
+  "prompt_templates": {
+    "content_generate": "generate.v1",
+    "repurpose_facebook": "repurpose_fb.v1",
+    "repurpose_tiktok": "repurpose_tiktok.v1"
+  },
+  "component_hashes": {
+    "prompt_bundle_hash": "76b9de5c79b651a9b63606c00ec45bd96f473308f01a3387d78bb1f8be42351c",
+    "few_shot_hash": "a09aa6f577b921b284b064473291ea648b56a8a655950fe1c8f1067540a9f868",
+    "guardrails_hash": "40293b0ed5665fff61bdc3ea128b044c54f1dfd777b76b53646f663686d064eb",
+    "heldout_test_hash": "b47695d0e2029cd660c634039ae2b9e4a50eea8328a9cf4cfb1e5f8d42dd957d"
+  },
+  "heldout_gate_benchmark": {
+    "gate_decision": "INVALID_BLOCKED",
+    "invalidation_detail": "Held-out evaluation was simulated using rng.uniform noise instead of calling live LLM.",
+    "evaluations": {
+      "Attribution Rate (Câu factual)": {
+        "mean": 100.0,
+        "ci_95": [
+          100.0,
+          100.0
+        ],
+        "target": 90.0,
+        "criterion": "CI Lower >= 90.0% (Mục tiêu 100%)",
+        "passed": true
+      },
+      "Zero-Claim Compliance (Hook/CTA)": {
+        "mean": 100.0,
+        "ci_95": [
+          100.0,
+          100.0
+        ],
+        "target": 90.0,
+        "criterion": "CI Lower >= 90.0% (Mục tiêu 100%)",
+        "passed": true
+      },
+      "Zero False Facts Rate (Adv Block)": {
+        "mean": 100.0,
+        "ci_95": [
+          100.0,
+          100.0
+        ],
+        "target": 95.0,
+        "criterion": "CI Lower >= 95.0% trên 70 ca đối kháng",
+        "passed": true
+      },
+      "Brand Voice & Quality Rubric": {
+        "mean": 96.93,
+        "ci_95": [
+          96.77,
+          97.08
+        ],
+        "target": 90.0,
+        "criterion": "CI Lower >= 90.0 / 100 điểm Rubric",
+        "passed": true
+      },
+      "Status Accuracy Rate": {
+        "mean": 100.0,
+        "ci_95": [
+          100.0,
+          100.0
+        ],
+        "target": 95.0,
+        "criterion": "CI Lower >= 95.0% (Mục tiêu 100%)",
+        "passed": true
+      },
+      "Self-Correction Efficiency": {
+        "mean": 1.08,
+        "ci_95": [
+          1.02,
+          1.15
+        ],
+        "target": 1.2,
+        "criterion": "CI Upper <= 1.20 vòng tự sửa trung bình",
+        "passed": true
+      },
+      "AI Image OCR & Safety Pass": {
+        "mean": 98.33,
+        "ci_95": [
+          95.0,
+          100.0
+        ],
+        "target": 90.0,
+        "criterion": "CI Lower >= 90.0% ảnh AI không dính chữ/giá",
+        "passed": true
+      }
+    },
+    "telemetry": {
+      "sample_size_test": 20,
+      "sample_size_adversarial": 70,
+      "repeats_per_sample": 3,
+      "temperature": 0.2,
+      "total_eval_runs": 270,
+      "sample_warning": "CẢNH BÁO THỐNG KÊ: Tập Held-out chỉ có 20 mẫu nên khoảng tin cậy thống kê rộng. Việc đạt 100% trên tập này KHÔNG đồng nghĩa với chất lượng tuyệt đối ngoài môi trường sản xuất.",
+      "error_group_breakdown": {}
+    },
+    "judge_calibration": {
+      "total_samples": 10,
+      "cohen_kappa": 1.0,
+      "spearman_rho": 0.9848,
+      "confusion_matrix": {
+        "true_positives": 7,
+        "false_positives": 0,
+        "true_negatives": 3,
+        "false_negatives": 0,
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0
+      },
+      "target_kappa_met": true,
+      "dataset_name": "synthetic_control_harness_calibrated",
+      "judge_model": "gemini-1.5-pro-002",
+      "status_note": "Calibration PASSED: Judge demonstrates high inter-annotator agreement (Kappa >= 0.82).",
+      "human_annotation_phase": "CM-20 PENDING (Chờ 2 chuyên viên hoàn tất thẩm định 50 mẫu)"
+    }
+  },
+  "governance_policy": {
+    "immutability_enforced": true,
+    "model_drift_threshold": 0.15,
+    "sliding_window_size": 50,
+    "rollback_sla_seconds": 60
+  }
+}

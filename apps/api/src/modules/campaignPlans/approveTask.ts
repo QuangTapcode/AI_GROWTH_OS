@@ -8,7 +8,7 @@ export async function approvePlanTask(pool: Pool, input: { workspaceId: string; 
   try {
     await db.query('BEGIN');
     const member = (await db.query("SELECT role FROM memberships WHERE workspace_id=$1 AND user_id=$2 AND status='active' FOR SHARE", [input.workspaceId, input.actorId])).rows[0];
-    if (member?.role !== 'owner') throw new PlanError('PERMISSION_DENIED', 'Only an active workspace owner can approve', 403);
+    if (member?.role !== 'owner' && member?.role !== 'editor') throw new PlanError('PERMISSION_DENIED', 'Only an active workspace owner or editor can approve', 403);
     const task = (await db.query('SELECT * FROM workflow_tasks WHERE workspace_id=$1 AND id=$2 FOR UPDATE', [input.workspaceId, input.taskId])).rows[0];
     if (!task?.result_ref) throw new PlanError('MISSING_TASK_RESULT', 'Task has no persisted result');
     const artifact = (await db.query('SELECT * FROM content_artifacts WHERE workspace_id=$1 AND id=$2 FOR SHARE', [input.workspaceId, task.result_ref])).rows[0];

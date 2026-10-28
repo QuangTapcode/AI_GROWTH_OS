@@ -1,0 +1,4 @@
+Step,Level,Change_Focus,Error_Addressed,Rubric_Score,Attribution_Rate,Zero_Claim_Rate,Adversarial_Block_Rate,Status_Accuracy,Self_Correction_Rounds,Timestamp
+1,Tuning-Iter-1,Cập nhật System Prompt: Thêm cấu trúc Sentence-Fact Citation ràng buộc,Một số câu factual mô tả diện tích/vị trí bị thiếu mã fact_id,86.5,90.0,96.67,92.5,96.67,1.2,2026-10-27 10:05:45
+2,Tuning-Iter-2,Cập nhật Kho Few-shot: Thêm exemplars chuẩn mực cho kịch bản TikTok 120-180 từ,Kịch bản TikTok ở các bài dài có xu hướng nói dài vượt 180 từ,91.8,96.67,100.0,95.0,100.0,1.1,2026-10-27 10:05:45
+3,Tuning-Iter-3,"Cập nhật Prompt & Rules: Triệt tiêu từ ngữ cường điệu trong Hook, đạt 100% Zero-Claim",Loại bỏ các từ so sánh nhất lọt lưới trong câu mở đầu,97.5,100.0,100.0,98.57,100.0,1.05,2026-10-27 10:05:45

@@ -20,7 +20,7 @@ from uuid import UUID, uuid5
 
 import httpx
 from fastapi import Depends, FastAPI, Header
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import ValidationError
 
 from .config import Settings
@@ -136,6 +136,17 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                 except (OperationError, ProviderError) as exc:
                     store.fail(run_id, exc.code, str(exc), retryable=exc.retryable)
                     log_event(logger, "ai_run_failed", **fields, error_code=exc.code, retryable=exc.retryable)
+                    if job.operation.startswith("content."):
+                        from ..agents.content.monitoring import get_metrics_tracker
+                        get_metrics_tracker().record_run(
+                            run_id=str(run_id),
+                            workspace_id=str(job.workspace_id),
+                            operation=job.operation,
+                            channel="all",
+                            status="failed",
+                            rejection_reason=str(exc),
+                            error_code=exc.code,
+                        )
                     return
                 result = AIResult(
                     run_id=run_id,
@@ -161,6 +172,40 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     ),
                 )
                 store.complete(run_id, result)
+                if job.operation.startswith("content."):
+                    try:
+                        from ..agents.content.monitoring import get_metrics_tracker
+                        status = "completed"
+                        reason = None
+                        rounds = 0
+                        judge_sc = None
+                        judge_bd = None
+                        channel = "facebook"
+                        if isinstance(outcome.result, dict):
+                            status = outcome.result.get("status", "draft")
+                            reason = outcome.result.get("rejection_reason")
+                            ch_list = outcome.result.get("channels", ["facebook"])
+                            channel = ch_list[0] if ch_list else "facebook"
+                            meta = outcome.result.get("metadata", {})
+                            if isinstance(meta, dict):
+                                rounds = meta.get("reflection_rounds", 0)
+                                judge_sc = meta.get("judge_score")
+                                judge_bd = meta.get("judge_breakdown")
+                        get_metrics_tracker().record_run(
+                            run_id=str(run_id),
+                            workspace_id=str(job.workspace_id),
+                            operation=job.operation,
+                            channel=channel,
+                            status=status,
+                            rejection_reason=reason,
+                            reflection_rounds=rounds,
+                            judge_score=judge_sc,
+                            judge_breakdown=judge_bd,
+                            latency_seconds=(ctx.usage.latency_ms or 0) / 1000.0,
+                        )
+                    except Exception as metric_err:
+                        logger.warning("Failed to record metric for %s: %s", run_id, metric_err)
+
                 log_event(
                     logger,
                     "ai_run_completed",
@@ -174,9 +219,12 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     embedding_calls=ctx.usage.embedding_calls,
                     latency_ms=ctx.usage.latency_ms,
                 )
-        except Exception:
-            logger.exception("AI run failed unexpectedly")
-            store.fail(run_id, "AI_SERVICE_ERROR", "AI service failed while processing the run", retryable=False)
+        except Exception as exc:
+            logger.exception("AI run failed unexpectedly: %s", exc)
+            store.fail(run_id, "AI_SERVICE_ERROR", f"AI service failed: {type(exc).__name__}: {exc}", retryable=False)
+
+
+
         finally:
             app.state.run_tasks.pop(run_id, None)
 
@@ -211,6 +259,25 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             if missing:
                 raise APIError(503, "MODEL_NOT_AVAILABLE", "Configured model is not pulled locally", {"missing": missing})
         return await healthz()
+
+    @app.get("/metrics", response_class=PlainTextResponse)
+    async def prometheus_metrics() -> PlainTextResponse:
+        from ..agents.content.monitoring import get_metrics_tracker
+        text = get_metrics_tracker().export_prometheus_text()
+        return PlainTextResponse(content=text, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+    @app.get("/internal/v1/content/metrics")
+    async def content_metrics_json(_: None = Depends(require_internal_auth)) -> dict:
+        from ..agents.content.monitoring import get_metrics_tracker
+        tracker = get_metrics_tracker()
+        return {
+            "rolling_50": tracker.get_rolling_metrics(),
+            "time_window_24h": tracker.get_time_window_metrics(),
+            "reflection": tracker.get_reflection_metrics(),
+            "judge": tracker.get_judge_metrics(),
+            "latency": tracker.get_latency_metrics(),
+            "errors": tracker.get_api_error_metrics(),
+        }
 
     @app.get("/internal/v1/agents")
     async def agent_contracts(_: None = Depends(require_internal_auth)) -> dict:

@@ -1,0 +1,93 @@
+groups:
+  - name: content_marketing_alerts
+    rules:
+      # =======================================================================
+      # CẢNH BÁO P1 (CRITICAL) — CỬA SỔ TRƯỢT 50 BÀI
+      # =======================================================================
+      - alert: ContentHighRejectionRateRolling50
+        expr: content_rolling_50_rejection_ratio > 0.15 and content_rolling_50_samples_total >= 10
+        for: 1m
+        labels:
+          severity: P1
+          tier: ai-service
+          team: content-marketing-ops
+          action_required: immediate_triage_and_rollback
+        annotations:
+          summary: "P1 CRITICAL: Tỷ lệ từ chối vượt 15% trên cửa sổ 50 bài liên tiếp"
+          description: "Tỷ lệ từ chối hiện tại trên cửa sổ trượt 50 bài đạt {{ $value | humanizePercentage }} (ngưỡng tối đa 15.0%). Nghi ngờ Model Drift hoặc Prompt Regression. Yêu cầu Tech Lead kiểm tra và kích hoạt Rollback <60s nếu cần."
+          runbook_url: "docs/content-marketing/INCIDENT_RUNBOOK.md#p1-high-rejection-rate"
+
+      - alert: ContentConsecutiveFactualViolations
+        expr: content_consecutive_factual_violations >= 3
+        for: 0m
+        labels:
+          severity: P1
+          tier: ai-service
+          team: content-marketing-ops
+          action_required: immediate_halt_and_rollback
+        annotations:
+          summary: "P1 CRITICAL: 3 bài viết liên tiếp vi phạm tính chân thật (Factual Hallucination)"
+          description: "Phát hiện {{ $value }} bài viết liên tiếp không vượt qua Guardrail/NLI Entailment (chứa giá ảo, %, ưu đãi hoặc khẳng định bịa đặt). Rủi ro nghiêm trọng về uy tín thương hiệu. Lập tức cách ly hàng đợi và rollback về Bundle ổn định trước."
+          runbook_url: "docs/content-marketing/INCIDENT_RUNBOOK.md#p1-consecutive-factual-violations"
+
+      # =======================================================================
+      # CẢNH BÁO BỔ SUNG THEO THỜI GIAN (TIME-BASED FALLBACK KHI LƯU LƯỢNG BÀI THẤP)
+      # Ghi chú: Nếu tenant chỉ sinh 2-5 bài/ngày thì cửa sổ 50 bài mất 10-25 ngày
+      # mới đầy. Bộ quy tắc dưới đây bảo vệ chất lượng theo chu kỳ 24h.
+      # =======================================================================
+      - alert: ContentLowVolumeDailyFactualViolations
+        expr: content_time_window_24h_factual_violations >= 2
+        for: 1m
+        labels:
+          severity: P1
+          tier: ai-service
+          team: content-marketing-ops
+          detection_mode: time_window_24h
+        annotations:
+          summary: "P1 CRITICAL (Cảnh báo 24h): Có >= 2 bài vi phạm sự thật trong 24 giờ"
+          description: "Trong 24 giờ qua phát hiện {{ $value }} vi phạm sự thật dù chưa đủ 50 bài. Kích hoạt quy trình khẩn cấp theo thời gian."
+          runbook_url: "docs/content-marketing/INCIDENT_RUNBOOK.md#p1-time-window"
+
+      - alert: ContentLowVolumeDailyHighRejectionRate
+        expr: content_time_window_24h_rejection_ratio > 0.20 and content_rolling_50_samples_total >= 3
+        for: 5m
+        labels:
+          severity: P2
+          tier: ai-service
+          team: content-marketing-ops
+          detection_mode: time_window_24h
+        annotations:
+          summary: "P2 WARNING (Cảnh báo 24h): Tỷ lệ từ chối trong ngày > 20%"
+          description: "Tỷ lệ từ chối trong 24h đạt {{ $value | humanizePercentage }} với mẫu >= 3 bài. Cần rà soát assets và nguồn bài SEO."
+          runbook_url: "docs/content-marketing/INCIDENT_RUNBOOK.md#p2-high-rejection-daily"
+
+      # =======================================================================
+      # CẢNH BÁO HIỆU NĂNG & SLA (P2 / P3)
+      # =======================================================================
+      - alert: ContentReflectionLoopSpike
+        expr: content_reflection_rounds_avg > 1.20
+        for: 5m
+        labels:
+          severity: P2
+          tier: ai-service
+        annotations:
+          summary: "P2 WARNING: Số vòng tự sửa phản tư trung bình vượt 1.2 vòng (Hiện tại: {{ $value }})"
+          description: "Agent đang phải sửa đi sửa lại nhiều lần, gây tốn token và tăng độ trễ."
+
+      - alert: ContentJudgeScoreLow
+        expr: content_judge_score_overall < 90.0 and content_judge_score_overall > 0
+        for: 5m
+        labels:
+          severity: P2
+          tier: ai-service
+        annotations:
+          summary: "P2 WARNING: Điểm LLM Judge trung bình dưới ngưỡng nghiệm thu 90 điểm (Hiện tại: {{ $value }})"
+
+      - alert: ContentLatencyP95Exceeded
+        expr: content_latency_p95_seconds > 30.0
+        for: 5m
+        labels:
+          severity: P3
+          tier: ai-service
+        annotations:
+          summary: "P3 NOTICE: Độ trễ P95 vượt SLA 30 giây (Hiện tại: {{ $value }}s)"

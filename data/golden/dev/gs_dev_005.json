@@ -1,0 +1,110 @@
+{
+  "sample_id": "gs_dev_005",
+  "dataset_split": "dev",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "source_article": {
+    "article_id": "art_sample_01",
+    "title": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển Mỹ Khê 200m",
+    "primary_keyword": "căn hộ studio đà nẵng",
+    "body_markdown": "## Vị trí đắc địa tại Sơn Trà\n\nCăn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m. Vị trí này giúp cư dân dễ dàng đi bộ ra biển mỗi sáng.\n\n## Thiết kế không gian và nội thất\n\nDiện tích căn hộ là 35m2 với ban công hướng gió thoáng mát. Nội thất căn hộ trang bị đầy đủ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.\n\n## Chi phí thuê minh bạch\n\nGiá thuê niêm yết là 8.500.000 VNĐ/tháng, đã bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.",
+    "extracted_facts": [
+      {
+        "fact_id": "f01",
+        "text": "Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f02",
+        "text": "Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f03",
+        "text": "Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f04",
+        "text": "Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.",
+        "source_type": "seo_body"
+      }
+    ],
+    "has_injection": false
+  },
+  "target_channel": "facebook",
+  "brand_voice": "Chuẩn mực, tinh tế, sang trọng và chú trọng chiều sâu trải nghiệm",
+  "verbatim_cta": "Gọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.",
+  "draft_pack": {
+    "caption": "Khám phá những trải nghiệm tiện nghi thực tế và không gian lưu trú hiện đại.\n\n• Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.\n• Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.\n• Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.\n• Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.\n\nGọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.\n\n#TripCDaNang #CanHoDaNang #KhongGianSong #Workation",
+    "sentence_fact_map": [
+      {
+        "sentence_index": 0,
+        "sentence_type": "hook",
+        "fact_id": "NONE"
+      },
+      {
+        "sentence_index": 1,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f01"
+        ]
+      },
+      {
+        "sentence_index": 2,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f02"
+        ]
+      },
+      {
+        "sentence_index": 3,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f03"
+        ]
+      },
+      {
+        "sentence_index": 4,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f04"
+        ]
+      },
+      {
+        "sentence_index": 5,
+        "sentence_type": "cta",
+        "fact_id": "SYSTEM_CTA"
+      }
+    ],
+    "hashtags": [
+      "#Cănhộstudiođànẵng",
+      "#TripCDaNang",
+      "#KhongGianSong",
+      "#DigitalNomad"
+    ],
+    "storyboard": null,
+    "spoken_word_count": null
+  },
+  "annotation": {
+    "annotator_a": {
+      "annotator_name": "Chuyên viên A",
+      "status": null,
+      "edited_caption": "",
+      "edited_sentence_fact_map": [],
+      "violations_found": [],
+      "notes": ""
+    },
+    "annotator_b": {
+      "annotator_name": "Chuyên viên B",
+      "status": null,
+      "edited_caption": "",
+      "edited_sentence_fact_map": [],
+      "violations_found": [],
+      "notes": ""
+    },
+    "adjudication": {
+      "final_decision": null,
+      "notes": ""
+    }
+  }
+}

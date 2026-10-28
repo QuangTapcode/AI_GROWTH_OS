@@ -9,10 +9,9 @@
  * - UTC scheduled_at with workspace timezone display
  */
 
-import type { JobOperator, JobState } from '../jobs/JobState';
-import type { CmsPublishRequest, CmsPublishResult, CmsPublisher, PublisherRegistry } from './CmsPublisher';
-import type { ManualPack } from './ManualPackGenerator';
-import { generateManualPacks } from './ManualPackGenerator';
+import type { JobOperator, JobState } from '../jobs/JobState.ts';
+import type { CmsPublishRequest, CmsPublishResult, CmsPublisher, PublisherRegistry } from './CmsPublisher.ts';
+import { generateManualPack, generateManualPacks, type ManualPack } from './ManualPackGenerator.ts';
 
 export type PublishStatus = 'Pending_Approval' | 'Approved' | 'Scheduled' | 'Publishing' | 'Published' | 'Failed';
 
@@ -35,6 +34,8 @@ export interface PublishContext {
   linkUrl?: string;
   mediaUrl?: string;
   mediaType?: 'video' | 'image';
+  isAiGenerated?: boolean;
+  aiImageMeta?: Record<string, any>;
   /** TQ-06 gateway recheck tại execution (MY-05): approval/version/hash. */
   approvalId?: string;
   gatewayCheck?: (req: {
@@ -47,7 +48,11 @@ export interface PublishContext {
 }
 
 export class PublishJobProcessor {
-  constructor(private registry: PublisherRegistry) {}
+  private registry: PublisherRegistry;
+
+  constructor(registry: PublisherRegistry) {
+    this.registry = registry;
+  }
 
   /**
    * Build idempotency key scoped to workspace + action.
@@ -102,9 +107,11 @@ export class PublishJobProcessor {
       linkUrl: ctx.linkUrl,
       mediaUrl: ctx.mediaUrl,
       mediaType: ctx.mediaType,
+      isAiGenerated: ctx.isAiGenerated,
+      aiImageMeta: ctx.aiImageMeta,
     };
 
-    let result: CmsPublishResult;
+    let result: CmsPublishResult & { manualPack?: ManualPack };
     try {
       result = await publisher.publish(req);
     } catch (err) {
@@ -116,14 +123,57 @@ export class PublishJobProcessor {
       };
     }
 
+    // Nếu adapter đã tự kích hoạt manual fallback
+    if (result.isManualFallback && result.manualPack) {
+      return { ...result, success: true };
+    }
+
     if (!result.success) {
+      // Ca bị từ chối quyền (401/403/Missing scope/Meta or TikTok App Review pending) -> Tự rơi về ManualPackGenerator
+      if (
+        result.errorCode === 'FACEBOOK_PERMISSION_DENIED' ||
+        result.errorCode === 'TIKTOK_PERMISSION_DENIED' ||
+        result.errorCode === 'PERMISSION_DENIED'
+      ) {
+        const manualPack = generateManualPack(
+          {
+            contentId: ctx.contentId,
+            workspaceId: ctx.workspaceId,
+            title: ctx.metaTitle,
+            bodyMarkdown: ctx.bodyMarkdown,
+            metaTitle: ctx.metaTitle,
+            metaDescription: ctx.metaDescription,
+            slug: ctx.slug,
+            mediaUrl: ctx.mediaUrl,
+            mediaType: ctx.mediaType,
+            isAiGenerated: ctx.isAiGenerated,
+          },
+          ctx.channel as 'Facebook' | 'TikTok' | 'Instagram'
+        );
+
+        return {
+          success: true,
+          externalPostId: `manual_pack_${ctx.channel.toLowerCase()}_${ctx.contentId}`,
+          isManualFallback: true,
+          manualPack,
+          errorMessage: `Live publish unavailable (${result.errorCode}): ${result.errorMessage}. Fallback to manual pack generated.`,
+        };
+      }
+
       // Timeout or unknown outcome → attempt reconciliation instead of blind retry
       if (result.errorCode === 'CMS_TIMEOUT' || result.errorCode === 'CMS_UNKNOWN_OUTCOME') {
-        const reconciled = await publisher.reconcile(result.externalPostId || '');
+        const queryKey = result.externalPostId || ctx.idempotencyKey || '';
+        const reconciled = await publisher.reconcile(queryKey);
         if (reconciled.success) {
           return { ...reconciled, success: true };
         }
-        return { ...reconciled, success: false };
+        return {
+          ...reconciled,
+          success: false,
+          errorCode: result.errorCode,
+          errorMessage: reconciled.errorMessage || result.errorMessage,
+          reconciled: true,
+        };
       }
 
       // Idempotency conflict → caller should treat as conflict (HTTP 409 equivalent)

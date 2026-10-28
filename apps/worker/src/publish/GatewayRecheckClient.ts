@@ -14,6 +14,8 @@
  *   chạy khi không xác minh được policy.
  */
 
+export * from './gateway_recheck.ts';
+
 export type GatewayCheckFn = (req: {
   workspaceId: string;
   channel: string;

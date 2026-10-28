@@ -1,0 +1,110 @@
+{
+  "sample_id": "gs_test_011",
+  "dataset_split": "test",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "source_article": {
+    "article_id": "art_sample_03",
+    "title": "Kỳ nghỉ yên bình tại TripC Villa Hội An bên sông Thu Bồn",
+    "primary_keyword": "villa hội an",
+    "body_markdown": "## Khu biệt thự ven sông\n\nTripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km, mang lại không gian tách biệt yên tĩnh. Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông Thu Bồn.\n\n## Tiêu chuẩn dịch vụ cao cấp\n\nTiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi. Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng tại sân vườn.",
+    "extracted_facts": [
+      {
+        "fact_id": "f01",
+        "text": "TripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f02",
+        "text": "Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f03",
+        "text": "Tiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f04",
+        "text": "Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng.",
+        "source_type": "seo_body"
+      }
+    ],
+    "has_injection": false
+  },
+  "target_channel": "facebook",
+  "brand_voice": "Chuẩn mực, tinh tế, sang trọng và chú trọng chiều sâu trải nghiệm",
+  "verbatim_cta": "Gọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.",
+  "draft_pack": {
+    "caption": "Khám phá những trải nghiệm tiện nghi thực tế và không gian lưu trú hiện đại.\n\n• TripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km.\n• Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông.\n• Tiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi.\n• Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng.\n\nGọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.\n\n#TripCDaNang #CanHoDaNang #KhongGianSong #Workation",
+    "sentence_fact_map": [
+      {
+        "sentence_index": 0,
+        "sentence_type": "hook",
+        "fact_id": "NONE"
+      },
+      {
+        "sentence_index": 1,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f01"
+        ]
+      },
+      {
+        "sentence_index": 2,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f02"
+        ]
+      },
+      {
+        "sentence_index": 3,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f03"
+        ]
+      },
+      {
+        "sentence_index": 4,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f04"
+        ]
+      },
+      {
+        "sentence_index": 5,
+        "sentence_type": "cta",
+        "fact_id": "SYSTEM_CTA"
+      }
+    ],
+    "hashtags": [
+      "#Villahộian",
+      "#TripCDaNang",
+      "#KhongGianSong",
+      "#DigitalNomad"
+    ],
+    "storyboard": null,
+    "spoken_word_count": null
+  },
+  "annotation": {
+    "annotator_a": {
+      "annotator_name": "Chuyên viên A",
+      "status": null,
+      "edited_caption": "",
+      "edited_sentence_fact_map": [],
+      "violations_found": [],
+      "notes": ""
+    },
+    "annotator_b": {
+      "annotator_name": "Chuyên viên B",
+      "status": null,
+      "edited_caption": "",
+      "edited_sentence_fact_map": [],
+      "violations_found": [],
+      "notes": ""
+    },
+    "adjudication": {
+      "final_decision": null,
+      "notes": ""
+    }
+  }
+}

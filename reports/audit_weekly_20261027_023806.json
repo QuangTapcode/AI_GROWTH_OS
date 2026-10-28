@@ -1,0 +1,80 @@
+{
+  "audit_id": "audit_weekly_20261027_023806",
+  "audit_date": "2026-10-27",
+  "period": {
+    "start": "2026-10-20",
+    "end": "2026-10-27"
+  },
+  "statistics": {
+    "total_published": 50,
+    "sample_rate_percent": 10.0,
+    "sample_size": 5,
+    "passed_count": 0,
+    "violation_count": 5,
+    "compliance_rate_percent": 0.0,
+    "status": "AUDIT_DEFECT_DETECTED"
+  },
+  "samples": [
+    {
+      "pack_id": "sp_audit_gs_test_011",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "facebook",
+      "passed": false,
+      "guardrail_passed": true,
+      "nli_passed": false,
+      "violations": [],
+      "unsupported_sentences": [
+        "Câu cta 'Gọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng. #TripCDaNang #CanHoDaNang #KhongGianSong #Workation' vi phạm Zero-Claim"
+      ]
+    },
+    {
+      "pack_id": "sp_audit_gs_dev_008",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "tiktok",
+      "passed": false,
+      "guardrail_passed": true,
+      "nli_passed": false,
+      "violations": [],
+      "unsupported_sentences": [
+        "Câu cta 'Gọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.' vi phạm Zero-Claim"
+      ]
+    },
+    {
+      "pack_id": "sp_audit_gs_dev_002",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "tiktok",
+      "passed": false,
+      "guardrail_passed": true,
+      "nli_passed": false,
+      "violations": [],
+      "unsupported_sentences": [
+        "Câu cta 'Truy cập website tripc.vn để tìm kiếm không gian lưu trú lý tưởng.' vi phạm Zero-Claim"
+      ]
+    },
+    {
+      "pack_id": "sp_audit_gs_test_018",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "tiktok",
+      "passed": false,
+      "guardrail_passed": true,
+      "nli_passed": false,
+      "violations": [],
+      "unsupported_sentences": [
+        "Câu 'Hơn thế nữa, về tính năng thông minh thì Khả năng cá nhân hóa đề xuất theo đúng nhu cầu để mang lại trải nghiệm phù hợp nhất.' không có dẫn chứng sự thật (unsupported)",
+        "Câu cta 'Nhắn tin cho TripC để nhận thông tin chi tiết về căn hộ.' vi phạm Zero-Claim"
+      ]
+    },
+    {
+      "pack_id": "sp_audit_gs_dev_018",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "tiktok",
+      "passed": false,
+      "guardrail_passed": true,
+      "nli_passed": false,
+      "violations": [],
+      "unsupported_sentences": [
+        "Câu cta 'Truy cập website tripc.vn để tìm kiếm không gian lưu trú lý tưởng.' vi phạm Zero-Claim"
+      ]
+    }
+  ]
+}

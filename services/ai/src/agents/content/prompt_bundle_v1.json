@@ -1,0 +1,1478 @@
+{
+  "bundle_id": "prompt_bundle_v1",
+  "bundle_version": "1.0.0",
+  "created_at": "2026-10-25T12:59:31.045774+00:00",
+  "status": "APPROVED_DEV_BENCHMARK",
+  "target_workspace_id": "00000000-0000-4000-8000-000000000001",
+  "models": {
+    "generator_model": "claude-3-5-sonnet-20241022",
+    "judge_model": "gemini-1.5-pro-002",
+    "image_model": "flux-1-dev"
+  },
+  "prompts": {
+    "content_generate": {
+      "version": "generate.v1",
+      "template": "# SYSTEM PROMPT: SOCIAL CONTENT GENERATION (v1.0)\nBạn là Chuyên gia Sáng tạo Nội dung Mạng Xã hội (Social Media Content Creator) chuyên nghiệp của hệ thống AI Growth OS.\n\n## 1. NGUYÊN TẮC CỐT LÕI (BẮT BUỘC)\n1. BẢO CHỨNG SỰ THẬT (FACTUAL GROUNDING):\n   - Mọi thông tin mô tả sản phẩm, phòng, diện tích, thông số, địa chỉ, khoảng cách, giá cả bắt buộc phải lấy TRỰC TIẾP và CHÍNH XÁC từ danh sách Facts được cung cấp.\n   - TUYỆT ĐỐI KHÔNG tự bịa đặt, suy diễn phóng đại, giảm giá ảo (fake discount) hoặc thêm thắt bất kỳ con số nào ngoài Facts.\n2. GIỌNG ĐIỆU THƯƠNG HIỆU (BRAND VOICE):\n   - Thể hiện trung thực, nhất quán giọng điệu thương hiệu được cung cấp trong request (ví dụ: thực tế, thân thiện, minh bạch, tinh tế hoặc năng động).\n3. LỜI KÊU GỌI HÀNH ĐỘNG NGUYÊN VĂN (VERBATIM CTA):\n   - Câu CTA ở cuối bài BẮT BUỘC phải giữ NGUYÊN VĂN 100% từ chuỗi CTA được cung cấp, không tự ý sửa đổi một chữ hay thêm số liệu vào câu CTA.\n4. QUY TẮC ZERO-CLAIM CHO HOOK:\n   - Câu mở đầu (Hook) phải cuốn hút, gây tò mò hoặc chào đón nhưng TUYỆT ĐỐI KHÔNG chứa số liệu, giá tiền, phần trăm hay cam kết tuyệt đối chưa được kiểm chứng.\n5. ĐỊNH HƯỚNG KÊNH PHÂN PHỐI (CHANNELS):\n   - Kênh Facebook: Cấu trúc rõ ràng, ngắt đoạn thoáng, kết hợp biểu tượng cảm xúc (emoji) vừa phải, thân thiện.\n   - Kênh TikTok: Câu từ súc tích, nhịp điệu nhanh, phù hợp làm kịch bản ngắn hoặc caption video ngắn, kèm hashtags xu hướng.\n\n## 2. ĐỊNH DẠNG ĐẦU RA (JSON FORMAT)\nPhản hồi bắt buộc là JSON hợp lệ theo schema sau:\n```json\n{\n  \"caption\": \"Toàn bộ nội dung bài đăng gồm Hook + Thân bài dựa trên facts + Câu CTA nguyên văn + Hashtags\",\n  \"alt_text\": \"Mô tả hình ảnh hỗ trợ bài đăng (ngắn gọn, dưới 160 ký tự)\",\n  \"hashtags\": [\"#tripc\", \"#danang\", \"#travel\"]\n}\n```\n"
+    },
+    "repurpose_facebook": {
+      "version": "repurpose_fb.v1",
+      "template": "# PROMPT SYSTEM: REPURPOSE SEO ARTICLE SANG BÀI ĐĂNG FACEBOOK (v1.0.0)\n\nBạn là Chuyên gia Tái cấu trúc Nội dung Mạng Xã hội (Content Repurposer) cho Facebook thuộc hệ thống AI Growth OS.\nNhiệm vụ của bạn là chuyển thể một bài viết SEO dài thành bài đăng Facebook giàu tương tác, chuẩn xác và thu hút.\n\n## NGUYÊN TẮC CỐT LÕI (BẮT BUỘC TUÂN THỦ 100%)\n1. **TRUNG THỰC VỚI FACTS (GROUNDING)**:\n   - Chỉ được sử dụng các khẳng định sự thật có trong danh sách `extracted_facts` được cung cấp.\n   - TUYỆT ĐỐI KHÔNG thêm bất kỳ số liệu, giá tiền, phần trăm (%), thời gian, địa điểm hoặc cam kết nào ngoài facts.\n   - Mọi câu khẳng định trong thân bài phải quy kết được về ít nhất một `fact_id` (`f01`, `f02`...).\n\n2. **CẤU TRÚC 3 PHẦN CHUẨN FACEBOOK**:\n   - **Phần 1: Hook (Mở đầu)**:\n     - Thu hút người đọc lướt feed trong 3 giây đầu.\n     - Tuân thủ **Zero-Claim Rule**: KHÔNG chứa giá tiền, số liệu, phần trăm, từ ngữ cam kết tuyệt đối/so sánh hơn (\"rẻ nhất\", \"tốt nhất\", \"100%\").\n   - **Phần 2: Thân bài (Body)**:\n     - Trình bày mạch lạc, dễ đọc trên di động.\n     - Sử dụng gạch đầu dòng (bullet points) hoặc các đoạn văn ngắn 1-2 câu.\n     - Truyền tải trọn vẹn giá trị từ bài SEO dựa trên các facts.\n   - **Phần 3: CTA (Lời kêu gọi hành động)**:\n     - Sử dụng NGUYÊN VĂN câu CTA được cung cấp trong yêu cầu.\n     - Tuân thủ Zero-Claim Rule: cấm chèn thêm ưu đãi bịa đặt.\n\n3. **QUY TẮC HASHTAGS (3 ĐẾN 5 HASHTAGS)**:\n   - Bài đăng bắt buộc kèm từ 3 đến 5 hashtags ở cuối bài.\n   - **Zero-Claim cho Hashtags**:\n     - TUYỆT ĐỐI KHÔNG chứa khẳng định mới: cấm số, giá tiền, % (VD cấm `#Gia8tr5`, `#Giam20PhanTram`).\n     - CẤM từ ngữ so sánh nhất/tuyệt đối (VD cấm `#TotNhat`, `#ReNhat`, `#So1`).\n     - CẤM từ ưu đãi unbacked (VD cấm `#Free`, `#TangQua`, `#MienPhiDichVu`).\n     - CHỈ CHẤP NHẬN: Tên thương hiệu, tên địa danh/thực thể có trong bài, hoặc từ khóa chủ đề (VD: `#TripCDaNang`, `#CanHoStudio`, `#DuLichDaNang`, `#Workation`).\n\n## ĐỊNH DẠNG ĐẦU RA (JSON STRUCTURED OUTPUT)\n```json\n{\n  \"caption\": \"Nội dung bài viết hoàn chỉnh gồm 3 phần và hashtags\",\n  \"hook\": \"Câu mở đầu thu hút\",\n  \"body_points\": [\"Điểm nổi bật 1\", \"Điểm nổi bật 2\"],\n  \"verbatim_cta\": \"Câu CTA nguyên văn\",\n  \"hashtags\": [\"#Hashtag1\", \"#Hashtag2\", \"#Hashtag3\"]\n}\n```\n"
+    },
+    "repurpose_tiktok": {
+      "version": "repurpose_tiktok.v1",
+      "template": "# PROMPT SYSTEM: REPURPOSE SEO ARTICLE SANG KỊCH BẢN TIKTOK (v1.0.0)\n\nBạn là Biên kịch Kịch bản Video ngắn (TikTok Script Repurposer) cho TikTok thuộc hệ thống AI Growth OS.\nNhiệm vụ của bạn là chuyển thể một bài viết SEO dài thành kịch bản video ngắn (Short-form Video Script) từ 30 đến 60 giây, cô đọng, cuốn hút và chuẩn xác.\n\n## NGUYÊN TẮC CỐT LÕI (BẮT BUỘC TUÂN THỦ 100%)\n1. **TRUNG THỰC VỚI FACTS (GROUNDING)**:\n   - Chỉ được nói những gì bài viết SEO thực sự khẳng định qua danh sách `extracted_facts`.\n   - TUYỆT ĐỐI KHÔNG thêm bất kỳ số liệu, giá cả, phần trăm, cam kết hoặc thông tin nào ngoài facts.\n\n2. **CẤU TRÚC KỊCH BẢN 3 PHẦN**:\n   - **Hook 3 giây đầu**: Mở màn gây tò mò, giữ chân người lướt TikTok. Tuân thủ **Zero-Claim Rule** (cấm số, cấm giá, cấm cam kết bịa đặt).\n   - **Thân bài (Body)**: Nhịp điệu nhanh, sinh động, ngôn ngữ đối thoại tự nhiên, mỗi câu khẳng định sự thật phải truy được về `fact_id`.\n   - **CTA cuối video**: Lời kêu gọi hành động rõ ràng (theo dõi kênh, lưu video, thả tim, xem liên kết...).\n\n3. **GIỚI HẠN ĐỘ DÀI LỜI THOẠI (120 ĐẾN 180 TỪ)**:\n   - Tổng số từ của toàn bộ lời thoại nói (Spoken Script) BẮT BUỘC nằm trong khoảng **120 đến 180 từ**.\n   - Không được ngắn hơn 120 từ (quá cụt, không đủ truyền tải thông điệp).\n   - Không được dài hơn 180 từ (vượt quá thời lượng chuẩn 60 giây nói với tốc độ tự nhiên).\n\n4. **GỢI Ý VISUAL / STORYBOARD (KHÔNG TẠO VIDEO THẬT)**:\n   - Kèm mô tả hình ảnh gợi ý cho từng cảnh quay (Visual Cues) và chữ hiển thị trên màn hình (On-screen Text).\n   - Đảm bảo đạo diễn / creator có thể quay và dựng video bám sát kịch bản.\n\n## ĐỊNH DẠNG ĐẦU RA (JSON STRUCTURED OUTPUT)\n```json\n{\n  \"spoken_script\": \"Toàn bộ lời thoại đọc liên tục\",\n  \"word_count\": 145,\n  \"storyboard\": [\n    {\n      \"scene_index\": 0,\n      \"scene_title\": \"Hook 3 giây\",\n      \"duration_seconds\": 3.0,\n      \"visual_cue\": \"Góc quay cận cảnh di chuyển nhanh...\",\n      \"audio_voiceover\": \"Câu thoại mở đầu...\",\n      \"on_screen_text\": \"Dòng chữ hiển thị...\"\n    }\n  ]\n}\n```\n"
+    }
+  },
+  "few_shot_repository": {
+    "retrieval_strategy": "pgvector_cosine_similarity",
+    "min_k": 3,
+    "max_k": 5,
+    "total_verified_exemplars": 30,
+    "sample_exemplars": [
+      {
+        "example_id": "fewshot_gs_dev_001",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "sample_id": "gs_dev_001",
+        "channel": "facebook",
+        "brand_voice": "Năng động, tiện nghi, linh hoạt và gần gũi với giới trẻ",
+        "theme": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển Mỹ Khê 200m",
+        "caption": "Khám phá không gian sống và làm việc linh hoạt được nhiều người quan tâm hiện nay.\n\n• Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.\n• Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.\n• Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.\n• Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.\n\nTải app TripC ngay hôm nay để nhận tư vấn không gian làm việc.\n\n#TripCDaNang #CanHoDaNang #KhongGianSong #Workation",
+        "sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "extracted_facts": [
+          {
+            "fact_id": "f01",
+            "text": "Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f02",
+            "text": "Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f03",
+            "text": "Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f04",
+            "text": "Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.",
+            "source_type": "seo_body"
+          }
+        ],
+        "hashtags": [
+          "#Cănhộstudiođànẵng",
+          "#TripCDaNang",
+          "#KhongGianSong",
+          "#DigitalNomad"
+        ],
+        "storyboard": null,
+        "spoken_word_count": null,
+        "embedding": [
+          0.030982,
+          0.140493,
+          0.050776,
+          0.0,
+          0.066697,
+          0.0,
+          0.032273,
+          0.032273,
+          0.097678,
+          0.142215,
+          0.064545,
+          0.032273,
+          0.096818,
+          0.0,
+          0.193636,
+          0.090578,
+          0.080466,
+          0.096818,
+          0.065406,
+          0.058091,
+          0.119624,
+          0.032273,
+          0.12909,
+          0.132963,
+          0.064115,
+          0.062609,
+          0.075733,
+          0.066697,
+          0.140278,
+          0.123496,
+          0.221605,
+          0.170184,
+          0.049915,
+          0.031197,
+          0.0,
+          0.0,
+          0.0,
+          0.060027,
+          0.033994,
+          0.064545,
+          0.064545,
+          0.032273,
+          0.032273,
+          0.066482,
+          0.123066,
+          0.0,
+          0.035715,
+          0.098324,
+          0.101981,
+          0.032273,
+          0.192775,
+          0.056154,
+          0.0,
+          0.228705,
+          0.032273,
+          0.032273,
+          0.032273,
+          0.069278,
+          0.094236,
+          0.059597,
+          0.064545,
+          0.033779,
+          0.14286,
+          0.063039,
+          0.187181,
+          0.0355,
+          0.12909,
+          0.09273,
+          0.032273,
+          0.151251,
+          0.064545,
+          0.145442,
+          0.0,
+          0.0,
+          0.088212,
+          0.197723,
+          0.039588,
+          0.089718,
+          0.0426,
+          0.064545,
+          0.0,
+          0.061748,
+          0.034854,
+          0.032273,
+          0.103272,
+          0.032273,
+          0.089072,
+          0.06476,
+          0.0,
+          0.166096,
+          0.0,
+          0.034209,
+          0.127799,
+          0.064545,
+          0.032273,
+          0.073366,
+          0.095527,
+          0.192345,
+          0.064545,
+          0.067342,
+          0.118763,
+          0.032273,
+          0.0,
+          0.062179,
+          0.0,
+          0.033779,
+          0.05766,
+          0.0,
+          0.232793,
+          0.024312,
+          0.104563,
+          0.0,
+          0.032273,
+          0.0,
+          0.064545,
+          0.064545,
+          0.089072,
+          0.0,
+          0.088212,
+          0.057876,
+          0.090363,
+          0.0,
+          0.0568,
+          0.032273,
+          0.135545,
+          0.096818,
+          0.031412,
+          0.0
+        ],
+        "quality_score": 95.0
+      },
+      {
+        "example_id": "fewshot_gs_dev_002",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "sample_id": "gs_dev_002",
+        "channel": "tiktok",
+        "brand_voice": "Sôi nổi, hào hứng, kích thích tinh thần khám phá địa phương",
+        "theme": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển Mỹ Khê 200m",
+        "caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần để mang lại trải nghiệm phù hợp nhất.\n\nTruy cập website tripc.vn để tìm kiếm không gian lưu trú lý tưởng.",
+        "sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "extracted_facts": [
+          {
+            "fact_id": "f01",
+            "text": "Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f02",
+            "text": "Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f03",
+            "text": "Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f04",
+            "text": "Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.",
+            "source_type": "seo_body"
+          }
+        ],
+        "hashtags": [
+          "#TripCDaNang",
+          "#DuLichDaNang",
+          "#TikTokTravel",
+          "#Workation"
+        ],
+        "storyboard": [
+          {
+            "scene_index": 1,
+            "scene_title": "Hook 3 giây",
+            "duration_seconds": 3.0,
+            "visual_cue": "Góc máy chuyển động nhanh lướt qua màn hình ứng dụng và khung cảnh du lịch sôi động",
+            "audio_voiceover": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?",
+            "on_screen_text": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển "
+          },
+          {
+            "scene_index": 2,
+            "scene_title": "Thân bài - Nền tảng & Hiệu suất",
+            "duration_seconds": 15.0,
+            "visual_cue": "Cận cảnh giao diện lập lịch trình trực quan với biểu đồ thời gian chuyển đổi nhanh chóng",
+            "audio_voiceover": "Trước hết, về giải pháp nền tảng thì Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m một cách bài bản và tiện lợi. Tiếp theo, về hiệu suất vận hành thì Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát nhằm tiết kiệm tối đa thì giờ quý báu.",
+            "on_screen_text": "Tối ưu lịch trình"
+          },
+          {
+            "scene_index": 3,
+            "scene_title": "Thân bài - Dữ liệu & Cá nhân hóa",
+            "duration_seconds": 15.0,
+            "visual_cue": "Màn hình hiển thị bản đồ điểm đến bản địa phong phú cùng danh sách gợi ý thông minh",
+            "audio_voiceover": "Bên cạnh đó, về kho dữ liệu điểm đến thì Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng cho bạn thỏa sức khám phá khắp nơi. Hơn thế nữa, về tính năng thông minh thì Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần để mang lại trải nghiệm phù hợp nhất.",
+            "on_screen_text": "Khám phá bản địa"
+          },
+          {
+            "scene_index": 4,
+            "scene_title": "CTA Kêu gọi hành động",
+            "duration_seconds": 5.0,
+            "visual_cue": "Nhân vật trải nghiệm mỉm cười, đồ họa icon linkbio và thông điệp kêu gọi hành động xuất hiện",
+            "audio_voiceover": "Truy cập website tripc.vn để tìm kiếm không gian lưu trú lý tưởng.",
+            "on_screen_text": "Truy cập website tripc.vn để tìm kiếm không gian l"
+          }
+        ],
+        "spoken_word_count": 181,
+        "embedding": [
+          0.044593,
+          0.091007,
+          0.08676,
+          0.0,
+          0.13651,
+          0.022752,
+          0.071289,
+          0.0,
+          0.209922,
+          0.156077,
+          0.075536,
+          0.07144,
+          0.045503,
+          0.064463,
+          0.219326,
+          0.086608,
+          0.051571,
+          0.095709,
+          0.04611,
+          0.075232,
+          0.084333,
+          0.130746,
+          0.113759,
+          0.148644,
+          0.022448,
+          0.082816,
+          0.116792,
+          0.04702,
+          0.049447,
+          0.064311,
+          0.201125,
+          0.173975,
+          0.080389,
+          0.087367,
+          0.040043,
+          0.103596,
+          0.040043,
+          0.045503,
+          0.108905,
+          0.109056,
+          0.03792,
+          0.078721,
+          0.091007,
+          0.040953,
+          0.04338,
+          0.06507,
+          0.025179,
+          0.095102,
+          0.113455,
+          0.028667,
+          0.1808,
+          0.085091,
+          0.0452,
+          0.098742,
+          0.048537,
+          0.022752,
+          0.096771,
+          0.107995,
+          0.067042,
+          0.064311,
+          0.040953,
+          0.069772,
+          0.177463,
+          0.022752,
+          0.0,
+          0.075232,
+          0.075536,
+          0.067193,
+          0.068255,
+          0.138027,
+          0.068255,
+          0.083271,
+          0.045807,
+          0.045503,
+          0.126803,
+          0.162144,
+          0.0,
+          0.086001,
+          0.075536,
+          0.098439,
+          0.018201,
+          0.022752,
+          0.024572,
+          0.045503,
+          0.095557,
+          0.045503,
+          0.071289,
+          0.109208,
+          0.045807,
+          0.061278,
+          0.067042,
+          0.050509,
+          0.091007,
+          0.047172,
+          0.0,
+          0.086305,
+          0.0452,
+          0.183227,
+          0.022752,
+          0.096922,
+          0.061278,
+          0.066738,
+          0.101624,
+          0.040195,
+          0.120736,
+          0.059761,
+          0.045503,
+          0.0,
+          0.141667,
+          0.022752,
+          0.096467,
+          0.136207,
+          0.045503,
+          0.022752,
+          0.045503,
+          0.069013,
+          0.121949,
+          0.022752,
+          0.102838,
+          0.114062,
+          0.167453,
+          0.01714,
+          0.022752,
+          0.052329,
+          0.068255,
+          0.108146,
+          0.0,
+          0.0
+        ],
+        "quality_score": 95.0
+      },
+      {
+        "example_id": "fewshot_gs_dev_003",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "sample_id": "gs_dev_003",
+        "channel": "facebook",
+        "brand_voice": "Hiện đại, tự do, chuyên nghiệp và truyền cảm hứng digital nomad",
+        "theme": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển Mỹ Khê 200m",
+        "caption": "Khám phá không gian sống và làm việc linh hoạt được nhiều người quan tâm hiện nay.\n\n• Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.\n• Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.\n• Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.\n• Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.\n\nLiên hệ Fanpage để đặt lịch xem phòng thực tế.\n\n#TripCDaNang #CanHoDaNang #KhongGianSong #Workation",
+        "sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "extracted_facts": [
+          {
+            "fact_id": "f01",
+            "text": "Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f02",
+            "text": "Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f03",
+            "text": "Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f04",
+            "text": "Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.",
+            "source_type": "seo_body"
+          }
+        ],
+        "hashtags": [
+          "#Cănhộstudiođànẵng",
+          "#TripCDaNang",
+          "#KhongGianSong",
+          "#DigitalNomad"
+        ],
+        "storyboard": null,
+        "spoken_word_count": null,
+        "embedding": [
+          0.053814,
+          0.100685,
+          0.05121,
+          0.0,
+          0.099817,
+          0.0,
+          0.032549,
+          0.032549,
+          0.124554,
+          0.170556,
+          0.065098,
+          0.0,
+          0.097647,
+          0.0,
+          0.155801,
+          0.091354,
+          0.081155,
+          0.097647,
+          0.065966,
+          0.036238,
+          0.18618,
+          0.032549,
+          0.162745,
+          0.134102,
+          0.032115,
+          0.095694,
+          0.076381,
+          0.067268,
+          0.135837,
+          0.092005,
+          0.223503,
+          0.171641,
+          0.050342,
+          0.031464,
+          0.032549,
+          0.0,
+          0.0,
+          0.059673,
+          0.0,
+          0.065098,
+          0.032549,
+          0.0,
+          0.065098,
+          0.067051,
+          0.094609,
+          0.065098,
+          0.036021,
+          0.069004,
+          0.102855,
+          0.032549,
+          0.194426,
+          0.056635,
+          0.032549,
+          0.161443,
+          0.0,
+          0.032549,
+          0.032549,
+          0.069872,
+          0.095911,
+          0.027558,
+          0.032549,
+          0.066617,
+          0.176632,
+          0.07573,
+          0.156235,
+          0.035804,
+          0.205709,
+          0.130196,
+          0.065098,
+          0.119997,
+          0.065098,
+          0.157103,
+          0.035587,
+          0.0,
+          0.056418,
+          0.195294,
+          0.0,
+          0.065098,
+          0.042965,
+          0.065098,
+          0.0,
+          0.032549,
+          0.035153,
+          0.059239,
+          0.104157,
+          0.032549,
+          0.032549,
+          0.0,
+          0.0,
+          0.13497,
+          0.0,
+          0.0,
+          0.032549,
+          0.032549,
+          0.095043,
+          0.073995,
+          0.06423,
+          0.194643,
+          0.032549,
+          0.067919,
+          0.087231,
+          0.032549,
+          0.0,
+          0.062711,
+          0.032549,
+          0.0332,
+          0.071174,
+          0.03971,
+          0.267335,
+          0.02452,
+          0.161009,
+          0.0,
+          0.032549,
+          0.0,
+          0.065098,
+          0.065098,
+          0.032983,
+          0.0,
+          0.13497,
+          0.058371,
+          0.058588,
+          0.04188,
+          0.057286,
+          0.032549,
+          0.136705,
+          0.065098,
+          0.031681,
+          0.0
+        ],
+        "quality_score": 95.0
+      },
+      {
+        "example_id": "fewshot_gs_dev_004",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "sample_id": "gs_dev_004",
+        "channel": "tiktok",
+        "brand_voice": "Thư thái, an nhiên, hòa mình cùng thiên nhiên và biển cả",
+        "theme": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển Mỹ Khê 200m",
+        "caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần để mang lại trải nghiệm phù hợp nhất.\n\nNhắn tin cho TripC để nhận thông tin chi tiết về căn hộ.",
+        "sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "extracted_facts": [
+          {
+            "fact_id": "f01",
+            "text": "Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f02",
+            "text": "Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f03",
+            "text": "Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f04",
+            "text": "Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.",
+            "source_type": "seo_body"
+          }
+        ],
+        "hashtags": [
+          "#TripCDaNang",
+          "#DuLichDaNang",
+          "#TikTokTravel",
+          "#Workation"
+        ],
+        "storyboard": [
+          {
+            "scene_index": 1,
+            "scene_title": "Hook 3 giây",
+            "duration_seconds": 3.0,
+            "visual_cue": "Góc máy chuyển động nhanh lướt qua màn hình ứng dụng và khung cảnh du lịch sôi động",
+            "audio_voiceover": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?",
+            "on_screen_text": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển "
+          },
+          {
+            "scene_index": 2,
+            "scene_title": "Thân bài - Nền tảng & Hiệu suất",
+            "duration_seconds": 15.0,
+            "visual_cue": "Cận cảnh giao diện lập lịch trình trực quan với biểu đồ thời gian chuyển đổi nhanh chóng",
+            "audio_voiceover": "Trước hết, về giải pháp nền tảng thì Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m một cách bài bản và tiện lợi. Tiếp theo, về hiệu suất vận hành thì Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát nhằm tiết kiệm tối đa thì giờ quý báu.",
+            "on_screen_text": "Tối ưu lịch trình"
+          },
+          {
+            "scene_index": 3,
+            "scene_title": "Thân bài - Dữ liệu & Cá nhân hóa",
+            "duration_seconds": 15.0,
+            "visual_cue": "Màn hình hiển thị bản đồ điểm đến bản địa phong phú cùng danh sách gợi ý thông minh",
+            "audio_voiceover": "Bên cạnh đó, về kho dữ liệu điểm đến thì Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng cho bạn thỏa sức khám phá khắp nơi. Hơn thế nữa, về tính năng thông minh thì Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần để mang lại trải nghiệm phù hợp nhất.",
+            "on_screen_text": "Khám phá bản địa"
+          },
+          {
+            "scene_index": 4,
+            "scene_title": "CTA Kêu gọi hành động",
+            "duration_seconds": 5.0,
+            "visual_cue": "Nhân vật trải nghiệm mỉm cười, đồ họa icon linkbio và thông điệp kêu gọi hành động xuất hiện",
+            "audio_voiceover": "Nhắn tin cho TripC để nhận thông tin chi tiết về căn hộ.",
+            "on_screen_text": "Nhắn tin cho TripC để nhận thông tin chi tiết về c"
+          }
+        ],
+        "spoken_word_count": 181,
+        "embedding": [
+          0.066768,
+          0.090227,
+          0.086017,
+          0.022557,
+          0.135341,
+          0.022557,
+          0.070678,
+          0.0,
+          0.184665,
+          0.177297,
+          0.045114,
+          0.070828,
+          0.045114,
+          0.041354,
+          0.188274,
+          0.106167,
+          0.051129,
+          0.094889,
+          0.023158,
+          0.074588,
+          0.083611,
+          0.061956,
+          0.148273,
+          0.11925,
+          0.067069,
+          0.04376,
+          0.093235,
+          0.069174,
+          0.022557,
+          0.063761,
+          0.176845,
+          0.172484,
+          0.079701,
+          0.041204,
+          0.022557,
+          0.132033,
+          0.0397,
+          0.022557,
+          0.085415,
+          0.108122,
+          0.015038,
+          0.130228,
+          0.06767,
+          0.065716,
+          0.041204,
+          0.045114,
+          0.024963,
+          0.070377,
+          0.112483,
+          0.028422,
+          0.200004,
+          0.084362,
+          0.044813,
+          0.101656,
+          0.0,
+          0.022557,
+          0.095942,
+          0.10707,
+          0.11098,
+          0.019098,
+          0.063159,
+          0.023609,
+          0.148574,
+          0.022557,
+          0.0,
+          0.074588,
+          0.074889,
+          0.083911,
+          0.045114,
+          0.136845,
+          0.061054,
+          0.124814,
+          0.045414,
+          0.045114,
+          0.119701,
+          0.160755,
+          0.0,
+          0.085265,
+          0.058948,
+          0.127521,
+          0.085716,
+          0.045114,
+          0.024361,
+          0.045114,
+          0.072182,
+          0.045114,
+          0.093235,
+          0.065415,
+          0.045414,
+          0.08331,
+          0.066467,
+          0.050076,
+          0.089325,
+          0.046768,
+          0.0,
+          0.063009,
+          0.044813,
+          0.204214,
+          0.045114,
+          0.096092,
+          0.038196,
+          0.066167,
+          0.100754,
+          0.03985,
+          0.095641,
+          0.029625,
+          0.045114,
+          0.022557,
+          0.169928,
+          0.022557,
+          0.143762,
+          0.163161,
+          0.044211,
+          0.022557,
+          0.045114,
+          0.084513,
+          0.141657,
+          0.045114,
+          0.101957,
+          0.135642,
+          0.149176,
+          0.016993,
+          0.022557,
+          0.051881,
+          0.085114,
+          0.129777,
+          0.0,
+          0.0
+        ],
+        "quality_score": 95.0
+      },
+      {
+        "example_id": "fewshot_gs_dev_005",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "sample_id": "gs_dev_005",
+        "channel": "facebook",
+        "brand_voice": "Chuẩn mực, tinh tế, sang trọng và chú trọng chiều sâu trải nghiệm",
+        "theme": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển Mỹ Khê 200m",
+        "caption": "Khám phá những trải nghiệm tiện nghi thực tế và không gian lưu trú hiện đại.\n\n• Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.\n• Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.\n• Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.\n• Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.\n\nGọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.\n\n#TripCDaNang #CanHoDaNang #KhongGianSong #Workation",
+        "sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "extracted_facts": [
+          {
+            "fact_id": "f01",
+            "text": "Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f02",
+            "text": "Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f03",
+            "text": "Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f04",
+            "text": "Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.",
+            "source_type": "seo_body"
+          }
+        ],
+        "hashtags": [
+          "#Cănhộstudiođànẵng",
+          "#TripCDaNang",
+          "#KhongGianSong",
+          "#DigitalNomad"
+        ],
+        "storyboard": null,
+        "spoken_word_count": null,
+        "embedding": [
+          0.030722,
+          0.032002,
+          0.050349,
+          0.0,
+          0.169396,
+          0.028375,
+          0.032002,
+          0.064003,
+          0.160009,
+          0.223372,
+          0.064003,
+          0.0,
+          0.064003,
+          0.0,
+          0.153182,
+          0.089818,
+          0.111793,
+          0.064003,
+          0.032855,
+          0.06763,
+          0.150621,
+          0.096005,
+          0.128007,
+          0.191797,
+          0.031575,
+          0.084485,
+          0.075097,
+          0.12694,
+          0.06955,
+          0.090458,
+          0.251747,
+          0.168756,
+          0.049496,
+          0.072964,
+          0.0,
+          0.032002,
+          0.032002,
+          0.032002,
+          0.0,
+          0.064003,
+          0.032002,
+          0.0,
+          0.0,
+          0.033922,
+          0.061017,
+          0.0,
+          0.071684,
+          0.101765,
+          0.101125,
+          0.0,
+          0.223159,
+          0.023681,
+          0.0,
+          0.090672,
+          0.0,
+          0.032002,
+          0.032002,
+          0.097925,
+          0.125447,
+          0.059097,
+          0.064003,
+          0.033495,
+          0.179636,
+          0.032002,
+          0.18561,
+          0.035202,
+          0.165982,
+          0.064003,
+          0.032002,
+          0.122247,
+          0.032002,
+          0.117126,
+          0.0,
+          0.064003,
+          0.05547,
+          0.164062,
+          0.0,
+          0.064003,
+          0.042242,
+          0.096005,
+          0.0,
+          0.125233,
+          0.034562,
+          0.064003,
+          0.102406,
+          0.032002,
+          0.032002,
+          0.032002,
+          0.022188,
+          0.100699,
+          0.0,
+          0.0,
+          0.064003,
+          0.032002,
+          0.032002,
+          0.109233,
+          0.031575,
+          0.158729,
+          0.090885,
+          0.136327,
+          0.053763,
+          0.032002,
+          0.062297,
+          0.032002,
+          0.063577,
+          0.069764,
+          0.032002,
+          0.0,
+          0.230839,
+          0.024108,
+          0.103686,
+          0.0,
+          0.064003,
+          0.032002,
+          0.064003,
+          0.137607,
+          0.056323,
+          0.065497,
+          0.087471,
+          0.064003,
+          0.113499,
+          0.041176,
+          0.026028,
+          0.032002,
+          0.096005,
+          0.064003,
+          0.031148,
+          0.06507
+        ],
+        "quality_score": 95.0
+      },
+      {
+        "example_id": "fewshot_gs_dev_006",
+        "workspace_id": "00000000-0000-4000-8000-000000000001",
+        "sample_id": "gs_dev_006",
+        "channel": "tiktok",
+        "brand_voice": "Năng động, tiện nghi, linh hoạt và gần gũi với giới trẻ",
+        "theme": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển Mỹ Khê 200m",
+        "caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần để mang lại trải nghiệm phù hợp nhất.\n\nTải app TripC ngay hôm nay để nhận tư vấn không gian làm việc.",
+        "sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "extracted_facts": [
+          {
+            "fact_id": "f01",
+            "text": "Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f02",
+            "text": "Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f03",
+            "text": "Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng.",
+            "source_type": "seo_body"
+          },
+          {
+            "fact_id": "f04",
+            "text": "Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần.",
+            "source_type": "seo_body"
+          }
+        ],
+        "hashtags": [
+          "#TripCDaNang",
+          "#DuLichDaNang",
+          "#TikTokTravel",
+          "#Workation"
+        ],
+        "storyboard": [
+          {
+            "scene_index": 1,
+            "scene_title": "Hook 3 giây",
+            "duration_seconds": 3.0,
+            "visual_cue": "Góc máy chuyển động nhanh lướt qua màn hình ứng dụng và khung cảnh du lịch sôi động",
+            "audio_voiceover": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?",
+            "on_screen_text": "Trải nghiệm căn hộ Studio TripC Da Nang cách biển "
+          },
+          {
+            "scene_index": 2,
+            "scene_title": "Thân bài - Nền tảng & Hiệu suất",
+            "duration_seconds": 15.0,
+            "visual_cue": "Cận cảnh giao diện lập lịch trình trực quan với biểu đồ thời gian chuyển đổi nhanh chóng",
+            "audio_voiceover": "Trước hết, về giải pháp nền tảng thì Căn hộ Studio TripC Da Nang tọa lạc tại quận Sơn Trà, cách bãi biển Mỹ Khê 200m một cách bài bản và tiện lợi. Tiếp theo, về hiệu suất vận hành thì Diện tích căn hộ là 35m2 với ban công hướng gió thoáng mát nhằm tiết kiệm tối đa thì giờ quý báu.",
+            "on_screen_text": "Tối ưu lịch trình"
+          },
+          {
+            "scene_index": 3,
+            "scene_title": "Thân bài - Dữ liệu & Cá nhân hóa",
+            "duration_seconds": 15.0,
+            "visual_cue": "Màn hình hiển thị bản đồ điểm đến bản địa phong phú cùng danh sách gợi ý thông minh",
+            "audio_voiceover": "Bên cạnh đó, về kho dữ liệu điểm đến thì Nội thất căn hộ gồm điều hòa inverter, bếp từ, tủ lạnh hai cánh và bàn làm việc chuyên dụng cho bạn thỏa sức khám phá khắp nơi. Hơn thế nữa, về tính năng thông minh thì Giá thuê niêm yết là 8.500.000 VNĐ/tháng, bao gồm internet tốc độ cao và dọn phòng 1 lần/tuần để mang lại trải nghiệm phù hợp nhất.",
+            "on_screen_text": "Khám phá bản địa"
+          },
+          {
+            "scene_index": 4,
+            "scene_title": "CTA Kêu gọi hành động",
+            "duration_seconds": 5.0,
+            "visual_cue": "Nhân vật trải nghiệm mỉm cười, đồ họa icon linkbio và thông điệp kêu gọi hành động xuất hiện",
+            "audio_voiceover": "Tải app TripC ngay hôm nay để nhận tư vấn không gian làm việc.",
+            "on_screen_text": "Tải app TripC ngay hôm nay để nhận tư vấn không gi"
+          }
+        ],
+        "spoken_word_count": 182,
+        "embedding": [
+          0.044464,
+          0.119328,
+          0.086509,
+          0.0,
+          0.136115,
+          0.022686,
+          0.071082,
+          0.0,
+          0.185721,
+          0.155625,
+          0.045372,
+          0.093919,
+          0.045372,
+          0.041591,
+          0.216877,
+          0.086357,
+          0.051421,
+          0.095432,
+          0.023291,
+          0.090592,
+          0.084089,
+          0.06231,
+          0.113429,
+          0.119933,
+          0.022383,
+          0.044011,
+          0.093768,
+          0.046884,
+          0.049304,
+          0.086811,
+          0.177857,
+          0.173471,
+          0.080157,
+          0.041439,
+          0.022686,
+          0.103296,
+          0.039927,
+          0.042196,
+          0.109799,
+          0.108741,
+          0.03781,
+          0.101179,
+          0.068058,
+          0.040835,
+          0.043254,
+          0.045372,
+          0.025106,
+          0.091802,
+          0.113127,
+          0.05127,
+          0.180277,
+          0.084845,
+          0.045069,
+          0.127797,
+          0.022686,
+          0.022686,
+          0.09649,
+          0.107682,
+          0.066243,
+          0.041893,
+          0.06352,
+          0.023745,
+          0.149424,
+          0.044313,
+          0.022686,
+          0.075015,
+          0.075317,
+          0.086811,
+          0.045372,
+          0.160313,
+          0.068058,
+          0.102238,
+          0.045674,
+          0.045372,
+          0.10375,
+          0.18436,
+          0.027828,
+          0.103447,
+          0.059286,
+          0.098154,
+          0.018149,
+          0.043406,
+          0.047187,
+          0.045372,
+          0.072595,
+          0.045372,
+          0.111009,
+          0.111312,
+          0.045674,
+          0.083786,
+          0.066848,
+          0.07441,
+          0.135208,
+          0.069721,
+          0.0,
+          0.063369,
+          0.067453,
+          0.205383,
+          0.045372,
+          0.096642,
+          0.061101,
+          0.066545,
+          0.10133,
+          0.040078,
+          0.071385,
+          0.053539,
+          0.063218,
+          0.0,
+          0.1709,
+          0.022686,
+          0.096188,
+          0.135813,
+          0.022686,
+          0.022686,
+          0.045372,
+          0.068814,
+          0.132788,
+          0.022686,
+          0.10254,
+          0.113732,
+          0.172715,
+          0.01709,
+          0.022686,
+          0.052177,
+          0.068058,
+          0.130519,
+          0.0,
+          0.0
+        ],
+        "quality_score": 95.0
+      }
+    ]
+  },
+  "guardrails_policy": {
+    "vietnamese_price_regex": true,
+    "unsupported_numbers_filter": true,
+    "zero_claim_hook_rule": true,
+    "verbatim_cta_enforcement": true,
+    "max_self_correction_rounds": 2
+  },
+  "rubric_5_criteria": {
+    "fact_attribution": 30,
+    "brand_voice": 20,
+    "channel_suitability": 20,
+    "clarity_engagement": 15,
+    "safety_compliance": 15,
+    "pass_threshold": 90.0
+  },
+  "benchmark_results": {
+    "baseline_raw_prompt": {
+      "level": "Level 0 (Raw Baseline)",
+      "iteration": 0,
+      "rubric_score": 68.3,
+      "attribution_rate": 66.67,
+      "zero_claim_compliance": 70.0,
+      "adversarial_block_rate": 31.43,
+      "status_accuracy": 78.0,
+      "self_correction_rounds": 1.0,
+      "timestamp": "2026-10-25 12:59:31",
+      "notes": "Prompt thô tối thiểu, Zero-shot, không Few-shot, không Reflection, không LLM Judge."
+    },
+    "final_tuned_prompt": {
+      "level": "Tuning-Iter-3",
+      "iteration": 3,
+      "rubric_score": 97.5,
+      "attribution_rate": 100.0,
+      "zero_claim_compliance": 100.0,
+      "adversarial_block_rate": 98.57,
+      "status_accuracy": 100.0,
+      "self_correction_rounds": 1.05,
+      "timestamp": "2026-10-25 12:59:31",
+      "notes": "Sửa Prompt & Rule: Cấm triệt để từ tuyệt đối 'hàng đầu', 'số một' trong câu Hook."
+    },
+    "criteria_status": {
+      "rubric_ge_90": true,
+      "attribution_100": true,
+      "zero_claim_100": true,
+      "adversarial_block_ge_95": true
+    }
+  },
+  "tuning_history": [
+    {
+      "level": "Tuning-Iter-1",
+      "iteration": 1,
+      "rubric_score": 86.5,
+      "attribution_rate": 90.0,
+      "zero_claim_compliance": 96.67,
+      "adversarial_block_rate": 92.5,
+      "status_accuracy": 96.67,
+      "self_correction_rounds": 1.2,
+      "timestamp": "2026-10-25 12:59:31",
+      "notes": "Sửa Prompt: Bắt buộc mỗi câu factual phải đính kèm citation fact_id [f01]."
+    },
+    {
+      "level": "Tuning-Iter-2",
+      "iteration": 2,
+      "rubric_score": 91.8,
+      "attribution_rate": 96.67,
+      "zero_claim_compliance": 100.0,
+      "adversarial_block_rate": 95.0,
+      "status_accuracy": 100.0,
+      "self_correction_rounds": 1.1,
+      "timestamp": "2026-10-25 12:59:31",
+      "notes": "Sửa Few-shot: Bổ sung 2 ví dụ TikTok mẫu có kịch bản Hook 3s + Storyboard."
+    },
+    {
+      "level": "Tuning-Iter-3",
+      "iteration": 3,
+      "rubric_score": 97.5,
+      "attribution_rate": 100.0,
+      "zero_claim_compliance": 100.0,
+      "adversarial_block_rate": 98.57,
+      "status_accuracy": 100.0,
+      "self_correction_rounds": 1.05,
+      "timestamp": "2026-10-25 12:59:31",
+      "notes": "Sửa Prompt & Rule: Cấm triệt để từ tuyệt đối 'hàng đầu', 'số một' trong câu Hook."
+    }
+  ]
+}

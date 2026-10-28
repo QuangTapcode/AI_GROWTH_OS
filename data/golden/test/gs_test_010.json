@@ -1,0 +1,143 @@
+{
+  "sample_id": "gs_test_010",
+  "dataset_split": "test",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "source_article": {
+    "article_id": "art_sample_03",
+    "title": "Kỳ nghỉ yên bình tại TripC Villa Hội An bên sông Thu Bồn",
+    "primary_keyword": "villa hội an",
+    "body_markdown": "## Khu biệt thự ven sông\n\nTripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km, mang lại không gian tách biệt yên tĩnh. Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông Thu Bồn.\n\n## Tiêu chuẩn dịch vụ cao cấp\n\nTiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi. Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng tại sân vườn.",
+    "extracted_facts": [
+      {
+        "fact_id": "f01",
+        "text": "TripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f02",
+        "text": "Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f03",
+        "text": "Tiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f04",
+        "text": "Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng.",
+        "source_type": "seo_body"
+      }
+    ],
+    "has_injection": false
+  },
+  "target_channel": "tiktok",
+  "brand_voice": "Năng động, tiện nghi, linh hoạt và gần gũi với giới trẻ",
+  "verbatim_cta": "Tải app TripC ngay hôm nay để nhận tư vấn không gian làm việc.",
+  "draft_pack": {
+    "caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì TripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Tiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng để mang lại trải nghiệm phù hợp nhất.\n\nTải app TripC ngay hôm nay để nhận tư vấn không gian làm việc.",
+    "sentence_fact_map": [
+      {
+        "sentence_index": 0,
+        "sentence_type": "hook",
+        "fact_id": "NONE"
+      },
+      {
+        "sentence_index": 1,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f01"
+        ]
+      },
+      {
+        "sentence_index": 2,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f02"
+        ]
+      },
+      {
+        "sentence_index": 3,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f03"
+        ]
+      },
+      {
+        "sentence_index": 4,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f04"
+        ]
+      },
+      {
+        "sentence_index": 5,
+        "sentence_type": "cta",
+        "fact_id": "SYSTEM_CTA"
+      }
+    ],
+    "hashtags": [
+      "#TripCDaNang",
+      "#DuLichDaNang",
+      "#TikTokTravel",
+      "#Workation"
+    ],
+    "storyboard": [
+      {
+        "scene_index": 1,
+        "scene_title": "Hook 3 giây",
+        "duration_seconds": 3.0,
+        "visual_cue": "Góc máy chuyển động nhanh lướt qua màn hình ứng dụng và khung cảnh du lịch sôi động",
+        "audio_voiceover": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?",
+        "on_screen_text": "Kỳ nghỉ yên bình tại TripC Villa Hội An bên sông T"
+      },
+      {
+        "scene_index": 2,
+        "scene_title": "Thân bài - Nền tảng & Hiệu suất",
+        "duration_seconds": 15.0,
+        "visual_cue": "Cận cảnh giao diện lập lịch trình trực quan với biểu đồ thời gian chuyển đổi nhanh chóng",
+        "audio_voiceover": "Trước hết, về giải pháp nền tảng thì TripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km một cách bài bản và tiện lợi. Tiếp theo, về hiệu suất vận hành thì Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông nhằm tiết kiệm tối đa thì giờ quý báu.",
+        "on_screen_text": "Tối ưu lịch trình"
+      },
+      {
+        "scene_index": 3,
+        "scene_title": "Thân bài - Dữ liệu & Cá nhân hóa",
+        "duration_seconds": 15.0,
+        "visual_cue": "Màn hình hiển thị bản đồ điểm đến bản địa phong phú cùng danh sách gợi ý thông minh",
+        "audio_voiceover": "Bên cạnh đó, về kho dữ liệu điểm đến thì Tiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi cho bạn thỏa sức khám phá khắp nơi. Hơn thế nữa, về tính năng thông minh thì Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng để mang lại trải nghiệm phù hợp nhất.",
+        "on_screen_text": "Khám phá bản địa"
+      },
+      {
+        "scene_index": 4,
+        "scene_title": "CTA Kêu gọi hành động",
+        "duration_seconds": 5.0,
+        "visual_cue": "Nhân vật trải nghiệm mỉm cười, đồ họa icon linkbio và thông điệp kêu gọi hành động xuất hiện",
+        "audio_voiceover": "Tải app TripC ngay hôm nay để nhận tư vấn không gian làm việc.",
+        "on_screen_text": "Tải app TripC ngay hôm nay để nhận tư vấn không gi"
+      }
+    ],
+    "spoken_word_count": 178
+  },
+  "annotation": {
+    "annotator_a": {
+      "annotator_name": "Chuyên viên A",
+      "status": null,
+      "edited_caption": "",
+      "edited_sentence_fact_map": [],
+      "violations_found": [],
+      "notes": ""
+    },
+    "annotator_b": {
+      "annotator_name": "Chuyên viên B",
+      "status": null,
+      "edited_caption": "",
+      "edited_sentence_fact_map": [],
+      "violations_found": [],
+      "notes": ""
+    },
+    "adjudication": {
+      "final_decision": null,
+      "notes": ""
+    }
+  }
+}

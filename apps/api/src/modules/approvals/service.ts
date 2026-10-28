@@ -15,9 +15,9 @@ export async function reviewWorkspaceApproval(
   approvalId: string,
   rawInput: unknown
 ) {
-  // 1. Chỉ OWNER mới có quyền duyệt, từ chối hoặc thu hồi
+  // 1. Chỉ OWNER hoặc EDITOR mới có quyền duyệt, từ chối hoặc thu hồi (CM-25 / CM-26 RBAC)
   const tenantCtx = await resolveTenantContext(user, workspaceId);
-  requireRole(tenantCtx, ["owner"]);
+  requireRole(tenantCtx, ["owner", "editor"]);
 
   // 2. Validate input schema
   const parseResult = reviewApprovalSchema.safeParse(rawInput);
