@@ -25,7 +25,7 @@ async function main() {
       scopes: ['pages_show_list', 'pages_read_engagement', 'pages_messaging', 'pages_manage_posts'],
       credentialRef: 'env:FACEBOOK_PAGE_ACCESS_TOKEN',
       status: 'connected',
-      verifiedAt: new Date(),
+      verifiedAt: new Date().toISOString(),
     });
     console.log('\nDatabase integration_connections updated successfully:');
     console.log('Provider:', conn.provider);
