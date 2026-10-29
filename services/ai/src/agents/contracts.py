@@ -7,7 +7,7 @@ from uuid import UUID, NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
-from ..app.schemas import BusinessProfile, EvidenceRef, GoalContext, JobRequest, KnowledgeSnapshot, RunArtifact
+from ..app.schemas import BusinessProfile, EvidenceRef, GoalContext, GoalKpi, JobRequest, KnowledgeSnapshot, RunArtifact
 from ..app.runtime import OperationError, RunContext
 from ..guardrails.facts import has_price_claim, unsupported_numbers
 from ..guardrails.support import unsupported_sentences
@@ -43,6 +43,7 @@ class DraftResult(BaseModel):
     requires_human_approval: Literal[True] = True
     applied: Literal[False] = False
     synthetic: bool
+    kpis: list[GoalKpi] = Field(default_factory=list, max_length=5)
 
 
 class ImageAsset(BaseModel):
@@ -103,6 +104,7 @@ def result_fields(ctx: RunContext, refs=()):
     return dict(workspace_id=ctx.job.workspace_id, context_snapshot_id=ctx.job.context_snapshot_id,
         profile_version=p.business_profile.version, version=ctx.job.input_version,
         input_artifact_refs=[x.artifact for x in refs],
+        kpis=p.goal_context.kpis if p.goal_context else [],
         synthetic=ctx.job.synthetic or ctx.settings.provider_mode == "fake" or any(x.result.get("synthetic", False) for x in refs))
 
 
@@ -117,6 +119,10 @@ def ensure_grounded(text, grounding):
 
 
 async def call_draft(ctx, system, data, model, fake):
+    goal = getattr(ctx.payload, "goal_context", None)
+    if goal and goal.kpis:
+        data = {**data, "measurement_objectives": [k.model_dump(mode="json") for k in goal.kpis]}
+        system += "\nMeasurement objectives are internal targets, not measured facts. Never put KPI targets or baselines in public copy or claim an agent caused growth."
     user = json.dumps(data, ensure_ascii=False)
     if estimate_tokens(system + user + json.dumps(model.model_json_schema())) > ctx.settings.max_input_tokens:
         raise OperationError("CONTEXT_BUDGET_EXCEEDED", "Marketing draft context exceeds budget")

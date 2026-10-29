@@ -142,6 +142,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                         selection_method=selection_method, ranked_opportunities=ranking,
                         selected_opportunity=selected, research_artifact=p.research_artifact,
                         tasks=tasks, missing_facts=sorted(missing),
+                        kpis=[k.model_dump(mode="json") for k in p.goal_context.kpis] if p.goal_context else [],
                         synthetic=ctx.job.synthetic or research.synthetic or ctx.settings.provider_mode == "fake",
                         opportunity_score={"factors": factors, "score": score, "estimated": True,
                             "label": "estimated" if score is not None else "insufficient_data",

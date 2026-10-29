@@ -6,6 +6,27 @@ import { siteForWorkspace } from '../../lib/sites';
 const WINDOW_DAYS = 7;
 const NOT_CONNECTED = 'search_console_not_connected';
 
+/** Pin one measured historical window, not the latest overlapping rolling snapshot.
+ * Old contexts are deliberately excluded; scope/definition/timezone are checked again by AI.
+ */
+export async function baselineMetricArtifact(pool: Pool, workspaceId: string, contextSnapshotId: string, currentId: string) {
+  const row = (await pool.query(
+    `SELECT b.id FROM content_artifacts b JOIN content_artifacts c
+       ON c.workspace_id=b.workspace_id AND c.context_snapshot_id=b.context_snapshot_id
+     WHERE c.workspace_id=$1 AND c.context_snapshot_id=$2 AND c.id=$3 AND b.id<>c.id
+       AND b.operation='metrics.snapshot' AND c.operation='metrics.snapshot'
+       AND (b.payload->'result'->>'window_end')::timestamptz <= (c.payload->'result'->>'window_start')::timestamptz
+       AND (b.payload->'result'->>'window_end')::timestamptz - (b.payload->'result'->>'window_start')::timestamptz
+         = (c.payload->'result'->>'window_end')::timestamptz - (c.payload->'result'->>'window_start')::timestamptz
+       AND b.payload->'result'->'metric_definitions' = c.payload->'result'->'metric_definitions'
+       AND b.payload->'result'->>'timezone' = c.payload->'result'->>'timezone'
+       AND b.payload->'result'->>'synthetic' = c.payload->'result'->>'synthetic'
+     ORDER BY (b.payload->'result'->>'window_start')::timestamptz, b.created_at, b.id LIMIT 1`,
+    [workspaceId, contextSnapshotId, currentId],
+  )).rows[0];
+  return row?.id as string | undefined;
+}
+
 /**
  * First-party measurement for the learning loop, pinned to the current knowledge context.
  *
@@ -51,6 +72,11 @@ export async function ensureMeasurementArtifacts(pool: Pool, workspaceId: string
     window_start: start.toISOString(), window_end: end.toISOString(),
     qualified_visits: counts.qualified_visits, leads: counts.leads, impressions: null, clicks: null,
     synthetic: false, source: 'first_party', unavailable: { impressions: NOT_CONNECTED, clicks: NOT_CONNECTED },
+    captured_at: new Date().toISOString(), timezone: 'UTC',
+    metric_definitions: {
+      qualified_visits: { definition: 'Non-internal sessions viewing a published post and clicking a CTA in the window', unit: 'count', source: 'first_party', scope: `workspace:${workspaceId}:site:${site?.site_id ?? 'none'}` },
+      leads: { definition: 'Non-synthetic lead submissions captured in the window', unit: 'count', source: 'first_party', scope: `workspace:${workspaceId}:site:${site?.site_id ?? 'none'}` },
+    },
   };
   const leadResult = { workspace_id: workspaceId, version: 1, count: counts.leads, synthetic: false };
   const metricsId = await ledgerArtifact(pool, workspaceId, contextSnapshotId, 'metrics.snapshot', 'First-party site metrics', metricsResult,

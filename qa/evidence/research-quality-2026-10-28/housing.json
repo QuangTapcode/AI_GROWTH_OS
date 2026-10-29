@@ -1,0 +1,736 @@
+{
+  "requested_topic": "housing",
+  "request": {
+    "job_id": "9b9694d1-9274-4211-8a52-7c160ec7fc76",
+    "workspace_id": "10000000-0000-4000-8000-000000000001",
+    "operation": "research.run",
+    "input_version": 1,
+    "trace_id": "research-quality:housing",
+    "synthetic": false,
+    "context_snapshot_id": "02f84922-eb5d-4830-92de-e294e73d7508",
+    "approved_source_versions": [
+      {
+        "source_id": "9d2a18c5-3f67-43f3-95d4-817d30c896a9",
+        "version": 2
+      }
+    ],
+    "payload": {
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "business_profile": {
+        "voice": "helpful, local expert, reliable",
+        "company": "TripC",
+        "version": 1,
+        "overview": "Helps English-speaking expats find housing, coworking and local services in Da Nang.",
+        "products": [
+          "housing",
+          "living_areas",
+          "coworking",
+          "gym",
+          "food",
+          "events"
+        ],
+        "audiences": [
+          "English-speaking expats living or planning to live in Da Nang"
+        ],
+        "locations": [
+          "Da Nang"
+        ],
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "topic_priority": [
+          "housing"
+        ]
+      },
+      "snapshot": {
+        "sources": [
+          {
+            "kind": "url",
+            "facts": [],
+            "title": "TripC official website",
+            "chunks": [
+              {
+                "text": "TripC official website. Title: TripC - Your Trusted Playbook for Traveling & Living in Vietnam Description: TripC is your trusted playbook for traveling and living in Vietnam. Discover verified apartments, authentic local food, hidden gems, relocation services, digital nomad communities, and trusted local recommendations-all in one place. Keywords: Vietnam travel, Vietnam guide, Vietnam expat, Vietnam digital nomad, living in Vietnam, Vietnam relocation, Vietnam apartment, Vietnam coworking, Vietnam food guide, Vietnam hidden gems, Vietnam map, Vietnam local guide, Vietnam travel app, Vietnam soft landing Open graph description: Travel smarter and live confidently in Vietnam. Discover verified places, authentic food, trusted relocation services, apartments, communities, and local experiences with TripC. Canonical website: https://tripc.ai/ Source page: https://tripc.vn/",
+                "locator": "paragraph:1",
+                "chunk_id": "839f737e-be53-4915-9df7-b3c55057d8c4"
+              }
+            ],
+            "status": "approved",
+            "version": 2,
+            "source_id": "9d2a18c5-3f67-43f3-95d4-817d30c896a9",
+            "provenance": {
+              "license": "TripC-owned content",
+              "source_url": "https://tripc.vn/",
+              "attribution": "TripC",
+              "retrieved_at": "2026-10-21T10:57:24.170Z"
+            },
+            "url_or_blob": "https://tripc.vn/",
+            "workspace_id": "10000000-0000-4000-8000-000000000001"
+          }
+        ],
+        "snapshot_id": "02f84922-eb5d-4830-92de-e294e73d7508",
+        "workspace_id": "10000000-0000-4000-8000-000000000001"
+      },
+      "goal_context": null,
+      "content_inventory": [
+        {
+          "content_id": "497c4614-f502-4eaf-a427-2458e6534be9",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "38d3933f-9dcd-47ed-a090-68e47917c0db",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "7475a4cf-5516-42d5-a177-37e43b2cfcce",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "585b5783-0ecf-4ec1-8367-da5b5a7f79f1",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "92a56116-6e44-4cc5-a061-a4fff34922ea",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "daf4abaa-23aa-4b37-89c4-4a4a4d8a845d",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "961f8d0d-b352-4836-90bd-ea2b55889ea9",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "7bb782ec-48fd-4c1b-8497-433761fde3cf",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "11fc0a72-cfae-4c07-85b8-96cd16341c21",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "ff35e748-f104-41bd-869b-9fa8e59edf37",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "6cd6d503-6504-4bf2-b765-2a3a943aca41",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "dd62e804-30f0-4e28-8b22-f3a7de219db8",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "a336adb9-bf2f-432f-889e-092ece3eb7ff",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "e07cde31-fb12-4b5a-846f-138985e0dee4",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "20e1cdf8-2f51-4950-8a86-1b540674416c",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "9f4255f8-bea5-42b0-824d-77c4b8353372",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "21754d39-71e4-450c-900a-3a50af45548e",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "195f5b59-21be-4821-8fa1-c5f4729e45a5",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "6318be99-ccac-44de-a983-939f40e96871",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "23373c75-22d6-4ed0-8bd8-6012ce99ea58",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "9a8575d8-2f82-413d-a7c0-7b638fd2f105",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "2ad0ced1-f756-4f91-88b1-f84a584da4c6",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "9cfc7a65-cb4d-4432-a334-76b629e89a7f",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "ef3c8dad-862b-417b-a513-02a99bb727e7",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "5ea94410-f23e-471e-823b-41ab11737a6b",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "b5fcd28d-a678-4ff0-b13a-c300a0a667fd",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "b0d24c66-3718-4073-83d6-4db3ee64a87d",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "53998821-9b2e-4c3a-9cfe-2e11a5c98c2f",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "a0608ccf-52b5-4bfd-bede-cda0d5d74ebc",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "5a78b96f-85e4-407e-8a46-50a0be5e23fa",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "54869fe9-06cc-47f5-bc3e-5b481b66387b",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "61e859b5-49a5-4568-a986-19f20f528478",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "5bea2d1e-67f3-461a-8ee1-6a0286855a90",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "14e63c71-c5e3-4aaf-9ece-7f4fb4ed93bf",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "8f8b2a47-8af0-4ff0-b86a-b187877a1d0d",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "6a1efa12-50c8-4af6-9915-0feb5fe8df3d",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "35c87788-6213-4712-88f0-dce1dceb890f",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "a3df9023-d071-48e2-8091-950761f932f1",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "a52cc427-d89e-4df8-a439-70686bca7628",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "7275b09b-20d3-4763-b3bc-7a275a32e2c1",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "8dbf13b0-cb70-49dc-ba1f-fa0d1cce74d5",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "fae1e600-2d42-4165-af47-1b199e79007c",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "010bc616-55ab-48de-9e53-b911aafbdc4f",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "bb71df2f-28e8-455f-bde4-925af56441fa",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "7272d9f0-bbe4-4a90-b160-32d0715bc757",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "190ec963-1a1e-4cda-a775-0b7046397fa6",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "c94c0bad-d4b9-43e0-a19c-6a42f7de1a3b",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "60235a02-5e3d-42a0-bfd3-c2623b5923e1",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "bf40820b-be09-4d00-a5ec-b8a346d6ef67",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "50c18869-9496-405e-941f-90242d558c63",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "e8b635b0-e3df-4843-b5d4-b075e4bebe72",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "49e2d02a-8aea-4216-9ebe-80e048c349b2",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "43feddd5-e8f8-479e-9505-0f6a386314c0",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "fc03f993-a7f9-4769-b16c-692f23b65c20",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "11355119-4c19-478c-997a-be1e56afe852",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "329364cc-007b-4750-8e5c-8fe9a35a6716",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "5eea4541-f04e-4579-aa89-adf9e6cebdd7",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "110395b0-10b4-4e73-9505-a0278a843e37",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "93b9a602-a175-43f6-9a05-d075b41708c1",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "14d7f126-db06-4576-abb8-f7bda70d03fc",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "171f056d-550b-41d8-97fe-bef4a888e099",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "92c79fc6-e7a7-440b-ac4f-19e3e3121d4d",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "c9c61daa-bfd6-4e32-80ad-09bfaa2150d7",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "518c23cb-47ab-42f5-bc61-22dc44db999a",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "21a2269b-bb2c-455f-b49b-af620e863899",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "c511bfc3-418a-4c24-a957-a78ed28cde60",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "831e4c41-2200-4608-9e45-c8d67bd571e3",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "ebe593e2-eeeb-4015-9f8b-ee3dd7c91578",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "2f82e98d-4171-4bc6-bee8-12dda2ac487f",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "6ba72f1b-c4b6-49bc-acc5-3410ea444e74",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "f4befc01-8c70-441f-8c08-f1d6fee9e9a3",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "7e818c01-6f48-4418-97d6-c6141466bb13",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "0d582183-442f-4e49-acc3-5fae38e6543b",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "acd11d2c-7e52-4fff-8d07-1b12fac91048",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "9f51ff79-26f7-4ae7-b333-86663b09f049",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "ffb05b91-ca2e-4380-8121-710bbe15f0c4",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "1b7400b9-2bc4-4619-8a86-4e9f43277c30",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "02ff8b0d-92db-4057-bb5d-5b21a41cc3c1",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "b3ed0ce9-5408-444b-8b7e-5ea34a30e287",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "e4338865-43b1-40c8-b253-d062dc823b58",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "c706c140-727b-4727-b97d-c0be798ad5e8",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "1647c8c2-94de-4786-afb9-0c9f373a7a16",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "46758e5f-88f6-43b2-93cc-96d59cfbba1b",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "0243751c-9c1e-4913-ae9c-705cc36cb5ed",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "6c81fa7e-510b-439c-b316-aac65b7f4114",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "14dd13a0-cf9a-4bf8-9f71-49e45d63b7b7",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "d0a62e01-23bc-4842-80b9-238355a54104",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "2c9d610c-217f-45ec-b2dc-19a64c91dd3c",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "f7200ccd-519c-4092-8302-790393069704",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "5ac580c7-da26-49fe-b2a3-93950eade9d8",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "eb7949aa-06b1-46c0-92e7-6111e9106a71",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "db82d598-b282-4199-bd16-899c1280b068",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "9587d6c2-073f-4f4b-b40b-c4c3f0838729",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "948fb675-ec42-427b-a184-66c560859232",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "5d4a9f36-e6a5-4939-bb00-c8c13ffbb2c7",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "c4a02e7d-b966-4eef-9780-5dd81cf117bb",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "9e8e4209-1cc6-4cca-8161-ce8758dd638d",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "53f4297d-cb90-46e2-8cfe-2ff98c6caa83",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "6d2646f6-f456-47c7-8bc9-c5dd32d3e68b",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        },
+        {
+          "content_id": "388d089b-6eff-48b2-86b8-3df16a543701",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "version": 1,
+          "title": "content"
+        }
+      ],
+      "search_metrics_missing_reason": "gsc_not_configured"
+    }
+  },
+  "context_origin": "backend_snapshot_with_evaluation_focus",
+  "production_publication": false,
+  "output": {
+    "schema_version": "1.0.0",
+    "run_id": "630f650a-b6e5-544b-b660-ece5ef2f96f5",
+    "operation": "research.run",
+    "result": {
+      "brief_id": "3d52a1f4-e111-5aa7-8ab5-460ab503d164",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "profile_version": 1,
+      "context_snapshot_id": "02f84922-eb5d-4830-92de-e294e73d7508",
+      "status": "insufficient_data",
+      "findings": [],
+      "missing_facts": [
+        "grounded_opportunities"
+      ],
+      "trend_coverage": [],
+      "handoff_role": "growth_lead",
+      "handoff_operation": "opportunity.score",
+      "requires_human_approval": true,
+      "applied": false,
+      "synthetic": false,
+      "kpis": [],
+      "rubric_version": "research-quality-v1",
+      "search_metrics_ref": null,
+      "measurement_status": "unavailable",
+      "measurement_missing_facts": [
+        "gsc_not_configured"
+      ]
+    },
+    "evidence": [],
+    "warnings": [],
+    "usage": {
+      "input_tokens": 1005,
+      "output_tokens": 6,
+      "total_tokens": 1011,
+      "latency_ms": 14307,
+      "provider_cost_usd": 0.0,
+      "llm_calls": 1,
+      "embedding_calls": 0,
+      "embedding_input_tokens": 0
+    },
+    "model_version": "ollama/qwen3:4b-instruct",
+    "prompt_version": "research-v7",
+    "input_version": 1,
+    "trace_id": "research-quality:housing",
+    "artifact": {
+      "artifact_id": "cdf76b58-538a-50b8-917a-d9050fec8f7d",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "content_hash": "2c17ef3557e88773961c21a8bef278431edc37a950fb325844a758e30b8467e1",
+      "context_snapshot_id": "02f84922-eb5d-4830-92de-e294e73d7508",
+      "role": "research",
+      "storage": "ai_run_store"
+    }
+  },
+  "replay_identical": true,
+  "verdict": "INSUFFICIENT_FINDINGS"
+}

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ...app.schemas import BusinessProfile, GoalContext, KnowledgeSnapshot, RunArtifact
+from ...app.schemas import BusinessProfile, GoalContext, GoalKpi, KnowledgeSnapshot, RunArtifact
 from ..research.schemas import ResearchBrief, ResearchFinding
 
 
@@ -75,3 +75,4 @@ class CampaignPlan(BaseModel):
     applied: Literal[False] = False
     synthetic: bool
     opportunity_score: dict = Field(default_factory=dict)
+    kpis: list[GoalKpi] = Field(default_factory=list, max_length=5)

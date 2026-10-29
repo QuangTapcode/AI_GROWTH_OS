@@ -15,6 +15,11 @@ const findingSchema = z.object({
   topic: text, audience_fit: text, offer_fit: text, rationale: text, evidence: evidenceSchema,
   url: z.string().url(), fetched_at: z.string().datetime({ offset: true }),
   confidence: z.literal('hypothesis'), demand_estimate: z.null(),
+  source_facts: z.array(text).max(1).optional(), hypotheses: z.array(text).max(4).optional(),
+  missing_data: z.array(text).optional(), quality_checks: z.record(z.boolean()).optional(),
+  quality_status: z.literal('requires_semantic_review').optional(),
+  website_search_metrics: z.array(z.object({ query: text, clicks: z.number().int().nonnegative(),
+    impressions: z.number().int().nonnegative(), ctr: z.number().finite().min(0).max(1), position: z.number().finite().nonnegative() }).strict()).max(5).optional(),
   keywords: z.array(text).max(5).optional(), user_need: text.nullable().optional(),
   // research-v5: dated evidence and the search results matched to the finding (metadata only).
   evidence_updated: z.number().int().min(1990).max(2100).nullable().optional(),
@@ -51,6 +56,12 @@ export const planSchema = z.object({
   }).strict()).max(2),
   missing_facts: z.array(text).max(100), requires_human_approval: z.literal(true),
   applied: z.literal(false), synthetic: z.boolean(),
+  kpis: z.array(z.object({
+    metric_name: text, baseline_value: z.number().finite().nonnegative().nullable(),
+    target_value: z.number().finite().nonnegative(), current_value: z.number().finite().nonnegative().nullable(),
+    baseline_status: z.enum(['missing', 'unverified']),
+    measurement: z.object({ definition: text, unit: text, source: z.enum(['first_party', 'ga4', 'gsc', 'meta_ads']), scope: text }).strict().nullable(),
+  }).strict()).max(5).optional(),
   opportunity_score: z.object({
     factors: z.object({ demand: z.number().finite().min(0).max(5).nullable(), business_relevance: z.number().finite().min(0).max(5).nullable(),
       growth_potential: z.number().finite().min(0).max(5).nullable(), content_gap: z.number().finite().min(0).max(5).nullable(),

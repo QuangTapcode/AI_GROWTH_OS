@@ -18,8 +18,8 @@ const input = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('research.run') }).strict(),
   z.object({ operation: z.literal('strategy.generate'), research_artifact_id: id, cta: z.string().min(1).max(200), deadline: z.string().datetime({ offset: true }), score_factors: factors.optional() }).strict(),
   z.object({ operation: z.literal('community.response'), question: z.string().min(1).max(1000) }).strict(),
-  z.object({ operation: z.literal('analytics.report'), metrics_artifact_id: id.optional() }).strict(),
-  z.object({ operation: z.literal('experiment.hypothesis'), metrics_artifact_id: id.optional(), experiment }).strict(),
+  z.object({ operation: z.literal('analytics.report'), metrics_artifact_id: id.optional(), baseline_metrics_artifact_id: id.optional() }).strict(),
+  z.object({ operation: z.literal('experiment.hypothesis'), metrics_artifact_id: id.optional(), baseline_metrics_artifact_id: id.optional(), experiment }).strict(),
   z.object({ operation: z.literal('learning.analyze'), performance_artifact_id: id.optional(), lead_summary_artifact_id: id.optional(), iteration: z.number().int().min(0).max(3).default(0), max_iterations: z.number().int().min(1).max(3).default(3), task_quota: z.number().int().min(0).max(1).default(1) }).strict(),
 ]);
 const schema = z.object({ task_id: id.optional(), context_snapshot_id: id, synthetic: z.boolean().default(false), input }).strict();

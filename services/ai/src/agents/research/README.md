@@ -1,5 +1,11 @@
 # Research & Trend
 
+**Bổ sung 28/10 — `research-v7`:** tách trích dẫn nguồn/giả thuyết/dữ liệu thiếu,
+lọc topic/offer/audience/user-need, nối inventory và GSC query snapshot từ worker.
+[Rubric](../../../../../docs/reports/RESEARCH-QUALITY-RUBRIC.md) mô tả giới hạn bộ lọc.
+[Review mới nhất](../../../../../docs/reports/RESEARCH-QUALITY-REVIEW-2026-10-28.md)
+ghi nhận snapshot local còn thiếu nguồn chuyên sâu; chưa nghiệm thu nội dung hoặc GSC live.
+
 Owner: Quang Quang. Task: QQ-03 trong [TODO cá nhân](../../../../../docs/coordination/sprint-3-weeks/QUANG-QUANG.md). Reviewer chất lượng: Thiệu; business rules: Dương; HTTP boundary: Mỹ/Thiệu Quang.
 
 **Trạng thái (26/10):** `research-v6` chạy live trên dữ liệu thật của TripC (qwen3:8b, `synthetic=false`) và bàn giao được cho Growth Lead. Evidence: [research-real-2026-10-26](../../../../../qa/evidence/research-real-2026-10-26/research-real-pipeline.json). Chưa có chữ ký reviewer.

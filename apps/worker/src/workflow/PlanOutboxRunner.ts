@@ -67,6 +67,7 @@ export class PlanOutboxRunner {
         payload.question = task.payload.input.question;
       } else if (task.operation === 'analytics.report' || task.operation === 'experiment.hypothesis') {
         payload.metrics = task.payload.input.metrics_artifact_id ? await load(task.payload.input.metrics_artifact_id) : null;
+        payload.baseline_metrics = task.payload.input.baseline_metrics_artifact_id ? await load(task.payload.input.baseline_metrics_artifact_id) : null;
         if (task.operation === 'experiment.hypothesis') payload.experiment = task.payload.input.experiment;
       } else if (task.operation === 'learning.analyze') {
         const input = task.payload.input;
@@ -74,6 +75,21 @@ export class PlanOutboxRunner {
         payload.lead_summary = input.lead_summary_artifact_id ? await load(input.lead_summary_artifact_id) : null;
         payload.iteration = input.iteration; payload.max_iterations = input.max_iterations; payload.task_quota = input.task_quota;
       } else if (task.operation === 'research.run') {
+        payload.content_inventory = (await this.pool.query(`SELECT content_id,workspace_id,version,title,evidence_quotes FROM (
+          SELECT id AS content_id,workspace_id,1 AS version,left(title,200) AS title,created_at,'[]'::jsonb AS evidence_quotes FROM contents WHERE workspace_id=$1
+          UNION ALL
+          SELECT id AS content_id,workspace_id,version,left(payload->'result'->>'title',200) AS title,created_at,
+            (SELECT coalesce(jsonb_agg(e->>'quote'),'[]'::jsonb) FROM (SELECT e FROM jsonb_array_elements(evidence) e LIMIT 10) q) AS evidence_quotes
+          FROM content_artifacts WHERE workspace_id=$1 AND role='seo' AND payload->'result'->>'title' IS NOT NULL
+          ) inventory WHERE title IS NOT NULL AND length(trim(title))>0 ORDER BY created_at DESC LIMIT 100`, [claimed.workspace_id])).rows;
+        const measured = (await this.pool.query(`SELECT a.payload,a.evidence FROM content_artifacts a
+          JOIN integration_connections c ON c.workspace_id=a.workspace_id AND c.provider='gsc'
+            AND c.account_ref=a.payload->'result'->>'site_url' AND c.status='connected' AND c.verified_at IS NOT NULL
+          WHERE a.workspace_id=$1 AND a.context_snapshot_id=$2 AND a.operation='research.search_metrics'
+            AND a.created_at<=$3 AND a.created_at>now()-interval '7 days'
+          ORDER BY a.created_at DESC LIMIT 1`, [claimed.workspace_id, context.snapshot_id, task.created_at])).rows[0];
+        if (measured?.payload?.artifact) payload.search_metrics = { ...measured.payload, evidence: measured.evidence };
+        else payload.search_metrics_missing_reason = 'gsc_snapshot_missing_or_stale';
         // Latest search landscape observed before the task: metadata only, never page text.
         // Rank in the previous run (same query + URL) tells Research what is new or rising.
         payload.trend_signals = (await this.pool.query(`WITH runs AS (SELECT discovery_run_id, max(observed_at) AS at FROM trend_signals

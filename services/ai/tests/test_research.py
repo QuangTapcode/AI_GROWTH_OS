@@ -37,7 +37,7 @@ def test_dedicated_research_handoff_artifact_and_idempotency(client):
     brief = ResearchBrief.model_validate(result["result"])
     assert brief.status == "ready_for_handoff" and brief.handoff_role == "growth_lead"
     assert brief.findings[0].evidence.quote in request["payload"]["snapshot"]["sources"][0]["chunks"][0]["text"]
-    assert result["prompt_version"] == "research-v6"
+    assert result["prompt_version"] == "research-v7"
     assert result["artifact"]["role"] == "research"
     canonical = json.dumps({"result": result["result"], "evidence": result["evidence"]},
                            sort_keys=True, ensure_ascii=False, separators=(",", ":"))

@@ -15,6 +15,18 @@ describe('growth goal', () => {
     expect(goalInputSchema.safeParse({ ...input, extra: 1 }).success).toBe(false);
   });
 
+  it('pins all KPI definitions in the agent context without trusting declared baselines', () => {
+    const measurement = { definition: 'Search clicks reported by GSC', unit: 'count', source: 'gsc', scope: 'site:tripc.ai' };
+    expect(goalInputSchema.safeParse({ ...input, kpis: [{ ...input.kpis[0], measurement }] }).success).toBe(true);
+    expect(goalInputSchema.safeParse({ ...input, kpis: [{ ...input.kpis[0], measurement: { ...measurement, source: 'invented' } }] }).success).toBe(false);
+    const ctx = goalContext({ ...input, id: 'g', workspace_id: 'w', title: input.title, status: 'active',
+      kpis: [{ metric_name: 'clicks', baseline_value: 0, target_value: 300, current_value: null, measurement },
+             { metric_name: 'leads', baseline_value: null, target_value: 15, current_value: null, measurement: null }] } as never);
+    expect(ctx?.kpis).toHaveLength(2);
+    expect(ctx?.kpis[0]).toMatchObject({ baseline_value: 0, baseline_status: 'unverified', measurement });
+    expect(ctx?.kpis[1]).toMatchObject({ baseline_value: null, baseline_status: 'missing' });
+  });
+
   it('maps the first KPI to the AI GoalContext', () => {
     const ctx = goalContext({ id: 'g', workspace_id: 'w', title: input.title, status: 'active', primary_conversion: 'generate_lead',
       period_days: 90, budget_usd: 0, target_qualified_visits: 300, target_traffic_pct: null,

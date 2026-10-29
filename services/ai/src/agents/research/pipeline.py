@@ -16,9 +16,11 @@ from ...guardrails.facts import has_price_claim, sensitive_keys_in, unsupported_
 from ...rag.chunking import estimate_tokens
 from ...rag.retrieval import eligible_sources, lexical_overlap, terms
 from ..context import context_problems
-from .schemas import ResearchBrief, ResearchDraft, ResearchFinding, ResearchPayload, TrendCoverage, TrendSignal
+from ..contracts import artifact_problems
+from .quality import quality_checks
+from .schemas import ResearchBrief, ResearchDraft, ResearchFinding, ResearchPayload, SearchMetricsSnapshot, TrendCoverage, TrendSignal
 
-PROMPT_VERSION = "research-v6"
+PROMPT_VERSION = "research-v7"
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 # Search landscape rows shown to the model; the rest stay available for deterministic matching.
 MAX_LANDSCAPE_IN_PROMPT = 12
@@ -29,6 +31,7 @@ DEMAND_CLAIM = re.compile(
     re.IGNORECASE,
 )
 LANDSCAPE_TALK = re.compile(r"\b(search(?:es|ed|ing)?|rank(?:s|ed|ing)?|landscape|serp|search results?|top results?)\b", re.IGNORECASE)
+GROWTH_CLAIM = re.compile(r"\b(?:growing|surging|booming|trending|rising demand|increasing demand|fastest.growing)\b|đang tăng trưởng|nhu cầu (?:đang )?tăng|xu hướng tăng", re.IGNORECASE)
 
 
 def profile_terms(payload: ResearchPayload) -> set[str]:
@@ -141,6 +144,16 @@ def validate_research(job: JobRequest, payload: ResearchPayload, settings: Setti
     now = datetime.now(timezone.utc)
     if any(s.observed_at.tzinfo is None or s.observed_at > now for s in payload.trend_signals):
         problems.append(("INVALID_TREND_SIGNAL", "Trend signals need a past, timezone-aware observed_at"))
+    if payload.search_metrics:
+        problems += artifact_problems(job, payload.search_metrics, "research")
+        try:
+            metrics = SearchMetricsSnapshot.model_validate(payload.search_metrics.result)
+            if (metrics.window_end < metrics.window_start or metrics.window_end >= now.date()
+                    or metrics.observed_at.tzinfo is None or metrics.observed_at > now
+                    or metrics.observed_at.date() <= metrics.window_end):
+                problems.append(("INVALID_SEARCH_METRICS_WINDOW", "Use a completed past GSC window and a subsequent observation timestamp"))
+        except ValidationError:
+            problems.append(("INVALID_SEARCH_METRICS", "Invalid scoped GSC snapshot"))
     return problems
 
 
@@ -151,6 +164,7 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     candidates = {}
     now = datetime.now(timezone.utc)
     missing = []
+    search_metrics = SearchMetricsSnapshot.model_validate(payload.search_metrics.result) if payload.search_metrics else None
     for source in sources:
         provenance = source.provenance
         fetched = provenance.retrieved_at if provenance else None
@@ -164,12 +178,6 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
         if fetched is None or fetched.tzinfo is None or fetched > now:
             missing.append(f"source:{source.source_id}:fetched_at")
             continue
-        # --- THÊM MÃ MỚI: check source đã thu hồi ---
-        prov = source.provenance
-        if getattr(prov, "revoked", False):
-            missing.append("revoked_source")
-            continue
-        # -----------------
         for chunk in source.chunks:
             if chunk.chunk_id in candidates:
                 raise OperationError("DUPLICATE_CHUNK_ID", "Research chunk IDs must be unique")
@@ -188,6 +196,9 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                                   "movement": movement(s)}
                                  for s in sorted(payload.trend_signals, key=lambda s: s.rank)[:MAX_LANDSCAPE_IN_PROMPT]],
             "excerpts": []}
+    # Query text helps select excerpts; measurements are attached in code, never invented by the model.
+    if search_metrics:
+        base["website_queries"] = [r.query for r in search_metrics.rows[:10]]
     overhead = estimate_tokens(SYSTEM_PROMPT + json.dumps(ResearchDraft.model_json_schema()) + json.dumps(base))
     if overhead > ctx.settings.max_input_tokens:
         raise OperationError("CONTEXT_BUDGET_EXCEEDED", "Profile/goal/inventory exceeds the research input budget")
@@ -197,6 +208,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     place = terms(" ".join(payload.business_profile.locations))
     focus = profile_terms(payload) - place
     trend = terms(" ".join(s.title for s in payload.trend_signals)) - place
+    if search_metrics:
+        trend |= terms(" ".join(r.query for r in search_metrics.rows[:10])) - place
     order = {key: index for index, key in enumerate(candidates)}
     by_relevance = sorted(candidates, key=lambda key: (-relevance(candidates[key][1].text, focus, trend), order[key]))
     # Each trend topic first gets its best covering excerpt, so budget follows what people search for.
@@ -236,11 +249,11 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             key, (_, chunk, _, _) = next(iter(selected.items()))
             topic = (payload.business_profile.topic_priority or ["Local living guide"])[0]
             return {"ideas": [{"topic": topic,
-                "audience_fit": "Explore this topic for the supplied target audience.",
-                "offer_fit": "Confirm the offer before preparing a campaign.",
+                "audience_fit": f"Explore {topic.lower()} for {(payload.business_profile.audiences or ['the target audience'])[0]}.",
+                "offer_fit": f"Relates to {', '.join(payload.business_profile.products + payload.business_profile.services) or 'an offer needing confirmation'}.",
                 "rationale": "The cited excerpt supports a content hypothesis; demand is not measured.",
                 "chunk_id": key, "quote": chunk.text[:400], "keywords": [topic],
-                "user_need": "Understand local living options before making a decision."}]}
+                "user_need": f"Understand {topic.lower()} before making a decision."}]}
         draft = await ctx.call_json(system=SYSTEM_PROMPT, user=json.dumps(base, ensure_ascii=False),
                                     model=ResearchDraft, fake=fake)
 
@@ -270,13 +283,28 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             # Search context is attached by code (trend_signals); model claims about it are unverifiable.
             warnings.append("LANDSCAPE_CLAIM_DROPPED")
             continue
-        if DEMAND_CLAIM.search(narrative):
+        if DEMAND_CLAIM.search(narrative) or GROWTH_CLAIM.search(narrative):
             # Ranking titles show visibility, never measured demand.
             warnings.append("DEMAND_CLAIM_DROPPED")
             continue
         topic_key = " ".join(sorted(terms(idea.topic))) or idea.topic.casefold()
-        if topic_key in seen or any(lexical_overlap(terms(idea.topic), x.title) >= 0.8 for x in payload.content_inventory):
+        if topic_key in seen or any(lexical_overlap(terms(idea.topic), x.title) >= 0.8
+                or any(" ".join(q.split()).casefold() == " ".join(quote.split()).casefold() for q in x.evidence_quotes)
+                for x in payload.content_inventory):
             warnings.append("DUPLICATE_TOPIC_DROPPED")
+            continue
+        checks = quality_checks(idea, quote, payload.business_profile)
+        if not checks["topic_supported_by_quote"]:
+            warnings.append("OFF_TOPIC_EVIDENCE_DROPPED")
+            continue
+        if (payload.business_profile.products or payload.business_profile.services) and not checks["offer_matches_profile"]:
+            warnings.append("OFF_PROFILE_OFFER_DROPPED")
+            continue
+        if not checks["specific_user_need"]:
+            warnings.append("VAGUE_USER_NEED_DROPPED")
+            continue
+        if payload.business_profile.audiences and not checks["audience_matches_profile"]:
+            warnings.append("AUDIENCE_MISMATCH_DROPPED")
             continue
         seen.add(topic_key)
         source, chunk, url, fetched = ref
@@ -289,10 +317,20 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                                chunk_id=chunk.chunk_id, locator=chunk.locator, quote=quote,
                                source_url=url, license=source.provenance.license,
                                attribution=source.provenance.attribution)
+        wanted = terms(" ".join([idea.topic, *idea.keywords, quote])) - place - TITLE_FILLER
+        query_metrics = [row for row in search_metrics.rows if wanted & (terms(row.query) - place - TITLE_FILLER)][:5] if search_metrics else []
+        missing_data = ["market_search_volume_not_measured", "semantic_review_required"]
+        if not query_metrics:
+            missing_data.append("website_query_metrics_not_available_for_topic")
+        if (now - fetched).days > 90 or (updated is not None and updated < now.year - STALE_AFTER_YEARS):
+            missing_data.append("source_freshness_requires_reverification")
         findings.append(ResearchFinding(topic=idea.topic, audience_fit=idea.audience_fit,
                          offer_fit=idea.offer_fit, rationale=idea.rationale,
                          evidence=evidence, url=url, fetched_at=fetched,
                          keywords=idea.keywords, user_need=idea.user_need, evidence_updated=updated,
+                         source_facts=[quote], hypotheses=list(explanations), missing_data=missing_data,
+                         quality_checks={**checks, "traceable_source": True, "not_duplicate": True},
+                         website_search_metrics=query_metrics,
                          trend_signals=matching_signals(payload.trend_signals, idea.topic, idea.keywords,
                                                        payload.business_profile.locations, quote)))
     if not findings:
@@ -304,6 +342,10 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                           context_snapshot_id=payload.snapshot.snapshot_id,
                           status="ready_for_handoff" if findings else "insufficient_data",
                           findings=findings, missing_facts=sorted(set(missing)), trend_coverage=coverage,
-                          synthetic=ctx.settings.provider_mode == "fake" or ctx.job.synthetic)
+                          kpis=[k.model_dump(mode="json") for k in payload.goal_context.kpis] if payload.goal_context else [],
+                          search_metrics_ref=payload.search_metrics.artifact if payload.search_metrics else None,
+                          measurement_status=("available" if any(f.website_search_metrics for f in findings) else "no_matching_queries") if search_metrics else "unavailable",
+                          measurement_missing_facts=[] if search_metrics and search_metrics.rows else [payload.search_metrics_missing_reason if not search_metrics else "gsc_no_query_rows"],
+                          synthetic=ctx.settings.provider_mode == "fake" or ctx.job.synthetic or bool(search_metrics and search_metrics.synthetic))
     return OperationOutcome(result=brief.model_dump(mode="json"),
                             evidence=[x.evidence for x in findings], warnings=sorted(set(warnings)))

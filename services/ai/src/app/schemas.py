@@ -356,6 +356,24 @@ class ApprovedFact(BaseModel):
     created_at: datetime | None = None
 
 
+class KpiMeasurement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    definition: str = Field(min_length=1, max_length=500)
+    unit: str = Field(min_length=1, max_length=40)
+    source: Literal["first_party", "ga4", "gsc", "meta_ads"]
+    scope: str = Field(min_length=1, max_length=300)
+
+
+class GoalKpi(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    metric_name: str = Field(min_length=1, max_length=100)
+    baseline_value: int | float | None = Field(default=None, ge=0)
+    target_value: int | float = Field(ge=0)
+    current_value: int | float | None = Field(default=None, ge=0)
+    baseline_status: Literal["missing", "unverified"] = "missing"
+    measurement: KpiMeasurement | None = None
+
+
 class GoalContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -375,6 +393,7 @@ class GoalContext(BaseModel):
         validation_alias=AliasChoices("baseline", "baseline_value", "current_value"),
     )
     target_value: float | None = Field(default=None, ge=0)
+    kpis: list[GoalKpi] = Field(default_factory=list, max_length=5)
     primary_conversion: str | None = Field(default=None, max_length=50)
     budget_usd: float | None = Field(default=None, ge=0)
     status: str | None = Field(default=None, max_length=50)

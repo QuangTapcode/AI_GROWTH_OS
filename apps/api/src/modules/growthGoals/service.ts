@@ -16,21 +16,28 @@ export const goalInputSchema = z.object({
     metric_name: z.string().trim().min(1).max(100),
     baseline_value: z.number().min(0).nullable(),
     target_value: z.number().min(0),
+    measurement: z.object({
+      definition: z.string().trim().min(1).max(500),
+      unit: z.string().trim().min(1).max(40),
+      source: z.enum(['first_party', 'ga4', 'gsc', 'meta_ads']),
+      scope: z.string().trim().min(1).max(300),
+    }).strict().optional(),
   }).strict()).min(1).max(5),
 }).strict();
 
 export type GoalInput = z.infer<typeof goalInputSchema>;
 type Db = Pool | PoolClient;
+type StoredKpi = { metric_name: string; baseline_value: number | null; target_value: number | null; current_value: number | null; measurement: GoalInput['kpis'][number]['measurement'] | null };
 
 export async function activeGoal(db: Db, workspaceId: string) {
   const goal = (await db.query(
     "SELECT * FROM growth_goals WHERE workspace_id=$1 AND status='active' ORDER BY created_at DESC LIMIT 1", [workspaceId],
   )).rows[0];
   if (!goal) return null;
-  const kpis = (await db.query(
-    'SELECT metric_name, baseline_value, target_value, current_value FROM growth_kpis WHERE goal_id=$1 ORDER BY metric_name', [goal.id],
+  const kpis: StoredKpi[] = (await db.query(
+    'SELECT metric_name, baseline_value, target_value, current_value, measurement FROM growth_kpis WHERE goal_id=$1 ORDER BY metric_name', [goal.id],
   )).rows.map((k) => ({ metric_name: k.metric_name, baseline_value: num(k.baseline_value), target_value: num(k.target_value),
-    current_value: num(k.current_value) }));
+    current_value: num(k.current_value), measurement: k.measurement ?? null }));
   return { ...goal, budget_usd: num(goal.budget_usd), target_traffic_pct: num(goal.target_traffic_pct), kpis };
 }
 
@@ -43,6 +50,8 @@ export function goalContext(goal: Awaited<ReturnType<typeof activeGoal>>) {
     primary_conversion: goal.primary_conversion, period_days: goal.period_days, budget_usd: goal.budget_usd,
     target_qualified_visits: goal.target_qualified_visits ?? null,
     primary_metric: primary?.metric_name ?? null, baseline: primary?.baseline_value ?? null, target_value: primary?.target_value ?? null,
+    // Owner-entered baselines are declarations. Performance verifies measured snapshot artifacts separately.
+    kpis: goal.kpis.map((k: StoredKpi) => ({ ...k, baseline_status: k.baseline_value === null ? 'missing' : 'unverified' })),
   };
 }
 
@@ -59,8 +68,8 @@ export async function setGoal(pool: Pool, workspaceId: string, input: GoalInput)
       [workspaceId, input.title, input.target_qualified_visits ?? null, input.period_days, input.primary_conversion, input.budget_usd],
     )).rows[0];
     for (const kpi of input.kpis) {
-      await db.query('INSERT INTO growth_kpis (goal_id, metric_name, baseline_value, target_value, current_value) VALUES ($1, $2, $3, $4, NULL)',
-        [goal.id, kpi.metric_name, kpi.baseline_value, kpi.target_value]);
+      await db.query('INSERT INTO growth_kpis (goal_id, metric_name, baseline_value, target_value, current_value, measurement) VALUES ($1, $2, $3, $4, NULL, $5)',
+        [goal.id, kpi.metric_name, kpi.baseline_value, kpi.target_value, JSON.stringify(kpi.measurement ?? null)]);
     }
     await db.query('COMMIT');
   } catch (error) {

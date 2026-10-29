@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-10-28T10:51:17.479724+00:00",
+  "cases": [
+    {
+      "topic": "housing",
+      "verdict": "INSUFFICIENT_FINDINGS",
+      "file": "housing.json"
+    },
+    {
+      "topic": "coworking",
+      "verdict": "INSUFFICIENT_FINDINGS",
+      "file": "coworking.json"
+    },
+    {
+      "topic": "food",
+      "verdict": "INSUFFICIENT_FINDINGS",
+      "file": "food.json"
+    }
+  ],
+  "semantic_acceptance": "pending_review",
+  "gsc_live": "requires_configured_workspace_property"
+}

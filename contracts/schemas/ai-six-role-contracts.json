@@ -519,6 +519,33 @@
       "contract_status": "implemented_awaiting_independent_review",
       "input_schema": {
         "$defs": {
+          "ArtifactInput": {
+            "additionalProperties": false,
+            "properties": {
+              "artifact": {
+                "$ref": "#/$defs/RunArtifact"
+              },
+              "result": {
+                "additionalProperties": true,
+                "title": "Result",
+                "type": "object"
+              },
+              "evidence": {
+                "items": {
+                  "$ref": "#/$defs/EvidenceRef"
+                },
+                "maxItems": 50,
+                "title": "Evidence",
+                "type": "array"
+              }
+            },
+            "required": [
+              "artifact",
+              "result"
+            ],
+            "title": "ArtifactInput",
+            "type": "object"
+          },
           "BusinessProfile": {
             "additionalProperties": false,
             "properties": {
@@ -752,6 +779,14 @@
                 "minLength": 1,
                 "title": "Title",
                 "type": "string"
+              },
+              "evidence_quotes": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Evidence Quotes",
+                "type": "array"
               }
             },
             "required": [
@@ -761,6 +796,117 @@
               "title"
             ],
             "title": "ContentInventoryItem",
+            "type": "object"
+          },
+          "EvidenceRef": {
+            "additionalProperties": false,
+            "properties": {
+              "source_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Source Id"
+              },
+              "source_version": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Source Version"
+              },
+              "chunk_id": {
+                "anyOf": [
+                  {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Chunk Id"
+              },
+              "locator": {
+                "anyOf": [
+                  {
+                    "maxLength": 300,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Locator"
+              },
+              "quote": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Quote"
+              },
+              "source_url": {
+                "anyOf": [
+                  {
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Source Url"
+              },
+              "license": {
+                "anyOf": [
+                  {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "License"
+              },
+              "attribution": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Attribution"
+              }
+            },
+            "title": "EvidenceRef",
             "type": "object"
           },
           "GoalContext": {
@@ -817,6 +963,14 @@
                 ],
                 "default": null,
                 "title": "Target Value"
+              },
+              "kpis": {
+                "items": {
+                  "$ref": "#/$defs/GoalKpi"
+                },
+                "maxItems": 5,
+                "title": "Kpis",
+                "type": "array"
               },
               "primary_conversion": {
                 "anyOf": [
@@ -940,6 +1094,95 @@
             "title": "GoalContext",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
           "KnowledgeSnapshot": {
             "additionalProperties": false,
             "description": "Tenant-scoped retrieval input issued by BE for one workspace.",
@@ -975,6 +1218,114 @@
               "workspace_id"
             ],
             "title": "KnowledgeSnapshot",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
+            "type": "object"
+          },
+          "RunArtifact": {
+            "additionalProperties": false,
+            "properties": {
+              "artifact_id": {
+                "format": "uuid",
+                "title": "Artifact Id",
+                "type": "string"
+              },
+              "workspace_id": {
+                "format": "uuid",
+                "title": "Workspace Id",
+                "type": "string"
+              },
+              "version": {
+                "minimum": 1,
+                "title": "Version",
+                "type": "integer"
+              },
+              "content_hash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "title": "Content Hash",
+                "type": "string"
+              },
+              "context_snapshot_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Context Snapshot Id"
+              },
+              "role": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Role"
+              },
+              "storage": {
+                "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
+                "title": "Storage",
+                "type": "string"
+              }
+            },
+            "required": [
+              "artifact_id",
+              "workspace_id",
+              "version",
+              "content_hash"
+            ],
+            "title": "RunArtifact",
             "type": "object"
           },
           "SnapshotChunk": {
@@ -1618,6 +1969,23 @@
             "maxItems": 30,
             "title": "Trend Signals",
             "type": "array"
+          },
+          "search_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "search_metrics_missing_reason": {
+            "default": "gsc_not_connected",
+            "maxLength": 100,
+            "title": "Search Metrics Missing Reason",
+            "type": "string"
           }
         },
         "required": [
@@ -1741,6 +2109,136 @@
             "title": "EvidenceRef",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
+            "type": "object"
+          },
           "ResearchFinding": {
             "additionalProperties": false,
             "properties": {
@@ -1825,6 +2323,50 @@
                 "maxItems": 5,
                 "title": "Trend Signals",
                 "type": "array"
+              },
+              "source_facts": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1,
+                "title": "Source Facts",
+                "type": "array"
+              },
+              "hypotheses": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "title": "Hypotheses",
+                "type": "array"
+              },
+              "missing_data": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Missing Data",
+                "type": "array"
+              },
+              "quality_checks": {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "title": "Quality Checks",
+                "type": "object"
+              },
+              "quality_status": {
+                "const": "requires_semantic_review",
+                "default": "requires_semantic_review",
+                "title": "Quality Status",
+                "type": "string"
+              },
+              "website_search_metrics": {
+                "items": {
+                  "$ref": "#/$defs/SearchQueryMetric"
+                },
+                "maxItems": 5,
+                "title": "Website Search Metrics",
+                "type": "array"
               }
             },
             "required": [
@@ -1837,6 +2379,128 @@
               "fetched_at"
             ],
             "title": "ResearchFinding",
+            "type": "object"
+          },
+          "RunArtifact": {
+            "additionalProperties": false,
+            "properties": {
+              "artifact_id": {
+                "format": "uuid",
+                "title": "Artifact Id",
+                "type": "string"
+              },
+              "workspace_id": {
+                "format": "uuid",
+                "title": "Workspace Id",
+                "type": "string"
+              },
+              "version": {
+                "minimum": 1,
+                "title": "Version",
+                "type": "integer"
+              },
+              "content_hash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "title": "Content Hash",
+                "type": "string"
+              },
+              "context_snapshot_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Context Snapshot Id"
+              },
+              "role": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Role"
+              },
+              "storage": {
+                "default": "ai_run_store",
+                "enum": [
+                  "ai_run_store",
+                  "postgres_ledger"
+                ],
+                "title": "Storage",
+                "type": "string"
+              }
+            },
+            "required": [
+              "artifact_id",
+              "workspace_id",
+              "version",
+              "content_hash"
+            ],
+            "title": "RunArtifact",
+            "type": "object"
+          },
+          "SearchQueryMetric": {
+            "additionalProperties": false,
+            "properties": {
+              "query": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Query",
+                "type": "string"
+              },
+              "clicks": {
+                "minimum": 0,
+                "title": "Clicks",
+                "type": "integer"
+              },
+              "impressions": {
+                "minimum": 0,
+                "title": "Impressions",
+                "type": "integer"
+              },
+              "ctr": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "le": 1,
+                "title": "Ctr"
+              },
+              "position": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Position"
+              }
+            },
+            "required": [
+              "query",
+              "clicks",
+              "impressions",
+              "ctr",
+              "position"
+            ],
+            "title": "SearchQueryMetric",
             "type": "object"
           },
           "TrendCoverage": {
@@ -2046,6 +2710,47 @@
           "synthetic": {
             "title": "Synthetic",
             "type": "boolean"
+          },
+          "kpis": {
+            "items": {
+              "$ref": "#/$defs/GoalKpi"
+            },
+            "maxItems": 5,
+            "title": "Kpis",
+            "type": "array"
+          },
+          "rubric_version": {
+            "default": "research-quality-v1",
+            "title": "Rubric Version",
+            "type": "string"
+          },
+          "search_metrics_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RunArtifact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "measurement_status": {
+            "default": "unavailable",
+            "enum": [
+              "available",
+              "no_matching_queries",
+              "unavailable"
+            ],
+            "title": "Measurement Status",
+            "type": "string"
+          },
+          "measurement_missing_facts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Measurement Missing Facts",
+            "type": "array"
           }
         },
         "required": [
@@ -2065,9 +2770,9 @@
         "research.run": "dedicated"
       },
       "prompt_versions": {
-        "research.run": "research-v6"
+        "research.run": "research-v7"
       },
-      "prompt_version": "research-v6",
+      "prompt_version": "research-v7",
       "schema_operations": [
         "research.run"
       ]
@@ -2466,6 +3171,14 @@
                 "default": null,
                 "title": "Target Value"
               },
+              "kpis": {
+                "items": {
+                  "$ref": "#/$defs/GoalKpi"
+                },
+                "maxItems": 5,
+                "title": "Kpis",
+                "type": "array"
+              },
               "primary_conversion": {
                 "anyOf": [
                   {
@@ -2588,6 +3301,95 @@
             "title": "GoalContext",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
           "KnowledgeSnapshot": {
             "additionalProperties": false,
             "description": "Tenant-scoped retrieval input issued by BE for one workspace.",
@@ -2623,6 +3425,47 @@
               "workspace_id"
             ],
             "title": "KnowledgeSnapshot",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
             "type": "object"
           },
           "ResearchBrief": {
@@ -2717,6 +3560,47 @@
               "synthetic": {
                 "title": "Synthetic",
                 "type": "boolean"
+              },
+              "kpis": {
+                "items": {
+                  "$ref": "#/$defs/GoalKpi"
+                },
+                "maxItems": 5,
+                "title": "Kpis",
+                "type": "array"
+              },
+              "rubric_version": {
+                "default": "research-quality-v1",
+                "title": "Rubric Version",
+                "type": "string"
+              },
+              "search_metrics_ref": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/RunArtifact"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "measurement_status": {
+                "default": "unavailable",
+                "enum": [
+                  "available",
+                  "no_matching_queries",
+                  "unavailable"
+                ],
+                "title": "Measurement Status",
+                "type": "string"
+              },
+              "measurement_missing_facts": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Measurement Missing Facts",
+                "type": "array"
               }
             },
             "required": [
@@ -2816,6 +3700,50 @@
                 "maxItems": 5,
                 "title": "Trend Signals",
                 "type": "array"
+              },
+              "source_facts": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1,
+                "title": "Source Facts",
+                "type": "array"
+              },
+              "hypotheses": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "title": "Hypotheses",
+                "type": "array"
+              },
+              "missing_data": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Missing Data",
+                "type": "array"
+              },
+              "quality_checks": {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "title": "Quality Checks",
+                "type": "object"
+              },
+              "quality_status": {
+                "const": "requires_semantic_review",
+                "default": "requires_semantic_review",
+                "title": "Quality Status",
+                "type": "string"
+              },
+              "website_search_metrics": {
+                "items": {
+                  "$ref": "#/$defs/SearchQueryMetric"
+                },
+                "maxItems": 5,
+                "title": "Website Search Metrics",
+                "type": "array"
               }
             },
             "required": [
@@ -2895,6 +3823,61 @@
               "content_hash"
             ],
             "title": "RunArtifact",
+            "type": "object"
+          },
+          "SearchQueryMetric": {
+            "additionalProperties": false,
+            "properties": {
+              "query": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Query",
+                "type": "string"
+              },
+              "clicks": {
+                "minimum": 0,
+                "title": "Clicks",
+                "type": "integer"
+              },
+              "impressions": {
+                "minimum": 0,
+                "title": "Impressions",
+                "type": "integer"
+              },
+              "ctr": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "le": 1,
+                "title": "Ctr"
+              },
+              "position": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Position"
+              }
+            },
+            "required": [
+              "query",
+              "clicks",
+              "impressions",
+              "ctr",
+              "position"
+            ],
+            "title": "SearchQueryMetric",
             "type": "object"
           },
           "SnapshotChunk": {
@@ -3836,6 +4819,136 @@
             "title": "EvidenceRef",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
+            "type": "object"
+          },
           "ResearchFinding": {
             "additionalProperties": false,
             "properties": {
@@ -3920,6 +5033,50 @@
                 "maxItems": 5,
                 "title": "Trend Signals",
                 "type": "array"
+              },
+              "source_facts": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1,
+                "title": "Source Facts",
+                "type": "array"
+              },
+              "hypotheses": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "title": "Hypotheses",
+                "type": "array"
+              },
+              "missing_data": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Missing Data",
+                "type": "array"
+              },
+              "quality_checks": {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "title": "Quality Checks",
+                "type": "object"
+              },
+              "quality_status": {
+                "const": "requires_semantic_review",
+                "default": "requires_semantic_review",
+                "title": "Quality Status",
+                "type": "string"
+              },
+              "website_search_metrics": {
+                "items": {
+                  "$ref": "#/$defs/SearchQueryMetric"
+                },
+                "maxItems": 5,
+                "title": "Website Search Metrics",
+                "type": "array"
               }
             },
             "required": [
@@ -3999,6 +5156,61 @@
               "content_hash"
             ],
             "title": "RunArtifact",
+            "type": "object"
+          },
+          "SearchQueryMetric": {
+            "additionalProperties": false,
+            "properties": {
+              "query": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Query",
+                "type": "string"
+              },
+              "clicks": {
+                "minimum": 0,
+                "title": "Clicks",
+                "type": "integer"
+              },
+              "impressions": {
+                "minimum": 0,
+                "title": "Impressions",
+                "type": "integer"
+              },
+              "ctr": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "le": 1,
+                "title": "Ctr"
+              },
+              "position": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Position"
+              }
+            },
+            "required": [
+              "query",
+              "clicks",
+              "impressions",
+              "ctr",
+              "position"
+            ],
+            "title": "SearchQueryMetric",
             "type": "object"
           },
           "TaskBrief": {
@@ -4270,6 +5482,14 @@
             "additionalProperties": true,
             "title": "Opportunity Score",
             "type": "object"
+          },
+          "kpis": {
+            "items": {
+              "$ref": "#/$defs/GoalKpi"
+            },
+            "maxItems": 5,
+            "title": "Kpis",
+            "type": "array"
           }
         },
         "required": [
@@ -4713,6 +5933,14 @@
                   "default": null,
                   "title": "Target Value"
                 },
+                "kpis": {
+                  "items": {
+                    "$ref": "#/$defs/GoalKpi"
+                  },
+                  "maxItems": 5,
+                  "title": "Kpis",
+                  "type": "array"
+                },
                 "primary_conversion": {
                   "anyOf": [
                     {
@@ -4835,6 +6063,95 @@
               "title": "GoalContext",
               "type": "object"
             },
+            "GoalKpi": {
+              "additionalProperties": false,
+              "properties": {
+                "metric_name": {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "title": "Metric Name",
+                  "type": "string"
+                },
+                "baseline_value": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "ge": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Baseline Value"
+                },
+                "target_value": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "ge": 0,
+                  "title": "Target Value"
+                },
+                "current_value": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "ge": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Current Value"
+                },
+                "baseline_status": {
+                  "default": "missing",
+                  "enum": [
+                    "missing",
+                    "unverified"
+                  ],
+                  "title": "Baseline Status",
+                  "type": "string"
+                },
+                "measurement": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/KpiMeasurement"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                }
+              },
+              "required": [
+                "metric_name",
+                "target_value"
+              ],
+              "title": "GoalKpi",
+              "type": "object"
+            },
             "KnowledgeSnapshot": {
               "additionalProperties": false,
               "description": "Tenant-scoped retrieval input issued by BE for one workspace.",
@@ -4870,6 +6187,47 @@
                 "workspace_id"
               ],
               "title": "KnowledgeSnapshot",
+              "type": "object"
+            },
+            "KpiMeasurement": {
+              "additionalProperties": false,
+              "properties": {
+                "definition": {
+                  "maxLength": 500,
+                  "minLength": 1,
+                  "title": "Definition",
+                  "type": "string"
+                },
+                "unit": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "title": "Unit",
+                  "type": "string"
+                },
+                "source": {
+                  "enum": [
+                    "first_party",
+                    "ga4",
+                    "gsc",
+                    "meta_ads"
+                  ],
+                  "title": "Source",
+                  "type": "string"
+                },
+                "scope": {
+                  "maxLength": 300,
+                  "minLength": 1,
+                  "title": "Scope",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "definition",
+                "unit",
+                "source",
+                "scope"
+              ],
+              "title": "KpiMeasurement",
               "type": "object"
             },
             "RunArtifact": {
@@ -5549,6 +6907,136 @@
         },
         "output_schema": {
           "$defs": {
+            "GoalKpi": {
+              "additionalProperties": false,
+              "properties": {
+                "metric_name": {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "title": "Metric Name",
+                  "type": "string"
+                },
+                "baseline_value": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "ge": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Baseline Value"
+                },
+                "target_value": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "ge": 0,
+                  "title": "Target Value"
+                },
+                "current_value": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "ge": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Current Value"
+                },
+                "baseline_status": {
+                  "default": "missing",
+                  "enum": [
+                    "missing",
+                    "unverified"
+                  ],
+                  "title": "Baseline Status",
+                  "type": "string"
+                },
+                "measurement": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/KpiMeasurement"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                }
+              },
+              "required": [
+                "metric_name",
+                "target_value"
+              ],
+              "title": "GoalKpi",
+              "type": "object"
+            },
+            "KpiMeasurement": {
+              "additionalProperties": false,
+              "properties": {
+                "definition": {
+                  "maxLength": 500,
+                  "minLength": 1,
+                  "title": "Definition",
+                  "type": "string"
+                },
+                "unit": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "title": "Unit",
+                  "type": "string"
+                },
+                "source": {
+                  "enum": [
+                    "first_party",
+                    "ga4",
+                    "gsc",
+                    "meta_ads"
+                  ],
+                  "title": "Source",
+                  "type": "string"
+                },
+                "scope": {
+                  "maxLength": 300,
+                  "minLength": 1,
+                  "title": "Scope",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "definition",
+                "unit",
+                "source",
+                "scope"
+              ],
+              "title": "KpiMeasurement",
+              "type": "object"
+            },
             "RunArtifact": {
               "additionalProperties": false,
               "properties": {
@@ -5675,6 +7163,14 @@
             "synthetic": {
               "title": "Synthetic",
               "type": "boolean"
+            },
+            "kpis": {
+              "items": {
+                "$ref": "#/$defs/GoalKpi"
+              },
+              "maxItems": 5,
+              "title": "Kpis",
+              "type": "array"
             },
             "iteration": {
               "title": "Iteration",
@@ -6149,6 +7645,14 @@
                 "default": null,
                 "title": "Target Value"
               },
+              "kpis": {
+                "items": {
+                  "$ref": "#/$defs/GoalKpi"
+                },
+                "maxItems": 5,
+                "title": "Kpis",
+                "type": "array"
+              },
               "primary_conversion": {
                 "anyOf": [
                   {
@@ -6271,6 +7775,95 @@
             "title": "GoalContext",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
           "KnowledgeSnapshot": {
             "additionalProperties": false,
             "description": "Tenant-scoped retrieval input issued by BE for one workspace.",
@@ -6306,6 +7899,47 @@
               "workspace_id"
             ],
             "title": "KnowledgeSnapshot",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
             "type": "object"
           },
           "RunArtifact": {
@@ -7064,6 +8698,136 @@
             "title": "EvidenceRef",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
+            "type": "object"
+          },
           "RunArtifact": {
             "additionalProperties": false,
             "properties": {
@@ -7190,6 +8954,14 @@
           "synthetic": {
             "title": "Synthetic",
             "type": "boolean"
+          },
+          "kpis": {
+            "items": {
+              "$ref": "#/$defs/GoalKpi"
+            },
+            "maxItems": 5,
+            "title": "Kpis",
+            "type": "array"
           },
           "article_id": {
             "format": "uuid",
@@ -7695,6 +9467,14 @@
                 "default": null,
                 "title": "Target Value"
               },
+              "kpis": {
+                "items": {
+                  "$ref": "#/$defs/GoalKpi"
+                },
+                "maxItems": 5,
+                "title": "Kpis",
+                "type": "array"
+              },
               "primary_conversion": {
                 "anyOf": [
                   {
@@ -7817,6 +9597,95 @@
             "title": "GoalContext",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
           "ImageAsset": {
             "additionalProperties": false,
             "properties": {
@@ -7922,6 +9791,47 @@
               "workspace_id"
             ],
             "title": "KnowledgeSnapshot",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
             "type": "object"
           },
           "RunArtifact": {
@@ -8745,6 +10655,95 @@
             "title": "FacebookPost",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
           "ImageAsset": {
             "additionalProperties": false,
             "properties": {
@@ -8813,6 +10812,47 @@
               "status"
             ],
             "title": "ImageAsset",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
             "type": "object"
           },
           "RunArtifact": {
@@ -8941,6 +10981,14 @@
           "synthetic": {
             "title": "Synthetic",
             "type": "boolean"
+          },
+          "kpis": {
+            "items": {
+              "$ref": "#/$defs/GoalKpi"
+            },
+            "maxItems": 5,
+            "title": "Kpis",
+            "type": "array"
           },
           "pack_id": {
             "format": "uuid",
@@ -9359,6 +11407,14 @@
                 "default": null,
                 "title": "Target Value"
               },
+              "kpis": {
+                "items": {
+                  "$ref": "#/$defs/GoalKpi"
+                },
+                "maxItems": 5,
+                "title": "Kpis",
+                "type": "array"
+              },
               "primary_conversion": {
                 "anyOf": [
                   {
@@ -9481,6 +11537,95 @@
             "title": "GoalContext",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
           "KnowledgeSnapshot": {
             "additionalProperties": false,
             "description": "Tenant-scoped retrieval input issued by BE for one workspace.",
@@ -9516,6 +11661,47 @@
               "workspace_id"
             ],
             "title": "KnowledgeSnapshot",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
             "type": "object"
           },
           "SnapshotChunk": {
@@ -10196,6 +12382,136 @@
             "title": "EvidenceRef",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
+            "type": "object"
+          },
           "RunArtifact": {
             "additionalProperties": false,
             "properties": {
@@ -10323,6 +12639,14 @@
             "title": "Synthetic",
             "type": "boolean"
           },
+          "kpis": {
+            "items": {
+              "$ref": "#/$defs/GoalKpi"
+            },
+            "maxItems": 5,
+            "title": "Kpis",
+            "type": "array"
+          },
           "reply": {
             "title": "Reply",
             "type": "string"
@@ -10382,9 +12706,9 @@
         "community.response": "dedicated"
       },
       "prompt_versions": {
-        "community.response": "community-v1"
+        "community.response": "community-v2"
       },
-      "prompt_version": "community-v1",
+      "prompt_version": "community-v2",
       "schema_operations": [
         "community.response"
       ]
@@ -10877,6 +13201,14 @@
                 "default": null,
                 "title": "Target Value"
               },
+              "kpis": {
+                "items": {
+                  "$ref": "#/$defs/GoalKpi"
+                },
+                "maxItems": 5,
+                "title": "Kpis",
+                "type": "array"
+              },
               "primary_conversion": {
                 "anyOf": [
                   {
@@ -10999,6 +13331,95 @@
             "title": "GoalContext",
             "type": "object"
           },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
           "KnowledgeSnapshot": {
             "additionalProperties": false,
             "description": "Tenant-scoped retrieval input issued by BE for one workspace.",
@@ -11034,6 +13455,47 @@
               "workspace_id"
             ],
             "title": "KnowledgeSnapshot",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
             "type": "object"
           },
           "RunArtifact": {
@@ -11663,6 +14125,17 @@
             ],
             "default": null
           },
+          "baseline_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "experiment": {
             "anyOf": [
               {
@@ -11752,6 +14225,136 @@
               "grouping"
             ],
             "title": "ExperimentSpec",
+            "type": "object"
+          },
+          "GoalKpi": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "baseline_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Baseline Value"
+              },
+              "target_value": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "ge": 0,
+                "title": "Target Value"
+              },
+              "current_value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "ge": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Current Value"
+              },
+              "baseline_status": {
+                "default": "missing",
+                "enum": [
+                  "missing",
+                  "unverified"
+                ],
+                "title": "Baseline Status",
+                "type": "string"
+              },
+              "measurement": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/KpiMeasurement"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "metric_name",
+              "target_value"
+            ],
+            "title": "GoalKpi",
+            "type": "object"
+          },
+          "KpiMeasurement": {
+            "additionalProperties": false,
+            "properties": {
+              "definition": {
+                "maxLength": 500,
+                "minLength": 1,
+                "title": "Definition",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 40,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "first_party",
+                  "ga4",
+                  "gsc",
+                  "meta_ads"
+                ],
+                "title": "Source",
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Scope",
+                "type": "string"
+              }
+            },
+            "required": [
+              "definition",
+              "unit",
+              "source",
+              "scope"
+            ],
+            "title": "KpiMeasurement",
             "type": "object"
           },
           "RunArtifact": {
@@ -11881,11 +14484,22 @@
             "title": "Synthetic",
             "type": "boolean"
           },
+          "kpis": {
+            "items": {
+              "$ref": "#/$defs/GoalKpi"
+            },
+            "maxItems": 5,
+            "title": "Kpis",
+            "type": "array"
+          },
           "metrics": {
             "additionalProperties": {
               "anyOf": [
                 {
                   "type": "integer"
+                },
+                {
+                  "type": "number"
                 },
                 {
                   "type": "null"
@@ -11956,9 +14570,46 @@
             "type": "string"
           },
           "spend_mutation_allowed": {
+            "const": false,
             "default": false,
             "title": "Spend Mutation Allowed",
             "type": "boolean"
+          },
+          "baseline_snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Baseline Snapshot Id"
+          },
+          "baseline_window": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Baseline Window"
+          },
+          "kpi_comparisons": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Kpi Comparisons",
+            "type": "array"
           }
         },
         "required": [
@@ -11982,10 +14633,10 @@
         "experiment.hypothesis": "dedicated"
       },
       "prompt_versions": {
-        "analytics.report": "performance-v1",
-        "experiment.hypothesis": "performance-v1"
+        "analytics.report": "performance-v2",
+        "experiment.hypothesis": "performance-v2"
       },
-      "prompt_version": "performance-v1",
+      "prompt_version": "performance-v2",
       "schema_operations": [
         "analytics.report",
         "experiment.hypothesis"

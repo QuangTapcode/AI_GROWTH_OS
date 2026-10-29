@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { defaultSearch, refreshDiscoveryIfStale } from "../research/discovery";
-import { ensureMeasurementArtifacts } from "../site/measurement";
+import { syncResearchSearchMetrics } from "../research/searchMetrics";
+import { baselineMetricArtifact, ensureMeasurementArtifacts } from "../site/measurement";
 import { publishSeoArtifact } from "../site/publish";
 import type { Pool } from "pg";
 import { enqueueAiTask } from "./aiTasks";
@@ -306,9 +307,11 @@ export async function tickAutomation(
             [workspaceId, context.snapshot_id],
           )
         ).rows[0];
+        const baseline = metric ? await baselineMetricArtifact(pool, workspaceId, context.snapshot_id, metric.id) : undefined;
         const report = await enqueue(`performance:${child.task_id}`, {
           operation: "analytics.report",
           ...(metric ? { metrics_artifact_id: metric.id } : {}),
+          ...(baseline ? { baseline_metrics_artifact_id: baseline } : {}),
         });
         await pool.query(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
@@ -375,6 +378,12 @@ export async function tickAutomation(
           await refreshDiscoveryIfStale(pool, workspaceId, defaultSearch(), settings.interval_hours);
         } catch (error) {
           discoveryWarning = `DISCOVERY_FAILED: ${(error as Error).message}`;
+        }
+        try {
+          const measured = await syncResearchSearchMetrics(pool, workspaceId, context.snapshot_id, undefined, settings.interval_hours);
+          if (measured.status === 'unavailable') discoveryWarning = [discoveryWarning, measured.reason].filter(Boolean).join('; ');
+        } catch {
+          discoveryWarning = [discoveryWarning, 'GSC_QUERY_SYNC_FAILED'].filter(Boolean).join('; ');
         }
         const child = await enqueue(
           `research:${workspaceId}:${new Date(settings.next_run_at).toISOString()}`,
