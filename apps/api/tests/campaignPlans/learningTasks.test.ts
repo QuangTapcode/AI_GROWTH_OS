@@ -154,6 +154,23 @@ describe("Growth Lead: Closed-Loop Learning & Deduplicated Task Dispatch Suite",
               return { rows: [outboxRow], rowCount: 1 };
             }
 
+            if (s.includes("UPDATE approvals SET status='approved'")) {
+              const rows = dbTables.approvals.filter(
+                (a) => a.workspace_id === params[0] && a.target_id === params[1] && a.target_version === params[2] &&
+                  a.target_hash === params[3] && a.status === "pending"
+              );
+              for (const row of rows) Object.assign(row, { status: "approved", decision: "approve", actor_id: params[4], actor_role: "owner" });
+              return { rows, rowCount: rows.length };
+            }
+
+            if (s.includes("UPDATE workflow_tasks SET status='completed'")) {
+              const rows = dbTables.workflow_tasks.filter(
+                (t) => t.workspace_id === params[0] && t.result_ref === params[1] && t.status === "awaiting_approval"
+              );
+              for (const row of rows) row.status = "completed";
+              return { rows, rowCount: rows.length };
+            }
+
             if (s.includes("INSERT INTO approvals")) {
               const appRow = {
                 workspace_id: params[0],
@@ -343,6 +360,27 @@ describe("Growth Lead: Closed-Loop Learning & Deduplicated Task Dispatch Suite",
     expect(approval.decision).toBe("approve");
     expect(approval.actor_id).toBe(ownerId);
     expect(approval.actor_role).toBe("owner");
+  });
+
+  it("Test 1b: Duyệt từ Review Queue - quyết định approval pending sẵn có và hoàn tất task learning, không tạo approval thứ hai", async () => {
+    const { learningRef } = setupStandardArtifacts({ iteration: 0 });
+    // The worker stores the learning artifact with a pending review and an awaiting task.
+    dbTables.approvals.push({
+      workspace_id: workspaceId, target_type: "artifact", target_id: learningRef.artifact_id,
+      target_version: learningRef.version, target_hash: learningRef.content_hash, status: "pending",
+    });
+    dbTables.workflow_tasks.push({
+      id: randomUUID(), workspace_id: workspaceId, operation: "learning.analyze",
+      status: "awaiting_approval", result_ref: learningRef.artifact_id, payload: {},
+    });
+
+    const result = await acceptLearningTasks(mockPool, workspaceId, ownerId, learningRef, true);
+
+    expect(result.task_ids).toHaveLength(1);
+    expect(dbTables.approvals).toHaveLength(1);
+    expect(dbTables.approvals[0]).toMatchObject({ status: "approved", decision: "approve", actor_id: ownerId, actor_role: "owner" });
+    expect(dbTables.workflow_tasks.find((t) => t.operation === "learning.analyze")?.status).toBe("completed");
+    expect(dbTables.workflow_tasks.find((t) => t.operation === "research.run")?.status).toBe("queued");
   });
 
   it("Test 2: Idempotent Dedup - Gửi lại request với cùng dedup_key -> tái sử dụng task đã tạo, không tạo task duplicate", async () => {

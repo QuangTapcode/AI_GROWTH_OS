@@ -48,9 +48,46 @@ export async function ensureMeasurementArtifacts(pool: Pool, workspaceId: string
   const leadAgg = fresh.find((r) => r.operation === 'lead.aggregate');
   if (metric && leadAgg) return { metrics_artifact_id: metric.id as string, lead_aggregate_id: leadAgg.id as string, created: false };
 
-  const site = siteForWorkspace(workspaceId);
   const end = new Date(Math.floor(Date.now() / 60_000) * 60_000);
   const start = new Date(end.getTime() - WINDOW_DAYS * 86_400_000);
+  const { result: metricsResult, counts, measurement } = await measureWindow(pool, workspaceId, start, end);
+  const leadResult = { workspace_id: workspaceId, version: 1, count: counts.leads, synthetic: false };
+  const metricsId = await ledgerArtifact(pool, workspaceId, contextSnapshotId, 'metrics.snapshot', 'First-party site metrics', metricsResult, measurement);
+  const leadId = await ledgerArtifact(pool, workspaceId, contextSnapshotId, 'lead.aggregate', 'Lead count (aggregate only)', leadResult,
+    { window_start: metricsResult.window_start, window_end: metricsResult.window_end });
+  return { metrics_artifact_id: metricsId, lead_aggregate_id: leadId, created: true, counts };
+}
+
+/** Definitions shared by every first-party snapshot and by KPIs measured from them; they must match exactly. */
+export function firstPartyMetricDefinitions(workspaceId: string) {
+  const scope = `workspace:${workspaceId}:site:${siteForWorkspace(workspaceId)?.site_id ?? 'none'}`;
+  return {
+    qualified_visits: { definition: 'Non-internal sessions viewing a published post and clicking a CTA in the window', unit: 'count', source: 'first_party' as const, scope },
+    leads: { definition: 'Non-synthetic lead submissions captured in the window', unit: 'count', source: 'first_party' as const, scope },
+  };
+}
+
+/**
+ * KPI comparison needs an earlier, non-overlapping window of the same length. With a new goal none
+ * exists for a week, so measure the window right before the current snapshot from the same
+ * first-party events and leads (real history, not an assumed zero).
+ */
+export async function ensureBaselineArtifact(pool: Pool, workspaceId: string, contextSnapshotId: string, currentId: string) {
+  const existing = await baselineMetricArtifact(pool, workspaceId, contextSnapshotId, currentId);
+  if (existing) return existing;
+  const current = (await pool.query(
+    "SELECT payload->'result' AS result FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND id=$3 AND operation='metrics.snapshot'",
+    [workspaceId, contextSnapshotId, currentId],
+  )).rows[0]?.result;
+  if (!current || current.synthetic !== false || current.source !== 'first_party') return undefined;
+  const end = new Date(current.window_start);
+  const start = new Date(end.getTime() - (Date.parse(current.window_end) - end.getTime()));
+  const { result, measurement } = await measureWindow(pool, workspaceId, start, end);
+  return ledgerArtifact(pool, workspaceId, contextSnapshotId, 'metrics.snapshot', 'First-party site metrics (baseline window)', result, measurement);
+}
+
+async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: Date) {
+  const site = siteForWorkspace(workspaceId);
   const counts = (await pool.query(
     `SELECT
        (SELECT count(DISTINCT v.session_id) FROM site_events v WHERE v.workspace_id=$1 AND v.event_type='page_view'
@@ -66,24 +103,15 @@ export async function ensureMeasurementArtifacts(pool: Pool, workspaceId: string
           AND COALESCE(context->>'synthetic', 'false') <> 'true')::int AS leads`,
     [workspaceId, start, end, site?.site_id ?? null],
   )).rows[0];
-
-  const metricsResult = {
+  const result = {
     workspace_id: workspaceId, snapshot_id: randomUUID(), version: 1,
     window_start: start.toISOString(), window_end: end.toISOString(),
     qualified_visits: counts.qualified_visits, leads: counts.leads, impressions: null, clicks: null,
     synthetic: false, source: 'first_party', unavailable: { impressions: NOT_CONNECTED, clicks: NOT_CONNECTED },
     captured_at: new Date().toISOString(), timezone: 'UTC',
-    metric_definitions: {
-      qualified_visits: { definition: 'Non-internal sessions viewing a published post and clicking a CTA in the window', unit: 'count', source: 'first_party', scope: `workspace:${workspaceId}:site:${site?.site_id ?? 'none'}` },
-      leads: { definition: 'Non-synthetic lead submissions captured in the window', unit: 'count', source: 'first_party', scope: `workspace:${workspaceId}:site:${site?.site_id ?? 'none'}` },
-    },
+    metric_definitions: firstPartyMetricDefinitions(workspaceId),
   };
-  const leadResult = { workspace_id: workspaceId, version: 1, count: counts.leads, synthetic: false };
-  const metricsId = await ledgerArtifact(pool, workspaceId, contextSnapshotId, 'metrics.snapshot', 'First-party site metrics', metricsResult,
-    { page_views: counts.page_views, internal_page_views: counts.internal_page_views, site_id: site?.site_id ?? null });
-  const leadId = await ledgerArtifact(pool, workspaceId, contextSnapshotId, 'lead.aggregate', 'Lead count (aggregate only)', leadResult,
-    { window_start: metricsResult.window_start, window_end: metricsResult.window_end });
-  return { metrics_artifact_id: metricsId, lead_aggregate_id: leadId, created: true, counts };
+  return { result, counts, measurement: { page_views: counts.page_views, internal_page_views: counts.internal_page_views, site_id: site?.site_id ?? null } };
 }
 
 async function ledgerArtifact(pool: Pool, workspaceId: string, contextSnapshotId: string, operation: string, title: string,

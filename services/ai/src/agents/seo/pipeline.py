@@ -71,6 +71,7 @@ async def run_seo(ctx):
         raise OperationError("SEO_CHECK_FAILED", f"Draft does not satisfy required headings/metadata/citations (failed: {failed})")
     missing = list(p.research.result.get("missing_facts", []))
     output = SeoArticle(**result_fields(ctx, [p.research]), article_id=stable_id(ctx, "article"),
+        strategy_alignment=finding.get('strategy_alignment'),
         status="draft" if not missing else "insufficient_data", missing_facts=missing,
         title=draft.title, meta_description=draft.meta_description, primary_keyword=keyword,
         headings=headings, body_markdown=body, cta=p.cta, citations=cited, seo_checks=checks)

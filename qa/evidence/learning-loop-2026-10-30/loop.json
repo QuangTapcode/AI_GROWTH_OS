@@ -1,0 +1,89 @@
+{
+  "generated_at": "2026-10-29T17:08:16.405Z",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "synthetic": false,
+  "scope": "local_staging_manual_loop",
+  "model": "ollama/qwen3:4b-instruct",
+  "context_snapshot_id": "2eabe68b-d019-4b2e-8214-5af86284af27",
+  "growth_lead": {
+    "task_id": "1b5ea021-624e-5554-a393-507beba23207",
+    "artifact_id": "f453626a-909b-57a8-826f-f1ff1080ac34",
+    "task_status": "awaiting_approval",
+    "status": "proposed",
+    "missing_facts": [
+      "complete_research_explanation"
+    ],
+    "selected_topic": "coworking",
+    "strategy_topic": "PT-02",
+    "tasks": [
+      {
+        "role": "seo",
+        "operation": "seo.local_draft",
+        "depends_on": 0
+      },
+      {
+        "role": "content",
+        "operation": "content.repurpose",
+        "depends_on": 1
+      }
+    ],
+    "note": "Awaiting owner approval; not approved by agent"
+  },
+  "measurement": {
+    "metrics_artifact_id": "8221b6f2-80d4-4cb6-9a85-e0a6471fd5f4",
+    "lead_aggregate_id": "9921b2ec-4624-4252-908b-7e5f58ee36c1",
+    "counts": "qualified_visits 0, leads 0, page_views 0 (no site traffic recorded)"
+  },
+  "performance": {
+    "task_id": "f2a9280e-cde2-44b6-9e43-ca9aaa058c74",
+    "artifact_id": "8f4aafa6-ef96-5a84-9746-688ed0e16ee0",
+    "status": "draft",
+    "metrics": {
+      "leads": 0,
+      "clicks": null,
+      "impressions": null,
+      "qualified_visits": 0
+    },
+    "missing_facts": []
+  },
+  "learning": {
+    "task_id": "404dfba2-2081-4bf3-b822-9fe2421ac0d2",
+    "artifact_id": "295f2c84-66d5-5aed-a1b0-537fc8011c89",
+    "task_status_after_accept": "completed",
+    "status": "draft",
+    "learning": [
+      "The cited lead aggregate contains 0 leads; causal attribution is not established."
+    ],
+    "next_tasks": [
+      {
+        "iteration": 1,
+        "dedup_key": "3d3198cb114c6aeec4e2ae8e828ec133e0af11d2d0d47612cfd3ad2ef5dc437c"
+      }
+    ],
+    "approvals_after_accept": [
+      {
+        "status": "approved",
+        "actor_role": "owner"
+      }
+    ]
+  },
+  "accepted_by": "owner.tripc.demo@gmail.com via POST /learning-tasks (same call as the new UI button); replay returned the same task id",
+  "next_research": {
+    "task_id": "b9415250-864d-4b64-b9bc-38a9b390a1b3",
+    "artifact_id": "65b51498-79f6-5f2d-908c-409a7d8b1adf",
+    "task_status": "awaiting_approval",
+    "status": "ready_for_handoff",
+    "findings": [
+      {
+        "topic": "coworking",
+        "source_url": "https://tripc.ai/blog/da-nang-vs-hanoi-vs-ho-chi-minh-city-remote-workers",
+        "quote": "Da Nang is highly functional too, with widespread and genuinely fast café Wi-Fi that makes it very workable even without a dedicated desk, though its coworking scene is smaller than the two big cities."
+      }
+    ]
+  },
+  "ui": "growth-lead-learning-ui.png (web dev server, owner login, no page errors)",
+  "known_limits": [
+    "First-party traffic is zero: learning has no performance signal to act on yet",
+    "Round 1 re-proposed the coworking topic because no SEO draft exists yet for inventory dedup"
+  ]
+}

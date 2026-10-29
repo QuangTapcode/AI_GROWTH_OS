@@ -299,14 +299,32 @@ export async function executeApprovalReviewTransaction(
       }
     } else if (effectiveTargetType === "task") {
       const taskStatus = input.decision === "approve" ? "queued" : "cancelled";
-      const updateTask = await client.query(
-        `UPDATE workflow_tasks 
-         SET status = $1, updated_at = NOW() 
-         WHERE workspace_id = $2 AND id = $3 AND input_version = $4`,
-        [taskStatus, workspaceId, effectiveTargetId, input.expected_version]
+      const updateTask = await client.query<{ input_version: number; operation: string; status: string }>(
+        `UPDATE workflow_tasks AS target
+            SET status = CASE
+              WHEN $1 = 'approve' AND EXISTS (
+                SELECT 1
+                  FROM task_dependencies edge
+                  JOIN workflow_tasks parent ON parent.id=edge.depends_on_task_id
+                 WHERE edge.task_id=target.id AND parent.status<>'completed'
+              ) THEN 'pending'
+              ELSE $2
+            END,
+                updated_at = NOW()
+          WHERE target.workspace_id = $3 AND target.id = $4 AND target.input_version = $5
+          RETURNING target.input_version, target.operation, target.status`,
+        [input.decision, taskStatus, workspaceId, effectiveTargetId, input.expected_version]
       );
       if (updateTask.rowCount === 0) {
         throw new AppError(409, "VERSION_CONFLICT", "Target task version was modified concurrently");
+      }
+      if (input.decision === "approve" && updateTask.rows[0].status === "queued") {
+        await client.query(
+          `INSERT INTO plan_task_outbox(workspace_id, task_id, input_version, operation)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (task_id, input_version) DO NOTHING`,
+          [workspaceId, effectiveTargetId, updateTask.rows[0].input_version, updateTask.rows[0].operation],
+        );
       }
     } else if (effectiveTargetType === "artifact" && input.decision === "approve") {
       // AI workers persist the artifact first and expose it through the

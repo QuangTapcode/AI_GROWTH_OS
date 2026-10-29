@@ -197,6 +197,12 @@ export interface BusinessProfile {
   brand_voice: string | null;
   brand_guidelines: string | null;
   competitors: string[] | null;
+  research_strategy?: {
+    version: string;
+    status: string;
+    topics: Array<{ id: string; title: string; priority: 'high' | 'medium'; journey_stage: string; objective_metrics: string[] }>;
+    competitor_references: Array<{ name: string; url: string; lesson: string; status: string }>;
+  } | null;
   version: number;
   updated_by: string | null;
   updated_at: string;

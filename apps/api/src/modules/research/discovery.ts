@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { hostOf, policyFor, referenceUrls } from './sourcePolicy';
+import { researchStrategySchema, type ResearchStrategy } from '../businessProfile/strategy';
+import { activeGoal, focusOffers } from '../growthGoals/service';
 
 // docs/coordination/PILOT_LIMITS.md: <=3 queries/run, <=10 results/query, HTTP 30s, one SearXNG adapter.
 export const MAX_QUERIES = 3;
 export const MAX_RESULTS = 10;
 const SEARCH_TIMEOUT_MS = 30_000;
 
-export type DiscoveryProfile = { locations: string[]; audiences: string[]; products: string[] };
+export type DiscoveryProfile = { locations: string[]; audiences: string[]; products: string[]; strategy?: ResearchStrategy | null };
 export type SearchResult = { url: string; title: string; engine: string | null };
 export type Search = (query: string) => Promise<SearchResult[]>;
 
@@ -15,11 +17,28 @@ export class DiscoveryError extends Error {
   constructor(public code: string, message: string, public status = 422) { super(message); }
 }
 
-/** Deterministic queries from the confirmed profile: first location x first products, audience hint. */
-export function buildDiscoveryQueries(profile: DiscoveryProfile): string[] {
+/**
+ * Deterministic queries from the confirmed profile: first location x first products, audience hint.
+ * Offers the owner's request focuses on (goal `focus_offers`) are searched first; the rest rotate.
+ */
+export function buildDiscoveryQueries(profile: DiscoveryProfile, offset = 0, focus: string[] = []): string[] {
   const location = profile.locations.map((x) => x.trim()).find(Boolean);
   if (!location) return [];
   const hint = profile.audiences.some((a) => /\bexpat/i.test(a)) ? ' expats' : '';
+  const focused = focus.map((offer) => `${location} ${offer.replace(/_/g, ' ').trim()}${hint}`.slice(0, 200));
+  return [...new Set([...focused, ...rotationQueries(profile, offset, location, hint)])].slice(0, MAX_QUERIES);
+}
+
+function rotationQueries(profile: DiscoveryProfile, offset: number, location: string, hint: string): string[] {
+  if (profile.strategy?.topics.length) {
+    const topics = [...profile.strategy.topics].sort((a, b) => Number(a.priority !== 'high') - Number(b.priority !== 'high'));
+    const start = Math.max(0, offset) % topics.length;
+    return Array.from({ length: Math.min(MAX_QUERIES, topics.length) }, (_, i) => {
+      const index = (start + i) % topics.length, topic = topics[index];
+      const term = topic.query_terms[Math.floor(Math.max(0, offset) / topics.length) % topic.query_terms.length];
+      return `${location} ${term}${hint}`.slice(0, 200);
+    });
+  }
   const topics = [...new Set(profile.products.map((p) => p.replace(/_/g, ' ').trim()).filter(Boolean))];
   return topics.slice(0, MAX_QUERIES).map((topic) => `${location} ${topic}${hint}`.slice(0, 200));
 }
@@ -47,11 +66,15 @@ export function searxngSearch(baseUrl: string): Search {
  */
 export async function runDiscovery(pool: Pool, workspaceId: string, search: Search) {
   const profileRow = (await pool.query(
-    'SELECT target_locations, target_audiences, products_services FROM business_profiles WHERE workspace_id=$1', [workspaceId],
+    'SELECT target_locations, target_audiences, products_services, research_strategy FROM business_profiles WHERE workspace_id=$1', [workspaceId],
   )).rows[0];
   if (!profileRow) throw new DiscoveryError('PROFILE_REQUIRED', 'Confirm the business profile before research discovery');
-  const profile = { locations: profileRow.target_locations ?? [], audiences: profileRow.target_audiences ?? [], products: profileRow.products_services ?? [] };
-  const queries = buildDiscoveryQueries(profile);
+  const strategy = profileRow.research_strategy ? researchStrategySchema.parse(profileRow.research_strategy) : null;
+  const profile = { locations: profileRow.target_locations ?? [], audiences: profileRow.target_audiences ?? [], products: profileRow.products_services ?? [], strategy };
+  // Three queries per run remain bounded; rotate so medium-priority topics are not starved.
+  const previousRuns = strategy ? Number((await pool.query('SELECT count(DISTINCT discovery_run_id)::int AS count FROM trend_signals WHERE workspace_id=$1', [workspaceId])).rows[0]?.count ?? 0) : 0;
+  const goal = await activeGoal(pool, workspaceId);
+  const queries = buildDiscoveryQueries(profile, previousRuns * MAX_QUERIES, goal ? focusOffers(goal.title, profile.products) : []);
   if (!queries.length) throw new DiscoveryError('PROFILE_INCOMPLETE', 'Profile needs a target location and products/services');
 
   // Searches run sequentially and outside the transaction: they are slow and must not hold row locks.

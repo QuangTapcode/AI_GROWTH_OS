@@ -87,6 +87,7 @@ async def run_content(ctx):
     if not assets and requires_media:
         missing.append("approved_image_asset")
     fields = result_fields(ctx, [p.source_article])
+    fields['strategy_alignment'] = article.get('strategy_alignment')
     fields["synthetic"] = fields["synthetic"] or any(a.synthetic for a in assets)
     result = SocialPack(**fields, status="needs_assets" if (not assets and requires_media) else "insufficient_data" if article.get("missing_facts") else "draft",
         missing_facts=sorted(set(missing)), pack_id=stable_id(ctx, "social"), parent_content_id=article["article_id"],

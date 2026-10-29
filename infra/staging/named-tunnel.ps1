@@ -7,6 +7,8 @@ param(
     [string]$TunnelId,
     [string]$Hostname = 'api.growthos.vn',
     [int]$ApiPort = 4000,
+    [ValidatePattern('^\d{1,3}(\.\d{1,3}){3}:\d+(,\d{1,3}(\.\d{1,3}){3}:\d+)*$')]
+    [string]$DnsResolvers = '1.1.1.1:53,8.8.8.8:53',
     [string]$Cloudflared = (Join-Path $env:LOCALAPPDATA 'cloudflared\cloudflared.exe'),
     [string]$TokenFile = (Join-Path $env:USERPROFILE '.cloudflared\aigrowthos-api.token')
 )
@@ -23,6 +25,10 @@ $cloudDir = Join-Path $env:USERPROFILE '.cloudflared'
 $configPath = Join-Path $cloudDir 'aigrowthos-api.yml'
 $logPath = Join-Path $runtimeRoot 'named-tunnel.log'
 $taskName = 'AI-Growth-OS Named Tunnel'
+$resolverArgs = @()
+foreach ($resolver in $DnsResolvers.Split(',')) {
+    $resolverArgs += @('--dns-resolver-addrs', $resolver)
+}
 
 function Assert-Cloudflared {
     if (-not (Test-Path -LiteralPath $Cloudflared)) {
@@ -91,14 +97,18 @@ if (-not $hasToken -and -not (Test-Path -LiteralPath (Join-Path $cloudDir 'cert.
 }
 
 if ($Run) {
+    # Explicit application-scoped resolvers avoid the failing periodic local-resolver
+    # discovery. QUIC remains enabled because Workers VPC requires it.
+    $runCommand = @('tunnel', '--no-autoupdate', '--logfile', $logPath)
     if (Test-Path -LiteralPath $TokenFile) {
-        & $Cloudflared tunnel --no-autoupdate --logfile $logPath run --token-file $TokenFile $TunnelName
+        $runCommand += @('run') + $resolverArgs + @('--token-file', $TokenFile, $TunnelName)
     } else {
         if (-not (Test-Path -LiteralPath $configPath)) {
             throw ('Missing config ' + $configPath + '. Run this script once without -Run after cloudflared tunnel login.')
         }
-        & $Cloudflared tunnel --no-autoupdate --logfile $logPath --config $configPath run $TunnelName
+        $runCommand += @('--config', $configPath, 'run') + $resolverArgs + @($TunnelName)
     }
+    & $Cloudflared @runCommand
     exit $LASTEXITCODE
 }
 
@@ -118,6 +128,7 @@ Set-Content -Encoding UTF8 -LiteralPath $originPath -Value ('https://' + $Hostna
     TunnelName = $TunnelName
     Hostname = $Hostname
     TokenFile = $TokenFile
+    DnsResolvers = $DnsResolvers
     UpdatedAt = (Get-Date).ToUniversalTime().ToString('o')
 } | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath $runtimeState
 $credentialsPath = $null
@@ -137,21 +148,26 @@ if (-not $SkipDnsRoute -and -not $hasToken) {
 
 if ($InstallTask) {
     $powershell = (Get-Command powershell.exe).Source
-    $runArgs = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Run -TunnelName "' + $TunnelName + '" -Hostname "' + $Hostname + '" -ApiPort ' + $ApiPort
+    $runArgs = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Run -TunnelName "' + $TunnelName + '" -Hostname "' + $Hostname + '" -ApiPort ' + $ApiPort
     if ($TunnelId) { $runArgs += ' -TunnelId "' + $TunnelId + '"' }
     if ($hasToken) { $runArgs += ' -TokenFile "' + $TokenFile + '"' }
+    $runArgs += ' -DnsResolvers "' + $DnsResolvers + '"'
     $action = New-ScheduledTaskAction -Execute $powershell -Argument $runArgs
-    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1)
+    $trigger = @(
+        (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME)
+        (New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1))
+    )
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) `
+        -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Description 'Keeps the AI-Growth-OS API Cloudflare Named Tunnel connected.' -Force | Out-Null
     Start-ScheduledTask -TaskName $taskName
     Write-Output ('Installed and started scheduled task: ' + $taskName)
 } elseif (-not (Get-ManagedProcess)) {
     if (Test-Path -LiteralPath $logPath) { Remove-Item -LiteralPath $logPath -Force }
     if ($hasToken) {
-        $arguments = @('tunnel', '--no-autoupdate', '--logfile', $logPath, 'run', '--token-file', $TokenFile, $TunnelName)
+        $arguments = @('tunnel', '--no-autoupdate', '--logfile', $logPath, 'run') + $resolverArgs + @('--token-file', $TokenFile, $TunnelName)
     } else {
-        $arguments = @('tunnel', '--no-autoupdate', '--logfile', $logPath, '--config', $configPath, 'run', $TunnelName)
+        $arguments = @('tunnel', '--no-autoupdate', '--logfile', $logPath, '--config', $configPath, 'run') + $resolverArgs + @($TunnelName)
     }
     $process = Start-Process -FilePath $Cloudflared -ArgumentList $arguments -WindowStyle Hidden -PassThru
     [pscustomobject]@{

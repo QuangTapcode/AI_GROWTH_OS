@@ -294,6 +294,26 @@ class AnswerPayload(BaseModel):
     snapshot: KnowledgeSnapshot
 
 
+class PriorityTopic(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(pattern=r"^PT-0[1-5]$")
+    title: str = Field(min_length=1, max_length=100)
+    priority: Literal["high", "medium"]
+    query_terms: list[str] = Field(min_length=1, max_length=3)
+    journey_stage: Literal["discover", "prepare", "arrive", "settle", "connect"]
+    objective_metrics: list[str] = Field(min_length=1, max_length=5)
+    verification: list[Literal["approved_sources", "recheck_dynamic_facts", "official_sources_for_sensitive_topics", "confirmed_capability_before_promotion", "event_details"]] = Field(min_length=1, max_length=5)
+
+
+class ResearchStrategy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    version: Literal["tripc-strategy-v1"]
+    status: Literal["operator_strategy_not_measured_demand"]
+    source_document: dict[str, str]
+    topics: list[PriorityTopic] = Field(min_length=1, max_length=5)
+    competitor_references: list[dict[str, str]] = Field(default_factory=list, max_length=3)
+
+
 class BusinessProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -332,6 +352,7 @@ class BusinessProfile(BaseModel):
     )
     competitors: list[str] = Field(default_factory=list, max_length=20)
     topic_priority: list[str] = Field(default_factory=list, max_length=20)
+    research_strategy: ResearchStrategy | None = None
     id: UUID | None = None
     workspace_id: UUID | None = None
     updated_by: UUID | None = None
@@ -403,6 +424,8 @@ class GoalContext(BaseModel):
     target_traffic_pct: float | None = Field(default=None, ge=0)
     target_qualified_visits: int | None = Field(default=None, ge=0)
     created_at: datetime | None = None
+    # Confirmed products/services the owner's request is about, derived by the backend.
+    focus_offers: list[str] = Field(default_factory=list, max_length=6)
 
 
 class GrowthMapPayload(BaseModel):

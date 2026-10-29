@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { strategyAlignmentSchema } from '../businessProfile/strategy';
 
 export const artifactRefSchema = z.object({
   artifact_id: z.string().uuid(), workspace_id: z.string().uuid(), version: z.number().int().positive(),
@@ -15,6 +16,7 @@ const findingSchema = z.object({
   topic: text, audience_fit: text, offer_fit: text, rationale: text, evidence: evidenceSchema,
   url: z.string().url(), fetched_at: z.string().datetime({ offset: true }),
   confidence: z.literal('hypothesis'), demand_estimate: z.null(),
+  strategy_alignment: strategyAlignmentSchema.nullable().optional(),
   source_facts: z.array(text).max(1).optional(), hypotheses: z.array(text).max(4).optional(),
   missing_data: z.array(text).optional(), quality_checks: z.record(z.boolean()).optional(),
   quality_status: z.literal('requires_semantic_review').optional(),
@@ -37,6 +39,7 @@ export const planSchema = z.object({
   selection_method: z.enum(['model_selection_from_grounded_research', 'derived_score_ranking']),
   ranked_opportunities: z.array(z.object({
     finding_index: z.number().int().min(0).max(2), topic: text, score: z.number().finite().nonnegative().nullable(),
+    strategy_alignment: strategyAlignmentSchema.nullable().optional(),
   }).strict()).max(3).optional(),
   selected_opportunity: findingSchema.nullable(), research_artifact: artifactRefSchema,
   tasks: z.array(z.object({
@@ -51,11 +54,13 @@ export const planSchema = z.object({
       audience_fit: text, offer_fit: text, intent: z.literal('informational'),
       deliverable: z.enum(['seo_article_draft', 'social_pack_draft']), cta: text.nullable(),
       acceptance: z.array(text).min(1).max(10),
+      strategy_alignment: strategyAlignmentSchema.nullable().optional(),
     }).strict(), requires_human_approval: z.literal(true),
     deadline: z.string().datetime({ offset: true }).nullable().optional(),
   }).strict()).max(2),
   missing_facts: z.array(text).max(100), requires_human_approval: z.literal(true),
   applied: z.literal(false), synthetic: z.boolean(),
+  strategy_alignment: strategyAlignmentSchema.nullable().optional(),
   kpis: z.array(z.object({
     metric_name: text, baseline_value: z.number().finite().nonnegative().nullable(),
     target_value: z.number().finite().nonnegative(), current_value: z.number().finite().nonnegative().nullable(),

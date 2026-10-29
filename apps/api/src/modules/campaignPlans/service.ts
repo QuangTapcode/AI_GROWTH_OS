@@ -30,6 +30,16 @@ export class PlanError extends Error {
 const equal = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 function fail(code: string, message: string): never { throw new PlanError(code, message); }
 
+/**
+ * Research coverage notes reported without blocking, as in growth_lead/pipeline.py: gaps on other
+ * topics, dated excerpts of other findings and a dropped model draft replaced by a grounded finding.
+ * A stale selected excerpt still blocks through the plan's own `blocked` status.
+ */
+export function blockingFacts(facts: unknown[] | undefined) {
+  return (facts ?? []).filter((fact) => typeof fact !== 'string' || !(fact.startsWith('source_gap:') ||
+    fact.startsWith('stale_evidence:') || fact === 'complete_research_explanation'));
+}
+
 async function resolve(repo: PlanRepository, workspaceId: string, ref: ArtifactRef): Promise<StoredArtifact> {
   if (ref.workspace_id !== workspaceId) fail('TENANT_SCOPE_VIOLATION', 'Foreign artifact reference');
   const artifact = await repo.loadArtifact(workspaceId, ref.artifact_id);
@@ -58,7 +68,7 @@ export async function submitCampaignPlan(deps: { repo: PlanRepository; allowSynt
       plan.profile_version !== context.profile_version || plan.input_version !== ref.version)
     fail('STALE_CONTEXT', 'Rebuild plan against current snapshot/profile/version');
   if (plan.synthetic && !deps.allowSynthetic) fail('SYNTHETIC_NOT_ALLOWED', 'Mock plan requires explicit sandbox mode');
-  if (plan.status !== 'proposed' || plan.missing_facts.length || !plan.selected_opportunity)
+  if (plan.status !== 'proposed' || blockingFacts(plan.missing_facts).length || !plan.selected_opportunity)
     fail('PLAN_BLOCKED', 'Resolve missing facts before enqueue');
   if (plan.research_artifact.role !== 'research' || plan.research_artifact.context_snapshot_id !== context.snapshot_id)
     fail('INVALID_RESEARCH', 'Research role/snapshot mismatch');
@@ -67,7 +77,7 @@ export async function submitCampaignPlan(deps: { repo: PlanRepository; allowSynt
     profile_version?: number; status?: string; findings?: unknown[]; missing_facts?: unknown[]; synthetic?: boolean };
   if (brief.workspace_id !== workspaceId || brief.context_snapshot_id !== context.snapshot_id ||
       brief.profile_version !== context.profile_version || brief.status !== 'ready_for_handoff' ||
-      brief.missing_facts?.length || !brief.findings?.some(f => equal(f, plan.selected_opportunity)) ||
+      blockingFacts(brief.missing_facts).length || !brief.findings?.some(f => equal(f, plan.selected_opportunity)) ||
       (brief.synthetic && !plan.synthetic)) fail('INVALID_RESEARCH', 'Selected opportunity differs from trusted research');
   const evidence = plan.selected_opportunity.evidence;
   if (!context.approved_sources.some(s => s.source_id === evidence.source_id && s.version === evidence.source_version))

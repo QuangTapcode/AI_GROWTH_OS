@@ -41,12 +41,30 @@ export async function activeGoal(db: Db, workspaceId: string) {
   return { ...goal, budget_usd: num(goal.budget_usd), target_traffic_pct: num(goal.target_traffic_pct), kpis };
 }
 
+/** Words an owner may use (Vietnamese or English) for each confirmed offer id in a request. */
+const OFFER_TERMS: Record<string, string[]> = {
+  food: ['food', 'cuisine', 'restaurant', 'street food', 'ẩm thực', 'món ăn', 'đồ ăn', 'quán ăn', 'nhà hàng'],
+  housing: ['housing', 'apartment', 'accommodation', 'rental', 'nhà ở', 'căn hộ', 'thuê nhà', 'chỗ ở', 'lưu trú'],
+  living_areas: ['living area', 'neighborhood', 'neighbourhood', 'khu vực sống', 'khu dân cư'],
+  coworking: ['coworking', 'workspace', 'remote work', 'làm việc từ xa', 'không gian làm việc'],
+  gym: ['gym', 'fitness', 'phòng tập', 'thể hình'],
+  events: ['event', 'meetup', 'community', 'sự kiện', 'cộng đồng', 'giao lưu'],
+};
+
+/** The confirmed offers a request names; Research and discovery focus on them. Never adds an offer. */
+export function focusOffers(request: string, offers: string[]): string[] {
+  const text = request.normalize('NFC');
+  const named = (term: string) => new RegExp(`(?<!\\p{L})${term.normalize('NFC').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?(?!\\p{L})`, 'iu').test(text);
+  return offers.filter((offer) => (OFFER_TERMS[offer] ?? [offer.replace(/_/g, ' ')]).some(named));
+}
+
 /** GoalContext for AI jobs: the first KPI (ordered by metric name) is the primary metric. */
-export function goalContext(goal: Awaited<ReturnType<typeof activeGoal>>) {
+export function goalContext(goal: Awaited<ReturnType<typeof activeGoal>>, offers: string[] = []) {
   if (!goal) return null;
   const primary = goal.kpis[0];
   return {
     id: goal.id, workspace_id: goal.workspace_id, objective: goal.title, status: goal.status,
+    focus_offers: focusOffers(goal.title, offers),
     primary_conversion: goal.primary_conversion, period_days: goal.period_days, budget_usd: goal.budget_usd,
     target_qualified_visits: goal.target_qualified_visits ?? null,
     primary_metric: primary?.metric_name ?? null, baseline: primary?.baseline_value ?? null, target_value: primary?.target_value ?? null,

@@ -44,6 +44,7 @@ class DraftResult(BaseModel):
     applied: Literal[False] = False
     synthetic: bool
     kpis: list[GoalKpi] = Field(default_factory=list, max_length=5)
+    strategy_alignment: dict | None = None
 
 
 class ImageAsset(BaseModel):

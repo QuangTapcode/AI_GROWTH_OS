@@ -54,7 +54,7 @@ ngày Pacific hiện tại ba ngày. Chưa tích hợp nhà cung cấp market-wi
 Scheduler làm mới snapshot trước Research; lỗi GSC ghi warning và không ngăn nghiên
 cứu từ nguồn đã duyệt. Worker lấy inventory trong workspace, snapshot đo đã verified
 trước thời điểm tạo task, tối đa bảy ngày tuổi. AI kiểm lại hash, tenant, context và
-cửa sổ. Kết nối GSC live và hướng dẫn cấu hình được để sau theo yêu cầu người dùng.
+cửa sổ. Hướng dẫn cấu hình kết nối live: [GSC-SETUP.md](../integrations/GSC-SETUP.md).
 
 ## Chạy lại đánh giá
 

@@ -18,9 +18,9 @@ function apiUnavailable(status) {
   );
 }
 
-export async function onRequest({ request }) {
+export async function proxyApiRequest(request, fetchUpstream, origin) {
   const url = new URL(request.url);
-  const target = new URL(url.pathname + url.search, API_ORIGIN);
+  const target = new URL(url.pathname + url.search, origin);
 
   const headers = new Headers(request.headers);
   for (const name of DROP_REQUEST_HEADERS) headers.delete(name);
@@ -32,7 +32,7 @@ export async function onRequest({ request }) {
 
   let upstream;
   try {
-    upstream = await fetch(target, init);
+    upstream = await fetchUpstream(target, init);
   } catch {
     return apiUnavailable(0);
   }
@@ -46,4 +46,8 @@ export async function onRequest({ request }) {
   response.headers.delete("vary");
   if (!response.headers.has("cache-control")) response.headers.set("cache-control", "no-store");
   return response;
+}
+
+export async function onRequest({ request }) {
+  return proxyApiRequest(request, fetch, API_ORIGIN);
 }

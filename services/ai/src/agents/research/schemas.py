@@ -117,6 +117,7 @@ class ResearchFinding(BaseModel):
     # Lexical checks are filters, not semantic acceptance by a business reviewer.
     quality_status: Literal["requires_semantic_review"] = "requires_semantic_review"
     website_search_metrics: list[SearchQueryMetric] = Field(default_factory=list, max_length=5)
+    strategy_alignment: dict | None = None
 
 
 class TrendCoverage(BaseModel):

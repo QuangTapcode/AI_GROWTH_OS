@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import AppShell from "@/features/shell/AppShell";
 import { useWorkspace } from "@/features/shell/WorkspaceProvider";
 import { EmptyBlock, ErrorBlock, LoadingBlock } from "@/features/shell/StatusViews";
-import { ApiError, growthApi } from "@/lib/api";
+import { ApiError, apiRequest, growthApi } from "@/lib/api";
 import { useApiData } from "@/lib/useApiData";
 import ReviewItemsList from "./ReviewItemsList";
 import ReviewDetailView from "./ReviewDetailView";
@@ -39,13 +39,22 @@ function ReviewQueueContent() {
   const decide = async (approvalId: string, decision: "approve" | "reject", note: string) => {
     const approval = data?.approvals.find((a) => a.id === approvalId);
     if (!approval) throw new Error("This approval is no longer available. Refresh the queue.");
+    const artifact = data?.artifacts.find((a) => a.id === approval.target_id);
+    const learning = artifact?.operation === "learning.analyze"
+      ? artifact.payload.result as { status?: string; next_tasks?: unknown[]; missing_facts?: unknown[] } | undefined
+      : undefined;
     try {
-      await growthApi.reviewApproval(workspace.id, approval.id, {
-        decision,
-        expected_version: approval.target_version,
-        expected_hash: approval.target_hash,
-        review_note: note || null,
-      });
+      if (decision === "approve" && learning?.status === "draft" && learning.next_tasks?.length && !learning.missing_facts?.length) {
+        // Approving learning opens the proposed Research round; the endpoint also decides this approval.
+        await apiRequest(`/workspaces/${workspace.id}/learning-tasks`, { method: "POST", body: artifact!.payload.artifact });
+      } else {
+        await growthApi.reviewApproval(workspace.id, approval.id, {
+          decision,
+          expected_version: approval.target_version,
+          expected_hash: approval.target_hash,
+          review_note: note || null,
+        });
+      }
     } catch (err) {
       throw new Error(err instanceof ApiError ? `${err.message} (${err.code})` : "The decision could not be saved.", { cause: err });
     }

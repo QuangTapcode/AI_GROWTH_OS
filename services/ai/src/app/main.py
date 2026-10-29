@@ -175,8 +175,11 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     embedding_calls=ctx.usage.embedding_calls,
                     latency_ms=ctx.usage.latency_ms,
                 )
-        except Exception:
-            logger.exception("AI run failed unexpectedly")
+        except Exception as exc:
+            # Keep the public error generic, but retain the concrete exception in
+            # the local service log so a failed run can be diagnosed without
+            # exposing provider details through the API.
+            logger.exception("AI run failed unexpectedly: %s", exc)
             store.fail(run_id, "AI_SERVICE_ERROR", "AI service failed while processing the run", retryable=False)
         finally:
             app.state.run_tasks.pop(run_id, None)

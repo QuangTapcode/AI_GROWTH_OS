@@ -697,6 +697,17 @@
                 "title": "Topic Priority",
                 "type": "array"
               },
+              "research_strategy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ResearchStrategy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
               "id": {
                 "anyOf": [
                   {
@@ -1089,6 +1100,14 @@
                 ],
                 "default": null,
                 "title": "Created At"
+              },
+              "focus_offers": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "title": "Focus Offers",
+                "type": "array"
               }
             },
             "title": "GoalContext",
@@ -1259,6 +1278,136 @@
               "scope"
             ],
             "title": "KpiMeasurement",
+            "type": "object"
+          },
+          "PriorityTopic": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^PT-0[1-5]$",
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "high",
+                  "medium"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "query_terms": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "title": "Query Terms",
+                "type": "array"
+              },
+              "journey_stage": {
+                "enum": [
+                  "discover",
+                  "prepare",
+                  "arrive",
+                  "settle",
+                  "connect"
+                ],
+                "title": "Journey Stage",
+                "type": "string"
+              },
+              "objective_metrics": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Objective Metrics",
+                "type": "array"
+              },
+              "verification": {
+                "items": {
+                  "enum": [
+                    "approved_sources",
+                    "recheck_dynamic_facts",
+                    "official_sources_for_sensitive_topics",
+                    "confirmed_capability_before_promotion",
+                    "event_details"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Verification",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "priority",
+              "query_terms",
+              "journey_stage",
+              "objective_metrics",
+              "verification"
+            ],
+            "title": "PriorityTopic",
+            "type": "object"
+          },
+          "ResearchStrategy": {
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": "tripc-strategy-v1",
+                "title": "Version",
+                "type": "string"
+              },
+              "status": {
+                "const": "operator_strategy_not_measured_demand",
+                "title": "Status",
+                "type": "string"
+              },
+              "source_document": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Source Document",
+                "type": "object"
+              },
+              "topics": {
+                "items": {
+                  "$ref": "#/$defs/PriorityTopic"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Topics",
+                "type": "array"
+              },
+              "competitor_references": {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "title": "Competitor References",
+                "type": "array"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "source_document",
+              "topics"
+            ],
+            "title": "ResearchStrategy",
             "type": "object"
           },
           "RunArtifact": {
@@ -2367,6 +2516,19 @@
                 "maxItems": 5,
                 "title": "Website Search Metrics",
                 "type": "array"
+              },
+              "strategy_alignment": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Strategy Alignment"
               }
             },
             "required": [
@@ -2770,9 +2932,9 @@
         "research.run": "dedicated"
       },
       "prompt_versions": {
-        "research.run": "research-v7"
+        "research.run": "research-v8"
       },
-      "prompt_version": "research-v7",
+      "prompt_version": "research-v8",
       "schema_operations": [
         "research.run"
       ]
@@ -2945,6 +3107,17 @@
                 "maxItems": 20,
                 "title": "Topic Priority",
                 "type": "array"
+              },
+              "research_strategy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ResearchStrategy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
               },
               "id": {
                 "anyOf": [
@@ -3296,6 +3469,14 @@
                 ],
                 "default": null,
                 "title": "Created At"
+              },
+              "focus_offers": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "title": "Focus Offers",
+                "type": "array"
               }
             },
             "title": "GoalContext",
@@ -3466,6 +3647,86 @@
               "scope"
             ],
             "title": "KpiMeasurement",
+            "type": "object"
+          },
+          "PriorityTopic": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^PT-0[1-5]$",
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "high",
+                  "medium"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "query_terms": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "title": "Query Terms",
+                "type": "array"
+              },
+              "journey_stage": {
+                "enum": [
+                  "discover",
+                  "prepare",
+                  "arrive",
+                  "settle",
+                  "connect"
+                ],
+                "title": "Journey Stage",
+                "type": "string"
+              },
+              "objective_metrics": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Objective Metrics",
+                "type": "array"
+              },
+              "verification": {
+                "items": {
+                  "enum": [
+                    "approved_sources",
+                    "recheck_dynamic_facts",
+                    "official_sources_for_sensitive_topics",
+                    "confirmed_capability_before_promotion",
+                    "event_details"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Verification",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "priority",
+              "query_terms",
+              "journey_stage",
+              "objective_metrics",
+              "verification"
+            ],
+            "title": "PriorityTopic",
             "type": "object"
           },
           "ResearchBrief": {
@@ -3744,6 +4005,19 @@
                 "maxItems": 5,
                 "title": "Website Search Metrics",
                 "type": "array"
+              },
+              "strategy_alignment": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Strategy Alignment"
               }
             },
             "required": [
@@ -3756,6 +4030,56 @@
               "fetched_at"
             ],
             "title": "ResearchFinding",
+            "type": "object"
+          },
+          "ResearchStrategy": {
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": "tripc-strategy-v1",
+                "title": "Version",
+                "type": "string"
+              },
+              "status": {
+                "const": "operator_strategy_not_measured_demand",
+                "title": "Status",
+                "type": "string"
+              },
+              "source_document": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Source Document",
+                "type": "object"
+              },
+              "topics": {
+                "items": {
+                  "$ref": "#/$defs/PriorityTopic"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Topics",
+                "type": "array"
+              },
+              "competitor_references": {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "title": "Competitor References",
+                "type": "array"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "source_document",
+              "topics"
+            ],
+            "title": "ResearchStrategy",
             "type": "object"
           },
           "RunArtifact": {
@@ -5077,6 +5401,19 @@
                 "maxItems": 5,
                 "title": "Website Search Metrics",
                 "type": "array"
+              },
+              "strategy_alignment": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Strategy Alignment"
               }
             },
             "required": [
@@ -5273,6 +5610,19 @@
                 },
                 "title": "Acceptance",
                 "type": "array"
+              },
+              "strategy_alignment": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Strategy Alignment"
               }
             },
             "required": [
@@ -5490,6 +5840,19 @@
             "maxItems": 5,
             "title": "Kpis",
             "type": "array"
+          },
+          "strategy_alignment": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strategy Alignment"
           }
         },
         "required": [
@@ -5707,6 +6070,17 @@
                   "maxItems": 20,
                   "title": "Topic Priority",
                   "type": "array"
+                },
+                "research_strategy": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ResearchStrategy"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
                 },
                 "id": {
                   "anyOf": [
@@ -6058,6 +6432,14 @@
                   ],
                   "default": null,
                   "title": "Created At"
+                },
+                "focus_offers": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 6,
+                  "title": "Focus Offers",
+                  "type": "array"
                 }
               },
               "title": "GoalContext",
@@ -6228,6 +6610,136 @@
                 "scope"
               ],
               "title": "KpiMeasurement",
+              "type": "object"
+            },
+            "PriorityTopic": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^PT-0[1-5]$",
+                  "title": "Id",
+                  "type": "string"
+                },
+                "title": {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "title": "Title",
+                  "type": "string"
+                },
+                "priority": {
+                  "enum": [
+                    "high",
+                    "medium"
+                  ],
+                  "title": "Priority",
+                  "type": "string"
+                },
+                "query_terms": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 3,
+                  "minItems": 1,
+                  "title": "Query Terms",
+                  "type": "array"
+                },
+                "journey_stage": {
+                  "enum": [
+                    "discover",
+                    "prepare",
+                    "arrive",
+                    "settle",
+                    "connect"
+                  ],
+                  "title": "Journey Stage",
+                  "type": "string"
+                },
+                "objective_metrics": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 5,
+                  "minItems": 1,
+                  "title": "Objective Metrics",
+                  "type": "array"
+                },
+                "verification": {
+                  "items": {
+                    "enum": [
+                      "approved_sources",
+                      "recheck_dynamic_facts",
+                      "official_sources_for_sensitive_topics",
+                      "confirmed_capability_before_promotion",
+                      "event_details"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 5,
+                  "minItems": 1,
+                  "title": "Verification",
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "priority",
+                "query_terms",
+                "journey_stage",
+                "objective_metrics",
+                "verification"
+              ],
+              "title": "PriorityTopic",
+              "type": "object"
+            },
+            "ResearchStrategy": {
+              "additionalProperties": false,
+              "properties": {
+                "version": {
+                  "const": "tripc-strategy-v1",
+                  "title": "Version",
+                  "type": "string"
+                },
+                "status": {
+                  "const": "operator_strategy_not_measured_demand",
+                  "title": "Status",
+                  "type": "string"
+                },
+                "source_document": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Source Document",
+                  "type": "object"
+                },
+                "topics": {
+                  "items": {
+                    "$ref": "#/$defs/PriorityTopic"
+                  },
+                  "maxItems": 5,
+                  "minItems": 1,
+                  "title": "Topics",
+                  "type": "array"
+                },
+                "competitor_references": {
+                  "items": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "maxItems": 3,
+                  "title": "Competitor References",
+                  "type": "array"
+                }
+              },
+              "required": [
+                "version",
+                "status",
+                "source_document",
+                "topics"
+              ],
+              "title": "ResearchStrategy",
               "type": "object"
             },
             "RunArtifact": {
@@ -7172,6 +7684,19 @@
               "title": "Kpis",
               "type": "array"
             },
+            "strategy_alignment": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Strategy Alignment"
+            },
             "iteration": {
               "title": "Iteration",
               "type": "integer"
@@ -7419,6 +7944,17 @@
                 "maxItems": 20,
                 "title": "Topic Priority",
                 "type": "array"
+              },
+              "research_strategy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ResearchStrategy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
               },
               "id": {
                 "anyOf": [
@@ -7770,6 +8306,14 @@
                 ],
                 "default": null,
                 "title": "Created At"
+              },
+              "focus_offers": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "title": "Focus Offers",
+                "type": "array"
               }
             },
             "title": "GoalContext",
@@ -7940,6 +8484,136 @@
               "scope"
             ],
             "title": "KpiMeasurement",
+            "type": "object"
+          },
+          "PriorityTopic": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^PT-0[1-5]$",
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "high",
+                  "medium"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "query_terms": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "title": "Query Terms",
+                "type": "array"
+              },
+              "journey_stage": {
+                "enum": [
+                  "discover",
+                  "prepare",
+                  "arrive",
+                  "settle",
+                  "connect"
+                ],
+                "title": "Journey Stage",
+                "type": "string"
+              },
+              "objective_metrics": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Objective Metrics",
+                "type": "array"
+              },
+              "verification": {
+                "items": {
+                  "enum": [
+                    "approved_sources",
+                    "recheck_dynamic_facts",
+                    "official_sources_for_sensitive_topics",
+                    "confirmed_capability_before_promotion",
+                    "event_details"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Verification",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "priority",
+              "query_terms",
+              "journey_stage",
+              "objective_metrics",
+              "verification"
+            ],
+            "title": "PriorityTopic",
+            "type": "object"
+          },
+          "ResearchStrategy": {
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": "tripc-strategy-v1",
+                "title": "Version",
+                "type": "string"
+              },
+              "status": {
+                "const": "operator_strategy_not_measured_demand",
+                "title": "Status",
+                "type": "string"
+              },
+              "source_document": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Source Document",
+                "type": "object"
+              },
+              "topics": {
+                "items": {
+                  "$ref": "#/$defs/PriorityTopic"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Topics",
+                "type": "array"
+              },
+              "competitor_references": {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "title": "Competitor References",
+                "type": "array"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "source_document",
+              "topics"
+            ],
+            "title": "ResearchStrategy",
             "type": "object"
           },
           "RunArtifact": {
@@ -8963,6 +9637,19 @@
             "title": "Kpis",
             "type": "array"
           },
+          "strategy_alignment": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strategy Alignment"
+          },
           "article_id": {
             "format": "uuid",
             "title": "Article Id",
@@ -9241,6 +9928,17 @@
                 "maxItems": 20,
                 "title": "Topic Priority",
                 "type": "array"
+              },
+              "research_strategy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ResearchStrategy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
               },
               "id": {
                 "anyOf": [
@@ -9592,6 +10290,14 @@
                 ],
                 "default": null,
                 "title": "Created At"
+              },
+              "focus_offers": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "title": "Focus Offers",
+                "type": "array"
               }
             },
             "title": "GoalContext",
@@ -9832,6 +10538,136 @@
               "scope"
             ],
             "title": "KpiMeasurement",
+            "type": "object"
+          },
+          "PriorityTopic": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^PT-0[1-5]$",
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "high",
+                  "medium"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "query_terms": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "title": "Query Terms",
+                "type": "array"
+              },
+              "journey_stage": {
+                "enum": [
+                  "discover",
+                  "prepare",
+                  "arrive",
+                  "settle",
+                  "connect"
+                ],
+                "title": "Journey Stage",
+                "type": "string"
+              },
+              "objective_metrics": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Objective Metrics",
+                "type": "array"
+              },
+              "verification": {
+                "items": {
+                  "enum": [
+                    "approved_sources",
+                    "recheck_dynamic_facts",
+                    "official_sources_for_sensitive_topics",
+                    "confirmed_capability_before_promotion",
+                    "event_details"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Verification",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "priority",
+              "query_terms",
+              "journey_stage",
+              "objective_metrics",
+              "verification"
+            ],
+            "title": "PriorityTopic",
+            "type": "object"
+          },
+          "ResearchStrategy": {
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": "tripc-strategy-v1",
+                "title": "Version",
+                "type": "string"
+              },
+              "status": {
+                "const": "operator_strategy_not_measured_demand",
+                "title": "Status",
+                "type": "string"
+              },
+              "source_document": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Source Document",
+                "type": "object"
+              },
+              "topics": {
+                "items": {
+                  "$ref": "#/$defs/PriorityTopic"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Topics",
+                "type": "array"
+              },
+              "competitor_references": {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "title": "Competitor References",
+                "type": "array"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "source_document",
+              "topics"
+            ],
+            "title": "ResearchStrategy",
             "type": "object"
           },
           "RunArtifact": {
@@ -10990,6 +11826,19 @@
             "title": "Kpis",
             "type": "array"
           },
+          "strategy_alignment": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strategy Alignment"
+          },
           "pack_id": {
             "format": "uuid",
             "title": "Pack Id",
@@ -11293,6 +12142,17 @@
                 "title": "Topic Priority",
                 "type": "array"
               },
+              "research_strategy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ResearchStrategy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
               "id": {
                 "anyOf": [
                   {
@@ -11532,6 +12392,14 @@
                 ],
                 "default": null,
                 "title": "Created At"
+              },
+              "focus_offers": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "title": "Focus Offers",
+                "type": "array"
               }
             },
             "title": "GoalContext",
@@ -11702,6 +12570,136 @@
               "scope"
             ],
             "title": "KpiMeasurement",
+            "type": "object"
+          },
+          "PriorityTopic": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^PT-0[1-5]$",
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "high",
+                  "medium"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "query_terms": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "title": "Query Terms",
+                "type": "array"
+              },
+              "journey_stage": {
+                "enum": [
+                  "discover",
+                  "prepare",
+                  "arrive",
+                  "settle",
+                  "connect"
+                ],
+                "title": "Journey Stage",
+                "type": "string"
+              },
+              "objective_metrics": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Objective Metrics",
+                "type": "array"
+              },
+              "verification": {
+                "items": {
+                  "enum": [
+                    "approved_sources",
+                    "recheck_dynamic_facts",
+                    "official_sources_for_sensitive_topics",
+                    "confirmed_capability_before_promotion",
+                    "event_details"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Verification",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "priority",
+              "query_terms",
+              "journey_stage",
+              "objective_metrics",
+              "verification"
+            ],
+            "title": "PriorityTopic",
+            "type": "object"
+          },
+          "ResearchStrategy": {
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": "tripc-strategy-v1",
+                "title": "Version",
+                "type": "string"
+              },
+              "status": {
+                "const": "operator_strategy_not_measured_demand",
+                "title": "Status",
+                "type": "string"
+              },
+              "source_document": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Source Document",
+                "type": "object"
+              },
+              "topics": {
+                "items": {
+                  "$ref": "#/$defs/PriorityTopic"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Topics",
+                "type": "array"
+              },
+              "competitor_references": {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "title": "Competitor References",
+                "type": "array"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "source_document",
+              "topics"
+            ],
+            "title": "ResearchStrategy",
             "type": "object"
           },
           "SnapshotChunk": {
@@ -12647,6 +13645,19 @@
             "title": "Kpis",
             "type": "array"
           },
+          "strategy_alignment": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strategy Alignment"
+          },
           "reply": {
             "title": "Reply",
             "type": "string"
@@ -12906,6 +13917,17 @@
                 "maxItems": 20,
                 "title": "Topic Priority",
                 "type": "array"
+              },
+              "research_strategy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ResearchStrategy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
               },
               "id": {
                 "anyOf": [
@@ -13326,6 +14348,14 @@
                 ],
                 "default": null,
                 "title": "Created At"
+              },
+              "focus_offers": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "title": "Focus Offers",
+                "type": "array"
               }
             },
             "title": "GoalContext",
@@ -13496,6 +14526,136 @@
               "scope"
             ],
             "title": "KpiMeasurement",
+            "type": "object"
+          },
+          "PriorityTopic": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^PT-0[1-5]$",
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "high",
+                  "medium"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "query_terms": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "title": "Query Terms",
+                "type": "array"
+              },
+              "journey_stage": {
+                "enum": [
+                  "discover",
+                  "prepare",
+                  "arrive",
+                  "settle",
+                  "connect"
+                ],
+                "title": "Journey Stage",
+                "type": "string"
+              },
+              "objective_metrics": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Objective Metrics",
+                "type": "array"
+              },
+              "verification": {
+                "items": {
+                  "enum": [
+                    "approved_sources",
+                    "recheck_dynamic_facts",
+                    "official_sources_for_sensitive_topics",
+                    "confirmed_capability_before_promotion",
+                    "event_details"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Verification",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "priority",
+              "query_terms",
+              "journey_stage",
+              "objective_metrics",
+              "verification"
+            ],
+            "title": "PriorityTopic",
+            "type": "object"
+          },
+          "ResearchStrategy": {
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": "tripc-strategy-v1",
+                "title": "Version",
+                "type": "string"
+              },
+              "status": {
+                "const": "operator_strategy_not_measured_demand",
+                "title": "Status",
+                "type": "string"
+              },
+              "source_document": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Source Document",
+                "type": "object"
+              },
+              "topics": {
+                "items": {
+                  "$ref": "#/$defs/PriorityTopic"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Topics",
+                "type": "array"
+              },
+              "competitor_references": {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "title": "Competitor References",
+                "type": "array"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "source_document",
+              "topics"
+            ],
+            "title": "ResearchStrategy",
             "type": "object"
           },
           "RunArtifact": {
@@ -14491,6 +15651,19 @@
             "maxItems": 5,
             "title": "Kpis",
             "type": "array"
+          },
+          "strategy_alignment": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strategy Alignment"
           },
           "metrics": {
             "additionalProperties": {

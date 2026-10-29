@@ -19,8 +19,12 @@ $work = Join-Path $stagingRoot '.runtime/pages-build'
 $ga4Id = 'G-8LQN27Y8QQ'
 
 if (-not $ApiOrigin) {
+    $publicOriginPath = Join-Path $stagingRoot '.runtime/public-api-origin.txt'
     $namedOriginPath = Join-Path $stagingRoot '.runtime/api-origin.txt'
-    if (Test-Path -LiteralPath $namedOriginPath) {
+    if (Test-Path -LiteralPath $publicOriginPath) {
+        $ApiOrigin = (Get-Content -Raw -LiteralPath $publicOriginPath).Trim()
+        Write-Output ('Using configured API proxy origin: ' + $ApiOrigin)
+    } elseif (Test-Path -LiteralPath $namedOriginPath) {
         $ApiOrigin = (Get-Content -Raw -LiteralPath $namedOriginPath).Trim()
         Write-Output ('Using configured named tunnel origin: ' + $ApiOrigin)
     } else {
@@ -85,7 +89,8 @@ $out = Join-Path $work 'out'
 # 3. Giữ GA4 (xác minh GSC cho URL-prefix pages.dev) và header noindex như trang staging cũ
 $tag = '<script async src="https://www.googletagmanager.com/gtag/js?id=' + $ga4Id + '"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","' + $ga4Id + '");</script>'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-Get-ChildItem -LiteralPath $out -Recurse -Filter '*.html' | ForEach-Object {
+# Search Console HTML-file verification (public/google<token>.html) must be served byte-for-byte.
+Get-ChildItem -LiteralPath $out -Recurse -Filter '*.html' | Where-Object { $_.Name -notmatch '^google[0-9a-f]+\.html$' } | ForEach-Object {
     $html = [System.IO.File]::ReadAllText($_.FullName)
     if (-not $html.Contains('<head>')) { throw ('No <head> in ' + $_.FullName) }
     [System.IO.File]::WriteAllText($_.FullName, $html.Replace('<head>', '<head>' + $tag), $utf8)

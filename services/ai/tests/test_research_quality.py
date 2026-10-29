@@ -6,7 +6,19 @@ import pytest
 
 from conftest import run_job
 from examples.six_role_requests import aggregate
-from test_research_trends import ClaimProvider, LandscapeProvider, long_source_job
+from src.agents.research.pipeline import fallback_quote
+from test_research_trends import ClaimProvider, LandscapeProvider, long_source_job, signal
+
+
+class IncompleteExplanationProvider(LandscapeProvider):
+    """Model-like output with grounded content but omitted terminal punctuation."""
+
+    async def chat_json(self, *, user, **kwargs):
+        content, usage = await super().chat_json(user=user, **kwargs)
+        draft = json.loads(content)
+        for key in ("audience_fit", "offer_fit", "rationale", "user_need"):
+            draft["ideas"][0][key] = draft["ideas"][0][key].rstrip(".!?")
+        return json.dumps(draft), usage
 
 
 def search_snapshot(job):
@@ -32,6 +44,130 @@ def test_findings_separate_cited_facts_hypotheses_and_missing_demand(make_client
     assert [m['query'] for m in finding['website_search_metrics']] == ['coworking da nang']
     assert finding['website_search_metrics'][0]['clicks'] == 0
     assert out['search_metrics_ref'] == job['payload']['search_metrics']['artifact']
+
+
+def test_incomplete_model_idea_can_fallback_to_grounded_excerpt(make_client):
+    job = long_source_job()
+    job['payload']['trend_signals'] = [signal('Coworking spaces in Da Nang for expats')]
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'), job)
+    result = out['result']['result']
+    assert result['status'] == 'ready_for_handoff'
+    assert len(result['findings']) == 1
+    assert all(result['findings'][0][key].endswith('.') for key in
+               ('audience_fit', 'offer_fit', 'rationale', 'user_need'))
+    assert result['findings'][0]['evidence']['quote']
+    assert 'INCOMPLETE_BRIEF_DROPPED' in out['result']['warnings']
+    assert 'GROUNDED_FALLBACK_USED' in out['result']['warnings']
+
+
+def community_events_job(products):
+    job = long_source_job()
+    job['payload']['business_profile']['products'] = products
+    job['payload']['snapshot']['sources'][0]['chunks'][-1]['text'] = (
+        'Community events in Da Nang, such as language exchanges and sports meetups, help new expats meet people quickly.')
+    job['payload']['trend_signals'] = [{**signal('Expat meetups and community events in Da Nang'),
+                                        'query': 'Da Nang community events expats'}]
+    return job
+
+
+def test_fallback_relates_topic_to_the_offer_it_names_not_the_first_offer(make_client):
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'),
+                  community_events_job(['housing', 'events']))
+    finding = out['result']['result']['findings'][0]
+    assert finding['topic'] == 'community events'
+    assert 'events offering' in finding['offer_fit'] and 'housing' not in finding['offer_fit']
+    assert 'GROUNDED_FALLBACK_USED' in out['result']['warnings']
+
+
+def test_fallback_does_not_repropose_an_excerpt_existing_content_already_cites(make_client):
+    job = community_events_job(['events'])
+    quote = job['payload']['snapshot']['sources'][0]['chunks'][-1]['text']
+    job['payload']['content_inventory'] = [{'content_id': str(uuid4()), 'workspace_id': job['workspace_id'], 'version': 1,
+                                            'title': 'Meeting people in a new city', 'evidence_quotes': [quote]}]
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'), job)
+    assert out['result']['result']['findings'] == []
+    assert out['result']['result']['status'] == 'insufficient_data'
+    assert 'DUPLICATE_TOPIC_DROPPED' in out['result']['warnings']
+
+
+def test_fallback_does_not_repropose_a_topic_existing_content_already_covers(make_client):
+    job = community_events_job(['events'])
+    job['payload']['content_inventory'] = [{'content_id': str(uuid4()), 'workspace_id': job['workspace_id'], 'version': 1,
+                                            'title': 'Community events in Da Nang for new expats'}]
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'), job)
+    assert out['result']['result']['findings'] == []
+    assert 'DUPLICATE_TOPIC_DROPPED' in out['result']['warnings']
+
+
+def test_fallback_prefers_the_offer_the_owner_asked_for(make_client):
+    job = long_source_job()
+    job['payload']['business_profile']['products'] = ['coworking', 'food']
+    job['payload']['snapshot']['sources'][0]['chunks'].append({'chunk_id': 'food', 'locator': 'paragraph:100',
+        'text': 'Street food markets in Da Nang serve expats fresh local dishes every evening near the river.'})
+    job['payload']['trend_signals'] = [signal('Coworking spaces in Da Nang for expats'),
+                                       {**signal('Street food guide for Da Nang expats', rank=2), 'query': 'Da Nang food expats'}]
+    job['payload']['goal_context'] = {'objective': 'Quảng bá ẩm thực Đà Nẵng cho khách nước ngoài', 'focus_offers': ['food']}
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'), job)
+    assert out['status'] == 'completed', out
+    finding = out['result']['result']['findings'][0]
+    assert finding['topic'] == 'food' and finding['evidence']['chunk_id'] == 'food'
+
+
+def test_fallback_without_a_matching_offer_stays_insufficient(make_client):
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'),
+                  community_events_job(['housing']))
+    result = out['result']['result']
+    assert result['findings'] == [] and result['status'] == 'insufficient_data'
+    assert 'FALLBACK_NO_MATCHING_OFFER' in out['result']['warnings']
+    # Clean excerpts existed; the gap is the offer, not the guardrails.
+    assert 'no_eligible_chunks_after_guardrails' not in result['missing_facts']
+
+
+def test_fallback_quote_cites_whole_sentences_not_a_mid_sentence_window():
+    sentence = ('Da Nang is a strong choice too, with fast café Wi-Fi, though its coworking scene '
+                'is smaller than the two big cities.')
+    text = f'Choosing a city.\n\n{sentence} Never sign a monthly lease before testing the connection.'
+    assert fallback_quote(text, ['coworking']) == sentence
+
+
+def test_fallback_quote_prefers_the_profile_location_over_another_city():
+    other = 'Ho Chi Minh City has the largest and best-equipped coworking scene in the country.'
+    local = 'Da Nang has fast café Wi-Fi, though its coworking scene is smaller than the two big cities.'
+    assert fallback_quote(f'{other} {local}', ['coworking'], ['Da Nang']) == local
+
+
+def test_seo_keyword_metadata_is_not_cited_over_article_text(make_client):
+    job = community_events_job(['events'])
+    job['payload']['snapshot']['sources'][0]['chunks'].insert(0, {'chunk_id': 'meta', 'locator': 'paragraph:0', 'text': (
+        'TripC official website. Description: Discover community events in Da Nang. Keywords: Da Nang community events, '
+        'Da Nang expat events, Da Nang coworking, Da Nang food guide')})
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'), job)
+    assert out['result']['result']['findings'][0]['evidence']['chunk_id'] == 'work'
+    assert 'METADATA_EXCERPT_EXCLUDED' in out['result']['warnings']
+
+
+def test_fallback_quote_from_a_long_excerpt_fits_the_brief_limit(make_client):
+    job = community_events_job(['events'])
+    job['payload']['snapshot']['sources'][0]['chunks'][-1]['text'] = (
+        'Community events in Da Nang help newcomers meet neighbours through '
+        + 'multilingual conversation evenings and weekend volunteering projects ' * 12).strip()
+    provider = ClaimProvider(topic='Cancer treatment', keywords=['oncology'],
+                             quote='Community events in Da Nang help newcomers meet neighbours')
+    out = run_job(make_client(provider=provider, provider_mode='live'), job)
+    assert out['status'] == 'completed', out
+    finding = out['result']['result']['findings'][0]
+    assert finding['topic'] == 'community events' and len(finding['evidence']['quote']) <= 400
+
+
+def test_search_topic_can_recover_one_grounded_finding_after_off_topic_model_draft(make_client):
+    job = long_source_job()
+    job['payload']['trend_signals'] = [signal('Coworking spaces in Da Nang for expats')]
+    out = run_job(make_client(provider=ClaimProvider(topic='Cancer treatment', keywords=['oncology']), provider_mode='live'), job)
+    result = out['result']['result']
+    assert result['status'] == 'ready_for_handoff'
+    assert result['findings'][0]['topic'] == 'coworking'
+    assert result['findings'][0]['evidence']['chunk_id'] == 'work'
+    assert 'GROUNDED_FALLBACK_USED' in out['result']['warnings']
 
 
 @pytest.mark.parametrize('claim', ['This topic is growing fast.', 'Coworking is trending among expats.', 'Nhu cầu đang tăng tại Đà Nẵng.'])
@@ -97,3 +233,18 @@ def test_used_source_quote_is_not_reproposed_under_a_different_title(make_client
     out = run_job(make_client(provider=LandscapeProvider(), provider_mode='live'), job)
     assert out['result']['result']['findings'] == []
     assert 'DUPLICATE_TOPIC_DROPPED' in out['result']['warnings']
+
+
+def test_large_inventory_is_bounded_in_prompt_but_all_items_are_deduplicated(make_client):
+    job = long_source_job()
+    items = [{'content_id': str(uuid4()), 'workspace_id': job['workspace_id'], 'version': 1,
+              'title': f'Article {i}: ' + 'unrelated background content and archived guide ' * 3} for i in range(99)]
+    items.append({'content_id': str(uuid4()), 'workspace_id': job['workspace_id'], 'version': 1,
+                  'title': 'Coworking spaces for remote-working expats'})
+    job['payload']['content_inventory'] = items
+    provider = LandscapeProvider()
+    body = run_job(make_client(provider=provider, provider_mode='live'), job)
+    assert body['status'] == 'completed', body
+    assert len(provider.user['inventory']) <= 12
+    assert body['result']['result']['findings'] == []
+    assert 'DUPLICATE_TOPIC_DROPPED' in body['result']['warnings']

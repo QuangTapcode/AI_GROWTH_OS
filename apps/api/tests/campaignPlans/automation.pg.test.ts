@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { tickAutomation } from "../../src/modules/campaignPlans/automation";
+import { ensureBaselineArtifact, ensureMeasurementArtifacts } from "../../src/modules/site/measurement";
 
 describe.skipIf(process.env.RUN_AUTOMATION_DB !== "1")(
   "automation on disposable PostgreSQL",
@@ -114,6 +115,47 @@ describe.skipIf(process.env.RUN_AUTOMATION_DB !== "1")(
           ])
         ).rows[0].status,
       ).toBe("completed");
+    });
+    it("unusable research and a rejected plan are closed instead of holding the schedule", async () => {
+      const artifact = async (role: string, operation: string, payload: unknown) => {
+        const id = randomUUID();
+        await db.query(
+          `INSERT INTO content_artifacts(id,workspace_id,version,content_hash,context_snapshot_id,role,operation,artifact_type,title,storage,payload,evidence)
+        VALUES($1,$2,1,$3,$4,$5,$6,'ai_result','Synthetic test','ai_run_store',$7,'[]')`,
+          [id, workspace, id.replace(/-/g, "").padEnd(64, "0"), snapshot, role, operation, JSON.stringify(payload)],
+        );
+        return id;
+      };
+      const research = randomUUID();
+      await db.query(
+        `INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,payload,result_ref)
+         VALUES($1,$2,'research','research.run','awaiting_approval',1,$3,'{}',$4)`,
+        [research, workspace, snapshot, await artifact("research", "research.run", { result: { status: "insufficient_data" } })],
+      );
+      await db.query("INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2)", [workspace, research]);
+      // The strategy queued by the previous test returns a plan the backend rejects.
+      const strategy = (await db.query("SELECT id FROM workflow_tasks WHERE operation='strategy.generate'")).rows[0];
+      await db.query("UPDATE workflow_tasks SET status='awaiting_approval',result_ref=$2 WHERE id=$1",
+        [strategy.id, await artifact("growth_lead", "strategy.generate", { artifact: { artifact_id: "forged" }, result: { status: "blocked" } })]);
+      await tickAutomation(db, workspace);
+      const status = async (id: string) =>
+        (await db.query("SELECT status,error_details FROM workflow_tasks WHERE id=$1", [id])).rows[0];
+      expect((await status(research)).status).toBe("completed");
+      expect((await db.query("SELECT count(*)::int AS n FROM workflow_tasks WHERE operation='strategy.generate'")).rows[0].n).toBe(1);
+      expect(await status(strategy.id)).toMatchObject({ status: "failed", error_details: { code: "INVALID_ARTIFACT_REF" } });
+    });
+    it("measures the preceding equal-length window once as the KPI baseline", async () => {
+      const { metrics_artifact_id: current } = await ensureMeasurementArtifacts(db, workspace, snapshot);
+      const baseline = await ensureBaselineArtifact(db, workspace, snapshot, current);
+      expect(baseline).toBeTruthy();
+      expect(await ensureBaselineArtifact(db, workspace, snapshot, current)).toBe(baseline);
+      const results = new Map((await db.query("SELECT id, payload->'result' AS r FROM content_artifacts WHERE id = ANY($1)",
+        [[current, baseline]])).rows.map((row) => [row.id, row.r]));
+      const now = results.get(current), before = results.get(baseline);
+      expect(before.window_end).toBe(now.window_start);
+      expect(Date.parse(before.window_end) - Date.parse(before.window_start))
+        .toBe(Date.parse(now.window_end) - Date.parse(now.window_start));
+      expect(before.metric_definitions).toEqual(now.metric_definitions);
     });
     it("disabled automation and suspended owner cannot dispatch more work", async () => {
       await db.query(

@@ -77,6 +77,25 @@ type PerformanceReport = {
   } | null;
 };
 
+type LearningReport = {
+  status: "draft" | "insufficient_data";
+  iteration: number;
+  max_iterations: number;
+  learning: string[];
+  next_tasks: { iteration: number; reason: string }[];
+  missing_facts: string[];
+  stopped_reason: string | null;
+};
+
+const MAX_LEARNING_ITERATIONS = 3;
+
+const learningStopLabels: Record<string, string> = {
+  insufficient_data: "Thiếu báo cáo Performance hoàn chỉnh hoặc lead aggregate",
+  max_iterations: `Đã đạt giới hạn ${MAX_LEARNING_ITERATIONS} vòng học`,
+  task_quota: "Quota task bằng 0",
+  duplicate_proposal: "Đề xuất trùng với vòng đã mở",
+};
+
 type CheckState = "ready" | "missing" | "warning";
 type Requirement = { label: string; detail: string; state: CheckState; action?: { href: string; label: string } };
 
@@ -248,11 +267,13 @@ function AgentPage({ role }: { role: RoleId }) {
   const [selectedReplyId, setSelectedReplyId] = useState("");
   // Reset per-workspace UI state while rendering (React "adjust state on prop change"), not in an effect.
   const [stateWorkspace, setStateWorkspace] = useState(workspace.id);
+  const [loopNotice, setLoopNotice] = useState("");
   if (stateWorkspace !== workspace.id) {
     setStateWorkspace(workspace.id);
     setRequestedTaskId(null);
     setSelectedReplyId("");
     setNotice("");
+    setLoopNotice("");
   }
   const [researchId, setResearchId] = useState("");
   const [planId, setPlanId] = useState("");
@@ -268,6 +289,17 @@ function AgentPage({ role }: { role: RoleId }) {
   const chosenResearch = availableResearch.find((item) => item.id === researchId) ?? availableResearch[0];
   const approvedPlans = data?.artifacts.filter((item) => item.operation === "strategy.generate" && item.context_snapshot_id === data.currentContext?.snapshot_id && data.approvals.some((approval) => approval.target_id === item.id && approval.status === "approved" && approval.target_version === item.version && approval.target_hash === item.content_hash)).sort((a, b) => b.created_at.localeCompare(a.created_at)) ?? [];
   const chosenPlan = approvedPlans.find((item) => item.id === planId) ?? approvedPlans[0];
+  // Closed loop: Performance draft + lead aggregate → Learning → owner opens the next Research round.
+  const inContext = (operation: string) => data?.artifacts.filter((item) => item.operation === operation && item.context_snapshot_id === data.currentContext?.snapshot_id).sort((a, b) => b.created_at.localeCompare(a.created_at)) ?? [];
+  const performanceDraft = inContext("analytics.report").find((item) => (item.payload.result as Partial<PerformanceReport> | undefined)?.status === "draft");
+  const leadAggregate = inContext("lead.aggregate")[0];
+  const latestLearning = inContext("learning.analyze")[0];
+  const learningReport = latestLearning?.payload.result as Partial<LearningReport> | undefined;
+  const learningRounds = data?.tasks.filter((task) => task.operation === "research.run" && task.payload?.learning_artifact) ?? [];
+  // A learning artifact proposes round i+1; the next learning run continues from the highest round opened.
+  const loopIteration = Math.max(0, ...learningRounds.map((task) => Number(task.payload.iteration) || 0));
+  const openedRound = latestLearning && learningRounds.find((task) => (task.payload.learning_artifact as { artifact_id?: string } | undefined)?.artifact_id === latestLearning.id);
+  const canOpenRound = !!latestLearning && learningReport?.status === "draft" && !!learningReport.next_tasks?.length && !learningReport.missing_facts?.length && !openedRound;
   const requestedTask = requestedTaskId ? data?.tasks.find((item) => item.id === requestedTaskId) : undefined;
   const requestedDone = !!requestedTask && ["awaiting_approval", "completed", "failed", "cancelled"].includes(requestedTask.status);
   // Content tasks opened by an approved SEO draft run without a click on this page; follow them too.
@@ -275,6 +307,10 @@ function AgentPage({ role }: { role: RoleId }) {
     ? roleTasks.find((task) => task.operation === "content.repurpose" && task.campaign_id && ["queued", "running"].includes(task.status))
     : undefined;
   const waitingTaskId = (requestedTaskId && !requestedDone ? requestedTaskId : null) ?? activeContentTask?.id ?? null;
+  const waitingTask = data?.tasks.find(task => task.id === waitingTaskId);
+  const waitingMessage = waitingTask?.status === 'running'
+    ? 'Worker đã nhận task và đang xử lý. Trang tự cập nhật kết quả.'
+    : 'Task đang chờ worker nhận, chưa bắt đầu xử lý. Không cần bấm chạy thêm.';
   const replyId = selectedReplyId || (requestedDone ? requestedTask?.result_ref ?? "" : "");
   const communityArtifact = roleArtifacts.find((item) => item.id === replyId) ?? latestArtifact;
   const communityResult = communityArtifact?.payload.result as Record<string, unknown> | undefined;
@@ -303,7 +339,7 @@ function AgentPage({ role }: { role: RoleId }) {
   const approvedAsset = latestArtifact && payloadArray(latestArtifact.payload, "image_assets").some((asset) => typeof asset === "object" && asset !== null && (asset as Record<string, unknown>).status === "approved");
 
   const requirements: Requirement[] = data ? [
-    { label: "API và worker quan sát được", detail: `Đã đọc automation lúc ${formatDate(data.automation.observed_at)}.`, state: "ready" },
+    { label: "API kết nối", detail: `Đọc dữ liệu lúc ${formatDate(data.automation.observed_at)}. Kết nối API không xác nhận worker đang chạy.`, state: "ready" },
     { label: "Business profile", detail: data.businessProfile ? `${data.businessProfile.company_name}, version ${data.businessProfile.version}.` : "Chưa có business profile cho workspace.", state: data.businessProfile ? "ready" : "missing" },
     { label: "Knowledge context và source approved", detail: contextId ? `${approvedSources} source approved; context ${contextId.slice(0, 12)}…` : `${approvedSources} source approved nhưng task/artifact chưa có context_snapshot_id.`, state: contextId && approvedSources > 0 ? "ready" : "missing" },
     ...(["research", "performance", "community"].includes(role) ? [] : [{ label: "Parent artifact hợp lệ", detail: parentArtifact ? `${parentArtifact.role}/${parentArtifact.operation}, version ${parentArtifact.version}.` : "Chưa có artifact upstream cùng workspace để bàn giao.", state: parentArtifact ? "ready" as CheckState : "missing" as CheckState }]),
@@ -340,7 +376,7 @@ function AgentPage({ role }: { role: RoleId }) {
     setSubmitting(true); setNotice("");
     try {
       const task = await apiRequest<{ task_id: string }>(`/workspaces/${workspace.id}/ai-tasks`, { method: "POST", body: { context_snapshot_id: contextId, input: { operation: "research.run" } } });
-      setRequestedTaskId(task.task_id); setNotice("Research đang chạy. Kết quả sẽ tự cập nhật để bàn giao Growth Lead."); reload();
+      setRequestedTaskId(task.task_id); setNotice("Đã xếp Research vào hàng đợi. Kết quả sẽ tự cập nhật sau khi worker xử lý."); reload();
     } catch (err) { setNotice((err as Error).message); }
     finally { setSubmitting(false); }
   }
@@ -365,6 +401,44 @@ function AgentPage({ role }: { role: RoleId }) {
       if (seoTask) setRequestedTaskId(seoTask.task_id);
       setNotice(accepted.deduplicated ? "Kế hoạch đã được bàn giao; không tạo task SEO trùng." : "Đã tạo task SEO từ kế hoạch đã duyệt. Bài SEO sẽ tự cập nhật và được đưa vào Review Queue. Content chờ bài SEO được duyệt."); reload();
     } catch (err) { setNotice((err as Error).message); }
+    finally { setSubmitting(false); }
+  }
+
+  async function runPerformanceForLearning() {
+    if (!contextId || submitting) return;
+    setSubmitting(true); setLoopNotice("");
+    try {
+      const measured = await apiRequest<{ metrics_artifact_id: string; baseline_metrics_artifact_id: string | null }>(`/workspaces/${workspace.id}/measurement`, { method: "POST" });
+      const task = await apiRequest<{ task_id: string }>(`/workspaces/${workspace.id}/ai-tasks`, { method: "POST", body: { context_snapshot_id: contextId, input: {
+        operation: "analytics.report", metrics_artifact_id: measured.metrics_artifact_id,
+        ...(measured.baseline_metrics_artifact_id ? { baseline_metrics_artifact_id: measured.baseline_metrics_artifact_id } : {}),
+      } } });
+      setRequestedTaskId(task.task_id); setLoopNotice("Đã chụp số liệu first-party và xếp Performance vào hàng đợi. Báo cáo sẽ tự cập nhật."); reload();
+    } catch (err) { setLoopNotice((err as Error).message); }
+    finally { setSubmitting(false); }
+  }
+
+  async function runLearning() {
+    if (!contextId || !performanceDraft || !leadAggregate || submitting) return;
+    setSubmitting(true); setLoopNotice("");
+    try {
+      const task = await apiRequest<{ task_id: string }>(`/workspaces/${workspace.id}/ai-tasks`, { method: "POST", body: { context_snapshot_id: contextId, input: {
+        operation: "learning.analyze", performance_artifact_id: performanceDraft.id, lead_summary_artifact_id: leadAggregate.id,
+        iteration: loopIteration, max_iterations: MAX_LEARNING_ITERATIONS, task_quota: 1,
+      } } });
+      setRequestedTaskId(task.task_id); setLoopNotice("Đã xếp Learning vào hàng đợi. Kết quả sẽ tự cập nhật; mở vòng mới cần owner duyệt."); reload();
+    } catch (err) { setLoopNotice((err as Error).message); }
+    finally { setSubmitting(false); }
+  }
+
+  async function openNextRound() {
+    if (!latestLearning || !canOpenRound || submitting) return;
+    setSubmitting(true); setLoopNotice("");
+    try {
+      const accepted = await apiRequest<{ task_ids: string[] }>(`/workspaces/${workspace.id}/learning-tasks`, { method: "POST", body: latestLearning.payload.artifact });
+      setRequestedTaskId(accepted.task_ids[0] ?? null);
+      setLoopNotice(accepted.task_ids.length ? "Đã duyệt learning và mở vòng Research mới. Kết quả Research vẫn cần duyệt trước khi bàn giao." : "Learning không đề xuất task tiếp theo."); reload();
+    } catch (err) { setLoopNotice((err as Error).message); }
     finally { setSubmitting(false); }
   }
 
@@ -412,9 +486,39 @@ function AgentPage({ role }: { role: RoleId }) {
         </form>
         {!availableResearch.length && <p className="mt-3 text-sm text-amber-800">Chạy Research trước. Kết quả phải có finding và trạng thái sẵn sàng bàn giao.</p>}
         {notice && <p role="status" className="mt-4 text-sm text-blue-800">{notice}</p>}
-        {waitingTaskId && <p className="mt-2 text-sm text-blue-800">Đang xử lý… Trang tự cập nhật kết quả.</p>}
+        {waitingTaskId && <p role="status" className="mt-2 text-sm text-blue-800">{waitingMessage}</p>}
         {chosenResearch && <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-blue-700">Xem Research được bàn giao</summary><ArtifactReviewContent artifact={chosenResearch} /></details>}
         {role === "growth_lead" && latestArtifact?.operation === "strategy.generate" && <ArtifactReviewContent artifact={latestArtifact} />}
+      </section>}
+      {role === "growth_lead" && data && <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <SectionTitle title="Performance → Learning → Research vòng mới" subtitle="Đóng vòng học từ số liệu first-party. Learning chỉ đề xuất; owner duyệt mới mở vòng Research tiếp theo, tối đa ba vòng và không trùng lặp." />
+        <ol className="mt-5 space-y-4">
+          <li className="rounded-xl border border-slate-200 p-4">
+            <p className="text-sm font-semibold text-slate-900">1. Số liệu và báo cáo Performance</p>
+            <p className="mt-1 text-xs text-slate-600">{performanceDraft ? `Báo cáo nháp ${formatDate(performanceDraft.created_at)}` : "Chưa có báo cáo Performance nháp trong context hiện tại."} · {leadAggregate ? `Lead aggregate ${formatDate(leadAggregate.created_at)}` : "Chưa có lead aggregate."}</p>
+            <button onClick={runPerformanceForLearning} disabled={!canEdit || !contextId || submitting || !!waitingTaskId} className="mt-3 rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">Chụp số liệu và chạy Performance</button>
+          </li>
+          <li className="rounded-xl border border-slate-200 p-4">
+            <p className="text-sm font-semibold text-slate-900">2. Learning (vòng {loopIteration}/{MAX_LEARNING_ITERATIONS})</p>
+            <p className="mt-1 text-xs text-slate-600">Growth Lead đọc báo cáo Performance và lead aggregate; không suy diễn nhân quả hoặc ROI.</p>
+            <button onClick={runLearning} disabled={!canEdit || !contextId || !performanceDraft || !leadAggregate || loopIteration >= MAX_LEARNING_ITERATIONS || submitting || !!waitingTaskId} className="mt-3 rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">Chạy Learning</button>
+            {(!performanceDraft || !leadAggregate) && <p className="mt-2 text-xs text-amber-800">Cần báo cáo Performance nháp và lead aggregate cùng context; chạy bước 1 trước.</p>}
+          </li>
+          <li className="rounded-xl border border-slate-200 p-4">
+            <p className="text-sm font-semibold text-slate-900">3. Duyệt learning và mở vòng Research</p>
+            {latestLearning && learningReport ? <div className="mt-2 space-y-2 text-sm text-slate-700">
+              <p className="text-xs text-slate-500">{formatDate(latestLearning.created_at)} · {learningReport.status === "draft" ? "Learning nháp" : "Thiếu dữ liệu"}</p>
+              <ul className="space-y-1">{(learningReport.learning ?? []).map((item) => <li key={item} className="rounded-lg bg-slate-50 px-3 py-2">{item}</li>)}</ul>
+              {learningReport.next_tasks?.[0] && <p>Đề xuất: Research vòng {learningReport.next_tasks[0].iteration}. {learningReport.next_tasks[0].reason}</p>}
+              {learningReport.stopped_reason && <p className="text-amber-800">Dừng: {learningStopLabels[learningReport.stopped_reason] ?? learningReport.stopped_reason}</p>}
+              {!!learningReport.missing_facts?.length && <p className="text-amber-800">Dữ liệu còn thiếu: {learningReport.missing_facts.join(", ")}</p>}
+            </div> : <p className="mt-1 text-xs text-slate-600">Chưa có learning trong context hiện tại.</p>}
+            {openedRound ? <p className="mt-3 text-sm text-emerald-800">Đã mở Research vòng {String(openedRound.payload.iteration)} · {statusLabels[openedRound.status] ?? openedRound.status}. <Link href="/agents/research" className="font-semibold text-blue-700 hover:underline">Mở Research →</Link></p>
+              : <button onClick={openNextRound} disabled={!canApprove || !canOpenRound || submitting} className="mt-3 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Duyệt learning và mở vòng Research mới</button>}
+            {!canApprove && <p className="mt-2 text-xs text-amber-800">Chỉ owner được duyệt learning.</p>}
+          </li>
+        </ol>
+        {loopNotice && <p role="status" className="mt-4 text-sm text-blue-800">{loopNotice}</p>}
       </section>}
       {role === "community" && data && <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <SectionTitle title="Soạn phản hồi Community" subtitle="Nhập câu hỏi hoặc comment. Agent sử dụng nguồn đã duyệt để soạn nháp; không tự gửi phản hồi lên mạng xã hội." />

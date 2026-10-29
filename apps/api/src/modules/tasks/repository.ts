@@ -34,6 +34,48 @@ export function mapTaskRow(row: any): WorkflowTaskRow {
   };
 }
 
+async function enqueueReadyDependents(
+  client: { query: (sql: string, params?: any[]) => Promise<any> },
+  workspaceId: string,
+  completedTaskId?: string,
+  candidateTaskId?: string,
+) {
+  const children = (await client.query(
+    `SELECT t.*
+       FROM workflow_tasks t
+      WHERE t.workspace_id=$1
+        AND t.status='pending'
+        AND ($2::uuid IS NULL OR EXISTS (
+          SELECT 1 FROM task_dependencies edge
+           WHERE edge.task_id=t.id AND edge.depends_on_task_id=$2::uuid
+        ))
+        AND ($3::uuid IS NULL OR t.id=$3::uuid)
+        AND NOT EXISTS (
+          SELECT 1
+            FROM task_dependencies edge
+            JOIN workflow_tasks parent ON parent.id=edge.depends_on_task_id
+           WHERE edge.task_id=t.id AND parent.status<>'completed'
+        )
+      FOR UPDATE`,
+    [workspaceId, completedTaskId ?? null, candidateTaskId ?? null],
+  )).rows;
+
+  for (const child of children) {
+    await client.query(
+      `UPDATE workflow_tasks SET status='queued', updated_at=NOW()
+       WHERE workspace_id=$1 AND id=$2 AND status='pending'`,
+      [workspaceId, child.id],
+    );
+    await client.query(
+      `INSERT INTO plan_task_outbox(workspace_id, task_id, input_version, operation)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (task_id, input_version) DO NOTHING`,
+      [workspaceId, child.id, child.input_version, child.operation],
+    );
+  }
+  return children.map((child: { id: string }) => child.id);
+}
+
 export interface ContentArtifactRow {
   id: string;
   workspace_id: string;
@@ -53,7 +95,8 @@ export interface ContentArtifactRow {
 
 export async function createTaskWithDependencies(
   workspaceId: string,
-  input: CreateWorkflowTaskInput
+  input: CreateWorkflowTaskInput,
+  options: { enqueue?: boolean } = {},
 ): Promise<WorkflowTaskRow> {
   const client = await pool.connect();
 
@@ -92,6 +135,29 @@ export async function createTaskWithDependencies(
           [createdTask.id, depId, workspaceId]
         );
       }
+    }
+
+    // Keep task creation and first dispatch in one transaction. Without this
+    // insert a task could be visible as queued while no durable worker work
+    // existed for it (the exact symptom seen in the Workflows screen).
+    if (options.enqueue && (!input.dependencies || input.dependencies.length === 0)) {
+      await client.query(
+        `INSERT INTO plan_task_outbox(workspace_id, task_id, input_version, operation)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (task_id, input_version) DO NOTHING`,
+        [workspaceId, createdTask.id, input.input_version, input.operation],
+      );
+      await client.query(
+        `UPDATE workflow_tasks SET status='queued', updated_at=NOW()
+         WHERE workspace_id=$1 AND id=$2 AND status='pending'`,
+        [workspaceId, createdTask.id],
+      );
+      createdTask.status = "queued";
+    } else if (options.enqueue && input.dependencies && input.dependencies.length > 0) {
+      // A task can be created after its parents have already completed. In
+      // that case it is ready immediately; do not leave it pending forever.
+      const ready = await enqueueReadyDependents(client, workspaceId, undefined, createdTask.id);
+      if (ready.includes(createdTask.id)) createdTask.status = "queued";
     }
 
     await client.query("COMMIT");
@@ -195,6 +261,9 @@ export async function updateTaskStatus(
     // Nếu task cha bị FAILED hoặc CANCELLED, tự động cascade hủy toàn bộ các task con downstream
     if (updated && (input.status === "failed" || input.status === "cancelled")) {
       await propagateUpstreamTaskFailure(client, workspaceId, taskId, input.status);
+    }
+    if (updated && input.status === "completed") {
+      await enqueueReadyDependents(client, workspaceId, taskId);
     }
 
     return updated ? mapTaskRow(updated) : null;

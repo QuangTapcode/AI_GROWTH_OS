@@ -16,6 +16,7 @@ type Settings = {
   cta: string;
   auto_approve_outputs: boolean;
   auto_publish_facebook: boolean;
+  auto_publish_website: boolean;
   next_run_at: string;
   last_tick_at: string | null;
   last_error: string | null;
@@ -42,6 +43,7 @@ type Snapshot = {
   tasks: Task[];
   observed_at: string;
 };
+type Goal = { title: string; kpis: { metric_name: string; target_value: number | null }[] } | null;
 const roles = [
   ["research", "Research & Trend", "Nghiên cứu và tìm cơ hội"],
   ["growth_lead", "Growth Lead", "Chiến lược, campaign và learning"],
@@ -74,9 +76,16 @@ function badge(status?: string) {
 
 function Operations() {
   const { workspace, workspaces, selectWorkspace, canApprove } = useWorkspace();
-  const { data, error, loading, reload } = useApiData(workspace.id, (signal) =>
-    apiRequest<Snapshot>(`/workspaces/${workspace.id}/automation`, { signal }),
-  );
+  const { data, error, loading, reload } = useApiData(workspace.id, async (signal) => {
+    const [snapshot, goal] = await Promise.all([
+      apiRequest<Snapshot>(`/workspaces/${workspace.id}/automation`, { signal }),
+      apiRequest<{ goal: Goal }>(`/workspaces/${workspace.id}/growth-goal`, { signal }),
+    ]);
+    return { ...snapshot, goal: goal.goal };
+  });
+  const [request, setRequest] = useState("");
+  const [leadTarget, setLeadTarget] = useState("");
+  const [autoPublishWebsite, setAutoPublishWebsite] = useState(false);
   const [interval, setIntervalHours] = useState(24);
   const [cta, setCta] = useState("Contact our team");
   const [autoApprove, setAutoApprove] = useState(false);
@@ -101,6 +110,12 @@ function Operations() {
         setCta(data.settings.cta);
         setAutoApprove(data.settings.auto_approve_outputs);
         setAutoPublishFacebook(data.settings.auto_publish_facebook);
+        setAutoPublishWebsite(data.settings.auto_publish_website);
+      }
+      if (data.goal) {
+        setRequest(data.goal.title);
+        const leads = data.goal.kpis.find((k) => k.metric_name === "leads");
+        if (leads?.target_value != null) setLeadTarget(String(leads.target_value));
       }
       hydrated.current = true;
     }, 0);
@@ -118,6 +133,7 @@ function Operations() {
           cta,
           auto_approve_outputs: autoApprove,
           auto_publish_facebook: autoPublishFacebook,
+          auto_publish_website: autoPublishWebsite,
           run_now,
         },
       });
@@ -126,6 +142,30 @@ function Operations() {
           ? "Đã yêu cầu chạy. Worker sẽ nhận task trong hàng đợi."
           : "Đã lưu cấu hình.",
       );
+      reload();
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function startAutopilot() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await apiRequest(`/workspaces/${workspace.id}/autopilot`, {
+        method: "POST",
+        body: {
+          request: request.trim(),
+          cta: cta.trim(),
+          interval_hours: interval,
+          publish_website: autoPublishWebsite,
+          publish_facebook: autoPublishFacebook,
+          ...(leadTarget.trim() ? { lead_target: Number(leadTarget) } : {}),
+        },
+      });
+      setAutoApprove(true);
+      setMessage("Đã bắt đầu tự động. Research chạy ngay; các bước sau tự nối tiếp và lặp lại theo chu kỳ.");
       reload();
     } catch (e) {
       setMessage((e as Error).message);
@@ -221,6 +261,47 @@ function Operations() {
                 {settings?.enabled ? "Lịch đã bật" : "Lịch đã tắt"}
               </span>
             </div>
+            <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+              <h3 className="font-semibold text-slate-900">Tự động 100% từ một yêu cầu</h3>
+              <p className="mt-1 text-xs text-slate-600">
+                Nhập yêu cầu một lần. Hệ thống tự chạy Research → Growth Lead → SEO → Content → đăng bài → đo lường → Learning, rồi lặp lại theo chu kỳ bên dưới. Nội dung thiếu trích dẫn hoặc thiếu dữ kiện vẫn dừng lại ở hàng chờ phê duyệt, không tự đăng.
+              </p>
+              <label className="mt-3 block text-sm font-medium">
+                Yêu cầu của bạn
+                <textarea
+                  aria-label="Yêu cầu tự động"
+                  value={request}
+                  maxLength={255}
+                  rows={2}
+                  onChange={(e) => setRequest(e.target.value)}
+                  placeholder="Ví dụ: Tăng lead từ người nước ngoài đang tìm nhà và chỗ làm việc ở Đà Nẵng"
+                  className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap items-end gap-4">
+                <label className="text-sm font-medium">
+                  Mục tiêu số lead mỗi kỳ
+                  <input
+                    aria-label="Mục tiêu số lead"
+                    type="number"
+                    min={0}
+                    value={leadTarget}
+                    onChange={(e) => setLeadTarget(e.target.value)}
+                    className="mt-1 block w-36 rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </label>
+                <button
+                  disabled={!canApprove || busy || request.trim().length < 5 || !cta.trim() || (!data.goal && !leadTarget.trim())}
+                  onClick={startAutopilot}
+                  className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                >
+                  Bắt đầu tự động
+                </button>
+                {!data.goal && !leadTarget.trim() && (
+                  <span className="text-xs text-amber-800">Workspace chưa có mục tiêu: nhập số lead mục tiêu.</span>
+                )}
+              </div>
+            </div>
             <div className="mt-5 flex flex-wrap items-end gap-4">
               <label className="text-sm font-medium">
                 Chu kỳ (giờ)
@@ -268,6 +349,15 @@ function Operations() {
                 />
                 Tự đăng Facebook
               </label>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={autoPublishWebsite}
+                  onChange={(e) => setAutoPublishWebsite(e.target.checked)}
+                  disabled={!canApprove || busy}
+                />
+                Tự đăng bài SEO lên website
+              </label>
               <button
                 disabled={!canApprove || busy}
                 onClick={() => save(Boolean(settings?.enabled), true)}
@@ -286,7 +376,9 @@ function Operations() {
             )}
             <p role="status" className="mt-3 text-sm text-slate-600">
               {message ||
-                "Chỉ chủ workspace có thể thay đổi lịch. Nội dung đối ngoại cần phê duyệt."}
+                (settings?.enabled && settings.auto_approve_outputs
+                  ? "Đang tự động: output đủ trích dẫn được tự duyệt và đăng theo kênh đã chọn."
+                  : "Chỉ chủ workspace có thể thay đổi lịch. Nội dung đối ngoại cần phê duyệt.")}
             </p>
           </section>
           <section

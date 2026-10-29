@@ -132,6 +132,9 @@ def test_research_coverage_notes_do_not_block_but_stale_selected_evidence_does(c
 
     gap = plan(["source_gap:coworking"])
     assert gap["status"] == "proposed" and "source_gap:coworking" in gap["missing_facts"]
+    # A grounded finding recovered after the model's draft was dropped is still a valid opportunity.
+    dropped_draft = plan(["complete_research_explanation", "source_gap:community events"])
+    assert dropped_draft["status"] == "proposed" and "complete_research_explanation" in dropped_draft["missing_facts"]
     stale = plan(["stale_evidence:2018"], evidence_updated=2018)
     assert stale["status"] == "blocked" and "stale_evidence:2018" in stale["missing_facts"]
 

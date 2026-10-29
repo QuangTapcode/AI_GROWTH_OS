@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { activeGoal, goalContext } from '../growthGoals/service';
+import { agentProfile } from '../businessProfile/strategy';
 import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { validateTaskGraph } from '../tasks/dag';
@@ -20,9 +21,7 @@ export class PgPlanRepository implements PlanRepository {
       await db.query('SELECT id FROM workspaces WHERE id=$1 FOR UPDATE', [workspaceId]);
       const profileRow = (await db.query('SELECT * FROM business_profiles WHERE workspace_id=$1 FOR SHARE', [workspaceId])).rows[0];
       if (!profileRow) throw new PlanError('MISSING_PROFILE', 'Workspace has no business profile');
-      const profile = { workspace_id: workspaceId, company: profileRow.company_name, version: profileRow.version,
-        audiences: profileRow.target_audiences ?? [], locations: profileRow.target_locations ?? [],
-        products: profileRow.products_services ?? [], voice: profileRow.brand_voice, overview: profileRow.overview };
+      const profile = agentProfile(profileRow, workspaceId);
       const sourceRows = (await db.query("SELECT * FROM sources WHERE workspace_id=$1 AND status='approved' AND deleted_at IS NULL ORDER BY id FOR SHARE", [workspaceId])).rows;
       const sources = [];
       for (const s of sourceRows) {
@@ -39,7 +38,7 @@ export class PgPlanRepository implements PlanRepository {
       const id = randomUUID();
       const snapshot = { workspace_id: workspaceId, snapshot_id: id, sources };
       // The active growth goal is pinned with the snapshot unless a caller supplies one explicitly.
-      const goal = options.goal !== undefined ? options.goal : goalContext(await activeGoal(db, workspaceId));
+      const goal = options.goal !== undefined ? options.goal : goalContext(await activeGoal(db, workspaceId), profile.products);
       await db.query('UPDATE knowledge_contexts SET current=false WHERE workspace_id=$1 AND current', [workspaceId]);
       await db.query('INSERT INTO knowledge_contexts(snapshot_id,workspace_id,profile_version,profile,snapshot,goal,assets) VALUES($1,$2,$3,$4,$5,$6,$7)',
         [id, workspaceId, profile.version, JSON.stringify(profile), JSON.stringify(snapshot), JSON.stringify(goal ?? null), JSON.stringify(options.assets ?? [])]);

@@ -38,6 +38,7 @@ class TaskBrief(BaseModel):
     deliverable: Literal["seo_article_draft", "social_pack_draft"]
     cta: str | None
     acceptance: list[str]
+    strategy_alignment: dict | None = None
 
 
 class CampaignTask(BaseModel):
@@ -76,3 +77,4 @@ class CampaignPlan(BaseModel):
     synthetic: bool
     opportunity_score: dict = Field(default_factory=dict)
     kpis: list[GoalKpi] = Field(default_factory=list, max_length=5)
+    strategy_alignment: dict | None = None

@@ -4,6 +4,9 @@ Research có [rubric chất lượng](RESEARCH-QUALITY-RUBRIC.md) và
 [review/evidence ngày 28/10/2026](RESEARCH-QUALITY-REVIEW-2026-10-28.md).
 PASS contract không thay cho nghiệm thu chất lượng findings.
 
+Từ 29/10, Research `v8` dùng chủ đề ưu tiên trong business profile; xem
+[áp dụng chiến lược TripC](TRIPC-COMPETITIVE-STRATEGY-APPLICATION.md).
+
 Mục tiêu của runbook này là kiểm tra một agent trước khi chạy pipeline sáu agent. Mỗi lần chạy chỉ có **một target role**; nếu target cần parent artifact, runner tạo parent fixture cục bộ và ghi parent vào phần `prerequisites` để có thể kiểm tra đầu vào.
 
 ## Lệnh chạy

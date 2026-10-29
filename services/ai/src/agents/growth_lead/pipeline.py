@@ -13,6 +13,7 @@ from ...rag.chunking import estimate_tokens
 from ...rag.retrieval import eligible_sources
 from ..context import context_problems
 from ..research.pipeline import STALE_AFTER_YEARS
+from ..research.strategy import topic_alignment, priority_order
 from .scoring import SOURCE as SCORE_SOURCE, derive_factors
 from .schemas import CampaignPlan, CampaignTask, GrowthLeadPayload, OpportunitySelection, TaskBrief
 
@@ -59,9 +60,11 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
     p: GrowthLeadPayload = ctx.payload
     research = p.research
     missing = set(research.missing_facts)
-    # Research coverage notes (gaps on other topics, dated excerpts of other findings) are shown
-    # but do not block; only facts about the selected opportunity do.
-    advisory = {fact for fact in missing if fact.startswith(("source_gap:", "stale_evidence:"))}
+    # Research coverage notes (gaps on other topics, dated excerpts of other findings, a dropped
+    # model draft replaced by a grounded finding) are shown but do not block; only facts about
+    # the selected opportunity do.
+    advisory = {fact for fact in missing if fact.startswith(("source_gap:", "stale_evidence:"))
+                or fact == "complete_research_explanation"}
     if not p.business_profile.audiences:
         missing.add("target_audience")
     if not p.business_profile.products and not p.business_profile.services:
@@ -82,8 +85,11 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         for index, finding in enumerate(research.findings):
             factors_i, basis_i = derive_factors(finding, research.trend_coverage, p.business_profile, p.cta)
             scored.append((math.prod(factors_i.values()), index, factors_i, basis_i))
-        scored.sort(key=lambda row: (-row[0], row[1]))
-        ranking = [{"finding_index": index, "topic": research.findings[index].topic, "score": score}
+        def alignment_of(finding):
+            return topic_alignment(' '.join([finding.topic, *finding.keywords, finding.user_need or '']), p.business_profile)
+        scored.sort(key=lambda row: (priority_order(alignment_of(research.findings[row[1]])), -row[0], row[1]))
+        ranking = [{"finding_index": index, "topic": research.findings[index].topic, "score": score,
+                    "strategy_alignment": alignment_of(research.findings[index])}
                    for score, index, _, _ in scored]
         best = scored[0]
         selected, derived = research.findings[best[1]], (best[2], best[3])
@@ -100,6 +106,9 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
             raise OperationError("INVALID_OPPORTUNITY", "Selected opportunity is not in research")
         selected = research.findings[choice.finding_index]
     if selected is not None:
+        alignment = topic_alignment(' '.join([selected.topic, *selected.keywords, selected.user_need or '']), p.business_profile)
+        missing.update(code for code in selected.missing_data if code in {
+            'official_source_required', 'current_event_details_require_review', 'confirmed_service_capability_required'})
         if selected.evidence_updated is not None and selected.evidence_updated < datetime.now(timezone.utc).year - STALE_AFTER_YEARS:
             advisory.discard(f"stale_evidence:{selected.evidence_updated}")
             missing.add(f"stale_evidence:{selected.evidence_updated}")
@@ -111,10 +120,13 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                               offer=p.business_profile.products + p.business_profile.services,
                               audience_fit=selected.audience_fit, offer_fit=selected.offer_fit,
                               deliverable=deliverable, cta=p.cta,
+                              strategy_alignment=alignment,
                               acceptance=["Use cited research and verified snapshot facts only.",
                                           "Report missing facts; do not invent demand, price or availability.",
                                           "Return a draft for human review before publication."] +
-                                         (["Adapt the approved SEO draft; identify real image assets or report missing assets."] if tasks else []))
+                                         (["Adapt the approved SEO draft; identify real image assets or report missing assets."] if tasks else []) +
+                                         (["Verify official sources for sensitive claims, event details and actual service capability before promotion.",
+                                           "Measure the configured topic objectives; do not invent targets, conversions, bookings or market demand."] if alignment else []))
             tasks.append(CampaignTask(task_id=task_id, role=role, operation=operation,
                                       tools=["knowledge.read", "content.draft"], depends_on=dependencies,
                                       input_artifact_refs=[p.research_artifact],
@@ -143,6 +155,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                         selected_opportunity=selected, research_artifact=p.research_artifact,
                         tasks=tasks, missing_facts=sorted(missing),
                         kpis=[k.model_dump(mode="json") for k in p.goal_context.kpis] if p.goal_context else [],
+                        strategy_alignment=topic_alignment(' '.join([selected.topic, *selected.keywords, selected.user_need or '']), p.business_profile) if selected else None,
                         synthetic=ctx.job.synthetic or research.synthetic or ctx.settings.provider_mode == "fake",
                         opportunity_score={"factors": factors, "score": score, "estimated": True,
                             "label": "estimated" if score is not None else "insufficient_data",

@@ -1,5 +1,9 @@
 # Research & Trend
 
+**29/10 — `research-v8`:** nhận 5 nhóm chủ đề và tham chiếu đối thủ từ profile có version;
+gắn `strategy_alignment` cho Research → Growth Lead → SEO/Content. Các mức ưu tiên
+là cấu hình chiến lược, không phải nhu cầu đã đo. [Báo cáo áp dụng TripC](../../../../../docs/reports/TRIPC-COMPETITIVE-STRATEGY-APPLICATION.md).
+
 **Bổ sung 28/10 — `research-v7`:** tách trích dẫn nguồn/giả thuyết/dữ liệu thiếu,
 lọc topic/offer/audience/user-need, nối inventory và GSC query snapshot từ worker.
 [Rubric](../../../../../docs/reports/RESEARCH-QUALITY-RUBRIC.md) mô tả giới hạn bộ lọc.

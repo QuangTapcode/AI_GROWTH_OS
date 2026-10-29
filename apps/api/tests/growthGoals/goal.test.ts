@@ -27,6 +27,16 @@ describe('growth goal', () => {
     expect(ctx?.kpis[1]).toMatchObject({ baseline_value: null, baseline_status: 'missing' });
   });
 
+  it('pins the confirmed offers an owner request names, written in Vietnamese or English', () => {
+    const offers = ['housing', 'living_areas', 'coworking', 'gym', 'food', 'events'];
+    const goal = (title: string) => ({ ...input, id: 'g', workspace_id: 'w', title, status: 'active', kpis: [] }) as never;
+    expect(goalContext(goal('Marketing cho TripC, quảng bá cho khách hàng nước ngoài về ẩm thực Đà Nẵng'), offers)?.focus_offers)
+      .toEqual(['food']);
+    expect(goalContext(goal('Grow apartment and coworking leads from expats'), offers)?.focus_offers).toEqual(['housing', 'coworking']);
+    // A request about something the profile does not offer pins nothing rather than inventing an offer.
+    expect(goalContext(goal('Bán vé máy bay giá rẻ'), offers)?.focus_offers).toEqual([]);
+  });
+
   it('maps the first KPI to the AI GoalContext', () => {
     const ctx = goalContext({ id: 'g', workspace_id: 'w', title: input.title, status: 'active', primary_conversion: 'generate_lead',
       period_days: 90, budget_usd: 0, target_qualified_visits: 300, target_traffic_pct: null,

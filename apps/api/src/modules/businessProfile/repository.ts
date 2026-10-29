@@ -1,5 +1,6 @@
 import { withTransaction, query } from "../../lib/db";
 import { EDITABLE_PROFILE_FIELDS, UpdateBusinessProfileInput } from "./schemas";
+import type { ResearchStrategy } from './strategy';
 
 export interface BusinessProfileRow {
   id: string;
@@ -15,13 +16,14 @@ export interface BusinessProfileRow {
   brand_voice: string | null;
   brand_guidelines: string | null;
   competitors: string[] | null;
+  research_strategy: ResearchStrategy | null;
   version: number;
   updated_by: string | null;
   updated_at: string;
 }
 
 const COLUMNS = `id, workspace_id, company_name, website_url, industry, overview, safety_rules, target_locations,
-  target_audiences, products_services, brand_voice, brand_guidelines, competitors, version, updated_by, updated_at`;
+  target_audiences, products_services, brand_voice, brand_guidelines, competitors, research_strategy, version, updated_by, updated_at`;
 
 export async function getProfile(workspaceId: string): Promise<BusinessProfileRow | null> {
   const res = await query<BusinessProfileRow>(`SELECT ${COLUMNS} FROM business_profiles WHERE workspace_id = $1`, [
@@ -59,7 +61,7 @@ export async function updateProfile(
     const changed: string[] = [];
     for (const field of EDITABLE_PROFILE_FIELDS) {
       if (input[field] === undefined) continue;
-      params.push(field === "safety_rules" ? JSON.stringify(input[field]) : input[field]);
+      params.push(field === "safety_rules" || field === 'research_strategy' ? JSON.stringify(input[field]) : input[field]);
       sets.push(`${field} = $${params.length}`);
       changed.push(field);
     }
