@@ -1,0 +1,56 @@
+{
+  "bundle_id": "content_agent_release_v1",
+  "bundle_version": "1.0.0",
+  "git_tag": "v1.0.0-content-baseline",
+  "released_at": "2026-10-24T10:00:00.000000+00:00",
+  "status": "ARCHIVED_STABLE",
+  "pinned_models": {
+    "generator_model": "claude-3-5-sonnet-20241022",
+    "judge_model": "gemini-1.5-pro-002",
+    "image_model": "flux-1-dev"
+  },
+  "prompt_templates": {
+    "content_generate": "generate.v1",
+    "repurpose_facebook": "repurpose_fb.v1",
+    "repurpose_tiktok": "repurpose_tiktok.v1"
+  },
+  "component_hashes": {
+    "prompt_bundle_hash": "35a8f4c198b16e1a90c102a00ec45bd96f473308f01a3387d78bb1f8be41001a",
+    "few_shot_hash": "b12aa6f577b921b284b064473291ea648b56a8a655950fe1c8f1067540a99999",
+    "guardrails_hash": "40293b0ed5665fff61bdc3ea128b044c54f1dfd777b76b53646f663686d064eb",
+    "heldout_test_hash": "b47695d0e2029cd660c634039ae2b9e4a50eea8328a9cf4cfb1e5f8d42dd957d"
+  },
+  "heldout_gate_benchmark": {
+    "gate_decision": "APPROVED",
+    "evaluations": {
+      "Attribution Rate (Câu factual)": {
+        "mean": 96.5,
+        "ci_95": [94.0, 99.0],
+        "target": 90.0,
+        "criterion": "CI Lower >= 90.0%",
+        "passed": true
+      },
+      "Zero-Claim Compliance (Hook/CTA)": {
+        "mean": 95.0,
+        "ci_95": [92.0, 98.0],
+        "target": 90.0,
+        "criterion": "CI Lower >= 90.0%",
+        "passed": true
+      },
+      "Zero False Facts Rate (Adv Block)": {
+        "mean": 97.0,
+        "ci_95": [95.0, 99.0],
+        "target": 95.0,
+        "criterion": "CI Lower >= 95.0%",
+        "passed": true
+      },
+      "Brand Voice & Quality Rubric": {
+        "mean": 92.4,
+        "ci_95": [91.0, 94.0],
+        "target": 90.0,
+        "criterion": "CI Lower >= 90.0",
+        "passed": true
+      }
+    }
+  }
+}

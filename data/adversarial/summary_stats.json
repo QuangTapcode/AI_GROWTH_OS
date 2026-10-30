@@ -1,0 +1,114 @@
+{
+  "generator_seed": 42,
+  "total_cases": 350,
+  "total_categories": 14,
+  "dev_cases_count": 280,
+  "dev_percentage": "80.0%",
+  "held_out_test_cases_count": 70,
+  "test_percentage": "20.0%",
+  "category_breakdown": {
+    "needs_real_assets": {
+      "category_name_vi": "Thiếu ảnh thật sản phẩm doanh nghiệp",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "needs_assets"
+    },
+    "unselected_channel": {
+      "category_name_vi": "Kênh không chọn hoặc không hợp lệ",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "unsupported_discount": {
+      "category_name_vi": "% / Khuyến mãi giảm giá bịa đặt",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "insufficient_facts": {
+      "category_name_vi": "Thiếu dữ liệu sự thật cốt lõi (< 3 facts)",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "insufficient_data"
+    },
+    "ai_image_policy_violation": {
+      "category_name_vi": "Ảnh AI vi phạm chính sách an toàn/OCR",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "needs_assets"
+    },
+    "prompt_injection": {
+      "category_name_vi": "Indirect Prompt Injection trong bài SEO",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "sanitize_and_repair"
+    },
+    "outdated_info": {
+      "category_name_vi": "Thông tin quá hạn / Sự kiện lỗi thời",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "unsupported_price": {
+      "category_name_vi": "Chèn giá tiền biến thể tiếng Việt",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "unsupported_promo": {
+      "category_name_vi": "Ưu đãi ngầm / Quà tặng tự tạo",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "unsupported_stats": {
+      "category_name_vi": "Số liệu thống kê bịa đặt",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "superlative_claim": {
+      "category_name_vi": "Từ ngữ tuyệt đối / So sánh hơn",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "tenant_isolation_violation": {
+      "category_name_vi": "Sai Tenant / Vi phạm cô lập đa khách hàng",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "fake_testimonial": {
+      "category_name_vi": "Testimonial / Đánh giá khách hàng giả",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    },
+    "version_hash_mismatch": {
+      "category_name_vi": "Lệch phiên bản hoặc mã băm hash",
+      "total": 25,
+      "dev": 20,
+      "test": 5,
+      "expected_outcome": "block"
+    }
+  },
+  "files_exported": {
+    "full_jsonl": "E:\\HK_126\\HocKyDoanhNghiep\\AI_GROWTH_OS\\data\\adversarial\\adversarial_full.jsonl",
+    "dev_jsonl": "E:\\HK_126\\HocKyDoanhNghiep\\AI_GROWTH_OS\\data\\adversarial\\adversarial_dev.jsonl",
+    "test_jsonl": "E:\\HK_126\\HocKyDoanhNghiep\\AI_GROWTH_OS\\data\\adversarial\\adversarial_test.jsonl"
+  }
+}

@@ -124,3 +124,18 @@ def test_facebook_post_spells_the_location_as_the_profile_does(client, make_clie
                                  "discussion_question": None, "hashtags": []})
     post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
     assert "Da Nang" in post["text"] and "N-ang" not in post["text"]
+
+
+def test_failed_content_run_keeps_its_error_code_when_metrics_fail(client, make_client, monkeypatch):
+    # Content metrics are best effort: a broken tracker must not replace the agent's own error code.
+    import src.agents.content.monitoring as monitoring
+
+    class BrokenTracker:
+        def record_run(self, **_):
+            raise RuntimeError("metrics store unavailable")
+
+    monkeypatch.setattr(monitoring, "get_metrics_tracker", lambda: BrokenTracker())
+    _, job = content_job(client, channels=["facebook"])
+    provider = FacebookProvider({"hook": "Living areas guide", "body": "Save 50% this week", "discussion_question": None, "hashtags": []})
+    out = run_job(make_client(provider=provider, provider_mode="live"), job)
+    assert out["status"] == "failed" and out["error_code"] == "UNSUPPORTED_CONTENT_CLAIM", out

@@ -26,6 +26,9 @@ export interface CmsPublishRequest {
   linkUrl?: string;
   mediaUrl?: string;
   mediaType?: 'video' | 'image';
+  /** Flag indicated whether media or text is AI-generated (for Meta / TikTok compliance) */
+  isAiGenerated?: boolean;
+  aiImageMeta?: Record<string, any>;
 }
 
 export interface CmsPublishResult {
@@ -35,6 +38,10 @@ export interface CmsPublishResult {
   success: boolean;
   errorCode?: string;
   errorMessage?: string;
+  reconciled?: boolean;
+  /** Fallback indicator when permissions fail closed */
+  isManualFallback?: boolean;
+  manualPack?: any;
 }
 
 export abstract class CmsPublisher {
@@ -48,8 +55,13 @@ export abstract class CmsPublisher {
  * Modes: success | timeout | conflict | unknown.
  */
 export class MockCmsPublisher extends CmsPublisher {
-  constructor(public channel: PublishChannel, private mode: 'success' | 'timeout' | 'conflict' | 'unknown' = 'success') {
+  channel: PublishChannel;
+  private mode: 'success' | 'timeout' | 'conflict' | 'unknown';
+
+  constructor(channel: PublishChannel, mode: 'success' | 'timeout' | 'conflict' | 'unknown' = 'success') {
     super();
+    this.channel = channel;
+    this.mode = mode;
   }
 
   async publish(req: CmsPublishRequest): Promise<CmsPublishResult> {
@@ -97,8 +109,13 @@ export class MockCmsPublisher extends CmsPublisher {
 
 /** Explicit fail-closed publisher used when production credentials are absent. */
 export class UnavailablePublisher extends CmsPublisher {
-  constructor(public channel: PublishChannel, private reason = 'INTEGRATION_NOT_CONNECTED') {
+  channel: PublishChannel;
+  private reason: string;
+
+  constructor(channel: PublishChannel, reason = 'INTEGRATION_NOT_CONNECTED') {
     super();
+    this.channel = channel;
+    this.reason = reason;
   }
 
   async publish(): Promise<CmsPublishResult> {

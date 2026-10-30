@@ -11318,6 +11318,36 @@
             "maxItems": 4,
             "title": "Target Channels",
             "type": "array"
+          },
+          "brand_voice": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Brand Voice"
+          },
+          "allow_ai_image": {
+            "default": true,
+            "title": "Allow Ai Image",
+            "type": "boolean"
+          },
+          "real_product": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Real Product"
           }
         },
         "required": [

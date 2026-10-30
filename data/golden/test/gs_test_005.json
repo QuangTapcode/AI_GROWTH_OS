@@ -1,0 +1,110 @@
+{
+  "sample_id": "gs_test_005",
+  "dataset_split": "test",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "source_article": {
+    "article_id": "art_sample_02",
+    "title": "TripC Space: Không gian làm việc số bên sông Hàn",
+    "primary_keyword": "coworking đà nẵng",
+    "body_markdown": "## Không gian làm việc sáng tạo tại Hải Châu\n\nTripC Space tọa lạc tại mặt tiền đường Bạch Đằng, quận Hải Châu, nhìn thẳng ra sông Hàn thơ mộng. Trung tâm cung cấp 50 chỗ ngồi làm việc linh hoạt và 4 phòng họp cách âm chuẩn quốc tế.\n\n## Hạ tầng kỹ thuật vượt trội\n\nHệ thống internet cáp quang tốc độ 300 Mbps với 2 đường truyền dự phòng liên tục. Mở cửa phục vụ 24/7 cho các thành viên sở hữu thẻ từ thông minh.",
+    "extracted_facts": [
+      {
+        "fact_id": "f01",
+        "text": "TripC Space tọa lạc tại mặt tiền đường Bạch Đằng, quận Hải Châu.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f02",
+        "text": "Trung tâm cung cấp 50 chỗ ngồi làm việc linh hoạt và 4 phòng họp cách âm chuẩn quốc tế.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f03",
+        "text": "Hệ thống internet cáp quang tốc độ 300 Mbps với 2 đường truyền dự phòng liên tục.",
+        "source_type": "seo_body"
+      },
+      {
+        "fact_id": "f04",
+        "text": "Mở cửa phục vụ 24/7 cho các thành viên sở hữu thẻ từ thông minh.",
+        "source_type": "seo_body"
+      }
+    ],
+    "has_injection": false
+  },
+  "target_channel": "facebook",
+  "brand_voice": "Hiện đại, tự do, chuyên nghiệp và truyền cảm hứng digital nomad",
+  "verbatim_cta": "Liên hệ Fanpage để đặt lịch xem phòng thực tế.",
+  "draft_pack": {
+    "caption": "Khám phá không gian sống và làm việc linh hoạt được nhiều người quan tâm hiện nay.\n\n• TripC Space tọa lạc tại mặt tiền đường Bạch Đằng, quận Hải Châu.\n• Trung tâm cung cấp 50 chỗ ngồi làm việc linh hoạt và 4 phòng họp cách âm chuẩn quốc tế.\n• Hệ thống internet cáp quang tốc độ 300 Mbps với 2 đường truyền dự phòng liên tục.\n• Mở cửa phục vụ 24/7 cho các thành viên sở hữu thẻ từ thông minh.\n\nLiên hệ Fanpage để đặt lịch xem phòng thực tế.\n\n#TripCDaNang #CanHoDaNang #KhongGianSong #Workation",
+    "sentence_fact_map": [
+      {
+        "sentence_index": 0,
+        "sentence_type": "hook",
+        "fact_id": "NONE"
+      },
+      {
+        "sentence_index": 1,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f01"
+        ]
+      },
+      {
+        "sentence_index": 2,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f02"
+        ]
+      },
+      {
+        "sentence_index": 3,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f03"
+        ]
+      },
+      {
+        "sentence_index": 4,
+        "sentence_type": "factual",
+        "fact_id": [
+          "f04"
+        ]
+      },
+      {
+        "sentence_index": 5,
+        "sentence_type": "cta",
+        "fact_id": "SYSTEM_CTA"
+      }
+    ],
+    "hashtags": [
+      "#Coworkingđànẵng",
+      "#TripCDaNang",
+      "#KhongGianSong",
+      "#DigitalNomad"
+    ],
+    "storyboard": null,
+    "spoken_word_count": null
+  },
+  "annotation": {
+    "annotator_a": {
+      "annotator_name": "Chuyên viên A",
+      "status": null,
+      "edited_caption": "",
+      "edited_sentence_fact_map": [],
+      "violations_found": [],
+      "notes": ""
+    },
+    "annotator_b": {
+      "annotator_name": "Chuyên viên B",
+      "status": null,
+      "edited_caption": "",
+      "edited_sentence_fact_map": [],
+      "violations_found": [],
+      "notes": ""
+    },
+    "adjudication": {
+      "final_decision": null,
+      "notes": ""
+    }
+  }
+}

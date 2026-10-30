@@ -41,14 +41,14 @@ export default defineConfig({
 
     /* Tự động lưu bằng chứng khi test tạch */
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'off',
   },
 
   /* Configure projects for major browsers */
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
 
     /* Tạm thời tắt Firefox và WebKit để chạy nhanh hơn trong Tuần 1 */
@@ -83,17 +83,14 @@ export default defineConfig({
     // },
   ],
 
-  /* Tự khởi động CMS Next.js trước khi chạy test */
-  webServer: {
-    command: 'npm run dev',
-    // Đường dẫn từ qa/tester-1 tới thư mục CMS. SỬA <ten-thu-muc-cms> cho đúng.
-    cwd: path.resolve(__dirname, '../../apps/<ten-thu-muc-cms>'),
-    url: 'http://localhost:3000/login',
-    // Nếu server đã chạy sẵn thì dùng luôn, không khởi động lại
-    reuseExistingServer: true,
-    // Next.js dev lần đầu compile có thể chậm
-    timeout: 120_000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  /* Tự khởi động CMS Next.js trước khi chạy test (tắt mặc định để chạy e2e linh hoạt) */
+  // webServer: {
+  //   command: 'npm run dev',
+  //   cwd: path.resolve(__dirname, '../../apps/web'),
+  //   url: 'http://localhost:3000/login',
+  //   reuseExistingServer: true,
+  //   timeout: 120_000,
+  //   stdout: 'pipe',
+  //   stderr: 'pipe',
+  // },
 });

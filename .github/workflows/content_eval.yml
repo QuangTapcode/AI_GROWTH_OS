@@ -1,0 +1,142 @@
+name: Content Marketing CI/CD Evaluation Pipeline (CM-22)
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - "services/ai/**"
+      - "contracts/**"
+      - "data/**"
+      - ".github/workflows/content_eval.yml"
+  schedule:
+    # Chạy hằng đêm lúc 02:00 UTC (09:00 sáng giờ VN)
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Chọn tầng kiểm thử cần chạy (1: PR Gate, 2: Nightly Gate, both: Cả hai)"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "both"
+      repeats:
+        description: "Số lượt sampling lặp lại mỗi ca (Tầng 2, mặc định 3)"
+        required: false
+        default: 3
+        type: number
+      max_cost_usd:
+        description: "Trần ngân sách LLM tối đa (USD, mặc định 2.0)"
+        required: false
+        default: 2.0
+        type: number
+      mock_llm:
+        description: "Ép chạy Mock LLM (không gọi API ngoài)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==============================================================================
+  # TẦNG 1: PR GATE (< 30 GIÂY, 100% DETERMINISTIC, ZERO LLM / NETWORK)
+  # ==============================================================================
+  tier1-pr-gate:
+    name: "Tier 1: PR Gate (<30s Deterministic)"
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.tier == '1' || inputs.tier == 'both'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Verify data/golden/test immutability via git diff
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Kiểm tra thay đổi trái phép trong data/golden/test/..."
+          CHANGED_TEST_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- data/golden/test/)
+          if [ -n "$CHANGED_TEST_FILES" ]; then
+            echo "❌ CẢNH BÁO BẢO MẬT: PR này đã sửa đổi các file trong data/golden/test/:"
+            echo "$CHANGED_TEST_FILES"
+            echo "Tập Held-out Test Set là CHỈ-ĐỌC và được bảo vệ nghiêm ngặt chống Data Leakage."
+            exit 1
+          fi
+          echo "✅ Không có file nào trong data/golden/test/ bị sửa đổi."
+
+      - name: Run Tier 1 Deterministic Evaluation Suite
+        run: |
+          uv run --project services/ai python services/ai/evals/eval_pipeline.py --tier 1
+
+      - name: Run Tier 1 Pytests
+        run: |
+          uv run --project services/ai pytest services/ai/tests/test_eval_pipeline.py -k "tier1" -v
+
+  # ==============================================================================
+  # TẦNG 2: NIGHTLY EVALUATION GATE (GỌI LLM THẬT, 3 REPEATS, BOOTSTRAP 95% CI)
+  # ==============================================================================
+  tier2-nightly-eval:
+    name: "Tier 2: Nightly LLM Evaluation (3 Repeats, Bootstrap CI)"
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.tier == '2' || inputs.tier == 'both')) ||
+      contains(github.event.pull_request.labels.*.name, 'run-nightly-eval')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Run Tier 2 Nightly Evaluation Pipeline
+        run: |
+          uv run --project services/ai python services/ai/evals/eval_pipeline.py \
+            --tier 2 \
+            --repeats ${{ inputs.repeats || 3 }} \
+            --temperature 0.2 \
+            --max-cost ${{ inputs.max_cost_usd || 2.0 }} \
+            ${{ inputs.mock_llm && '--mock' || '' }}
+
+      - name: Upload Nightly Evaluation Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: content-marketing-nightly-eval-report
+          path: |
+            reports/eval_nightly_*.json
+            reports/eval_nightly_*.md
+            reports/eval_nightly_latest.json
+          retention-days: 30

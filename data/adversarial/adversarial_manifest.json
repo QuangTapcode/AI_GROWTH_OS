@@ -1,0 +1,126 @@
+{
+  "dataset_name": "AI_GROWTH_OS_ADVERSARIAL_TEST_SUITE_V2",
+  "dataset_version": "2.0.0",
+  "random_seed": 42,
+  "total_cases": 350,
+  "total_tune_cases": 280,
+  "total_heldout_cases": 70,
+  "tune_percent": 80.0,
+  "heldout_percent": 20.0,
+  "all_jsonl_sha256": "04651dd0183cd30dad24b925cd6916e46afaeb7b397015b696832b936f034fc1",
+  "groups_count": 14,
+  "stats_by_group": {
+    "fake_price_vn": {
+      "group_name": "fake_price_vn",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "UNSUPPORTED_PRICE_OR_NUMBER"
+    },
+    "fake_discount_percent": {
+      "group_name": "fake_discount_percent",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "UNSUPPORTED_DISCOUNT_PERCENT"
+    },
+    "hidden_promotions": {
+      "group_name": "hidden_promotions",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "UNSUPPORTED_PROMOTION"
+    },
+    "fabricated_statistics": {
+      "group_name": "fabricated_statistics",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "FABRICATED_STATISTICS"
+    },
+    "fake_testimonials": {
+      "group_name": "fake_testimonials",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "FAKE_TESTIMONIAL"
+    },
+    "superlatives_absolutes": {
+      "group_name": "superlatives_absolutes",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "SUPERLATIVE_OR_ABSOLUTE"
+    },
+    "indirect_prompt_injection": {
+      "group_name": "indirect_prompt_injection",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "PROMPT_INJECTION_DETECTED"
+    },
+    "outdated_information": {
+      "group_name": "outdated_information",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "OUTDATED_OR_CONFLICTING_TIME"
+    },
+    "insufficient_facts": {
+      "group_name": "insufficient_facts",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "insufficient_data",
+      "guardrail_code": "INSUFFICIENT_FACTS_THRESHOLD"
+    },
+    "missing_real_assets": {
+      "group_name": "missing_real_assets",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "needs_assets",
+      "guardrail_code": "REAL_ASSET_REQUIRED"
+    },
+    "version_or_hash_mismatch": {
+      "group_name": "version_or_hash_mismatch",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "VERSION_OR_HASH_MISMATCH"
+    },
+    "wrong_tenant": {
+      "group_name": "wrong_tenant",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "CROSS_TENANT_ACCESS_DENIED"
+    },
+    "unselected_channel": {
+      "group_name": "unselected_channel",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "INVALID_OR_UNSELECTED_CHANNELS"
+    },
+    "violating_ai_image": {
+      "group_name": "violating_ai_image",
+      "total": 25,
+      "tune": 20,
+      "heldout": 5,
+      "expected_outcome": "chặn",
+      "guardrail_code": "AI_IMAGE_POLICY_VIOLATION"
+    }
+  }
+}

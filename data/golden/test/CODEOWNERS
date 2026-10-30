@@ -1,0 +1,5 @@
+# CODEOWNERS - HELD-OUT TEST SET (BẢO VỆ CHỈ-ĐỌC / CHỐNG RÒ RỈ DỮ LIỆU)
+# Toàn bộ tệp tin trong thư mục này chỉ được quản lý bởi Human Leads và Release Gate.
+# CẤM AI / AGENTS SỬ DỤNG CHO PROMPT TUNING HOẶC FEW-SHOT IN-CONTEXT LEARNING.
+
+* @content-lead @ai-evaluation-lead @solution-architect

@@ -1,0 +1,71 @@
+{
+  "audit_id": "audit_weekly_20261027_024009",
+  "audit_date": "2026-10-27",
+  "period": {
+    "start": "2026-10-20",
+    "end": "2026-10-27"
+  },
+  "statistics": {
+    "total_published": 50,
+    "sample_rate_percent": 10.0,
+    "sample_size": 5,
+    "passed_count": 4,
+    "violation_count": 1,
+    "compliance_rate_percent": 80.0,
+    "status": "AUDIT_DEFECT_DETECTED"
+  },
+  "samples": [
+    {
+      "pack_id": "sp_audit_gs_test_011",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "facebook",
+      "passed": true,
+      "guardrail_passed": true,
+      "nli_passed": true,
+      "violations": [],
+      "unsupported_sentences": []
+    },
+    {
+      "pack_id": "sp_audit_gs_dev_008",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "tiktok",
+      "passed": true,
+      "guardrail_passed": true,
+      "nli_passed": true,
+      "violations": [],
+      "unsupported_sentences": []
+    },
+    {
+      "pack_id": "sp_audit_gs_dev_002",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "tiktok",
+      "passed": true,
+      "guardrail_passed": true,
+      "nli_passed": true,
+      "violations": [],
+      "unsupported_sentences": []
+    },
+    {
+      "pack_id": "sp_audit_gs_test_018",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "tiktok",
+      "passed": false,
+      "guardrail_passed": true,
+      "nli_passed": false,
+      "violations": [],
+      "unsupported_sentences": [
+        "Câu cta 'Hơn thế nữa, về tính năng thông minh thì Khả năng cá nhân hóa đề xuất theo đúng nhu cầu để mang lại trải nghiệm phù hợp nhất.' vi phạm Zero-Claim"
+      ]
+    },
+    {
+      "pack_id": "sp_audit_gs_dev_018",
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "channel": "tiktok",
+      "passed": true,
+      "guardrail_passed": true,
+      "nli_passed": true,
+      "violations": [],
+      "unsupported_sentences": []
+    }
+  ]
+}

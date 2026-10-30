@@ -49,9 +49,9 @@ describe('PublishJobProcessor', () => {
       contentHash: 'abc123',
     });
     // Timeout triggers reconcile path (no blind duplicate post).
-    // Mock reconcile returns success with empty externalPostId — assert reconciled.
+    // Without an external id the reconcile looks the post up by idempotency key.
     expect(result.success).toBe(true);
-    expect(result.externalPostId).toBe('');
+    expect(result.externalPostId).toBe('publish:ws_1:content_2:Facebook:1');
   });
 
   it('should build idempotency key correctly', () => {
@@ -92,7 +92,7 @@ describe('PublishJobProcessor', () => {
     expect(packs[0].label).toBe('manual-pack');
     expect(packs[0].channel).toBe('Facebook');
     expect(packs[1].channel).toBe('Instagram');
-    expect(packs[0].instructions[0]).toContain('Open Facebook business page');
+    expect(packs[0].instructions[0]).toContain('Mở Meta Business Suite');
   });
 
   it('should validate scheduled_at is in future', () => {
