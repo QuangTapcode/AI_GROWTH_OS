@@ -11529,6 +11529,37 @@
             "title": "FacebookPost",
             "type": "object"
           },
+          "FactItem": {
+            "additionalProperties": false,
+            "properties": {
+              "fact_id": {
+                "description": "Mã định danh duy nhất của fact: f01, f02...",
+                "pattern": "^f\\d+$",
+                "title": "Fact Id",
+                "type": "string"
+              },
+              "text": {
+                "description": "Nội dung khẳng định sự thật",
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              },
+              "source_type": {
+                "default": "seo_body",
+                "description": "Nguồn bóc tách: seo_body, seo_title, citation...",
+                "maxLength": 50,
+                "title": "Source Type",
+                "type": "string"
+              }
+            },
+            "required": [
+              "fact_id",
+              "text"
+            ],
+            "title": "FactItem",
+            "type": "object"
+          },
           "GoalKpi": {
             "additionalProperties": false,
             "properties": {
@@ -11795,6 +11826,87 @@
             ],
             "title": "RunArtifact",
             "type": "object"
+          },
+          "SentenceMap": {
+            "additionalProperties": false,
+            "properties": {
+              "sentence_index": {
+                "description": "Thứ tự câu trong caption, bắt đầu từ 0",
+                "minimum": 0,
+                "title": "Sentence Index",
+                "type": "integer"
+              },
+              "text": {
+                "description": "Nội dung câu hoàn chỉnh",
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              },
+              "sentence_type": {
+                "description": "Phân loại: factual, hook, hoặc cta",
+                "enum": [
+                  "factual",
+                  "hook",
+                  "cta"
+                ],
+                "title": "Sentence Type",
+                "type": "string"
+              },
+              "fact_id": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "enum": [
+                      "NONE",
+                      "SYSTEM_CTA"
+                    ],
+                    "type": "string"
+                  }
+                ],
+                "description": "Danh sách fact_id (cho câu factual) hoặc 'NONE'/'SYSTEM_CTA' (cho hook/cta)",
+                "title": "Fact Id"
+              },
+              "entailment_status": {
+                "default": "supported",
+                "description": "Trạng thái suy diễn NLI: supported, contradicted, hoặc unverifiable",
+                "enum": [
+                  "supported",
+                  "partial",
+                  "unsupported",
+                  "contradicted",
+                  "unverifiable"
+                ],
+                "title": "Entailment Status",
+                "type": "string"
+              },
+              "is_factual": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Cờ phụ trợ đánh dấu câu có tính sự thật",
+                "title": "Is Factual"
+              }
+            },
+            "required": [
+              "sentence_index",
+              "text",
+              "sentence_type",
+              "fact_id"
+            ],
+            "title": "SentenceMap",
+            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -11975,6 +12087,20 @@
             "default": "SELF_ONLY",
             "title": "Tiktok Privacy Level",
             "type": "string"
+          },
+          "extracted_facts": {
+            "items": {
+              "$ref": "#/$defs/FactItem"
+            },
+            "title": "Extracted Facts",
+            "type": "array"
+          },
+          "sentence_fact_map": {
+            "items": {
+              "$ref": "#/$defs/SentenceMap"
+            },
+            "title": "Sentence Fact Map",
+            "type": "array"
           }
         },
         "required": [

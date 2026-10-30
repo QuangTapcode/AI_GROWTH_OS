@@ -2,6 +2,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from ...app.schemas import EvidenceRef
 from ..contracts import ArtifactInput, DraftResult, ImageAsset, MarketingContext
+from .social_pack_v2 import FactItem, SentenceMap
 
 
 class ContentPayload(MarketingContext):
@@ -60,6 +61,9 @@ class SocialPack(DraftResult):
     citations: list[EvidenceRef]
     video_asset_ref: str | None = None
     tiktok_privacy_level: str = "SELF_ONLY"
+    # Traceability of the Facebook post: cited quotes and the fact each sentence restates.
+    extracted_facts: list[FactItem] = Field(default_factory=list)
+    sentence_fact_map: list[SentenceMap] = Field(default_factory=list)
 
 
 # Re-export v2 models for CM-01

@@ -71,26 +71,25 @@ export class PublishingOutboxRunner {
       artifact_version: number | null;
       content_hash: string | null;
       artifact_payload: Record<string, unknown> | null;
+      artifact_evidence: unknown;
+      channel_id: string;
       platform_name: string;
       channel_identifier: string | null;
       utm_url: string | null;
       approval_status: string | null;
-      parent_version: number | null;
       external_post_id: string | null;
     }>(`
       SELECT j.id, j.workspace_id, j.content_id, j.approval_id, j.scheduled_for, j.status, j.mode,
              c.body_markdown, c.title AS content_title, j.artifact_id,
-             a.version AS artifact_version, a.content_hash, a.payload AS artifact_payload,
-             ch.platform_name, ch.channel_identifier, j.utm_url,
+             a.version AS artifact_version, a.content_hash, a.payload AS artifact_payload, a.evidence AS artifact_evidence,
+             j.channel_id, ch.platform_name, ch.channel_identifier, j.utm_url,
              app.status AS approval_status,
-             COALESCE(parent_c.current_version, 1) AS parent_version,
              j.external_post_id
         FROM publishing_jobs j
         JOIN contents c ON c.id = j.content_id AND c.workspace_id = j.workspace_id
         JOIN channels ch ON ch.id = j.channel_id AND ch.workspace_id = j.workspace_id
         LEFT JOIN content_artifacts a ON a.id = j.artifact_id
         LEFT JOIN approvals app ON app.id = j.approval_id AND app.workspace_id = j.workspace_id
-        LEFT JOIN contents parent_c ON parent_c.id = c.parent_content_id AND parent_c.workspace_id = j.workspace_id
        WHERE j.id = $1 AND j.workspace_id = (SELECT workspace_id FROM outbox_events WHERE id = $2)
        FOR UPDATE OF j`,
       [jobId, event.id]
@@ -140,7 +139,9 @@ export class PublishingOutboxRunner {
       );
     }
 
-    // Chạy kiểm tra gateway_recheck toàn diện
+    // Chạy kiểm tra gateway_recheck toàn diện. Hash được tính đúng như API lưu content_hash:
+    // sha256 của {result, evidence}. Artifact là bất biến (bài SEO mới là artifact mới), nên
+    // không có phiên bản cha nào bị nâng tại chỗ để so.
     const recheckResult = await recheckBeforeOutbox(
       {
         workspace_id: job.workspace_id,
@@ -151,9 +152,9 @@ export class PublishingOutboxRunner {
         expected_version: job.artifact_version,
         current_version: job.artifact_version,
         expected_hash: job.content_hash,
-        current_content: job.artifact_payload ?? job.body_markdown ?? '',
-        expected_parent_version: 1, // baseline version khi duyệt
-        current_parent_version: job.parent_version ?? 1,
+        current_content: { result: job.artifact_payload?.result, evidence: job.artifact_evidence },
+        expected_parent_version: 1,
+        current_parent_version: 1,
       },
       async (approvalId, reason) => {
         await this.pool.query(
@@ -170,38 +171,28 @@ export class PublishingOutboxRunner {
     );
 
     if (!recheckResult.authorized) {
-      if (recheckResult.action === 'REVOKE_AND_CANCEL') {
-        await this.pool.query(`UPDATE outbox_events SET status = 'cancelled', published_at = NOW() WHERE id = $1`, [event.id]);
-        return this.failEvent(event.id, job.id, recheckResult.error_code ?? 'PARENT_VERSION_CHANGED', recheckResult.reason);
-      }
       return this.failEvent(event.id, job.id, recheckResult.error_code ?? 'GATEWAY_RECHECK_FAILED', recheckResult.reason);
     }
 
     // 2. Idempotency key: publish:{workspace}:{pack}:{channel}:{version}
     const idempotencyKey = `publish:${job.workspace_id}:${job.content_id}:${channel.toLowerCase()}:${job.artifact_version}`;
 
-    // Kiểm tra xem đã có bài nào xuất bản với idempotencyKey này chưa
+    // Cùng artifact (một phiên bản cố định) đã lên cùng kênh: trả lại đúng bài đó, không đăng trùng.
     const existingPublished = await this.pool.query<{ external_post_id: string; published_at: Date }>(`
       SELECT external_post_id, published_at FROM publishing_jobs
-       WHERE workspace_id = $1 AND idempotency_key = $2 AND status = 'published' AND external_post_id IS NOT NULL
+       WHERE workspace_id = $1 AND artifact_id = $2 AND channel_id = $3 AND status = 'published' AND external_post_id IS NOT NULL
        LIMIT 1`,
-      [job.workspace_id, idempotencyKey]
+      [job.workspace_id, job.artifact_id, job.channel_id]
     );
 
     if (existingPublished.rows[0]) {
       const existing = existingPublished.rows[0];
-      // Gửi trùng cùng key chỉ ra một bài, trả cùng post_id
-      await this.pool.query(
-        `UPDATE publishing_jobs SET status = 'published', published_at = $2, external_post_id = $3, error_message = NULL WHERE id = $1;
-         UPDATE outbox_events SET status = 'published', published_at = NOW() WHERE id = $4`,
-        [job.id, existing.published_at, existing.external_post_id, event.id]
-      );
-      return 'published';
+      return this.markPublished(event.id, job, existing.external_post_id, existing.published_at);
     }
 
     await this.pool.query(
-      `UPDATE publishing_jobs SET status = 'publishing', idempotency_key = $2 WHERE id = $1 AND status = 'scheduled'`,
-      [job.id, idempotencyKey]
+      `UPDATE publishing_jobs SET status = 'publishing' WHERE id = $1 AND status = 'scheduled'`,
+      [job.id]
     );
 
     const payload = job.artifact_payload ?? {};
@@ -252,13 +243,7 @@ export class PublishingOutboxRunner {
               const reconciled = await publisher.reconcile(result.externalPostId || idempotencyKey);
               if (reconciled.success && reconciled.externalPostId) {
                 // Bài ĐÃ lên platform! Hoàn tất xuất bản, không thử lại
-                await this.pool.query(
-                  `UPDATE publishing_jobs SET status = 'published', published_at = COALESCE($2, NOW()), external_post_id = $3, error_message = NULL WHERE id = $1;
-                   UPDATE contents SET status = 'published', published_at = COALESCE($2, NOW()) WHERE id = $4;
-                   UPDATE outbox_events SET status = 'published', published_at = NOW() WHERE id = $5`,
-                  [job.id, reconciled.publishedAt ?? new Date(), reconciled.externalPostId, job.content_id, event.id]
-                );
-                return 'published';
+                return this.markPublished(event.id, job, reconciled.externalPostId, reconciled.publishedAt);
               }
             } catch {
               // Reconcile gặp lỗi mạng
@@ -270,10 +255,10 @@ export class PublishingOutboxRunner {
         const retryCount = Number(event.retry_count ?? 1);
         if (retryCount <= this.maxRetries) {
           const backoffSec = Math.min(Math.pow(2, retryCount), this.maxBackoffSeconds);
+          await this.pool.query(`UPDATE outbox_events SET status = 'pending' WHERE id = $1`, [event.id]);
           await this.pool.query(
-            `UPDATE outbox_events SET status = 'pending' WHERE id = $1;
-             UPDATE publishing_jobs SET status = 'scheduled', error_message = $2 WHERE id = $3`,
-            [event.id, `RETRY_EXPONENTIAL_BACKOFF (${retryCount}/${this.maxRetries}): delay ${backoffSec}s sau timeout`, job.id]
+            `UPDATE publishing_jobs SET status = 'scheduled', error_message = $2 WHERE id = $1`,
+            [job.id, `RETRY_EXPONENTIAL_BACKOFF (${retryCount}/${this.maxRetries}): delay ${backoffSec}s sau timeout`]
           );
           return 'deferred';
         }
@@ -288,14 +273,23 @@ export class PublishingOutboxRunner {
     }
 
     // Xuất bản thành công
-    await this.pool.query(
-      `UPDATE publishing_jobs SET status = 'published', published_at = COALESCE($2, NOW()), external_post_id = $3, error_message = NULL WHERE id = $1;
-       UPDATE contents SET status = 'published', published_at = COALESCE($2, NOW()) WHERE id = $4;
-       UPDATE outbox_events SET status = 'published', published_at = NOW() WHERE id = $5`,
-      [job.id, result.publishedAt ?? new Date(), result.externalPostId ?? null, job.content_id, event.id]
-    );
+    return this.markPublished(event.id, job, result.externalPostId ?? null, result.publishedAt);
+  }
 
-    return 'published';
+  /** pg runs one statement per parameterized query, so each table is updated on its own. */
+  private async markPublished(
+    eventId: string,
+    job: { id: string; content_id: string },
+    externalPostId: string | null,
+    publishedAt?: Date
+  ): Promise<'published'> {
+    const at = publishedAt ?? new Date();
+    await this.pool.query(
+      `UPDATE publishing_jobs SET status = 'published', published_at = $2, external_post_id = $3, error_message = NULL WHERE id = $1`,
+      [job.id, at, externalPostId]
+    );
+    await this.pool.query(`UPDATE contents SET status = 'published', published_at = $2 WHERE id = $1`, [job.content_id, at]);
+    return this.completeEvent(eventId);
   }
 
   private async completeEvent(eventId: string): Promise<'published'> {

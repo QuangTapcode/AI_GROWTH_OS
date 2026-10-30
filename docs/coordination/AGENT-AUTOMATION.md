@@ -101,4 +101,12 @@ $env:RUN_AUTOMATION_DB='1'
 node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/campaignPlans/automation.pg.test.ts
 ```
 
+The publishing outbox has the same kind of test (it claims any pending publishing event, so it only runs against its own `publish_test_*` database):
+
+```powershell
+# From apps/worker
+$env:RUN_PUBLISH_DB='1'
+node --env-file=../api/.env.local node_modules/vitest/vitest.mjs run tests/publishingOutbox.pg.test.ts
+```
+
 The PostgreSQL test creates and drops only its own `automation_test_*` database. It covers concurrent scheduling, exactly-once Research enqueue, Research-to-strategy handoff, disabled scheduling and revoked ownership. These tests do not certify model quality or external publishing.

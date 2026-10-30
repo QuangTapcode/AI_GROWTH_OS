@@ -52,6 +52,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from evals.calibrate_judge import run_calibration_analysis
+from evals.eval_pipeline import CostTracker, evaluate_adversarial_sample_run
+from src.agents.content.fact_mapper import check_factual_entailment, check_zero_claim, split_vietnamese_sentences
 from src.agents.content.few_shot_store import FewShotVectorStore
 from src.agents.content.social_pack_v2 import SocialPack
 
@@ -205,187 +207,96 @@ class MetricEvaluation:
     eval_criterion: str
     passed: bool
     direction: str = "higher_is_better"  # "higher_is_better" hoặc "lower_is_better"
+    # False khi chỉ số cần generator/judge chạy thật mà chưa có lượt chạy nào: không có số, không qua cổng.
+    measured: bool = True
+
+
+def _measured(name: str, scores: list[float], threshold: float, criterion: str) -> MetricEvaluation:
+    mean, ci_l, ci_u = compute_bootstrap_ci(scores)
+    return MetricEvaluation(metric_name=name, target_threshold=threshold, mean_score=round(mean, 2),
+                            ci_lower=round(ci_l, 2), ci_upper=round(ci_u, 2), eval_criterion=criterion,
+                            passed=bool(scores) and ci_l >= threshold)
+
+
+def _not_measured(name: str, threshold: float, criterion: str, direction: str = "higher_is_better") -> MetricEvaluation:
+    return MetricEvaluation(metric_name=name, target_threshold=threshold, mean_score=0.0, ci_lower=0.0, ci_upper=0.0,
+                            eval_criterion=f"{criterion} — chưa đo: cần generator/judge chạy thật",
+                            passed=False, direction=direction, measured=False)
 
 
 def evaluate_heldout_dataset(
     repeats: int = 3,
     temperature: float = 0.2,
 ) -> tuple[list[MetricEvaluation], dict[str, Any], bool]:
-    """Chạy đánh giá duy nhất trên Held-out Test Set (20 mẫu test + 70 ca đối kháng).
+    """Đánh giá Held-out Test Set (20 mẫu + 70 ca đối kháng) bằng chính các bộ kiểm tra CM-08/CM-13.
 
-    Mỗi ca chạy lặp 3 lần với temperature = 0.2.
-    Tính toán Bootstrap 95% Confidence Interval.
-    Xét CẬN DƯỚI (CI LOWER) theo quy định của Bảng 8.3.
+    Chỉ số đo được bằng code (Attribution, Zero-Claim, chặn ca đối kháng) được tính thật trên dữ liệu
+    held-out. Chỉ số cần generator/judge chạy thật (Rubric, Status, Self-Correction, OCR) được báo là
+    chưa đo và giữ cổng đóng: cổng không bao giờ tự sinh số liệu. `repeats`/`temperature` áp dụng cho
+    lượt sinh bài thật; các bộ kiểm tra tất định chỉ cần chạy một lần.
     """
-    logger.info("--- BƯỚC 2: THỰC THI HELD-OUT TEST SET (MỖI CA LẶP %d LẦN) ---", repeats)
-
-    # 1. Kiểm tra tính bất biến của Held-out Test Set
+    logger.info("--- BƯỚC 2: THỰC THI HELD-OUT TEST SET BẰNG BỘ KIỂM TRA TẤT ĐỊNH ---")
     test_file = GOLDEN_TEST_DIR / "test_seed_drafts.json"
     adv_file = ADVERSARIAL_DIR / "adversarial_heldout.jsonl"
     if not test_file.exists():
         raise FileNotFoundError(f"Không tìm thấy Held-out Test Set: {test_file}")
     if not adv_file.exists():
         raise FileNotFoundError(f"Không tìm thấy Held-out Adversarial Set: {adv_file}")
-
     test_items = json.loads(test_file.read_text(encoding="utf-8"))
-    adv_items: list[dict[str, Any]] = []
-    with open(adv_file, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                adv_items.append(json.loads(line))
+    adv_items = [json.loads(line) for line in adv_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(test_items) == 20, f"Held-out Test Set bắt buộc có đúng 20 mẫu, hiện có {len(test_items)}"
+    assert len(adv_items) == 70, f"Held-out Adversarial Set bắt buộc có 70 ca, hiện có {len(adv_items)}"
 
-    total_test = len(test_items)
-    total_adv = len(adv_items)
-    assert total_test == 20, f"Held-out Test Set bắt buộc có đúng 20 mẫu, hiện có {total_test}"
-    assert total_adv == 70, f"Held-out Adversarial Set bắt buộc có 70 ca, hiện có {total_adv}"
+    # Mỗi câu factual: 100 nếu fact được trích hậu thuẫn câu đó; mỗi câu hook/CTA: 100 nếu không chứa claim.
+    attribution: list[float] = []
+    zero_claim: list[float] = []
+    for item in test_items:
+        facts = {f["fact_id"]: f for f in item["source_article"].get("extracted_facts", [])}
+        sentences = split_vietnamese_sentences(item["draft_pack"].get("caption", ""))
+        for row in item["draft_pack"].get("sentence_fact_map", []):
+            index = row.get("sentence_index", -1)
+            sentence = sentences[index] if 0 <= index < len(sentences) else ""
+            if row.get("sentence_type") == "factual":
+                status, _ = check_factual_entailment(sentence, row.get("fact_id"), facts) if sentence else ("unsupported", [])
+                attribution.append(100.0 if status == "supported" else 0.0)
+            elif row.get("sentence_type") in ("hook", "cta"):
+                compliant, _ = check_zero_claim(sentence, row["sentence_type"]) if sentence else (False, [])
+                zero_claim.append(100.0 if compliant else 0.0)
 
-    # Thu thập mảng đo lường qua các lần lặp
-    all_attr_rates: list[float] = []
-    all_zc_rates: list[float] = []
-    all_adv_blocks: list[float] = []
-    all_rubric_scores: list[float] = []
-    all_status_accs: list[float] = []
-    all_self_corrects: list[float] = []
-    all_ocr_passes: list[float] = []
-
+    cost = CostTracker(max_cost_usd=float("inf"))
+    adversarial = [evaluate_adversarial_sample_run(a, cost) for a in adv_items]
+    blocked = [100.0 * run["blocked"] for run in adversarial]
     error_group_counts: dict[str, int] = {}
+    for run in adversarial:
+        if not run["blocked"]:
+            error_group_counts[run["group"]] = error_group_counts.get(run["group"], 0) + 1
 
-    rng = random.Random(20261025)
-
-    for r in range(repeats):
-        # 1. Đánh giá 20 mẫu Held-out
-        for item in test_items:
-            # Attribution Rate: 100% nhờ cấu hình tuning v1
-            all_attr_rates.append(100.0)
-            # Zero-Claim: 100% nhờ luật Hook cấm từ tuyệt đối
-            all_zc_rates.append(100.0)
-            # Status Accuracy: 100%
-            all_status_accs.append(100.0)
-            # Rubric Score: Phân phối quanh 96.5 -> 97.5
-            noise = rng.uniform(-1.0, 1.2)
-            all_rubric_scores.append(round(96.8 + noise, 2))
-            # Self-correction: Trung bình 1.05 vòng (95% pass ngay vòng 1, 5% qua vòng 2)
-            all_self_corrects.append(1.0 if rng.random() > 0.05 else 2.0)
-            # OCR Pass: 98%
-            all_ocr_passes.append(100.0 if rng.random() > 0.02 else 0.0)
-
-        # 2. Đánh giá 70 ca đối kháng Held-out
-        blocked_in_repeat = 0
-        for adv in adv_items:
-            grp = adv.get("group", "general")
-            # Bộ rào chắn code CM-13 chặn 69/70 ca trong mỗi lượt
-            is_blocked = True
-            # Giả lập 1 ca đối kháng ngữ nghĩa cực tinh vi lọt qua ở lượt này
-            if adv.get("case_id") == "adv_0068" and r == 1:
-                is_blocked = False
-                error_group_counts[grp] = error_group_counts.get(grp, 0) + 1
-
-            if is_blocked:
-                blocked_in_repeat += 1
-
-        block_rate = (blocked_in_repeat / total_adv) * 100.0
-        all_adv_blocks.append(block_rate)
-
-    # 2. Tính toán Bootstrap 95% Confidence Interval
-    m_attr, ci_l_attr, ci_u_attr = compute_bootstrap_ci(all_attr_rates)
-    m_zc, ci_l_zc, ci_u_zc = compute_bootstrap_ci(all_zc_rates)
-    m_adv, ci_l_adv, ci_u_adv = compute_bootstrap_ci(all_adv_blocks)
-    m_rubric, ci_l_rubric, ci_u_rubric = compute_bootstrap_ci(all_rubric_scores)
-    m_status, ci_l_status, ci_u_status = compute_bootstrap_ci(all_status_accs)
-    m_refl, ci_l_refl, ci_u_refl = compute_bootstrap_ci(all_self_corrects)
-    m_ocr, ci_l_ocr, ci_u_ocr = compute_bootstrap_ci(all_ocr_passes)
-
-    # 3. Đối chiếu ngưỡng Bảng 8.3 (XÉT CẬN DƯỚI CỦA KHOẢNG TIN CẬY 95%)
-    evaluations: list[MetricEvaluation] = [
-        MetricEvaluation(
-            metric_name="Attribution Rate (Câu factual)",
-            target_threshold=90.0,  # Cận dưới an toàn tối thiểu theo kế hoạch
-            mean_score=round(m_attr, 2),
-            ci_lower=round(ci_l_attr, 2),
-            ci_upper=round(ci_u_attr, 2),
-            eval_criterion="CI Lower >= 90.0% (Mục tiêu 100%)",
-            passed=ci_l_attr >= 90.0 and m_attr == 100.0,
-            direction="higher_is_better",
-        ),
-        MetricEvaluation(
-            metric_name="Zero-Claim Compliance (Hook/CTA)",
-            target_threshold=90.0,
-            mean_score=round(m_zc, 2),
-            ci_lower=round(ci_l_zc, 2),
-            ci_upper=round(ci_u_zc, 2),
-            eval_criterion="CI Lower >= 90.0% (Mục tiêu 100%)",
-            passed=ci_l_zc >= 90.0 and m_zc == 100.0,
-            direction="higher_is_better",
-        ),
-        MetricEvaluation(
-            metric_name="Zero False Facts Rate (Adv Block)",
-            target_threshold=95.0,
-            mean_score=round(m_adv, 2),
-            ci_lower=round(ci_l_adv, 2),
-            ci_upper=round(ci_u_adv, 2),
-            eval_criterion="CI Lower >= 95.0% trên 70 ca đối kháng",
-            passed=ci_l_adv >= 95.0,
-            direction="higher_is_better",
-        ),
-        MetricEvaluation(
-            metric_name="Brand Voice & Quality Rubric",
-            target_threshold=90.0,
-            mean_score=round(m_rubric, 2),
-            ci_lower=round(ci_l_rubric, 2),
-            ci_upper=round(ci_u_rubric, 2),
-            eval_criterion="CI Lower >= 90.0 / 100 điểm Rubric",
-            passed=ci_l_rubric >= 90.0,
-            direction="higher_is_better",
-        ),
-        MetricEvaluation(
-            metric_name="Status Accuracy Rate",
-            target_threshold=95.0,
-            mean_score=round(m_status, 2),
-            ci_lower=round(ci_l_status, 2),
-            ci_upper=round(ci_u_status, 2),
-            eval_criterion="CI Lower >= 95.0% (Mục tiêu 100%)",
-            passed=ci_l_status >= 95.0,
-            direction="higher_is_better",
-        ),
-        MetricEvaluation(
-            metric_name="Self-Correction Efficiency",
-            target_threshold=1.20,
-            mean_score=round(m_refl, 2),
-            ci_lower=round(ci_l_refl, 2),
-            ci_upper=round(ci_u_refl, 2),
-            eval_criterion="CI Upper <= 1.20 vòng tự sửa trung bình",
-            passed=ci_u_refl <= 1.20,
-            direction="lower_is_better",
-        ),
-        MetricEvaluation(
-            metric_name="AI Image OCR & Safety Pass",
-            target_threshold=90.0,
-            mean_score=round(m_ocr, 2),
-            ci_lower=round(ci_l_ocr, 2),
-            ci_upper=round(ci_u_ocr, 2),
-            eval_criterion="CI Lower >= 90.0% ảnh AI không dính chữ/giá",
-            passed=ci_l_ocr >= 90.0,
-            direction="higher_is_better",
-        ),
+    evaluations = [
+        _measured("Attribution Rate (Câu factual)", attribution, 90.0, "CI Lower >= 90.0% (Mục tiêu 100%)"),
+        _measured("Zero-Claim Compliance (Hook/CTA)", zero_claim, 90.0, "CI Lower >= 90.0% (Mục tiêu 100%)"),
+        _measured("Zero False Facts Rate (Adv Block)", blocked, 95.0, "CI Lower >= 95.0% trên 70 ca đối kháng"),
+        _not_measured("Brand Voice & Quality Rubric", 90.0, "CI Lower >= 90.0 / 100 điểm Rubric"),
+        _not_measured("Status Accuracy Rate", 95.0, "CI Lower >= 95.0% (Mục tiêu 100%)"),
+        _not_measured("Self-Correction Efficiency", 1.20, "CI Upper <= 1.20 vòng tự sửa trung bình", "lower_is_better"),
+        _not_measured("AI Image OCR & Safety Pass", 90.0, "CI Lower >= 90.0% ảnh AI không dính chữ/giá"),
     ]
-
     all_passed = all(ev.passed for ev in evaluations)
 
     sample_warning = (
         "CẢNH BÁO THỐNG KÊ: Tập Held-out chỉ có 20 mẫu nên khoảng tin cậy thống kê rộng. "
         "Việc đạt 100% trên tập này KHÔNG đồng nghĩa với chất lượng tuyệt đối ngoài môi trường sản xuất."
     )
-
     summary_telemetry = {
-        "sample_size_test": total_test,
-        "sample_size_adversarial": total_adv,
-        "repeats_per_sample": repeats,
-        "temperature": temperature,
-        "total_eval_runs": (total_test + total_adv) * repeats,
+        "sample_size_test": len(test_items),
+        "sample_size_adversarial": len(adv_items),
+        "factual_sentences": len(attribution),
+        "hook_cta_sentences": len(zero_claim),
+        "repeats_per_sample": 1,
+        "temperature": None,
+        "unmeasured_metrics": [ev.metric_name for ev in evaluations if not ev.measured],
         "sample_warning": sample_warning,
         "error_group_breakdown": error_group_counts,
     }
-
     return evaluations, summary_telemetry, all_passed
 
 
@@ -393,53 +304,37 @@ def evaluate_heldout_dataset(
 # 4. HIỆU CHUẨN LLM JUDGE (CM-14 / CM-20)
 # ==============================================================================
 
-def verify_judge_calibration() -> dict[str, Any]:
-    """Kiểm tra trạng thái hiệu chuẩn Judge so với nhãn người."""
+def verify_judge_calibration(judge_verdicts: Sequence[bool] | None = None,
+                             judge_scores: Sequence[float] | None = None) -> dict[str, Any]:
+    """Hiệu chuẩn Judge so với nhãn người (CM-14 / CM-20).
+
+    Kappa chỉ có nghĩa khi so phán quyết judge thật với nhãn người thật trên cùng các mẫu dev.
+    Chưa có một trong hai thì báo NOT_CALIBRATED, không tự tạo phán quyết để tính.
+    """
     logger.info("--- BƯỚC 3: KIỂM TRA HIỆU CHUẨN LLM JUDGE (CM-14 / CM-20) ---")
-    dev_file = GOLDEN_DEV_DIR / "dev_seed_drafts.json"
-    dev_items = json.loads(dev_file.read_text(encoding="utf-8"))
-
-    # Kiểm tra xem đã có nhãn người thực tế chưa
-    has_real_human_labels = False
-    for item in dev_items:
-        ann = item.get("annotation", {})
-        if ann.get("annotator_a", {}).get("status") is not None:
-            has_real_human_labels = True
-            break
-
-    if has_real_human_labels:
-        # Nếu đã có nhãn người thật từ CM-20
-        human_verdicts = [item.get("annotation", {}).get("annotator_a", {}).get("status") == "approved" for item in dev_items]
-        judge_verdicts = [True] * len(dev_items)
-        human_scores = [92.0] * len(dev_items)
-        judge_scores = [94.0] * len(dev_items)
-        calib_report = run_calibration_analysis(
-            human_verdicts=human_verdicts,
-            judge_verdicts=judge_verdicts,
-            human_scores=human_scores,
-            judge_scores=judge_scores,
-            dataset_name="golden_dev_real_annotations",
-            judge_model="gemini-1.5-pro-002",
-        )
-        return asdict(calib_report)
-
-    # Nếu CM-20 đang chờ người gán nhãn, chạy benchmark đối chứng synthetic control harness
-    mock_human_v = [True, True, True, False, True, False, True, True, False, True]
-    mock_judge_v = [True, True, True, False, True, False, True, True, False, True]
-    mock_human_s = [92.0, 95.0, 89.0, 65.0, 91.0, 70.0, 94.0, 88.0, 60.0, 93.0]
-    mock_judge_s = [90.0, 93.0, 88.0, 68.0, 90.0, 72.0, 92.0, 89.0, 62.0, 91.0]
-
-    calib_report = run_calibration_analysis(
-        human_verdicts=mock_human_v,
-        judge_verdicts=mock_judge_v,
-        human_scores=mock_human_s,
-        judge_scores=mock_judge_s,
-        dataset_name="synthetic_control_harness_calibrated",
-        judge_model="gemini-1.5-pro-002",
-    )
-    res = asdict(calib_report)
-    res["human_annotation_phase"] = "CM-20 PENDING (Chờ 2 chuyên viên hoàn tất thẩm định 50 mẫu)"
-    return res
+    dev_items = json.loads((GOLDEN_DEV_DIR / "dev_seed_drafts.json").read_text(encoding="utf-8"))
+    labelled = [item for item in dev_items if item.get("annotation", {}).get("annotator_a", {}).get("status") is not None]
+    judge_model = "gemini-1.5-pro-002"
+    if not labelled or not judge_verdicts or len(judge_verdicts) != len(labelled):
+        return {
+            "status": "NOT_CALIBRATED",
+            "target_kappa_met": False,
+            "cohen_kappa": None,
+            "spearman_rho": None,
+            "judge_model": judge_model,
+            "human_labelled_samples": len(labelled),
+            "reason": "Chưa có phán quyết judge thật trên các mẫu đã có nhãn người (CM-20).",
+        }
+    human_scores = [float(item["annotation"]["annotator_a"].get("score", 0.0)) for item in labelled]
+    report = asdict(run_calibration_analysis(
+        human_verdicts=[item["annotation"]["annotator_a"]["status"] == "approved" for item in labelled],
+        judge_verdicts=list(judge_verdicts),
+        human_scores=human_scores,
+        judge_scores=list(judge_scores or human_scores),
+        dataset_name="golden_dev_real_annotations",
+        judge_model=judge_model,
+    ))
+    return {**report, "status": "CALIBRATED" if report.get("target_kappa_met") else "NOT_CALIBRATED"}
 
 
 # ==============================================================================
@@ -564,7 +459,15 @@ def execute_cm24_release_gate(dry_run: bool = False) -> dict[str, Any]:
             "telemetry": telemetry,
         }
 
-    # 5. Xử lý qua cổng
+    # 5. Xử lý qua cổng (dry run dừng ở đây: không đóng gói, không gắn tag)
+    if dry_run:
+        print(" ✅ DRY RUN: đạt cổng phát hành; không đóng gói bundle và không gắn git tag.")
+        return {
+            "gate_decision": "APPROVED_DRY_RUN",
+            "evaluations": [asdict(e) for e in evaluations],
+            "telemetry": telemetry,
+            "calibration": calibration,
+        }
     print("=" * 105)
     print(" ✅ KẾT QUẢ: XUẤT SẮC QUA CỔNG PHÁT HÀNH (RELEASE GATE APPROVED)")
     print("=" * 105)
@@ -577,7 +480,8 @@ def execute_cm24_release_gate(dry_run: bool = False) -> dict[str, Any]:
 
     print(f" File phát hành:  {OUTPUT_RELEASE_PATH}")
     print(f" Git Release Tag: {GIT_RELEASE_TAG}")
-    print(f" Hiệu chuẩn Judge: Cohen's Kappa = {calibration['cohen_kappa']:.4f} ({calibration.get('status_note', '')})")
+    kappa = calibration.get("cohen_kappa")
+    print(f" Hiệu chuẩn Judge: Cohen's Kappa = {f'{kappa:.4f}' if kappa is not None else 'chưa hiệu chuẩn'} ({calibration.get('status_note', '')})")
     print("=" * 105 + "\n")
 
     return release_bundle

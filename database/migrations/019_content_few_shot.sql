@@ -1,4 +1,4 @@
--- Migration 013: content_few_shot_examples with pgvector support (CM-23)
+-- Migration 019: content_few_shot_examples with pgvector support (CM-23)
 -- Kho ví dụ mẫu xuất sắc Few-shot cho Agent Content Marketing, phân lập theo workspace_id
 
 CREATE EXTENSION IF NOT EXISTS vector;

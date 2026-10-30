@@ -139,3 +139,29 @@ def test_failed_content_run_keeps_its_error_code_when_metrics_fail(client, make_
     provider = FacebookProvider({"hook": "Living areas guide", "body": "Save 50% this week", "discussion_question": None, "hashtags": []})
     out = run_job(make_client(provider=provider, provider_mode="live"), job)
     assert out["status"] == "failed" and out["error_code"] == "UNSUPPORTED_CONTENT_CLAIM", out
+
+
+def test_facebook_post_links_each_claim_to_a_cited_fact(client, make_client):
+    # Reviewers see which cited quote backs each sentence; hook and CTA carry no claim.
+    _, job = content_job(client, channels=["facebook"])
+    provider = FacebookProvider({"hook": "Choosing a living area?", "body": "• The guide compares living areas for newcomers.",
+                                 "discussion_question": "Which area are you considering?", "hashtags": []})
+    result = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]
+    facts = {f["fact_id"]: f["text"] for f in result["extracted_facts"]}
+    rows = [(r["sentence_type"], r["text"], r["fact_id"], r["entailment_status"]) for r in result["sentence_fact_map"]]
+    assert facts == {"f01": "The guide compares living areas for newcomers."}
+    assert rows == [
+        ("hook", "Choosing a living area?", "NONE", "supported"),
+        ("factual", "The guide compares living areas for newcomers.", ["f01"], "supported"),
+        ("cta", "Request the guide", "SYSTEM_CTA", "supported"),
+    ]
+
+
+@pytest.mark.parametrize("claim", ["free for every newcomer", "rated 5 sao by expats"])
+def test_facebook_post_with_a_promotional_claim_the_sources_lack_is_rejected(client, make_client, claim):
+    _, job = content_job(client, channels=["facebook"])
+    provider = FacebookProvider({"hook": "Choosing a living area?",
+                                 "body": f"• The guide compares living areas for newcomers, {claim}.",
+                                 "discussion_question": None, "hashtags": []})
+    out = run_job(make_client(provider=provider, provider_mode="live"), job)
+    assert out["status"] == "failed" and out["error_code"] == "UNSUPPORTED_CONTENT_CLAIM", out

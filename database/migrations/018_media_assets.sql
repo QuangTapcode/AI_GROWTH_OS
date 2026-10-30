@@ -1,5 +1,5 @@
 -- ============================================================================
--- AI GROWTH OS — Migration 012: Media Assets & Dual-Asset Governance (CM-03)
+-- AI GROWTH OS — Migration 018: Media Assets & Dual-Asset Governance (CM-03)
 -- Target: PostgreSQL 17 + Row Level Security (RLS)
 -- Architecture: Dual-Asset Management (Real Enterprise Assets vs AI Graphics)
 -- Owner: AI/Backend Core

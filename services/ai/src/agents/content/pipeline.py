@@ -5,7 +5,9 @@ from ...guardrails.support import strip_unsupported
 from ..contracts import (artifact_problems, call_grounded_draft, ensure_grounded, evidence_problems, profile_grounding,
                          result_fields, source_passages, stable_id, validate_context)
 from ..copy_quality import canonical_locations, drop_truncated_lines
+from .rule_guardrails import evaluate_social_pack_guardrails
 from .schemas import ContentDraft, ContentFacebookDraft, FacebookPost, SocialPack
+from .traceability import cited_facts, sentence_fact_map
 
 PROMPT_VERSION = "content-v4"
 MAX_PASSAGE_CHARS = 2400
@@ -36,6 +38,11 @@ def facebook_post(draft, grounding, cta, locations=()):
         question = ""
     text = "\n\n".join(part for part in [hook, body, question, cta, " ".join(hashtags)] if part)
     ensure_grounded(text, grounding)
+    # Promotions, testimonials and superlatives the cited sources do not state also fail closed (CM-13).
+    report = evaluate_social_pack_guardrails(text, extracted_facts=grounding)
+    if not report.is_valid:
+        found = ", ".join(sorted({f"{v.code}:{v.matched_text}" for v in report.violations}))
+        raise OperationError("UNSUPPORTED_CONTENT_CLAIM", f"Facebook draft makes claims the cited sources do not: {found}")
     post = FacebookPost(hook=hook, body=body, discussion_question=question or None, hashtags=hashtags, cta=cta, text=text)
     return post, len(truncated)
 
@@ -88,6 +95,8 @@ async def run_content(ctx):
     draft = draft.model_copy(update={"caption": caption or draft.caption})
     facebook, truncated = (facebook_post(draft.facebook, grounding, p.cta, p.business_profile.locations)
                            if with_facebook else (None, 0))
+    facts = cited_facts(p.source_article.evidence)
+    sentence_map = sentence_fact_map(facebook, facts) if facebook else []
     missing = list(article.get("missing_facts", []))
     # Facebook Page text posts do not require an image. TikTok still requires
     # an approved media asset, so keep the asset gate for any TikTok target.
@@ -104,7 +113,7 @@ async def run_content(ctx):
         hook=draft.caption.splitlines()[0],
         key_points=[line.lstrip("•- ").strip() for line in draft.caption.splitlines() if line.strip().startswith(("•", "- "))],
         hashtags=re.findall(r"(?<!\w)#[\w]+", draft.caption),
-        video_asset_ref=None, tiktok_privacy_level="SELF_ONLY")
+        video_asset_ref=None, tiktok_privacy_level="SELF_ONLY", extracted_facts=facts, sentence_fact_map=sentence_map)
     return OperationOutcome(result=result.model_dump(mode="json"), evidence=p.source_article.evidence,
                             warnings=["MANUAL_PACK_REQUIRES_APPROVAL_AND_CHANNEL_CAPABILITY",
                                       *([f"TRUNCATED_SENTENCE_REMOVED:{truncated}"] if truncated else [])])

@@ -53,7 +53,6 @@ from evals.eval_pipeline import (
 class TestTier1PRGate:
     """Kiểm tra Tầng 1: PR Gate (<30s, Deterministic, Zero LLM)."""
 
-    @pytest.mark.xfail(strict=True, reason="checksums.sha256 không khớp 21 file golden đã commit (sai từ commit e1e3419 của nhánh Tien_Content_Marketting); tác giả cần xác nhận bộ golden rồi tạo lại checksum.")
     def test_tier1_pipeline_runtime_under_30_seconds(self) -> None:
         """Requirement: Tầng 1 mỗi PR phải chạy < 30 giây."""
         t0 = time.monotonic()
@@ -104,7 +103,6 @@ class TestTier1PRGate:
         assert "VI PHẠM NGUYÊN TẮC ZERO LEAKAGE" in str(exc_info.value)
         assert "gs_test_001" in str(exc_info.value)
 
-    @pytest.mark.xfail(strict=True, reason="checksums.sha256 không khớp 21 file golden đã commit (sai từ commit e1e3419 của nhánh Tien_Content_Marketting); tác giả cần xác nhận bộ golden rồi tạo lại checksum.")
     def test_tier1_golden_test_immutability_passes_on_unmodified_files(self) -> None:
         """Kiểm tra mã băm SHA-256 bảo vệ toàn vẹn data/golden/test/."""
         res = check_golden_test_immutability()

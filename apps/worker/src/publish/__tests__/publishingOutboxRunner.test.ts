@@ -63,6 +63,12 @@ class TrackableMockPublisher extends CmsPublisher {
   }
 }
 
+/** An approved artifact as the API stores it: content_hash = sha256 of {result, evidence}. */
+function approvedArtifact(text: string) {
+  const result = { facebook: { text } };
+  return { artifact_payload: { result }, artifact_evidence: [], content_hash: computeSha256Hex({ result, evidence: [] }) };
+}
+
 describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
   it('1. TC-15 Idempotency: Gửi trùng cùng idempotency key chỉ ra một bài, trả cùng post_id (0 bài trùng)', async () => {
     const mockPublisher = new TrackableMockPublisher('Facebook', 'success');
@@ -104,22 +110,20 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
                 content_title: 'Sơn Trà 2026',
                 artifact_id: 'art_01',
                 artifact_version: 1,
-                content_hash: computeSha256Hex({ text: 'Khám phá bán đảo Sơn Trà tuyệt đẹp!' }),
-                artifact_payload: { text: 'Khám phá bán đảo Sơn Trà tuyệt đẹp!' },
+                ...approvedArtifact('Khám phá bán đảo Sơn Trà tuyệt đẹp!'),
                 platform_name: 'facebook',
                 channel_identifier: 'page_danang',
                 utm_url: null,
                 approval_status: 'approved',
-                parent_version: 1,
                 external_post_id: null,
               },
             ],
           };
         }
 
-        // Check existing published by idempotencyKey
-        if (sql.includes('WHERE workspace_id = $1 AND idempotency_key = $2')) {
-          const key = params[1];
+        // Check existing published job for the same artifact and channel
+        if (sql.includes('AND artifact_id = $2 AND channel_id = $3')) {
+          const key = 'publish:ws_danang_01:pack_sontra_01:facebook:1';
           if (publishedStore.has(key)) {
             return { rows: [publishedStore.get(key)] };
           }
@@ -187,7 +191,6 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
                 channel_identifier: 'page_1',
                 utm_url: null,
                 approval_status: 'pending', // Trạng thái pending!
-                parent_version: 1,
                 external_post_id: null,
               },
             ],
@@ -239,13 +242,11 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
                 content_title: 'Timeout Test',
                 artifact_id: 'art_01',
                 artifact_version: 1,
-                content_hash: computeSha256Hex({ text: 'Test timeout & reconcile' }),
-                artifact_payload: { text: 'Test timeout & reconcile' },
+                ...approvedArtifact('Test timeout & reconcile'),
                 platform_name: 'facebook',
                 channel_identifier: 'page_1',
                 utm_url: null,
                 approval_status: 'approved',
-                parent_version: 1,
                 external_post_id: null,
               },
             ],
@@ -295,13 +296,11 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
                 content_title: 'Retry Test',
                 artifact_id: 'art_01',
                 artifact_version: 1,
-                content_hash: computeSha256Hex({ text: 'Test exponential backoff' }),
-                artifact_payload: { text: 'Test exponential backoff' },
+                ...approvedArtifact('Test exponential backoff'),
                 platform_name: 'facebook',
                 channel_identifier: 'page_1',
                 utm_url: null,
                 approval_status: 'approved',
-                parent_version: 1,
                 external_post_id: null,
               },
             ],
@@ -345,9 +344,9 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
               id: 'job_fb_01', workspace_id: 'ws_danang_01', content_id: 'pack_fb_01', approval_id: 'appr_01',
               scheduled_for: new Date(Date.now() - 1000).toISOString(), status: 'scheduled', mode: 'automated',
               body_markdown: 'Meta blocked', content_title: 'Blocked', artifact_id: 'art_01', artifact_version: 1,
-              content_hash: computeSha256Hex({ text: 'Meta blocked' }), artifact_payload: { text: 'Meta blocked' },
+              ...approvedArtifact('Meta blocked'),
               platform_name: 'facebook', channel_identifier: 'page_1', utm_url: null, approval_status: 'approved',
-              parent_version: 1, external_post_id: null,
+              external_post_id: null,
             }],
           };
         }
@@ -404,13 +403,11 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
                 content_title: `Title ${jobId}`,
                 artifact_id: `art_${jobId}`,
                 artifact_version: 1,
-                content_hash: computeSha256Hex({ text: `Nội dung từ ${jobId}` }),
-                artifact_payload: { text: `Nội dung từ ${jobId}` },
+                ...approvedArtifact(`Nội dung từ ${jobId}`),
                 platform_name: 'tiktok',
                 channel_identifier: '@tripc',
                 utm_url: null,
                 approval_status: 'approved',
-                parent_version: 1,
                 external_post_id: null,
               },
             ],
