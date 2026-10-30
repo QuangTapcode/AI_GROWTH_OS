@@ -798,6 +798,14 @@
                 "maxItems": 10,
                 "title": "Evidence Quotes",
                 "type": "array"
+              },
+              "evidence_chunk_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "title": "Evidence Chunk Ids",
+                "type": "array"
               }
             },
             "required": [

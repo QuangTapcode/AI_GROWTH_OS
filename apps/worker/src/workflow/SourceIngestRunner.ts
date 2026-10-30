@@ -4,6 +4,9 @@ import type { AiAdapter } from '../adapters/AiAdapter';
 import { needsBrowser, renderWithBrowser, type RenderPage } from './BrowserRenderer';
 
 export const MAX_INGEST_ATTEMPTS = 3;
+/** URL prefixes of the business's own published articles, approved as sources on ingest (owner decision 30/10). */
+const AUTO_APPROVE_PREFIXES = (process.env.FIRST_PARTY_AUTO_APPROVE_PREFIXES ?? 'https://tripc.ai/blog/')
+  .split(',').map((p) => p.trim()).filter(Boolean);
 const EMBEDDING_DIM = 768;
 
 type IngestChunk = { chunk_index: number; text_content: string; citation_locator?: string | null; embedding?: number[]; model?: string };
@@ -74,12 +77,15 @@ export class SourceIngestRunner {
             chunk.embedding ? `[${chunk.embedding.join(',')}]` : null, (chunk.model ?? result.model).slice(0, 50),
             (output.embedding_model ?? chunk.model ?? '').slice(0, 50) || null, output.embedding_input_format?.slice(0, 50) ?? null]);
         }
-        await db.query(`UPDATE sources SET status='needs_review', content_hash=$2, source_url=$3, retrieved_at=now(),
-            ingest_error=NULL, updated_at=now() WHERE id=$1`, [source.id, output.content_hash, output.url]);
+        // The owner's own published articles are approved on ingest; everything else waits for review.
+        const approved = AUTO_APPROVE_PREFIXES.some((prefix) => String(source.url_or_blob).startsWith(prefix));
+        await db.query(`UPDATE sources SET status='${approved ? 'approved' : 'needs_review'}',${approved ? ' reviewed_at=now(),' : ''}
+            content_hash=$2, source_url=$3, retrieved_at=now(), ingest_error=NULL, updated_at=now() WHERE id=$1`,
+          [source.id, output.content_hash, output.url]);
         await db.query('COMMIT');
+        return { source_id: source.id, status: approved ? 'approved' as const : 'needs_review' as const, chunks: output.chunks.length };
       } catch (error) { await db.query('ROLLBACK'); throw error; }
       finally { db.release(); }
-      return { source_id: source.id, status: 'needs_review' as const, chunks: output.chunks.length };
     } catch (error) {
       const code = (error as { code?: string }).code ?? (error as Error).message;
       const permanent = error instanceof IngestError ? error.permanent : (error as { permanent?: boolean }).permanent === true;

@@ -113,6 +113,13 @@ def stable_id(ctx, kind):
     return uuid5(NAMESPACE_URL, f"{ctx.job.workspace_id}:{ctx.job.job_id}:{ctx.job.input_version}:{kind}")
 
 
+def blocking_facts(facts):
+    """Missing facts that block a downstream draft. Research coverage notes (gaps on other topics,
+    dated excerpts of other findings, a dropped model draft) are reported but do not block; the
+    backend applies the same rule (campaignPlans/service.ts blockingFacts)."""
+    return [f for f in facts if not (f.startswith(("source_gap:", "stale_evidence:")) or f == "complete_research_explanation")]
+
+
 def ensure_grounded(text, grounding):
     # Until a dedicated sensitive-fact renderer is requested, omit prices entirely.
     if has_price_claim(text) or unsupported_numbers(text, grounding):

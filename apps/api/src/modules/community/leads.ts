@@ -13,6 +13,33 @@ interface LeadProposal {
 /**
  * Persists a lead from an approved Community artifact into PostgreSQL leads table (TQ-05 / W2).
  */
+/**
+ * An approved grounded reply to a Messenger message is queued for the worker to send to that person.
+ * Escalations, incomplete drafts and empty replies are never sent; the message is marked escalated.
+ */
+async function queueMessengerReply(
+  client: PoolClient,
+  workspaceId: string,
+  message: { id: string; author_contact: string | null },
+  artifactId: string,
+  result: { reply?: string; status?: string; escalation_required?: boolean },
+) {
+  const text = result.reply?.trim();
+  if (result.escalation_required || result.status !== 'draft' || !text || !message.author_contact) {
+    await client.query(
+      `UPDATE community_messages SET status = 'escalated', updated_at = NOW() WHERE workspace_id = $1 AND id = $2 AND status IN ('received', 'queued')`,
+      [workspaceId, message.id],
+    );
+    return;
+  }
+  await client.query(
+    `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload) VALUES ($1, 'community.reply', $2, $3)
+     ON CONFLICT (workspace_id, dedup_key) DO NOTHING`,
+    [workspaceId, `community-reply:${message.id}`,
+      JSON.stringify({ message_id: message.id, artifact_id: artifactId, recipient: message.author_contact, text })],
+  );
+}
+
 export async function persistCommunityLead(
   client: PoolClient,
   workspaceId: string,
@@ -38,11 +65,17 @@ export async function persistCommunityLead(
 
   if (!artifactRow || artifactRow.role !== 'community') return null;
 
+  const messenger = artifactRow.task_id ? (await client.query<{ id: string; author_contact: string | null }>(
+    `SELECT id, author_contact FROM community_messages WHERE workspace_id = $1 AND task_id = $2 AND platform = 'facebook_message' LIMIT 1`,
+    [workspaceId, artifactRow.task_id],
+  )).rows[0] : undefined;
+  if (messenger) await queueMessengerReply(client, workspaceId, messenger, artifactId, artifactRow.payload?.result ?? {});
+
   const proposal = artifactRow.payload?.result?.lead_proposal;
   if (!proposal) {
-    // If no lead proposal was generated (e.g. pure informational reply),
-    // still mark any linked community message as replied upon artifact approval.
-    if (artifactRow.task_id) {
+    // If no lead proposal was generated (e.g. pure informational reply), mark the linked message as
+    // replied upon approval; a Messenger message is marked only once the worker has sent the reply.
+    if (artifactRow.task_id && !messenger) {
       await client.query(
         `UPDATE community_messages SET status = 'replied', updated_at = NOW()
          WHERE workspace_id = $1 AND task_id = $2 AND status IN ('received', 'queued')`,
@@ -71,9 +104,10 @@ export async function persistCommunityLead(
     `community.${artifactId.slice(0, 8)}@tripc.internal`;
 
   const contactName = msgRow?.author_name || 'Community Member';
+  // A Messenger author_contact is a page-scoped user id, not a phone number.
   const phoneNumber =
     proposal.contact?.phone ||
-    (!msgRow?.author_contact?.includes('@') ? msgRow?.author_contact : null);
+    (!messenger && !msgRow?.author_contact?.includes('@') ? msgRow?.author_contact : null);
 
   const interestTopic = 'Housing & Community Consultation';
   const notes = `Lead originated from Community inquiry: "${(msgRow?.content || 'Community question').slice(0, 200)}". Reply draft: "${(artifactRow.payload?.result?.reply || '').slice(0, 200)}"`;
@@ -123,8 +157,11 @@ export async function persistCommunityLead(
 
   // Link to community message if present
   if (msgRow) {
+    // Messenger messages become 'replied' only after the worker has actually sent the reply.
     await client.query(
-      `UPDATE community_messages SET lead_id = $3, status = 'replied', updated_at = NOW() WHERE workspace_id = $1 AND id = $2`,
+      messenger
+        ? `UPDATE community_messages SET lead_id = $3, updated_at = NOW() WHERE workspace_id = $1 AND id = $2`
+        : `UPDATE community_messages SET lead_id = $3, status = 'replied', updated_at = NOW() WHERE workspace_id = $1 AND id = $2`,
       [workspaceId, msgRow.id, savedLeadId],
     );
   }

@@ -63,6 +63,25 @@ async function checkRobots(url: string): Promise<void> {
   }
 }
 
+/** Links of a client-rendered index page (robots-checked); a link's heading, else its first line, is its title. */
+export async function listLinksWithBrowser(url: string): Promise<{ url: string; title: string }[]> {
+  await checkRobots(url);
+  const { chromium } = await import('playwright-core');
+  const browser = await chromium.launch({ channel: process.env.INGEST_BROWSER_CHANNEL || 'msedge' });
+  try {
+    const page = await browser.newPage({ userAgent: INGEST_USER_AGENT });
+    await page.goto(url, { waitUntil: 'networkidle', timeout: 45_000 });
+    // Index pages load more articles while scrolling.
+    for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, 4000); await page.waitForTimeout(500); }
+    return await page.evaluate(() => Array.from(document.querySelectorAll('a')).map((a) => ({
+      url: a.href.split(/[?#]/)[0],
+      title: (a.querySelector('h1,h2,h3,h4')?.textContent ?? a.innerText.split('\n')[0] ?? '').trim(),
+    })));
+  } finally {
+    await browser.close();
+  }
+}
+
 /** Headless Edge/Chrome via playwright-core; the browser is installed on the host, never downloaded. */
 export const renderWithBrowser: RenderPage = async (url) => {
   await checkRobots(url);

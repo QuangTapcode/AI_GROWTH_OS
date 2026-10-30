@@ -157,6 +157,86 @@ describe.skipIf(process.env.RUN_AUTOMATION_DB !== "1")(
         .toBe(Date.parse(now.window_end) - Date.parse(now.window_start));
       expect(before.metric_definitions).toEqual(now.metric_definitions);
     });
+    it("does not open another learning round on a measurement an earlier round already used", async () => {
+      const artifact = async (role: string, operation: string, taskId: string | null, payload: unknown) => {
+        const id = randomUUID();
+        await db.query(
+          `INSERT INTO content_artifacts(id,workspace_id,task_id,version,content_hash,context_snapshot_id,role,operation,artifact_type,title,storage,payload,evidence)
+        VALUES($1,$2,$3,1,$4,$5,$6,$7,'ai_result','Synthetic test','ai_run_store',$8,'[]')`,
+          [id, workspace, taskId, id.replace(/-/g, "").padEnd(64, "0"), snapshot, role, operation, JSON.stringify(payload)],
+        );
+        return id;
+      };
+      const task = async (role: string, operation: string, status: string, payload: unknown) => {
+        const id = randomUUID();
+        await db.query(`INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,payload)
+          VALUES($1,$2,$3,$4,$5,1,$6,$7)`, [id, workspace, role, operation, status, snapshot, JSON.stringify(payload)]);
+        return id;
+      };
+      const { metrics_artifact_id: metrics } = await ensureMeasurementArtifacts(db, workspace, snapshot);
+      // An earlier round: report on this measurement, then learning on that report.
+      const earlierReportTask = await task("performance", "analytics.report", "completed", { input: { operation: "analytics.report", metrics_artifact_id: metrics } });
+      const earlierReport = await artifact("performance", "analytics.report", earlierReportTask, { result: { status: "draft" } });
+      await task("growth_lead", "learning.analyze", "completed", { input: { operation: "learning.analyze", performance_artifact_id: earlierReport } });
+      // A new report on the same measurement arrives through the scheduler.
+      const reportTask = await task("performance", "analytics.report", "awaiting_approval", { input: { operation: "analytics.report", metrics_artifact_id: metrics } });
+      await db.query("UPDATE workflow_tasks SET result_ref=$2 WHERE id=$1",
+        [reportTask, await artifact("performance", "analytics.report", reportTask, { result: { status: "draft" } })]);
+      await db.query("INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2)", [workspace, reportTask]);
+      await tickAutomation(db, workspace);
+      const learning = await db.query("SELECT count(*)::int AS n FROM workflow_tasks WHERE operation='learning.analyze'");
+      expect(learning.rows[0].n).toBe(1);
+      expect((await db.query("SELECT status FROM workflow_tasks WHERE id=$1", [reportTask])).rows[0].status).toBe("completed");
+    });
+    it("a new cycle runs on a fresh context when sources were approved after the current one", async () => {
+      const ws = randomUUID(), first = randomUUID(), added = randomUUID(), ctx = randomUUID();
+      await db.query("INSERT INTO workspaces(id,name,slug) VALUES($1,'Synthetic source refresh',$2)", [ws, ws]);
+      await db.query("INSERT INTO memberships(workspace_id,user_id,role) VALUES($1,$2,'owner')", [ws, owner]);
+      await db.query("INSERT INTO business_profiles(workspace_id,company_name,version) VALUES($1,'Synthetic',1)", [ws]);
+      for (const id of [first, added])
+        await db.query(`INSERT INTO sources(id,workspace_id,title,kind,url_or_blob,category,status,version)
+          VALUES($1,$2,'Synthetic article','url','https://tripc.ai/blog/synthetic','content','approved',1)`, [id, ws]);
+      // The current context predates the second approved source.
+      await db.query("INSERT INTO knowledge_contexts(snapshot_id,workspace_id,profile_version,profile,snapshot) VALUES($1,$2,1,'{}',$3)",
+        [ctx, ws, JSON.stringify({ sources: [{ source_id: first, version: 1 }] })]);
+      await db.query("INSERT INTO agent_automation(workspace_id,actor_id,enabled) VALUES($1,$2,true)", [ws, owner]);
+      await tickAutomation(db, ws, true);
+      const current = (await db.query("SELECT snapshot_id, snapshot FROM knowledge_contexts WHERE workspace_id=$1 AND current", [ws])).rows[0];
+      expect(current.snapshot_id).not.toBe(ctx);
+      expect(current.snapshot.sources.map((s: { source_id: string }) => s.source_id).sort()).toEqual([first, added].sort());
+      const research = (await db.query("SELECT context_snapshot_id FROM workflow_tasks WHERE workspace_id=$1 AND operation='research.run'", [ws])).rows;
+      expect(research).toEqual([{ context_snapshot_id: current.snapshot_id }]);
+    });
+    it("an approved Messenger reply is queued for sending to that person; an escalation is never sent", async () => {
+      const ws = randomUUID(), ctx = randomUUID();
+      await db.query("INSERT INTO workspaces(id,name,slug) VALUES($1,'Synthetic messenger',$2)", [ws, ws]);
+      await db.query("INSERT INTO memberships(workspace_id,user_id,role) VALUES($1,$2,'owner')", [ws, owner]);
+      await db.query("INSERT INTO knowledge_contexts(snapshot_id,workspace_id,profile_version,profile,snapshot) VALUES($1,$2,1,'{}',$3)",
+        [ctx, ws, JSON.stringify({ sources: [{ source_id: randomUUID(), version: 1 }] })]);
+      await db.query("INSERT INTO agent_automation(workspace_id,actor_id,enabled,auto_approve_outputs,next_run_at) VALUES($1,$2,true,true,now()+interval '1 day')", [ws, owner]);
+      const inbound = async (mid: string, result: Record<string, unknown>) => {
+        const task = randomUUID(), artifact = randomUUID(), message = randomUUID();
+        await db.query(`INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,payload)
+          VALUES($1,$2,'community','community.response','queued',1,$3,'{}')`, [task, ws, ctx]);
+        await db.query(`INSERT INTO content_artifacts(id,workspace_id,task_id,version,content_hash,context_snapshot_id,role,operation,artifact_type,title,storage,payload,evidence)
+          VALUES($1,$2,$3,1,$4,$5,'community','community.response','ai_result','community','ai_run_store',$6,$7)`,
+          [artifact, ws, task, artifact.replace(/-/g, "").padEnd(64, "0"), ctx, JSON.stringify({ result: { synthetic: false, missing_facts: [], ...result } }),
+           JSON.stringify([{ quote: "Street food stalls open every evening near the river." }])]);
+        await db.query("UPDATE workflow_tasks SET status='awaiting_approval',result_ref=$2 WHERE id=$1", [task, artifact]);
+        await db.query(`INSERT INTO community_messages(id,workspace_id,platform,external_id,author_name,author_contact,content,status,task_id)
+          VALUES($1,$2,'facebook_message',$3,'Facebook user',$4,'Where is good street food?','queued',$5)`, [message, ws, mid, `psid-${mid}`, task]);
+        return message;
+      };
+      const answered = await inbound("m1", { status: "draft", reply: "Street food stalls open every evening near the river.", escalation_required: false });
+      const escalated = await inbound("m2", { status: "draft", reply: "Prices need confirmation.", escalation_required: true });
+      await tickAutomation(db, ws);
+      const events = (await db.query("SELECT payload FROM outbox_events WHERE workspace_id=$1 AND event_type='community.reply'", [ws])).rows;
+      expect(events.map((e) => e.payload)).toEqual([expect.objectContaining({ message_id: answered, recipient: "psid-m1",
+        text: "Street food stalls open every evening near the river." })]);
+      const status = async (id: string) => (await db.query("SELECT status FROM community_messages WHERE id=$1", [id])).rows[0].status;
+      expect(await status(answered)).toBe("queued");
+      expect(await status(escalated)).toBe("escalated");
+    });
     it("disabled automation and suspended owner cannot dispatch more work", async () => {
       await db.query(
         "UPDATE agent_automation SET enabled=false WHERE workspace_id=$1",

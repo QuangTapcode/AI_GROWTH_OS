@@ -12,6 +12,7 @@ from ...app.config import Settings
 from ...rag.chunking import estimate_tokens
 from ...rag.retrieval import eligible_sources
 from ..context import context_problems
+from ..contracts import blocking_facts
 from ..research.pipeline import STALE_AFTER_YEARS
 from ..research.strategy import topic_alignment, priority_order
 from .scoring import SOURCE as SCORE_SOURCE, derive_factors
@@ -63,8 +64,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
     # Research coverage notes (gaps on other topics, dated excerpts of other findings, a dropped
     # model draft replaced by a grounded finding) are shown but do not block; only facts about
     # the selected opportunity do.
-    advisory = {fact for fact in missing if fact.startswith(("source_gap:", "stale_evidence:"))
-                or fact == "complete_research_explanation"}
+    advisory = missing - set(blocking_facts(missing))
     if not p.business_profile.audiences:
         missing.add("target_audience")
     if not p.business_profile.products and not p.business_profile.services:

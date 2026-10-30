@@ -113,6 +113,17 @@ def test_fallback_prefers_the_offer_the_owner_asked_for(make_client):
     assert finding['topic'] == 'food' and finding['evidence']['chunk_id'] == 'food'
 
 
+def test_an_excerpt_from_a_source_chunk_existing_content_is_built_on_is_not_reproposed(make_client):
+    job = community_events_job(['events'])
+    # Existing article cites another sentence of the same source chunk.
+    job['payload']['content_inventory'] = [{'content_id': str(uuid4()), 'workspace_id': job['workspace_id'], 'version': 1,
+                                            'title': 'Meeting people in a new city', 'evidence_chunk_ids': ['work']}]
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'), job)
+    assert out['status'] == 'completed', out
+    assert out['result']['result']['findings'] == []
+    assert 'DUPLICATE_TOPIC_DROPPED' in out['result']['warnings']
+
+
 def test_fallback_without_a_matching_offer_stays_insufficient(make_client):
     out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'),
                   community_events_job(['housing']))

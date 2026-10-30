@@ -5,7 +5,10 @@
  */
 import { Pool } from 'pg';
 import { HttpAiAdapter } from './adapters/HttpAiAdapter';
+import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
+import { listLinksWithBrowser } from './workflow/BrowserRenderer';
+import { FirstPartyBlogSync } from './workflow/FirstPartyBlogSync';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
 
@@ -38,6 +41,20 @@ async function main() {
     const token = process.env.AUTOMATION_INTERNAL_TOKEN;
     if (!apiBase || !token) throw new Error('AUTOPILOT=1 requires API_BASE_URL and AUTOMATION_INTERNAL_TOKEN');
     const publishing = new PublishingOutboxRunner(pool);
+    const replies = new CommunityReplyRunner(pool);
+    let replyBusy = false;
+    timers.push(setInterval(() => {
+      if (replyBusy) return;
+      replyBusy = true;
+      void replies.runOnce().then((result) => { if (result !== 'idle') console.log('[community-reply]', result); })
+        .catch((error) => console.error('[community-reply]', (error as Error).message)).finally(() => { replyBusy = false; });
+    }, 5000));
+    const blogSync = new FirstPartyBlogSync(pool, listLinksWithBrowser);
+    const syncBlog = () => void blogSync.runOnce()
+      .then((result) => { if (result.imported) console.log('[blog-sync] imported', result.imported); })
+      .catch((error) => console.error('[blog-sync]', (error as Error).message));
+    syncBlog();
+    timers.push(setInterval(syncBlog, Number(process.env.BLOG_SYNC_HOURS ?? 6) * 3_600_000));
     let tickBusy = false, publishBusy = false;
     timers.push(setInterval(() => {
       if (tickBusy) return;

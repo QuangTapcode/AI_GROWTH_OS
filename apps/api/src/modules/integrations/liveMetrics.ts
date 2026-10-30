@@ -80,9 +80,12 @@ async function jsonRequest<T>(url: string, init: RequestInit, provider: string):
   }
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    const code = body && typeof body === "object" && "error" in body
-      ? String((body as { error?: unknown }).error)
-      : `HTTP_${response.status}`;
+    // Meta and Google return { error: { message, code } }; keep the provider's own reason readable.
+    const error = body && typeof body === "object" && "error" in body ? (body as { error?: unknown }).error : null;
+    const detail = error && typeof error === "object" ? (error as { message?: unknown; code?: unknown }) : null;
+    const code = detail?.message
+      ? `${detail.code !== undefined ? `#${String(detail.code)} ` : ""}${String(detail.message)}`
+      : error ? String(error) : `HTTP_${response.status}`;
     throw new AppError(502, "INTEGRATION_REQUEST_FAILED", `${provider} API request failed (${code})`);
   }
   return body as T;

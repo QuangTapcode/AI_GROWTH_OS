@@ -89,11 +89,13 @@ export class PlanOutboxRunner {
         payload.lead_summary = input.lead_summary_artifact_id ? await load(input.lead_summary_artifact_id) : null;
         payload.iteration = input.iteration; payload.max_iterations = input.max_iterations; payload.task_quota = input.task_quota;
       } else if (task.operation === 'research.run') {
-        payload.content_inventory = (await this.pool.query(`SELECT content_id,workspace_id,version,title,evidence_quotes FROM (
-          SELECT id AS content_id,workspace_id,1 AS version,left(title,200) AS title,created_at,'[]'::jsonb AS evidence_quotes FROM contents WHERE workspace_id=$1
+        payload.content_inventory = (await this.pool.query(`SELECT content_id,workspace_id,version,title,evidence_quotes,evidence_chunk_ids FROM (
+          SELECT id AS content_id,workspace_id,1 AS version,left(title,200) AS title,created_at,'[]'::jsonb AS evidence_quotes,
+            '[]'::jsonb AS evidence_chunk_ids FROM contents WHERE workspace_id=$1
           UNION ALL
           SELECT id AS content_id,workspace_id,version,left(payload->'result'->>'title',200) AS title,created_at,
-            (SELECT coalesce(jsonb_agg(e->>'quote'),'[]'::jsonb) FROM (SELECT e FROM jsonb_array_elements(evidence) e LIMIT 10) q) AS evidence_quotes
+            (SELECT coalesce(jsonb_agg(e->>'quote'),'[]'::jsonb) FROM (SELECT e FROM jsonb_array_elements(evidence) e LIMIT 10) q) AS evidence_quotes,
+            (SELECT coalesce(jsonb_agg(e->>'chunk_id'),'[]'::jsonb) FROM (SELECT e FROM jsonb_array_elements(evidence) e LIMIT 10) q) AS evidence_chunk_ids
           FROM content_artifacts WHERE workspace_id=$1 AND role='seo' AND payload->'result'->>'title' IS NOT NULL
           ) inventory WHERE title IS NOT NULL AND length(trim(title))>0 ORDER BY created_at DESC LIMIT 100`, [claimed.workspace_id])).rows;
         const measured = (await this.pool.query(`SELECT a.payload,a.evidence FROM content_artifacts a

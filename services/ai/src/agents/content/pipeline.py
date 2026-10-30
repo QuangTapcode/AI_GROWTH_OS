@@ -4,6 +4,7 @@ from ...app.runtime import OperationError, OperationOutcome
 from ...guardrails.support import strip_unsupported
 from ..contracts import (artifact_problems, call_grounded_draft, ensure_grounded, evidence_problems, profile_grounding,
                          result_fields, source_passages, stable_id, validate_context)
+from ..copy_quality import canonical_locations, drop_truncated_lines
 from .schemas import ContentDraft, ContentFacebookDraft, FacebookPost, SocialPack
 
 PROMPT_VERSION = "content-v4"
@@ -14,15 +15,20 @@ FACEBOOK_PROMPT = (PROMPTS / f"{PROMPT_VERSION}-facebook.md").read_text(encoding
 LINK = re.compile(r"https?://|www\.", re.IGNORECASE)
 
 
-def facebook_post(draft, grounding, cta):
+def facebook_post(draft, grounding, cta, locations=()):
     """Facebook Page variant: hook above "See more", short body, optional question, exact CTA."""
     hashtags = [tag for tag in (t.strip() for t in draft.hashtags) if re.fullmatch(r"#\w+", tag)]
-    hook, question = draft.hook.strip(), (draft.discussion_question or "").strip()
+    hook = canonical_locations(draft.hook.strip(), locations)
+    question = canonical_locations((draft.discussion_question or "").strip(), locations)
     # Links fail closed on the model's own draft, before any sentence is removed.
     if LINK.search(" ".join([hook, draft.body, question])):
         raise OperationError("UNSUPPORTED_CONTENT_CLAIM", "Facebook draft must not contain links")
     # Sentences the cited sources do not support are removed before posting.
-    body, _ = strip_unsupported(draft.body.strip(), grounding)
+    body, _ = strip_unsupported(canonical_locations(draft.body.strip(), locations), grounding)
+    # The exact CTA is appended below; a cut-off or repeated copy of it from the model is dropped.
+    body = "\n".join(line for line in body.split("\n")
+                     if not (line.strip() and cta.casefold().startswith(line.strip().casefold())))
+    body, truncated = drop_truncated_lines(body)
     if not body:
         raise OperationError("UNSUPPORTED_CONTENT_CLAIM", "No Facebook sentence is supported by the cited sources")
     if question and question.casefold() in body.casefold():
@@ -30,7 +36,8 @@ def facebook_post(draft, grounding, cta):
         question = ""
     text = "\n\n".join(part for part in [hook, body, question, cta, " ".join(hashtags)] if part)
     ensure_grounded(text, grounding)
-    return FacebookPost(hook=hook, body=body, discussion_question=question or None, hashtags=hashtags, cta=cta, text=text)
+    post = FacebookPost(hook=hook, body=body, discussion_question=question or None, hashtags=hashtags, cta=cta, text=text)
+    return post, len(truncated)
 
 
 def validate_content(job, p, settings):
@@ -79,7 +86,8 @@ async def run_content(ctx):
         lambda: demo, text_of, grounding + [article["body_markdown"]] if not passage else grounding)
     caption, _ = strip_unsupported(draft.caption, grounding)
     draft = draft.model_copy(update={"caption": caption or draft.caption})
-    facebook = facebook_post(draft.facebook, grounding, p.cta) if with_facebook else None
+    facebook, truncated = (facebook_post(draft.facebook, grounding, p.cta, p.business_profile.locations)
+                           if with_facebook else (None, 0))
     missing = list(article.get("missing_facts", []))
     # Facebook Page text posts do not require an image. TikTok still requires
     # an approved media asset, so keep the asset gate for any TikTok target.
@@ -98,4 +106,5 @@ async def run_content(ctx):
         hashtags=re.findall(r"(?<!\w)#[\w]+", draft.caption),
         video_asset_ref=None, tiktok_privacy_level="SELF_ONLY")
     return OperationOutcome(result=result.model_dump(mode="json"), evidence=p.source_article.evidence,
-                            warnings=["MANUAL_PACK_REQUIRES_APPROVAL_AND_CHANNEL_CAPABILITY"])
+                            warnings=["MANUAL_PACK_REQUIRES_APPROVAL_AND_CHANNEL_CAPABILITY",
+                                      *([f"TRUNCATED_SENTENCE_REMOVED:{truncated}"] if truncated else [])])

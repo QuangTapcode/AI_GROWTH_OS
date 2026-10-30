@@ -9,6 +9,7 @@ import {
   automationTaskId,
 } from "@/modules/campaignPlans/automation";
 import { enqueueAiTask } from "@/modules/campaignPlans/aiTasks";
+import { workspaceAlerts } from "@/modules/campaignPlans/alerts";
 import { PlanError } from "@/modules/campaignPlans/service";
 
 const schema = z
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest, { params }: Context) {
     return NextResponse.json({
       settings,
       tasks,
+      alerts: await workspaceAlerts(pool, params.workspace_id),
       observed_at: new Date().toISOString(),
     });
   } catch (e) {

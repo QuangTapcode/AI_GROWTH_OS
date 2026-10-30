@@ -233,6 +233,28 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
       );
     });
 
+    it("never stores a Messenger user id as the lead's phone and leaves 'replied' to the worker that sends", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000102";
+      const taskId = "00000000-0000-0000-0000-000000000202";
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return { rows: [{ id: artifactId, role: "community", task_id: taskId, payload: { result: {
+            status: "draft", reply: "Street food stalls open every evening near the river.", escalation_required: false,
+            lead_proposal: { intent: "request_information", status: "proposed", contact: {} } } } }] };
+        }
+        if (sql.includes("platform = 'facebook_message'")) return { rows: [{ id: "msg-fb", author_contact: "psid-123" }] };
+        if (sql.includes("SELECT id, author_name, author_contact, content FROM community_messages")) {
+          return { rows: [{ id: "msg-fb", author_name: "Facebook user", author_contact: "psid-123", content: "Street food?" }] };
+        }
+        if (sql.includes("INSERT INTO leads")) return { rows: [{ lead_id: "lead-fb" }] };
+        return { rows: [], rowCount: 1 };
+      });
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      const lead = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO leads"))!;
+      expect(lead[1]).not.toContain("psid-123");
+      expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'replied'"))).toBe(false);
+    });
+
     it("marks linked community message as replied even when artifact has no lead proposal", async () => {
       const artifactId = "00000000-0000-0000-0000-000000000101";
       const taskId = "00000000-0000-0000-0000-000000000201";

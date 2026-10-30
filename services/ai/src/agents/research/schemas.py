@@ -43,6 +43,8 @@ class ContentInventoryItem(BaseModel):
     version: int = Field(ge=1)
     title: str = Field(min_length=1, max_length=200)
     evidence_quotes: list[str] = Field(default_factory=list, max_length=10)
+    # Source chunks the existing content cites; a new finding from the same chunk repeats it.
+    evidence_chunk_ids: list[str] = Field(default_factory=list, max_length=10)
 
 
 class TrendSignal(BaseModel):

@@ -231,6 +231,30 @@ async function learningRoundsThisCycle(pool: Pool, workspaceId: string, contextS
 }
 
 /**
+ * An approved source (or a new approved version) is not pinned by the context yet. Revocations are
+ * already enforced per task (SOURCE_NOT_APPROVED) and do not trigger a new context here.
+ */
+async function newlyApprovedSources(pool: Pool, workspaceId: string, pinned: { source_id: string; version: number }[]) {
+  const current = new Set(pinned.map((s) => `${s.source_id}:${s.version}`));
+  return (await pool.query<{ id: string; version: number }>(
+    "SELECT id, version FROM sources WHERE workspace_id=$1 AND status='approved' AND deleted_at IS NULL", [workspaceId],
+  )).rows.some((s) => !current.has(`${s.id}:${s.version}`));
+}
+
+/** A learning round already drew its conclusion from this exact measurement: a new round adds no signal. */
+async function measurementAlreadyLearned(pool: Pool, workspaceId: string, contextSnapshotId: string, metricsArtifactId: unknown) {
+  if (typeof metricsArtifactId !== "string") return false;
+  return (await pool.query(
+    `SELECT 1 FROM workflow_tasks l
+       JOIN content_artifacts report ON report.workspace_id=l.workspace_id AND report.id::text=l.payload->'input'->>'performance_artifact_id'
+       JOIN workflow_tasks reportTask ON reportTask.id=report.task_id
+      WHERE l.workspace_id=$1 AND l.context_snapshot_id=$2 AND l.operation='learning.analyze'
+        AND reportTask.payload->'input'->>'metrics_artifact_id'=$3 LIMIT 1`,
+    [workspaceId, contextSnapshotId, metricsArtifactId],
+  )).rowCount === 1;
+}
+
+/**
  * With auto-approval on, the owner also opts into the Research round a grounded learning
  * proposes. The same owner check, hash, quota and dedup rules apply as for a manual approval.
  */
@@ -388,7 +412,8 @@ export async function tickAutomation(
         }
       } else if (task.operation === "analytics.report" && task.artifact_payload.result?.status === "draft") {
         const iteration = await learningRoundsThisCycle(pool, workspaceId, context.snapshot_id);
-        if (iteration < MAX_LEARNING_ROUNDS) {
+        if (iteration < MAX_LEARNING_ROUNDS &&
+            !(await measurementAlreadyLearned(pool, workspaceId, context.snapshot_id, task.payload?.input?.metrics_artifact_id))) {
           await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
           const leads = (
             await pool.query(
@@ -439,16 +464,22 @@ export async function tickAutomation(
         } catch (error) {
           discoveryWarning = `DISCOVERY_FAILED: ${(error as Error).message}`;
         }
+        // Sources approved since the context was issued (e.g. newly published first-party articles)
+        // reach Research only through a new context; it is issued at a cycle boundary, never mid-cycle.
+        const cycleContext = await newlyApprovedSources(pool, workspaceId, context.snapshot.sources)
+          ? (await new PgPlanRepository(pool).issueContext(workspaceId)).context_snapshot_id
+          : context.snapshot_id;
         try {
-          const measured = await syncResearchSearchMetrics(pool, workspaceId, context.snapshot_id, undefined, settings.interval_hours);
+          const measured = await syncResearchSearchMetrics(pool, workspaceId, cycleContext, undefined, settings.interval_hours);
           if (measured.status === 'unavailable') discoveryWarning = [discoveryWarning, measured.reason].filter(Boolean).join('; ');
         } catch {
           discoveryWarning = [discoveryWarning, 'GSC_QUERY_SYNC_FAILED'].filter(Boolean).join('; ');
         }
-        const child = await enqueue(
-          `research:${workspaceId}:${new Date(settings.next_run_at).toISOString()}`,
-          { operation: "research.run" },
-        );
+        const child = await enqueueAiTask(pool, workspaceId, settings.actor_id, {
+          task_id: automationTaskId(`research:${workspaceId}:${new Date(settings.next_run_at).toISOString()}`),
+          context_snapshot_id: cycleContext,
+          input: { operation: "research.run" },
+        });
         await pool.query(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, child.task_id],

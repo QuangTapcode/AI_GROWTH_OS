@@ -3,8 +3,9 @@ import re
 from ...app.runtime import OperationError, OperationOutcome
 from ...app.schemas import EvidenceRef
 from ...guardrails.support import strip_unsupported
-from ..contracts import (artifact_problems, call_grounded_draft, evidence_problems, profile_grounding, result_fields,
-                         source_passages, stable_id, validate_context)
+from ..contracts import (artifact_problems, blocking_facts, call_grounded_draft, evidence_problems, profile_grounding,
+                         result_fields, source_passages, stable_id, validate_context)
+from ..copy_quality import canonical_locations
 from .schemas import SeoArticle, SeoDraft, SeoSection
 
 PROMPT_VERSION = "seo-v3"
@@ -52,10 +53,13 @@ async def run_seo(ctx):
                  "sections": [{"heading": "Overview", "body": finding["evidence"]["quote"]},
                               {"heading": "Next steps", "body": p.cta}]},
         lambda d: " ".join([d.title, d.meta_description, render(d.sections)[1]]), grounding)
+    places = p.business_profile.locations
+    draft = draft.model_copy(update={"title": canonical_locations(draft.title, places),
+                                     "meta_description": canonical_locations(draft.meta_description, places)})
     # Sentences still unsupported after the rewrite are removed, never published.
     sections, removed = [], []
     for section in draft.sections:
-        body, dropped = strip_unsupported(section.body, grounding)
+        body, dropped = strip_unsupported(canonical_locations(section.body, places), grounding)
         removed += dropped
         if body:
             sections.append(SeoSection(heading=section.heading, body=body))
@@ -69,7 +73,7 @@ async def run_seo(ctx):
     if not all(checks.values()):
         failed = ", ".join(name for name, ok in checks.items() if not ok)
         raise OperationError("SEO_CHECK_FAILED", f"Draft does not satisfy required headings/metadata/citations (failed: {failed})")
-    missing = list(p.research.result.get("missing_facts", []))
+    missing = blocking_facts(p.research.result.get("missing_facts", []))
     output = SeoArticle(**result_fields(ctx, [p.research]), article_id=stable_id(ctx, "article"),
         strategy_alignment=finding.get('strategy_alignment'),
         status="draft" if not missing else "insufficient_data", missing_facts=missing,

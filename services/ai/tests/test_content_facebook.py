@@ -14,8 +14,10 @@ def run(client, job):
     return body
 
 
-def content_job(client, channels=None, assets=True):
+def content_job(client, channels=None, assets=True, locations=None):
     base = mock_research_request()
+    if locations is not None:
+        base["payload"]["business_profile"]["locations"] = locations
     research = run(client, base)["result"]
     seo = run(client, request(base, "seo.local_draft", {"research": artifact_input(research), "cta": "Request the guide"}))["result"]
     payload = {"source_article": artifact_input(seo), "cta": "Request the guide", "assets": [image(base)] if assets else []}
@@ -96,3 +98,29 @@ def test_question_already_in_body_is_posted_once(client, make_client):
                                  "discussion_question": question, "hashtags": []})
     post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
     assert post["text"].count(question) == 1 and post["discussion_question"] is None
+
+
+def test_truncated_cta_line_from_the_model_is_dropped(client, make_client):
+    _, job = content_job(client, channels=["facebook"], assets=False)
+    provider = FacebookProvider({"hook": "Choosing a living area?", "body": "• Living areas guide\n\nRequest the gui",
+                                 "discussion_question": None, "hashtags": []})
+    post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
+    # The exact CTA is appended by code; a cut-off copy of it from the model must not be posted.
+    assert post["text"].count("Request the gui") == 1 and "Request the guide" in post["text"]
+
+
+def test_sentence_cut_off_mid_word_is_not_posted(client, make_client):
+    _, job = content_job(client, channels=["facebook"], assets=False)
+    provider = FacebookProvider({"hook": "Choosing a living area?", "body": "• Living areas guide\n\nThe living area guide doesn",
+                                 "discussion_question": None, "hashtags": []})
+    out = run(make_client(provider=provider, provider_mode="live"), job)
+    assert "doesn" not in out["result"]["result"]["facebook"]["text"]
+    assert "TRUNCATED_SENTENCE_REMOVED:1" in out["result"]["warnings"]
+
+
+def test_facebook_post_spells_the_location_as_the_profile_does(client, make_client):
+    _, job = content_job(client, channels=["facebook"], assets=False, locations=["Da Nang"])
+    provider = FacebookProvider({"hook": "Choosing a living area in Da N-ang?", "body": "• Living areas guide",
+                                 "discussion_question": None, "hashtags": []})
+    post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
+    assert "Da Nang" in post["text"] and "N-ang" not in post["text"]

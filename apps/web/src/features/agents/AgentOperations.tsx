@@ -41,6 +41,7 @@ type Task = Pick<
 type Snapshot = {
   settings: Settings | null;
   tasks: Task[];
+  alerts?: { code: string; severity: "critical" | "warning"; message: string }[];
   observed_at: string;
 };
 type Goal = { title: string; kpis: { metric_name: string; target_value: number | null }[] } | null;
@@ -236,6 +237,16 @@ function Operations() {
       {!data && loading && <LoadingBlock label="Đang tải trạng thái agent…" />}
       {data && (
         <>
+          {(data.alerts ?? []).length > 0 && (
+            <section aria-label="Cảnh báo" className="space-y-2">
+              {(data.alerts ?? []).map((alert) => (
+                <p key={alert.code} role="alert"
+                  className={`rounded-lg border p-3 text-sm ${alert.severity === "critical" ? "border-red-300 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                  <strong>{alert.severity === "critical" ? "Nghiêm trọng" : "Cảnh báo"}:</strong> {alert.message}
+                </p>
+              ))}
+            </section>
+          )}
           {tasks.some((t) => t.synthetic) && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               Có dữ liệu demo (synthetic) trong lịch sử. Các task demo không

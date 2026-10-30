@@ -58,6 +58,19 @@ Stop-ScheduledTask -TaskName 'AI-Growth-OS Draft Worker'   # then stop the runni
 
 Pause from the same page ("Tạm dừng lịch"). Reinstalling the task without `-Autopilot` returns to manual drafts.
 
+In autopilot mode the worker also:
+
+- **Imports new first-party articles** every 6 hours (`BLOG_SYNC_HOURS`): it browses `https://tripc.ai/blog` and queues articles a workspace does not have yet, for workspaces that already use the blog. Articles under `FIRST_PARTY_AUTO_APPROVE_PREFIXES` (default `https://tripc.ai/blog/`, owner decision 30/10) are approved on ingest; any other source still waits for the owner. A cycle that finds newly approved sources starts on a fresh context.
+- **Sends approved Messenger replies** queued as `community.reply` outbox events; a message becomes `replied` only after Messenger accepted the reply, escalations are never sent and a refusal is recorded once, not resent.
+
+Copy checks before approval: a cut-off copy of the CTA and sentences ending mid-word are removed, a location split by the model ("Da N-ang") is respelled as in the profile, and research coverage notes no longer make an SEO article `insufficient_data`. Learning opens at most one round per measurement snapshot.
+
+Agent Operations shows alerts derived from stored state: worker not ticking for 3 minutes, scheduler error, and failed publishing, Messenger replies or agent tasks in the last 24 hours.
+
+### Messenger webhook
+
+`GET/POST /v1/webhooks/facebook` (public URL `https://aigrowthos-staging.pages.dev/v1/webhooks/facebook`). Configure in `apps/api/.env.local`: `FACEBOOK_WEBHOOK_VERIFY_TOKEN` (any secret string also entered in the Meta app), `FACEBOOK_APP_SECRET` (signature check), `FACEBOOK_PAGE_ID`, `FACEBOOK_WEBHOOK_WORKSPACE_ID`, and a Page token with `pages_messaging`. Signed messages enter the Community inbox; echoes and unsigned requests are ignored.
+
 Turning the schedule off stops future scheduler handoffs and research cycles. Already queued/running work continues. This is not an emergency cancellation mechanism.
 
 ## API

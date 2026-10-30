@@ -139,6 +139,11 @@ def cited_by_inventory(quote: str, inventory) -> bool:
     return any(" ".join(q.split()).casefold() == needle for item in inventory for q in item.evidence_quotes)
 
 
+def chunk_has_content(chunk_id: str, inventory) -> bool:
+    """Existing content cites this source chunk; another sentence of it would repeat that content."""
+    return any(chunk_id in item.evidence_chunk_ids for item in inventory)
+
+
 def topic_has_content(topic: str, inventory) -> bool:
     """An existing article title already covers this topic (same rule for model and fallback ideas)."""
     return any(lexical_overlap(terms(topic), item.title) >= 0.8 for item in inventory)
@@ -390,7 +395,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             continue
         topic_key = " ".join(sorted(terms(idea.topic))) or idea.topic.casefold()
         if (topic_key in seen or topic_has_content(idea.topic, payload.content_inventory)
-                or cited_by_inventory(quote, payload.content_inventory)):
+                or cited_by_inventory(quote, payload.content_inventory)
+                or chunk_has_content(idea.chunk_id, payload.content_inventory)):
             warnings.append("DUPLICATE_TOPIC_DROPPED")
             continue
         checks = quality_checks(idea, quote, payload.business_profile)
@@ -464,8 +470,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                 # rely on a claim produced by the model.
                 source, chunk, url, fetched = candidates[key]
                 if all(has_term(word, terms(chunk.text)) for word in words):
-                    if cited_by_inventory(fallback_quote(chunk.text, words, payload.business_profile.locations),
-                                          payload.content_inventory):
+                    if chunk_has_content(key, payload.content_inventory) or cited_by_inventory(
+                            fallback_quote(chunk.text, words, payload.business_profile.locations), payload.content_inventory):
                         # Learning rounds reuse the same search topics; never rebuild an article on the same excerpt.
                         warnings.append("DUPLICATE_TOPIC_DROPPED")
                         continue

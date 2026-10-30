@@ -44,6 +44,15 @@ describe('SourceIngestRunner', () => {
     expect(release).toHaveBeenCalledOnce();
   });
 
+  it('approves a first-party TripC blog article right after ingest; other sources still wait for the owner', async () => {
+    const blog = { ...source, url_or_blob: 'https://tripc.ai/blog/street-food-guide', license: 'TripC first-party content', attribution: 'TripC' };
+    const { pool, sql } = harness(blog);
+    const render = vi.fn(async () => '<html><body><article>Street food in Da Nang.</article></body></html>');
+    expect(await new SourceIngestRunner(pool, aiReturning({ ...output, url: blog.url_or_blob }), render).runOnce())
+      .toEqual({ source_id: blog.id, status: 'approved', chunks: 1 });
+    expect(sql.find((s) => s.text.includes("status='approved'"))).toBeTruthy();
+  });
+
   it('is idle when nothing is imported', async () => {
     const { pool } = harness(undefined);
     expect(await new SourceIngestRunner(pool, aiReturning(output)).runOnce()).toBeNull();
