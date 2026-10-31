@@ -44,7 +44,7 @@ async function runMigrations() {
     for (const file of files) {
       console.log(`⏳ Executing ${isRollback ? "rollback" : "migration"}: ${file}...`);
       const filePath = path.join(migrationsDir, file);
-      const sql = fs.readFileSync(filePath, "utf-8");
+      const sql = fs.readFileSync(filePath, "utf-8").replace(/^\uFEFF/, "");
 
       await client.query(sql);
       console.log(`✅ Applied: ${file}`);

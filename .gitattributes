@@ -6,3 +6,5 @@
 *.ts text eol=lf
 *.tsx text eol=lf
 *.docx binary
+# Golden eval data is checksummed byte for byte: never convert line endings.
+data/golden/** -text

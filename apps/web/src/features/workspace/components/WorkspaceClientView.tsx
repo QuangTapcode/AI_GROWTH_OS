@@ -96,6 +96,8 @@ function ProfileCard({ profile, canEdit, onSaved }: { profile: BusinessProfile; 
     ["Target audiences", (profile.target_audiences ?? []).join(", ") || "—"],
     ["Products & services", (profile.products_services ?? []).join(", ") || "—"],
     ["Competitors", (profile.competitors ?? []).join(", ") || "—"],
+    ["Priority topics", profile.research_strategy?.topics.map(t => `${t.id} · ${t.title} (${t.priority})`).join("; ") || "—"],
+    ["Planning references", profile.research_strategy?.competitor_references.map(c => `${c.name}: ${c.lesson}`).join(" ") || "—"],
   ];
 
   return (

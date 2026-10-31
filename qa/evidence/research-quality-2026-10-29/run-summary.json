@@ -1,0 +1,297 @@
+{
+  "generated_at": "2026-10-29T16:50:39.438Z",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "synthetic": false,
+  "scope": "research_only_local_staging",
+  "context_snapshot_id": "2eabe68b-d019-4b2e-8214-5af86284af27",
+  "profile_version": 2,
+  "approved_sources": [
+    {
+      "source_id": "0ae8f16b-87c3-48a8-978e-8b9678f306c7",
+      "version": 2,
+      "title": "Essential Apps for Living in Vietnam (tripc.ai)",
+      "chunks": 23
+    },
+    {
+      "source_id": "0df32f92-0871-4ed0-a063-f498e4bdcc90",
+      "version": 2,
+      "title": "Apartment Viewing Checklist in Vietnam (tripc.ai)",
+      "chunks": 24
+    },
+    {
+      "source_id": "0f9b33fa-8d9c-4a39-a9fd-0c556367680e",
+      "version": 2,
+      "title": "Da Nang vs Hanoi vs Ho Chi Minh City for Remote Workers (tripc.ai)",
+      "chunks": 14
+    },
+    {
+      "source_id": "2a172a5b-bdef-4fdb-8196-fb09a71378fd",
+      "version": 2,
+      "title": "Common Scams in Vietnam: What New Arrivals Should Watch For (tripc.ai)",
+      "chunks": 32
+    },
+    {
+      "source_id": "401ded9b-fa69-4593-a2e7-109b4b4de4fc",
+      "version": 2,
+      "title": "About Da Nang City (danangfantasticity.com)",
+      "chunks": 25
+    },
+    {
+      "source_id": "44609d6c-67ce-4dbe-b7c0-ea7ab7a4bf19",
+      "version": 2,
+      "title": "Da Nang (en.wikipedia.org)",
+      "chunks": 40
+    },
+    {
+      "source_id": "47db6a17-3a03-4ee4-a6c1-d2f62fab1c47",
+      "version": 2,
+      "title": "Rainy Season in Central Vietnam (tripc.ai)",
+      "chunks": 13
+    },
+    {
+      "source_id": "5111a49f-fe13-4f31-bdc8-94a9fc117f38",
+      "version": 2,
+      "title": "How to Build Your Social Circle in Vietnam (tripc.ai)",
+      "chunks": 14
+    },
+    {
+      "source_id": "5598374f-1e32-411c-a8ff-9318e012e8ab",
+      "version": 2,
+      "title": "Working Remotely from Vietnam: Reliable Work Setup (tripc.ai)",
+      "chunks": 24
+    },
+    {
+      "source_id": "84e8da59-73ec-4e55-a8df-601642721e15",
+      "version": 2,
+      "title": "Moving to Vietnam: Complete Relocation Guide (tripc.ai)",
+      "chunks": 14
+    },
+    {
+      "source_id": "9d2a18c5-3f67-43f3-95d4-817d30c896a9",
+      "version": 2,
+      "title": "TripC official website",
+      "chunks": 1
+    },
+    {
+      "source_id": "a9fdadc2-efbd-417f-8ce0-52bbd53a6424",
+      "version": 2,
+      "title": "Choosing How to Travel Around Vietnam (tripc.ai)",
+      "chunks": 28
+    },
+    {
+      "source_id": "c5b506ff-e9f2-435c-b580-e33462df2456",
+      "version": 2,
+      "title": "Grocery Shopping in Vietnam: Expat Guide (tripc.ai)",
+      "chunks": 25
+    },
+    {
+      "source_id": "cd93a5d5-7459-43ae-bdff-bab138d4db7a",
+      "version": 2,
+      "title": "Da Nang | Vietnam Tourism (vietnam.travel)",
+      "chunks": 3
+    },
+    {
+      "source_id": "e003d486-1323-49fe-8a8c-c29440df5aad",
+      "version": 2,
+      "title": "How Vietnamese Addresses Work (tripc.ai)",
+      "chunks": 23
+    },
+    {
+      "source_id": "e4f87742-9d59-4835-bb3d-24cc1847cc53",
+      "version": 2,
+      "title": "Da Nang Workcation Guide: Where to Live, Work and Connect (tripc.ai)",
+      "chunks": 13
+    },
+    {
+      "source_id": "f5abd45e-9970-4b83-9ddd-ea1a98ba030c",
+      "version": 2,
+      "title": "Da Nang (en.wikivoyage.org)",
+      "chunks": 76
+    },
+    {
+      "source_id": "fa479374-f9a4-4ea5-b82b-35c468c3a4c4",
+      "version": 2,
+      "title": "First 7 Days in Vietnam: Setup Checklist (tripc.ai)",
+      "chunks": 21
+    },
+    {
+      "source_id": "fdf27526-5bda-4e62-84bf-634e3c66694e",
+      "version": 2,
+      "title": "Where to Stay During Your First Two Weeks in Vietnam (tripc.ai)",
+      "chunks": 17
+    }
+  ],
+  "source_approval": {
+    "actor": "owner.tripc.demo@gmail.com",
+    "authorized_by": "project owner in coding-agent session 2026-10-29",
+    "note": "Same URLs were approved on 2026-10-25 before the local DB reset"
+  },
+  "baseline_same_day_before_fix": {
+    "runs": 9,
+    "ready_for_handoff": 1,
+    "insufficient_data": 5,
+    "failed": 3,
+    "only_finding_source": "tripc.vn homepage metadata"
+  },
+  "runs": [
+    {
+      "task_id": "e9c3f8a1-d6f8-4616-b34f-a6e651d86d80",
+      "artifact_id": "a00fe111-1829-5699-ae25-a54e0c84b6eb",
+      "content_hash": "66270114358b9974d6c53908fb5129bd57f2db055dc25c2007e54581d73d601a",
+      "created_at": "2026-10-29T16:48:23.029Z",
+      "model": "ollama/qwen3:4b-instruct",
+      "prompt_version": "research-v8",
+      "status": "ready_for_handoff",
+      "missing_facts": [
+        "complete_research_explanation"
+      ],
+      "trend_coverage": [
+        {
+          "topic": "arrival checklist",
+          "covered_chunks": 3
+        },
+        {
+          "topic": "housing",
+          "covered_chunks": 10
+        },
+        {
+          "topic": "local experiences",
+          "covered_chunks": 4
+        }
+      ],
+      "findings": [
+        {
+          "topic": "housing",
+          "source_url": "https://tripc.ai/blog/moving-to-vietnam-complete-relocation-guide",
+          "chunk_id": "b6482b01-44a0-401d-8d80-90c95a9ff0ce",
+          "quote": "If you are moving as a household rather than alone, our guide to bringing your family, partner or pet to Vietnam covers family visas, schooling, housing and pet-import planning in more detail.",
+          "offer_fit": "TripC can relate this topic to its housing offering.",
+          "strategy_topic": "PT-02",
+          "quality_checks": {
+            "not_duplicate": true,
+            "traceable_source": true,
+            "specific_user_need": true,
+            "offer_matches_profile": true,
+            "audience_matches_profile": true,
+            "topic_supported_by_quote": true
+          },
+          "missing_data": [
+            "market_search_volume_not_measured",
+            "semantic_review_required",
+            "website_query_metrics_not_available_for_topic"
+          ]
+        }
+      ],
+      "semantic_review": "pending"
+    },
+    {
+      "task_id": "947caf4c-997b-48f4-a082-948c662783ad",
+      "artifact_id": "f154140c-c141-5939-b0bd-bffb01361f6b",
+      "content_hash": "6fd067c8165eff79d0f36c87516c69b30b93538d64d8fe4e2b08935ad08ad7e3",
+      "created_at": "2026-10-29T16:49:28.762Z",
+      "model": "ollama/qwen3:4b-instruct",
+      "prompt_version": "research-v8",
+      "status": "ready_for_handoff",
+      "missing_facts": [
+        "complete_research_explanation"
+      ],
+      "trend_coverage": [
+        {
+          "topic": "community events",
+          "covered_chunks": 3
+        },
+        {
+          "topic": "local experiences",
+          "covered_chunks": 4
+        },
+        {
+          "topic": "transport",
+          "covered_chunks": 30
+        }
+      ],
+      "findings": [
+        {
+          "topic": "community events",
+          "source_url": "https://tripc.ai/blog/how-to-make-friends-meet-people-vietnam",
+          "chunk_id": "78000395-65f6-4602-b386-d9274bff1b88",
+          "quote": "TripC Soft Landing pairs you with a trusted local as you settle in, and helps you plug directly into the community side of life here — the kind of nomad, founder, sports, language-exchange, and local-event circles that make a new city feel familiar faster.",
+          "offer_fit": "TripC can relate this topic to its events offering.",
+          "strategy_topic": "PT-05",
+          "quality_checks": {
+            "not_duplicate": true,
+            "traceable_source": true,
+            "specific_user_need": true,
+            "offer_matches_profile": true,
+            "audience_matches_profile": true,
+            "topic_supported_by_quote": true
+          },
+          "missing_data": [
+            "market_search_volume_not_measured",
+            "semantic_review_required",
+            "website_query_metrics_not_available_for_topic"
+          ]
+        }
+      ],
+      "semantic_review": "pending"
+    },
+    {
+      "task_id": "2150c6b8-55b8-4711-b86a-23a9de50340b",
+      "artifact_id": "d771a71b-9897-5a51-895d-cc5f2507ca55",
+      "content_hash": "a2c78495645c0810131bf6d7d9d5befcffbcfacd32bb687e9880068b4fe6b82b",
+      "created_at": "2026-10-29T16:50:24.924Z",
+      "model": "ollama/qwen3:4b-instruct",
+      "prompt_version": "research-v8",
+      "status": "ready_for_handoff",
+      "missing_facts": [
+        "complete_research_explanation"
+      ],
+      "trend_coverage": [
+        {
+          "topic": "airport transfer",
+          "covered_chunks": 7
+        },
+        {
+          "topic": "banking",
+          "covered_chunks": 14
+        },
+        {
+          "topic": "coworking",
+          "covered_chunks": 11
+        }
+      ],
+      "findings": [
+        {
+          "topic": "coworking",
+          "source_url": "https://tripc.ai/blog/da-nang-vs-hanoi-vs-ho-chi-minh-city-remote-workers",
+          "chunk_id": "45b7e1b7-2a08-4f6b-ae89-a1feddbf03b2",
+          "quote": "Da Nang is highly functional too, with widespread and genuinely fast café Wi-Fi that makes it very workable even without a dedicated desk, though its coworking scene is smaller than the two big cities.",
+          "offer_fit": "TripC can relate this topic to its coworking offering.",
+          "strategy_topic": "PT-02",
+          "quality_checks": {
+            "not_duplicate": true,
+            "traceable_source": true,
+            "specific_user_need": true,
+            "offer_matches_profile": true,
+            "audience_matches_profile": true,
+            "topic_supported_by_quote": true
+          },
+          "missing_data": [
+            "market_search_volume_not_measured",
+            "semantic_review_required",
+            "website_query_metrics_not_available_for_topic"
+          ]
+        }
+      ],
+      "semantic_review": "pending"
+    }
+  ],
+  "model_draft_diagnostic": {
+    "note": "Raw qwen3:4b ideas on the housing/arrival/local-experiences topic group",
+    "observed": [
+      "audience_fit and offer_fit returned as labels without full stop -> INCOMPLETE_BRIEF_DROPPED",
+      "all ideas proposed Soft Landing, which is not a confirmed product/service in the profile -> would be OFF_PROFILE_OFFER even if punctuated"
+    ]
+  },
+  "gsc_live": "not_configured; setup guide docs/integrations/GSC-SETUP.md",
+  "semantic_acceptance": "pending_review"
+}

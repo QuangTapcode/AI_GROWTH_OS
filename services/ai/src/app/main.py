@@ -28,7 +28,7 @@ from .errors import APIError, install_error_handling
 from .logging_config import configure_logging, log_event
 from .operations import OPERATIONS, Operation
 from .providers import Provider, ProviderError, build_provider
-from .run_store import RunStore
+from .run_store import RunStore, budget_key
 from .runtime import CallBudget, OperationError, RunContext
 from .schemas import SCHEMA_VERSION, AIResult, HealthResponse, JobRequest, RunStatus, RunArtifact
 from ..agents.registry import AGENT_ROLES, ROLE_TOOLS, role_for_operation
@@ -74,6 +74,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
 
     def deadline_seconds(job: JobRequest, operation: Operation) -> int:
         limit = settings.embedding_job_deadline_seconds if operation.deadline_kind == "embedding" else settings.job_deadline_seconds
+        # The service limit is a hard cap; a job may only ask for less, never more.
         return min(job.constraints.timeout_seconds, limit)
 
     def request_hash(job: JobRequest) -> str:
@@ -117,7 +118,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     log_event(logger, "ai_run_failed", **fields, error_code="DEADLINE_EXCEEDED")
                     return
                 store.mark_running(run_id)
-                ctx = RunContext(job, payload, settings, provider, CallBudget(store, str(job.job_id), call_cap(job)), logger)
+                ctx = RunContext(job, payload, settings, provider, CallBudget(store, budget_key(job.job_id, job.input_version), call_cap(job)), logger)
                 log_event(
                     logger,
                     "ai_run_started",
@@ -137,16 +138,19 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     store.fail(run_id, exc.code, str(exc), retryable=exc.retryable)
                     log_event(logger, "ai_run_failed", **fields, error_code=exc.code, retryable=exc.retryable)
                     if job.operation.startswith("content."):
-                        from ..agents.content.monitoring import get_metrics_tracker
-                        get_metrics_tracker().record_run(
-                            run_id=str(run_id),
-                            workspace_id=str(job.workspace_id),
-                            operation=job.operation,
-                            channel="all",
-                            status="failed",
-                            rejection_reason=str(exc),
-                            error_code=exc.code,
-                        )
+                        try:
+                            from ..agents.content.monitoring import get_metrics_tracker
+                            get_metrics_tracker().record_run(
+                                run_id=str(run_id),
+                                workspace_id=str(job.workspace_id),
+                                operation=job.operation,
+                                channel="all",
+                                status="failed",
+                                rejection_reason=str(exc),
+                                error_code=exc.code,
+                            )
+                        except Exception as metric_err:
+                            logger.warning("Failed to record metric for %s: %s", run_id, metric_err)
                     return
                 result = AIResult(
                     run_id=run_id,
@@ -220,11 +224,11 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     latency_ms=ctx.usage.latency_ms,
                 )
         except Exception as exc:
+            # Keep the public error generic, but retain the concrete exception in
+            # the local service log so a failed run can be diagnosed without
+            # exposing provider details through the API.
             logger.exception("AI run failed unexpectedly: %s", exc)
-            store.fail(run_id, "AI_SERVICE_ERROR", f"AI service failed: {type(exc).__name__}: {exc}", retryable=False)
-
-
-
+            store.fail(run_id, "AI_SERVICE_ERROR", "AI service failed while processing the run", retryable=False)
         finally:
             app.state.run_tasks.pop(run_id, None)
 

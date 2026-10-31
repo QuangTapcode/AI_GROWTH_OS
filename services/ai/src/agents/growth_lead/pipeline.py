@@ -12,6 +12,10 @@ from ...app.config import Settings
 from ...rag.chunking import estimate_tokens
 from ...rag.retrieval import eligible_sources
 from ..context import context_problems
+from ..contracts import blocking_facts
+from ..research.pipeline import STALE_AFTER_YEARS
+from ..research.strategy import topic_alignment, priority_order
+from .scoring import SOURCE as SCORE_SOURCE, derive_factors
 from .schemas import CampaignPlan, CampaignTask, GrowthLeadPayload, OpportunitySelection, TaskBrief
 
 PROMPT_VERSION = "growth-lead-v1"
@@ -57,6 +61,10 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
     p: GrowthLeadPayload = ctx.payload
     research = p.research
     missing = set(research.missing_facts)
+    # Research coverage notes (gaps on other topics, dated excerpts of other findings, a dropped
+    # model draft replaced by a grounded finding) are shown but do not block; only facts about
+    # the selected opportunity do.
+    advisory = missing - set(blocking_facts(missing))
     if not p.business_profile.audiences:
         missing.add("target_audience")
     if not p.business_profile.products and not p.business_profile.services:
@@ -69,7 +77,24 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         missing.add("profile_version")
     selected = None
     tasks = []
-    if research.status == "ready_for_handoff" and research.findings:
+    selection_method, ranking, derived = "model_selection_from_grounded_research", [], None
+    if research.status == "ready_for_handoff" and research.findings and not p.score_factors:
+        # No operator estimate: rank every finding by the same transparent derived score and
+        # pick the best; the model is not asked to choose blindly between hypotheses.
+        scored = []
+        for index, finding in enumerate(research.findings):
+            factors_i, basis_i = derive_factors(finding, research.trend_coverage, p.business_profile, p.cta)
+            scored.append((math.prod(factors_i.values()), index, factors_i, basis_i))
+        def alignment_of(finding):
+            return topic_alignment(' '.join([finding.topic, *finding.keywords, finding.user_need or '']), p.business_profile)
+        scored.sort(key=lambda row: (priority_order(alignment_of(research.findings[row[1]])), -row[0], row[1]))
+        ranking = [{"finding_index": index, "topic": research.findings[index].topic, "score": score,
+                    "strategy_alignment": alignment_of(research.findings[index])}
+                   for score, index, _, _ in scored]
+        best = scored[0]
+        selected, derived = research.findings[best[1]], (best[2], best[3])
+        selection_method = "derived_score_ranking"
+    elif research.status == "ready_for_handoff" and research.findings:
         user = json.dumps({"profile": p.business_profile.model_dump(mode="json"),
                            "goal": p.goal_context.model_dump(mode="json") if p.goal_context else None,
                            "findings": [x.model_dump(mode="json") for x in research.findings]}, ensure_ascii=False)
@@ -80,6 +105,13 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         if choice.finding_index >= len(research.findings):
             raise OperationError("INVALID_OPPORTUNITY", "Selected opportunity is not in research")
         selected = research.findings[choice.finding_index]
+    if selected is not None:
+        alignment = topic_alignment(' '.join([selected.topic, *selected.keywords, selected.user_need or '']), p.business_profile)
+        missing.update(code for code in selected.missing_data if code in {
+            'official_source_required', 'current_event_details_require_review', 'confirmed_service_capability_required'})
+        if selected.evidence_updated is not None and selected.evidence_updated < datetime.now(timezone.utc).year - STALE_AFTER_YEARS:
+            advisory.discard(f"stale_evidence:{selected.evidence_updated}")
+            missing.add(f"stale_evidence:{selected.evidence_updated}")
         for role, operation, deliverable in (("seo", "seo.local_draft", "seo_article_draft"),
                                               ("content", "content.repurpose", "social_pack_draft")):
             task_id = uuid5(NAMESPACE_URL, f"{ctx.job.job_id}:{ctx.job.input_version}:{role}")
@@ -88,36 +120,47 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                               offer=p.business_profile.products + p.business_profile.services,
                               audience_fit=selected.audience_fit, offer_fit=selected.offer_fit,
                               deliverable=deliverable, cta=p.cta,
+                              strategy_alignment=alignment,
                               acceptance=["Use cited research and verified snapshot facts only.",
                                           "Report missing facts; do not invent demand, price or availability.",
                                           "Return a draft for human review before publication."] +
-                                         (["Adapt the approved SEO draft; identify real image assets or report missing assets."] if tasks else []))
+                                         (["Adapt the approved SEO draft; identify real image assets or report missing assets."] if tasks else []) +
+                                         (["Verify official sources for sensitive claims, event details and actual service capability before promotion.",
+                                           "Measure the configured topic objectives; do not invent targets, conversions, bookings or market demand."] if alignment else []))
             tasks.append(CampaignTask(task_id=task_id, role=role, operation=operation,
                                       tools=["knowledge.read", "content.draft"], depends_on=dependencies,
                                       input_artifact_refs=[p.research_artifact],
                                       dependency_artifact_from=dependencies, brief=brief, deadline=p.deadline))
-    else:
+    if selected is None:
         missing.add("grounded_opportunities")
     factor_names = ("demand", "business_relevance", "growth_potential", "content_gap", "freshness", "conversion_potential")
     factors = {name: p.score_factors.get(name) for name in factor_names}
+    source, basis = "operator_estimate_not_search_volume", None
+    if derived is not None:
+        # No operator estimate: transparent heuristics from the cited research signals.
+        factors, basis = derived
+        source = SCORE_SOURCE
     # JSON consumers such as PostgreSQL/JavaScript parse 3.0 as 3. Keep the
     # artifact's canonical hash stable across that serialization boundary.
-    factors = {key: int(value) if value is not None and value.is_integer() else value for key, value in factors.items()}
+    factors = {key: int(value) if value is not None and float(value).is_integer() else value for key, value in factors.items()}
     score = math.prod(factors.values()) if all(value is not None for value in factors.values()) else None
     if isinstance(score, float) and score.is_integer():
         score = int(score)
     plan = CampaignPlan(plan_id=uuid5(NAMESPACE_URL, f"plan:{ctx.job.job_id}:{ctx.job.input_version}"),
                         workspace_id=ctx.job.workspace_id, input_version=ctx.job.input_version,
                         profile_version=p.business_profile.version, context_snapshot_id=ctx.job.context_snapshot_id,
-                        status="blocked" if missing else "proposed",
+                        status="blocked" if missing - advisory else "proposed",
                         objective=(p.goal_context.objective if p.goal_context else None) or "Prepare grounded SEO and social drafts",
+                        selection_method=selection_method, ranked_opportunities=ranking,
                         selected_opportunity=selected, research_artifact=p.research_artifact,
                         tasks=tasks, missing_facts=sorted(missing),
+                        kpis=[k.model_dump(mode="json") for k in p.goal_context.kpis] if p.goal_context else [],
+                        strategy_alignment=topic_alignment(' '.join([selected.topic, *selected.keywords, selected.user_need or '']), p.business_profile) if selected else None,
                         synthetic=ctx.job.synthetic or research.synthetic or ctx.settings.provider_mode == "fake",
                         opportunity_score={"factors": factors, "score": score, "estimated": True,
                             "label": "estimated" if score is not None else "insufficient_data",
                             "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
-                            "source": "operator_estimate_not_search_volume"})
+                            "source": source, **({"basis": basis} if basis else {})})
     return OperationOutcome(result=plan.model_dump(mode="json"),
                             evidence=[selected.evidence] if selected else [],
                             warnings=["MOCK_DATA_NOT_FOR_PUBLICATION"] if plan.synthetic else [])

@@ -1,5 +1,5 @@
-import type { CmsPublisher, CmsPublishRequest, CmsPublishResult } from './CmsPublisher.ts';
-import { generateManualPack, type ManualPack } from './ManualPackGenerator.ts';
+import type { CmsPublisher, CmsPublishRequest, CmsPublishResult } from './CmsPublisher';
+import { generateManualPack, type ManualPack } from './ManualPackGenerator';
 
 /**
  * Facebook Page Graph API Publisher (Graph API v21.0).
@@ -187,8 +187,18 @@ export class FacebookPagePublisher implements CmsPublisher {
 
 export { FacebookPagePublisher as FacebookPublisher };
 
+// Facebook renders plain text: drop markdown syntax but keep paragraph breaks
+// and hashtags (`#Brand`), which the Content social pack relies on.
 function toPlainText(markdown: string): string {
-  return markdown.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim();
+  return markdown
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/^[ \t]*#{1,6}[ \t]+/gm, '')
+    .replace(/^[ \t]*>[ \t]?/gm, '')
+    .replace(/\*\*|__|`/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 async function readJson(response: Response): Promise<Record<string, any>> {

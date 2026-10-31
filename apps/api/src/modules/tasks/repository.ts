@@ -1,5 +1,7 @@
 import pool, { query, withTransaction } from "../../lib/db";
 import { CreateWorkflowTaskInput, UpdateTaskStatusInput, CreateArtifactInput } from "./schemas";
+import { propagateUpstreamTaskFailure } from "./dag";
+import { AppError } from "../../lib/errors";
 
 export interface WorkflowTaskRow {
   id: string;
@@ -14,6 +16,7 @@ export interface WorkflowTaskRow {
   payload: Record<string, any>;
   result_ref?: string | null;
   error_details?: Record<string, any> | null;
+  error?: Record<string, any> | null;
   retry_count: number;
   max_retries: number;
   started_at?: string | null;
@@ -21,6 +24,56 @@ export interface WorkflowTaskRow {
   created_at: string;
   updated_at: string;
   dependencies?: string[];
+}
+
+export function mapTaskRow(row: any): WorkflowTaskRow {
+  if (!row) return row;
+  return {
+    ...row,
+    error: row.error_details ?? null,
+  };
+}
+
+async function enqueueReadyDependents(
+  client: { query: (sql: string, params?: any[]) => Promise<any> },
+  workspaceId: string,
+  completedTaskId?: string,
+  candidateTaskId?: string,
+) {
+  const children = (await client.query(
+    `SELECT t.*
+       FROM workflow_tasks t
+      WHERE t.workspace_id=$1
+        AND t.status='pending'
+        AND ($2::uuid IS NULL OR EXISTS (
+          SELECT 1 FROM task_dependencies edge
+           WHERE edge.task_id=t.id AND edge.depends_on_task_id=$2::uuid
+        ))
+        AND ($3::uuid IS NULL OR t.id=$3::uuid)
+        AND NOT EXISTS (
+          SELECT 1
+            FROM task_dependencies edge
+            JOIN workflow_tasks parent ON parent.id=edge.depends_on_task_id
+           WHERE edge.task_id=t.id AND parent.status<>'completed'
+        )
+      FOR UPDATE`,
+    [workspaceId, completedTaskId ?? null, candidateTaskId ?? null],
+  )).rows;
+
+  for (const child of children) {
+    await client.query(
+      `UPDATE workflow_tasks SET status='queued', updated_at=NOW()
+       WHERE workspace_id=$1 AND id=$2 AND status='pending'`,
+      [workspaceId, child.id],
+    );
+    await client.query(
+      `INSERT INTO plan_task_outbox(workspace_id, task_id, input_version, operation)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (task_id, input_version) DO NOTHING`,
+      [workspaceId, child.id, child.input_version, child.operation],
+    );
+  }
+  return children.map((child: { id: string }) => child.id);
 }
 
 export interface ContentArtifactRow {
@@ -42,7 +95,8 @@ export interface ContentArtifactRow {
 
 export async function createTaskWithDependencies(
   workspaceId: string,
-  input: CreateWorkflowTaskInput
+  input: CreateWorkflowTaskInput,
+  options: { enqueue?: boolean } = {},
 ): Promise<WorkflowTaskRow> {
   const client = await pool.connect();
 
@@ -83,9 +137,32 @@ export async function createTaskWithDependencies(
       }
     }
 
+    // Keep task creation and first dispatch in one transaction. Without this
+    // insert a task could be visible as queued while no durable worker work
+    // existed for it (the exact symptom seen in the Workflows screen).
+    if (options.enqueue && (!input.dependencies || input.dependencies.length === 0)) {
+      await client.query(
+        `INSERT INTO plan_task_outbox(workspace_id, task_id, input_version, operation)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (task_id, input_version) DO NOTHING`,
+        [workspaceId, createdTask.id, input.input_version, input.operation],
+      );
+      await client.query(
+        `UPDATE workflow_tasks SET status='queued', updated_at=NOW()
+         WHERE workspace_id=$1 AND id=$2 AND status='pending'`,
+        [workspaceId, createdTask.id],
+      );
+      createdTask.status = "queued";
+    } else if (options.enqueue && input.dependencies && input.dependencies.length > 0) {
+      // A task can be created after its parents have already completed. In
+      // that case it is ready immediately; do not leave it pending forever.
+      const ready = await enqueueReadyDependents(client, workspaceId, undefined, createdTask.id);
+      if (ready.includes(createdTask.id)) createdTask.status = "queued";
+    }
+
     await client.query("COMMIT");
     createdTask.dependencies = input.dependencies || [];
-    return createdTask;
+    return mapTaskRow(createdTask);
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -128,7 +205,7 @@ export async function listTasks(
 
   sql += ` ORDER BY t.created_at DESC`;
   const res = await query<WorkflowTaskRow>(sql, params);
-  return res.rows;
+  return res.rows.map(mapTaskRow);
 }
 
 export async function getTaskById(
@@ -147,7 +224,7 @@ export async function getTaskById(
     WHERE t.workspace_id = $1 AND t.id = $2
   `;
   const res = await query<WorkflowTaskRow>(sql, [workspaceId, taskId]);
-  return res.rows[0] || null;
+  return res.rows[0] ? mapTaskRow(res.rows[0]) : null;
 }
 
 export async function updateTaskStatus(
@@ -155,30 +232,42 @@ export async function updateTaskStatus(
   taskId: string,
   input: UpdateTaskStatusInput
 ): Promise<WorkflowTaskRow | null> {
-  const isTerminal = input.status === "completed" || input.status === "failed" || input.status === "cancelled";
-  const completedAtClause = isTerminal ? ", completed_at = NOW()" : "";
-  const startedAtClause = input.status === "running" ? ", started_at = COALESCE(started_at, NOW())" : "";
+  return withTransaction(async (client) => {
+    const isTerminal = input.status === "completed" || input.status === "failed" || input.status === "cancelled";
+    const completedAtClause = isTerminal ? ", completed_at = NOW()" : "";
+    const startedAtClause = input.status === "running" ? ", started_at = COALESCE(started_at, NOW())" : "";
 
-  const sql = `
-    UPDATE workflow_tasks
-    SET status = $1,
-        result_ref = COALESCE($2, result_ref),
-        error_details = COALESCE($3, error_details),
-        updated_at = NOW()
-        ${completedAtClause}
-        ${startedAtClause}
-    WHERE workspace_id = $4 AND id = $5
-    RETURNING *
-  `;
-  const res = await query<WorkflowTaskRow>(sql, [
-    input.status,
-    input.result_ref || null,
-    input.error_details ? JSON.stringify(input.error_details) : null,
-    workspaceId,
-    taskId,
-  ]);
+    const sql = `
+      UPDATE workflow_tasks
+      SET status = $1,
+          result_ref = COALESCE($2, result_ref),
+          error_details = COALESCE($3, error_details),
+          updated_at = NOW()
+          ${completedAtClause}
+          ${startedAtClause}
+      WHERE workspace_id = $4 AND id = $5
+      RETURNING *
+    `;
+    const res = await client.query<WorkflowTaskRow>(sql, [
+      input.status,
+      input.result_ref || null,
+      input.error_details ? JSON.stringify(input.error_details) : null,
+      workspaceId,
+      taskId,
+    ]);
 
-  return res.rows[0] || null;
+    const updated = res.rows[0] || null;
+
+    // Nếu task cha bị FAILED hoặc CANCELLED, tự động cascade hủy toàn bộ các task con downstream
+    if (updated && (input.status === "failed" || input.status === "cancelled")) {
+      await propagateUpstreamTaskFailure(client, workspaceId, taskId, input.status);
+    }
+    if (updated && input.status === "completed") {
+      await enqueueReadyDependents(client, workspaceId, taskId);
+    }
+
+    return updated ? mapTaskRow(updated) : null;
+  });
 }
 
 /**
@@ -191,24 +280,31 @@ export async function requeueFailedTask(
   actorId: string
 ): Promise<WorkflowTaskRow | null> {
   return withTransaction(async (client) => {
+    // AI runs are idempotent per (job_id, input_version): resending the same version
+    // returns the stored failure. Plan tasks therefore retry as a new input version.
+    const planTask = (await client.query(
+      "SELECT 1 FROM plan_task_outbox WHERE workspace_id=$1 AND task_id=$2 LIMIT 1", [workspaceId, taskId]
+    )).rowCount === 1;
     const res = await client.query<WorkflowTaskRow>(
       `UPDATE workflow_tasks
-       SET status = 'queued', error_details = NULL, started_at = NULL, completed_at = NULL, updated_at = NOW()
+       SET status = 'queued', error_details = NULL, started_at = NULL, completed_at = NULL, updated_at = NOW(),
+           input_version = input_version + CASE WHEN $3 THEN 1 ELSE 0 END
        WHERE workspace_id = $1 AND id = $2 AND status = 'failed'
        RETURNING *`,
-      [workspaceId, taskId]
+      [workspaceId, taskId, planTask]
     );
     const task = res.rows[0];
     if (!task) return null;
-    await client.query(`UPDATE plan_task_outbox SET status='pending',attempts=0,lease_until=NULL,error_code=NULL
-      WHERE workspace_id=$1 AND task_id=$2 AND input_version=$3 AND status='failed'`,
-      [workspaceId, taskId, task.input_version]);
+    if (planTask) {
+      await client.query(`INSERT INTO plan_task_outbox(workspace_id,task_id,input_version,operation) VALUES($1,$2,$3,$4)
+        ON CONFLICT(task_id,input_version) DO NOTHING`, [workspaceId, taskId, task.input_version, task.operation]);
+    }
     await client.query(
       `INSERT INTO audit_events (workspace_id, actor_id, action, entity_type, entity_id, entity_version, details)
        VALUES ($1, $2, 'task.retry_requested', 'workflow_task', $3, $4, $5)`,
       [workspaceId, actorId, taskId, task.input_version, JSON.stringify({ retry_count: task.retry_count })]
     );
-    return task;
+    return mapTaskRow(task);
   });
 }
 
@@ -216,6 +312,28 @@ export async function createArtifact(
   workspaceId: string,
   input: CreateArtifactInput
 ): Promise<ContentArtifactRow> {
+  // Idempotency: Nếu artifact liên kết với một task_id, kiểm tra xem phiên bản đó đã tồn tại chưa
+  if (input.task_id) {
+    const existing = await query<ContentArtifactRow>(
+      `SELECT * FROM content_artifacts 
+       WHERE workspace_id = $1 AND task_id = $2 AND version = $3`,
+      [workspaceId, input.task_id, input.version]
+    );
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      // Nếu cùng content_hash -> Idempotent replay, trả về bản ghi hiện có
+      if (row.content_hash === input.content_hash) {
+        return row;
+      }
+      // Nếu khác content_hash -> Xung đột phiên bản (kẻ xấu hoặc lỗi đổi dữ liệu mà không tăng version)
+      throw new AppError(
+        409,
+        "ARTIFACT_VERSION_CONFLICT",
+        `Artifact for task '${input.task_id}' version ${input.version} already exists with a different content hash`
+      );
+    }
+  }
+
   const sql = `
     INSERT INTO content_artifacts (
       workspace_id, task_id, version, content_hash, context_snapshot_id,

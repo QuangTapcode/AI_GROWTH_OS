@@ -1,0 +1,43 @@
+import { expect, test } from "@playwright/test";
+test.use({ channel: "chrome" });
+
+test("Research hands a pinned artifact to Growth Lead once and creates a reviewable plan", async ({ page, request }) => {
+  const auth = await request.post("http://localhost:4000/v1/auth/login", { data: { email: "owner.tripc.demo@gmail.com", password: "TripC@2026!" } });
+  const login = await auth.json();
+  const headers = { Authorization: `Bearer ${login.access_token}` };
+  const base = "http://localhost:4000/v1/workspaces/10000000-0000-4000-8000-000000000001";
+  await page.addInitScript((session) => {
+    localStorage.setItem("agos.session", JSON.stringify(session));
+    localStorage.setItem("agos.workspace", "10000000-0000-4000-8000-000000000001");
+  }, { token: login.access_token, expiresAt: login.expires_at, user: login.user });
+  await page.goto("http://localhost:3000/agents/research");
+  const researchAccepted = page.waitForResponse((response) => response.url().endsWith("/ai-tasks") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Chạy Research mới", exact: true }).click();
+  const researchTaskId = (await (await researchAccepted).json()).task_id;
+  const tasks = async () => (await (await request.get(`${base}/tasks`, { headers })).json()).items;
+  await expect.poll(async () => (await tasks()).find((task: { id: string }) => task.id === researchTaskId)?.status, { timeout: 15000 }).toBe("awaiting_approval");
+  const handoffButton = page.getByRole("button", { name: "Bàn giao và chạy Growth Lead", exact: true });
+  await expect(handoffButton).toBeEnabled({ timeout: 15000 });
+  await page.getByLabel("CTA cho kế hoạch", { exact: true }).fill("Ask TripC for a housing consultation");
+  const handoff = page.waitForResponse((response) => response.url().endsWith("/research-handoff"));
+  await handoffButton.click();
+  const accepted = await handoff;
+  expect(accepted.status()).toBe(202);
+  const body = accepted.request().postDataJSON();
+  const strategyTaskId = (await accepted.json()).task_id;
+  const replay = await request.post(`${base}/research-handoff`, { headers, data: body });
+  expect(replay.status()).toBe(200);
+  expect((await replay.json()).task_id).toBe(strategyTaskId);
+  await expect.poll(async () => (await tasks()).find((task: { id: string }) => task.id === strategyTaskId)?.status, { timeout: 15000 }).toBe("awaiting_approval");
+  const artifacts = (await (await request.get(`${base}/artifacts`, { headers })).json()).items;
+  const plan = artifacts.find((artifact: { task_id: string }) => artifact.task_id === strategyTaskId);
+  expect(plan.payload.result.research_artifact.artifact_id).toBe(body.research_artifact_id);
+  expect(plan.payload.result.tasks.length).toBeGreaterThan(0);
+  expect(plan.payload.result.synthetic).toBe(true);
+  const approvals = (await (await request.get(`${base}/approvals`, { headers })).json()).items;
+  expect(approvals.some((approval: { target_id: string; status: string }) => approval.target_id === plan.id && approval.status === "pending")).toBe(true);
+  await page.goto("http://localhost:3000/agents/growth_lead");
+  await expect(page.getByTestId("artifact-review-content").last()).toContainText("Kế hoạch tăng trưởng");
+  const invalid = await request.post(`${base}/research-handoff`, { headers, data: { ...body, research_artifact_id: plan.id } });
+  expect(invalid.status()).toBe(422);
+});

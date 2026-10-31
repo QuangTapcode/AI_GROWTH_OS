@@ -1,0 +1,42 @@
+{
+  "verified_on": "2026-10-29",
+  "workspace_id": "10000000-0000-4000-8000-000000000001",
+  "profile_version": 2,
+  "context_snapshot_id": "5754edab-4a48-4f8f-bfb0-ff1b4e69d6f8",
+  "source_document": {
+    "sha256": "dc661dac924813c3beef0c80801db9bcad76e39b6bb959bf2e5652ba1d1fb6a5",
+    "filename": "TripC_Phan_tich_doi_thu_va_Chu_de_uu_tien.docx",
+    "reviewed_at": "2026-10-28"
+  },
+  "topic_ids": [
+    "PT-01",
+    "PT-02",
+    "PT-03",
+    "PT-04",
+    "PT-05"
+  ],
+  "competitor_reference_count": 3,
+  "confirmed_products_services": [
+    "housing",
+    "living_areas",
+    "coworking",
+    "gym",
+    "food",
+    "events"
+  ],
+  "context_matches_profile": true,
+  "import_replay_changed": false,
+  "scope": "local_configuration_and_runtime_integration",
+  "competitor_claims_verified": false,
+  "production_campaign_executed": false,
+  "validation": {
+    "ai_tests_passed": 259,
+    "api_tests_passed": 222,
+    "api_tests_skipped": 10,
+    "worker_related_tests_passed": 11,
+    "web_smoke_passed": 1,
+    "api_typecheck": "passed",
+    "worker_typecheck": "passed",
+    "web_typecheck": "passed"
+  }
+}

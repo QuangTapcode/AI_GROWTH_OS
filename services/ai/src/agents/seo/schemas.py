@@ -10,12 +10,18 @@ class SeoPayload(MarketingContext):
     cta: str = Field(min_length=1, max_length=200)
 
 
+class SeoSection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    heading: str = Field(min_length=1, max_length=90)
+    body: str = Field(min_length=1, max_length=1500)
+
+
 class SeoDraft(BaseModel):
+    """Model-written parts; code renders the Markdown so headings always exist in the body."""
     model_config = ConfigDict(extra="forbid")
     title: str = Field(min_length=1, max_length=70)
     meta_description: str = Field(min_length=1, max_length=160)
-    headings: list[str] = Field(min_length=2, max_length=5)
-    body_markdown: str = Field(min_length=1, max_length=4000)
+    sections: list[SeoSection] = Field(min_length=2, max_length=5)
 
 
 class SeoArticle(DraftResult):

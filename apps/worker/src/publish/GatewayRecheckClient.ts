@@ -14,7 +14,7 @@
  *   chạy khi không xác minh được policy.
  */
 
-export * from './gateway_recheck.ts';
+export * from './gateway_recheck';
 
 export type GatewayCheckFn = (req: {
   workspaceId: string;

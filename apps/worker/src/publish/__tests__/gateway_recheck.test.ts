@@ -1,11 +1,11 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   computeSha256Hex,
   isAuthorizedReviewer,
   recheckBeforeOutbox,
   type GatewayRecheckRequest,
-} from '../gateway_recheck.ts';
+} from '../gateway_recheck';
 
 describe('CM-26 / TC-07 Gateway Recheck & Content Hash Lock', () => {
   const baseContent = {

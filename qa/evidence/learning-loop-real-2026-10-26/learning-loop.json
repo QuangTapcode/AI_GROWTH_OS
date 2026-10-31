@@ -1,0 +1,673 @@
+{
+  "generated_at": "2026-10-26T04:55:48.449709+00:00",
+  "workspace": "tripc",
+  "synthetic": false,
+  "site_posts": [
+    {
+      "slug": "flexible-workspaces-for-expats-adapting-to-daily-needs",
+      "published_at": "2026-10-26T04:41:25.93762+00:00",
+      "artifact_id": "9b4c4057-b0d7-5fdd-b497-27bbebc19715"
+    },
+    {
+      "slug": "work-flexibility-for-expats-adaptable-workspaces",
+      "published_at": "2026-10-26T04:46:33.074091+00:00",
+      "artifact_id": "1f51f0d0-2017-55e6-8bd0-4aee695a09ba"
+    },
+    {
+      "slug": "work-flexibility-for-expats-adaptable-workspaces-2",
+      "published_at": "2026-10-26T04:54:14.38584+00:00",
+      "artifact_id": "5a9dc726-6fa8-5319-86ff-d854bc0efeb5"
+    }
+  ],
+  "site_events": [
+    {
+      "event_type": "page_view",
+      "path": "/",
+      "internal": true,
+      "occurred_at": "2026-10-26T04:43:07.342184+00:00"
+    },
+    {
+      "event_type": "page_view",
+      "path": "/posts/flexible-workspaces-for-expats-adapting-to-daily-needs",
+      "internal": true,
+      "occurred_at": "2026-10-26T04:43:08.94524+00:00"
+    },
+    {
+      "event_type": "cta_click",
+      "path": "/posts/flexible-workspaces-for-expats-adapting-to-daily-needs",
+      "internal": true,
+      "occurred_at": "2026-10-26T04:43:10.480337+00:00"
+    }
+  ],
+  "measurement_artifacts": [
+    {
+      "id": "b77fe413-9820-4a30-af1f-7be968d23aae",
+      "operation": "metrics.snapshot",
+      "storage": "postgres_ledger",
+      "result": {
+        "leads": 0,
+        "clicks": null,
+        "source": "first_party",
+        "version": 1,
+        "synthetic": false,
+        "window_end": "2026-10-26T04:45:00.000Z",
+        "impressions": null,
+        "snapshot_id": "5986f21f-287c-4c68-849e-71a1f78f9a78",
+        "unavailable": {
+          "clicks": "search_console_not_connected",
+          "impressions": "search_console_not_connected"
+        },
+        "window_start": "2026-10-19T04:45:00.000Z",
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "qualified_visits": 0
+      },
+      "measurement": {
+        "site_id": "tripc-pilot",
+        "page_views": 0,
+        "internal_page_views": 2
+      }
+    },
+    {
+      "id": "71624354-2aad-4054-bdde-f63298f53544",
+      "operation": "lead.aggregate",
+      "storage": "postgres_ledger",
+      "result": {
+        "count": 0,
+        "version": 1,
+        "synthetic": false,
+        "workspace_id": "10000000-0000-4000-8000-000000000001"
+      },
+      "measurement": {
+        "window_end": "2026-10-26T04:45:00.000Z",
+        "window_start": "2026-10-19T04:45:00.000Z"
+      }
+    }
+  ],
+  "research": {
+    "id": "eb2c2732-0f5e-5abd-8e6c-b2c2d1819ab0",
+    "task_status": "completed",
+    "storage": "ai_run_store",
+    "run_metadata": {
+      "run_id": "3f6c14f9-4b4f-51b4-aa84-5f00ca4cfe21",
+      "trace_id": "plan-task:2615cc02-c0ff-4a15-aea7-6e9ce03897b7",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "research-v6",
+      "provider_calls": 2
+    },
+    "result": {
+      "status": "ready_for_handoff",
+      "applied": false,
+      "brief_id": "12ac255e-5f19-5ccf-9b6c-79f58acad469",
+      "findings": [
+        {
+          "url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+          "topic": "coworking",
+          "evidence": {
+            "quote": "Where you work should depend on what you need to do that day rather than on which environment looks most appealing.",
+            "license": "TripC first-party content",
+            "locator": "paragraph:25-26",
+            "chunk_id": "b68f3dc8-15c1-4a9b-887d-ae2d52433f3e",
+            "source_id": "d6c61961-d6a8-4544-b1b3-953abde4f608",
+            "source_url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+            "attribution": "TripC",
+            "source_version": 2
+          },
+          "keywords": [
+            "work flexibility",
+            "noise levels",
+            "equipment needs"
+          ],
+          "offer_fit": "TripC provides coworking options in Da Nang.",
+          "rationale": "Where you work should depend on what you need to do that day rather than on which environment looks most appealing.",
+          "user_need": "English-speaking expats need workspaces that adapt to their daily tasks.",
+          "confidence": "hypothesis",
+          "fetched_at": "2026-10-25T17:46:59.175000Z",
+          "audience_fit": "English-speaking expats need flexible workspaces.",
+          "trend_signals": [
+            {
+              "url": "https://www.this-is-vietnam.com/da-nang-coworking-guide/",
+              "rank": 6,
+              "query": "Da Nang coworking expats",
+              "title": "Da Nang Coworking Guide: Best Spaces for Remote Work",
+              "domain": "www.this-is-vietnam.com",
+              "is_new": false,
+              "signal_id": "e7b964af-c093-4ac0-9ffe-2a96b1f37fdd",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 9
+            },
+            {
+              "url": "https://www.expatsdanang.com/guides/coworking-da-nang",
+              "rank": 1,
+              "query": "Da Nang coworking expats",
+              "title": "Best Coworking Spaces in Da Nang 2026 | Expats Da Nang",
+              "domain": "www.expatsdanang.com",
+              "is_new": false,
+              "signal_id": "d3ab7610-31c1-42ab-bd8a-610aacbbfd55",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 1
+            },
+            {
+              "url": "https://danangexpatrentals.com/moving-guide/coworking",
+              "rank": 2,
+              "query": "Da Nang coworking expats",
+              "title": "Coworking in Da Nang â€” Living guide | Da Nang Expat Rentals",
+              "domain": "danangexpatrentals.com",
+              "is_new": false,
+              "signal_id": "69435201-29d6-45d0-847e-e2ecec3d600a",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 2
+            },
+            {
+              "url": "https://coworkingspaces.me/da-nang/",
+              "rank": 3,
+              "query": "Da Nang coworking expats",
+              "title": "Top 20 Coworking Spaces in Da Nang - Sara's Guide 2026",
+              "domain": "coworkingspaces.me",
+              "is_new": false,
+              "signal_id": "6348ed48-5a87-486c-a76f-890831f0f18d",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 5
+            },
+            {
+              "url": "https://modernexpatmagazine.com/articles/cafes-and-coworking-in-da-nang",
+              "rank": 4,
+              "query": "Da Nang coworking expats",
+              "title": "Cafes and Coworking in Da Nang (2026) | Modern Expat Magazine",
+              "domain": "modernexpatmagazine.com",
+              "is_new": false,
+              "signal_id": "0c66fe6c-2df6-4270-832e-12d64a4d095a",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 3
+            }
+          ],
+          "demand_estimate": null,
+          "evidence_updated": null
+        },
+        {
+          "url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+          "topic": "housing",
+          "evidence": {
+            "quote": "Timing matters in Da Nang more than in the two big cities, because the weather has a genuine wet season.",
+            "license": "TripC first-party content",
+            "locator": "paragraph:32-34",
+            "chunk_id": "8001a4b3-812d-443c-a765-3baca88a1508",
+            "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+            "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+            "attribution": "TripC",
+            "source_version": 2
+          },
+          "keywords": [
+            "weather patterns",
+            "dry season",
+            "housing planning"
+          ],
+          "offer_fit": "TripC offers housing insights aligned with weather patterns.",
+          "rationale": "Timing matters in Da Nang more than in the two big cities, because the weather has a genuine wet season.",
+          "user_need": "Expats need to time their housing search around Da Nang's weather.",
+          "confidence": "hypothesis",
+          "fetched_at": "2026-10-25T17:46:35.193000Z",
+          "audience_fit": "Expats require timing guidance for Da Nang housing.",
+          "trend_signals": [
+            {
+              "url": "https://www.expat.com/en/guide/asia/vietnam/da-nang/9088-accommodation-in-da-nang.html",
+              "rank": 2,
+              "query": "Da Nang housing expats",
+              "title": "Housing and rentals in Da Nang - Da Nang Guide - Expat.com",
+              "domain": "www.expat.com",
+              "is_new": false,
+              "signal_id": "5b3f59f4-36ff-4647-864c-3a6cbe385592",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 1
+            },
+            {
+              "url": "https://www.expatriates.com/classifieds/da-nang/apartments-flats-houses/",
+              "rank": 4,
+              "query": "Da Nang housing expats",
+              "title": "Housing Da Nang - expatriates.com",
+              "domain": "www.expatriates.com",
+              "is_new": false,
+              "signal_id": "e83c7a6b-fdf1-4953-af99-42cf8ae725e4",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 3
+            }
+          ],
+          "demand_estimate": null,
+          "evidence_updated": null
+        }
+      ],
+      "synthetic": false,
+      "handoff_role": "growth_lead",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "missing_facts": [],
+      "trend_coverage": [
+        {
+          "query": "Da Nang coworking expats",
+          "topic": "coworking",
+          "signal_count": 10,
+          "covered_chunks": 8,
+          "distinct_domains": 9
+        },
+        {
+          "query": "Da Nang housing expats",
+          "topic": "housing",
+          "signal_count": 10,
+          "covered_chunks": 2,
+          "distinct_domains": 7
+        },
+        {
+          "query": "Da Nang living areas expats",
+          "topic": "living areas",
+          "signal_count": 10,
+          "covered_chunks": 3,
+          "distinct_domains": 9
+        }
+      ],
+      "profile_version": 1,
+      "handoff_operation": "opportunity.score",
+      "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+      "requires_human_approval": true
+    }
+  },
+  "growth_lead": {
+    "id": "7a8f6446-2610-593d-9660-ff8ff5edc54f",
+    "task_status": "completed",
+    "storage": "ai_run_store",
+    "run_metadata": {
+      "run_id": "df6153b5-b801-5bf4-9646-0abb7ff6c760",
+      "trace_id": "plan-task:f7cb1ce6-e486-48e8-ad18-cdb2491b9ef1",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "growth-lead-v1",
+      "provider_calls": 0
+    },
+    "result": {
+      "tasks": [
+        {
+          "role": "seo",
+          "brief": {
+            "cta": "Ask TripC for a Da Nang housing and workspace shortlist",
+            "offer": [
+              "housing",
+              "living_areas",
+              "coworking",
+              "gym",
+              "food",
+              "events"
+            ],
+            "topic": "coworking",
+            "intent": "informational",
+            "audience": [
+              "English-speaking expats living or planning to live in Da Nang"
+            ],
+            "offer_fit": "TripC provides coworking options in Da Nang.",
+            "acceptance": [
+              "Use cited research and verified snapshot facts only.",
+              "Report missing facts; do not invent demand, price or availability.",
+              "Return a draft for human review before publication."
+            ],
+            "deliverable": "seo_article_draft",
+            "audience_fit": "English-speaking expats need flexible workspaces."
+          },
+          "tools": [
+            "knowledge.read",
+            "content.draft"
+          ],
+          "task_id": "0acfc567-c392-52f4-90f7-3961d294c119",
+          "deadline": "2026-11-02T04:43:32.494000Z",
+          "operation": "seo.local_draft",
+          "depends_on": [],
+          "input_artifact_refs": [
+            {
+              "role": "research",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "eb2c2732-0f5e-5abd-8e6c-b2c2d1819ab0",
+              "content_hash": "8ea01b92f16d08307b2d12ac4a8794eadba6e3d7445fbe7dd09b393f321018c3",
+              "workspace_id": "10000000-0000-4000-8000-000000000001",
+              "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+            }
+          ],
+          "requires_human_approval": true,
+          "dependency_artifact_from": []
+        },
+        {
+          "role": "content",
+          "brief": {
+            "cta": "Ask TripC for a Da Nang housing and workspace shortlist",
+            "offer": [
+              "housing",
+              "living_areas",
+              "coworking",
+              "gym",
+              "food",
+              "events"
+            ],
+            "topic": "coworking",
+            "intent": "informational",
+            "audience": [
+              "English-speaking expats living or planning to live in Da Nang"
+            ],
+            "offer_fit": "TripC provides coworking options in Da Nang.",
+            "acceptance": [
+              "Use cited research and verified snapshot facts only.",
+              "Report missing facts; do not invent demand, price or availability.",
+              "Return a draft for human review before publication.",
+              "Adapt the approved SEO draft; identify real image assets or report missing assets."
+            ],
+            "deliverable": "social_pack_draft",
+            "audience_fit": "English-speaking expats need flexible workspaces."
+          },
+          "tools": [
+            "knowledge.read",
+            "content.draft"
+          ],
+          "task_id": "4391a41c-8e3b-506d-96cd-97e0ddc771f0",
+          "deadline": "2026-11-02T04:43:32.494000Z",
+          "operation": "content.repurpose",
+          "depends_on": [
+            "0acfc567-c392-52f4-90f7-3961d294c119"
+          ],
+          "input_artifact_refs": [
+            {
+              "role": "research",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "eb2c2732-0f5e-5abd-8e6c-b2c2d1819ab0",
+              "content_hash": "8ea01b92f16d08307b2d12ac4a8794eadba6e3d7445fbe7dd09b393f321018c3",
+              "workspace_id": "10000000-0000-4000-8000-000000000001",
+              "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+            }
+          ],
+          "requires_human_approval": true,
+          "dependency_artifact_from": [
+            "0acfc567-c392-52f4-90f7-3961d294c119"
+          ]
+        }
+      ],
+      "status": "proposed",
+      "applied": false,
+      "plan_id": "c6bcee7e-54ec-5657-9c28-8d04205b1970",
+      "objective": "Grow qualified organic traffic and lead requests from English-speaking expats moving to Da Nang",
+      "synthetic": false,
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "input_version": 1,
+      "missing_facts": [],
+      "profile_version": 1,
+      "contract_version": "growth-lead-plan-v2",
+      "selection_method": "derived_score_ranking",
+      "opportunity_score": {
+        "basis": {
+          "demand": "5 matching search titles, best rank 1; visibility proxy, not search volume",
+          "freshness": "source fetched 0 days ago",
+          "content_gap": "up to 9 distinct domains rank for ['Da Nang coworking expats']; more competitors, smaller gap",
+          "growth_potential": "2 new/rising and 1 falling matched titles since the previous search",
+          "business_relevance": "profile offer terms in topic/keywords/offer fit: ['coworking']",
+          "conversion_potential": "offer and CTA present; no conversion data yet"
+        },
+        "label": "estimated",
+        "score": 1152,
+        "source": "derived_from_research_signals_not_search_volume",
+        "factors": {
+          "demand": 4,
+          "freshness": 4,
+          "content_gap": 2,
+          "growth_potential": 4,
+          "business_relevance": 3,
+          "conversion_potential": 3
+        },
+        "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
+        "estimated": true
+      },
+      "research_artifact": {
+        "role": "research",
+        "storage": "ai_run_store",
+        "version": 1,
+        "artifact_id": "eb2c2732-0f5e-5abd-8e6c-b2c2d1819ab0",
+        "content_hash": "8ea01b92f16d08307b2d12ac4a8794eadba6e3d7445fbe7dd09b393f321018c3",
+        "workspace_id": "10000000-0000-4000-8000-000000000001",
+        "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+      },
+      "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+      "ranked_opportunities": [
+        {
+          "score": 1152,
+          "topic": "coworking",
+          "finding_index": 0
+        },
+        {
+          "score": 648,
+          "topic": "housing",
+          "finding_index": 1
+        }
+      ],
+      "selected_opportunity": {
+        "url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+        "topic": "coworking",
+        "evidence": {
+          "quote": "Where you work should depend on what you need to do that day rather than on which environment looks most appealing.",
+          "license": "TripC first-party content",
+          "locator": "paragraph:25-26",
+          "chunk_id": "b68f3dc8-15c1-4a9b-887d-ae2d52433f3e",
+          "source_id": "d6c61961-d6a8-4544-b1b3-953abde4f608",
+          "source_url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+          "attribution": "TripC",
+          "source_version": 2
+        },
+        "keywords": [
+          "work flexibility",
+          "noise levels",
+          "equipment needs"
+        ],
+        "offer_fit": "TripC provides coworking options in Da Nang.",
+        "rationale": "Where you work should depend on what you need to do that day rather than on which environment looks most appealing.",
+        "user_need": "English-speaking expats need workspaces that adapt to their daily tasks.",
+        "confidence": "hypothesis",
+        "fetched_at": "2026-10-25T17:46:59.175000Z",
+        "audience_fit": "English-speaking expats need flexible workspaces.",
+        "trend_signals": [
+          {
+            "url": "https://www.this-is-vietnam.com/da-nang-coworking-guide/",
+            "rank": 6,
+            "query": "Da Nang coworking expats",
+            "title": "Da Nang Coworking Guide: Best Spaces for Remote Work",
+            "domain": "www.this-is-vietnam.com",
+            "is_new": false,
+            "signal_id": "e7b964af-c093-4ac0-9ffe-2a96b1f37fdd",
+            "observed_at": "2026-10-25T17:14:09.470000Z",
+            "previous_rank": 9
+          },
+          {
+            "url": "https://www.expatsdanang.com/guides/coworking-da-nang",
+            "rank": 1,
+            "query": "Da Nang coworking expats",
+            "title": "Best Coworking Spaces in Da Nang 2026 | Expats Da Nang",
+            "domain": "www.expatsdanang.com",
+            "is_new": false,
+            "signal_id": "d3ab7610-31c1-42ab-bd8a-610aacbbfd55",
+            "observed_at": "2026-10-25T17:14:09.470000Z",
+            "previous_rank": 1
+          },
+          {
+            "url": "https://danangexpatrentals.com/moving-guide/coworking",
+            "rank": 2,
+            "query": "Da Nang coworking expats",
+            "title": "Coworking in Da Nang â€” Living guide | Da Nang Expat Rentals",
+            "domain": "danangexpatrentals.com",
+            "is_new": false,
+            "signal_id": "69435201-29d6-45d0-847e-e2ecec3d600a",
+            "observed_at": "2026-10-25T17:14:09.470000Z",
+            "previous_rank": 2
+          },
+          {
+            "url": "https://coworkingspaces.me/da-nang/",
+            "rank": 3,
+            "query": "Da Nang coworking expats",
+            "title": "Top 20 Coworking Spaces in Da Nang - Sara's Guide 2026",
+            "domain": "coworkingspaces.me",
+            "is_new": false,
+            "signal_id": "6348ed48-5a87-486c-a76f-890831f0f18d",
+            "observed_at": "2026-10-25T17:14:09.470000Z",
+            "previous_rank": 5
+          },
+          {
+            "url": "https://modernexpatmagazine.com/articles/cafes-and-coworking-in-da-nang",
+            "rank": 4,
+            "query": "Da Nang coworking expats",
+            "title": "Cafes and Coworking in Da Nang (2026) | Modern Expat Magazine",
+            "domain": "modernexpatmagazine.com",
+            "is_new": false,
+            "signal_id": "0c66fe6c-2df6-4270-832e-12d64a4d095a",
+            "observed_at": "2026-10-25T17:14:09.470000Z",
+            "previous_rank": 3
+          }
+        ],
+        "demand_estimate": null,
+        "evidence_updated": null
+      },
+      "requires_human_approval": true
+    }
+  },
+  "performance": {
+    "id": "89e2e7c9-39f7-569e-84f1-b88528a5cb37",
+    "task_status": "completed",
+    "storage": "ai_run_store",
+    "run_metadata": {
+      "run_id": "9afdece3-b1c2-5cfe-8f54-7727d3fc0a46",
+      "trace_id": "plan-task:3b6439a6-4011-47c8-a686-d51993929973",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "performance-v1",
+      "provider_calls": 0
+    },
+    "result": {
+      "status": "draft",
+      "window": {
+        "end": "2026-10-26T04:45:00+00:00",
+        "start": "2026-10-19T04:45:00+00:00"
+      },
+      "applied": false,
+      "metrics": {
+        "leads": 0,
+        "clicks": null,
+        "impressions": null,
+        "qualified_visits": 0
+      },
+      "version": 1,
+      "proposal": "Review the cited aggregate window before proposing the next content test.",
+      "synthetic": false,
+      "experiment": null,
+      "attribution": "aggregate_observation_only_not_causal",
+      "observations": [
+        "Observed qualified_visits: 0.",
+        "Observed leads: 0.",
+        "clicks not measured: search_console_not_connected.",
+        "impressions not measured: search_console_not_connected."
+      ],
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "missing_facts": [],
+      "profile_version": 1,
+      "metric_snapshot_id": "5986f21f-287c-4c68-849e-71a1f78f9a78",
+      "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+      "input_artifact_refs": [
+        {
+          "role": "performance",
+          "storage": "postgres_ledger",
+          "version": 1,
+          "artifact_id": "b77fe413-9820-4a30-af1f-7be968d23aae",
+          "content_hash": "20c806d6136e34c6c17de9c2ee3332bf20342e31340c590bd8decc87c4b7d4c0",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+        }
+      ],
+      "spend_mutation_allowed": false,
+      "requires_human_approval": true
+    }
+  },
+  "learning": {
+    "id": "a2169730-1759-51da-8b19-5d97b15030f7",
+    "task_status": "awaiting_approval",
+    "storage": "ai_run_store",
+    "run_metadata": {
+      "run_id": "3eab6805-3a47-52a6-89fb-d6584510e8b7",
+      "trace_id": "plan-task:5945e83c-32a2-4ef3-ac0e-87c9979a12e5",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "learning-v1",
+      "provider_calls": 0
+    },
+    "result": {
+      "status": "draft",
+      "applied": false,
+      "version": 1,
+      "learning": [
+        "The cited lead aggregate contains 0 leads; causal attribution is not established."
+      ],
+      "iteration": 0,
+      "synthetic": false,
+      "next_tasks": [
+        {
+          "role": "research",
+          "reason": "Reassess one grounded topic using the cited aggregate window.",
+          "dedup_key": "7b2cc23dae7cde079e2182a0cf8d990e85979885632f490a05d00e6876342863",
+          "iteration": 1,
+          "operation": "research.run",
+          "input_artifact_refs": [
+            {
+              "role": "performance",
+              "storage": "ai_run_store",
+              "version": 1,
+              "artifact_id": "89e2e7c9-39f7-569e-84f1-b88528a5cb37",
+              "content_hash": "cc7684b3b532bdb264afe8f3d46dcef2731fd0ca8d60b760ffee3edc170168b7",
+              "workspace_id": "10000000-0000-4000-8000-000000000001",
+              "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+            },
+            {
+              "role": "performance",
+              "storage": "postgres_ledger",
+              "version": 1,
+              "artifact_id": "71624354-2aad-4054-bdde-f63298f53544",
+              "content_hash": "734b3e9d71e4e9edbee6afc8757ac0ed6c3c56387e913903e1a62fee2ca358e2",
+              "workspace_id": "10000000-0000-4000-8000-000000000001",
+              "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+            }
+          ],
+          "requires_human_approval": true
+        }
+      ],
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "missing_facts": [],
+      "max_iterations": 3,
+      "stopped_reason": null,
+      "profile_version": 1,
+      "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3",
+      "input_artifact_refs": [
+        {
+          "role": "performance",
+          "storage": "ai_run_store",
+          "version": 1,
+          "artifact_id": "89e2e7c9-39f7-569e-84f1-b88528a5cb37",
+          "content_hash": "cc7684b3b532bdb264afe8f3d46dcef2731fd0ca8d60b760ffee3edc170168b7",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+        },
+        {
+          "role": "performance",
+          "storage": "postgres_ledger",
+          "version": 1,
+          "artifact_id": "71624354-2aad-4054-bdde-f63298f53544",
+          "content_hash": "734b3e9d71e4e9edbee6afc8757ac0ed6c3c56387e913903e1a62fee2ca358e2",
+          "workspace_id": "10000000-0000-4000-8000-000000000001",
+          "context_snapshot_id": "05c15698-ac93-4233-b9ef-50d4987065f3"
+        }
+      ],
+      "requires_human_approval": true
+    }
+  },
+  "next_iteration_research": {
+    "task_id": "5bbc5252-0723-4e31-a4df-b4dde7ebe24e",
+    "status": "completed",
+    "iteration": 1,
+    "dedup_key": "7b2cc23dae7cde079e2182a0cf8d990e85979885632f490a05d00e6876342863"
+  }
+}

@@ -4,7 +4,7 @@ Covers:
 - TC-04: Missing approved real asset for real product/room description -> status 'needs_assets'.
 - TC-05: AI-generated image strictly forbidden from substituting real asset for real rooms/products.
 - TC-08: Cross-workspace access to assets or articles triggers HTTP 403 Forbidden without leaking existence or tenant metadata.
-- Migration 012 UP & DOWN: Schema integrity, column definitions, check constraints, indexes, and RLS policies.
+- Migration 018 UP & DOWN: Schema integrity, column definitions, check constraints, indexes, and RLS policies.
 """
 
 from __future__ import annotations
@@ -146,13 +146,13 @@ def concept_seo_article(current_workspace_id) -> SeoArticle:
 
 
 # ==============================================================================
-# NHÓM 1: KIỂM THỬ MIGRATION 012 UP & DOWN (CM-03)
+# NHÓM 1: KIỂM THỬ MIGRATION 018 UP & DOWN (CM-03)
 # ==============================================================================
 
-def test_migration_012_up_integrity():
-    """Kiểm tra cấu trúc và tính toàn vẹn của file migration 012 UP."""
+def test_migration_018_up_integrity():
+    """Kiểm tra cấu trúc và tính toàn vẹn của file migration 018 UP."""
     repo_root = Path(__file__).resolve().parents[3]
-    up_path = repo_root / "database" / "migrations" / "012_media_assets.sql"
+    up_path = repo_root / "database" / "migrations" / "018_media_assets.sql"
     assert up_path.exists(), f"Không tìm thấy file {up_path}"
 
     content = up_path.read_text(encoding="utf-8")
@@ -189,10 +189,10 @@ def test_migration_012_up_integrity():
     assert "idx_media_assets_hash" in content
 
 
-def test_migration_012_down_integrity():
-    """Kiểm tra cấu trúc và tính toàn vẹn của file rollback 012 DOWN."""
+def test_migration_018_down_integrity():
+    """Kiểm tra cấu trúc và tính toàn vẹn của file rollback 018 DOWN."""
     repo_root = Path(__file__).resolve().parents[3]
-    down_path = repo_root / "database" / "migrations" / "012_media_assets.down.sql"
+    down_path = repo_root / "database" / "migrations" / "018_media_assets.down.sql"
     assert down_path.exists(), f"Không tìm thấy file {down_path}"
 
     content = down_path.read_text(encoding="utf-8")

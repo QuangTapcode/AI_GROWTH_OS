@@ -1,0 +1,495 @@
+{
+  "generated_at": "2026-10-25T17:52:34.113849+00:00",
+  "workspace": "tripc",
+  "synthetic": false,
+  "model": "ollama/qwen3:8b",
+  "knowledge_context": {
+    "snapshot_id": "f0cfbe3a-7a5e-4bca-bc30-ea1c67c3c8be",
+    "sources": [
+      {
+        "source_id": "1fd5ef4c-9562-4930-9a94-dc7c1f32fb69",
+        "version": 2,
+        "title": "Apartment Viewing Checklist in Vietnam (tripc.ai)",
+        "url": "https://tripc.ai/blog/apartment-viewing-checklist-vietnam",
+        "license": "TripC first-party content",
+        "attribution": "TripC",
+        "retrieved_at": "2026-10-25T17:46:49.177Z",
+        "chunks": 24
+      },
+      {
+        "source_id": "28e582b9-dd6c-4a77-a3cf-43c0f66e6fc2",
+        "version": 2,
+        "title": "Da Nang vs Hanoi vs Ho Chi Minh City for Remote Workers (tripc.ai)",
+        "url": "https://tripc.ai/blog/da-nang-vs-hanoi-vs-ho-chi-minh-city-remote-workers",
+        "license": "TripC first-party content",
+        "attribution": "TripC",
+        "retrieved_at": "2026-10-25T17:47:18.784Z",
+        "chunks": 14
+      },
+      {
+        "source_id": "38915e49-69dd-4958-87af-060c4b891f94",
+        "version": 2,
+        "title": "Da Nang | Vietnam Tourism (vietnam.travel)",
+        "url": "https://vietnam.travel/places-to-go/south-central-coast-central-highlands/da-nang/",
+        "license": "Official tourism portal; short excerpts for internal research with attribution",
+        "attribution": "Vietnam National Authority of Tourism",
+        "retrieved_at": "2026-10-25T17:13:18.428Z",
+        "chunks": 3
+      },
+      {
+        "source_id": "436088c2-31d6-43d8-bd2c-9c14d54a8b2c",
+        "version": 2,
+        "title": "Da Nang (en.wikivoyage.org)",
+        "url": "https://en.wikivoyage.org/wiki/Da_Nang",
+        "license": "CC BY-SA 4.0",
+        "attribution": "Wikivoyage contributors",
+        "retrieved_at": "2026-10-25T17:13:03.731Z",
+        "chunks": 76
+      },
+      {
+        "source_id": "682d0890-9ee3-42e4-b54b-0597b28b1823",
+        "version": 2,
+        "title": "About Da Nang City (danangfantasticity.com)",
+        "url": "https://danangfantasticity.com/en/about-da-nang-city",
+        "license": "Official tourism portal; short excerpts for internal research with attribution",
+        "attribution": "Da Nang Fantasticity, Da Nang Department of Tourism",
+        "retrieved_at": "2026-10-25T17:13:10.476Z",
+        "chunks": 25
+      },
+      {
+        "source_id": "78bb7cc8-0726-4be8-b33d-550413410d15",
+        "version": 2,
+        "title": "Where to Stay During Your First Two Weeks in Vietnam (tripc.ai)",
+        "url": "https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide",
+        "license": "TripC first-party content",
+        "attribution": "TripC",
+        "retrieved_at": "2026-10-25T17:47:07.953Z",
+        "chunks": 17
+      },
+      {
+        "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+        "version": 2,
+        "title": "Da Nang Workcation Guide: Where to Live, Work and Connect (tripc.ai)",
+        "url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+        "license": "TripC first-party content",
+        "attribution": "TripC",
+        "retrieved_at": "2026-10-25T17:46:35.193Z",
+        "chunks": 13
+      },
+      {
+        "source_id": "c0d33750-1a52-4931-bd79-1a1c7135c966",
+        "version": 2,
+        "title": "Da Nang (en.wikipedia.org)",
+        "url": "https://en.wikipedia.org/wiki/Da_Nang",
+        "license": "CC BY-SA 4.0",
+        "attribution": "Wikipedia contributors",
+        "retrieved_at": "2026-10-25T17:12:50.435Z",
+        "chunks": 40
+      },
+      {
+        "source_id": "d6c61961-d6a8-4544-b1b3-953abde4f608",
+        "version": 2,
+        "title": "Working Remotely from Vietnam: Reliable Work Setup (tripc.ai)",
+        "url": "https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide",
+        "license": "TripC first-party content",
+        "attribution": "TripC",
+        "retrieved_at": "2026-10-25T17:46:59.175Z",
+        "chunks": 24
+      }
+    ]
+  },
+  "revoked_synthetic_sources": [
+    {
+      "title": "TripC demo knowledge (synthetic staging)",
+      "status": "revoked",
+      "reviewed_at": "2026-10-25T17:13:46.276574+00:00"
+    }
+  ],
+  "discovery_runs": [
+    {
+      "discovery_run_id": "e92cf9f4-2a53-41a0-95ce-97b434ad609d",
+      "observed_at": "2026-10-23T06:24:06.30474+00:00",
+      "signals": 30,
+      "queries": [
+        "Da Nang coworking expats",
+        "Da Nang housing expats",
+        "Da Nang living areas expats"
+      ]
+    },
+    {
+      "discovery_run_id": "fa1f4d2c-771f-4866-88f8-81d87e318279",
+      "observed_at": "2026-10-25T17:14:09.470217+00:00",
+      "signals": 30,
+      "queries": [
+        "Da Nang coworking expats",
+        "Da Nang housing expats",
+        "Da Nang living areas expats"
+      ]
+    }
+  ],
+  "latest_signals": [
+    {
+      "query": "Da Nang housing expats",
+      "rank": 1,
+      "title": "Apartments & Houses for Rent in Da Nang | Expats Da Nang",
+      "url": "https://www.expatsdanang.com/housing"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 2,
+      "title": "Housing and rentals in Da Nang - Da Nang Guide - Expat.com",
+      "url": "https://www.expat.com/en/guide/asia/vietnam/da-nang/9088-accommodation-in-da-nang.html"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 3,
+      "title": "Living in Da Nang: the ultimate expat guide",
+      "url": "https://www.expat.com/en/guide/asia/vietnam/da-nang/"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 4,
+      "title": "Housing Da Nang - expatriates.com",
+      "url": "https://www.expatriates.com/classifieds/da-nang/apartments-flats-houses/"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 5,
+      "title": "Apartment for Rent Da Nang (2026 Guide for Expats)",
+      "url": "https://myviethouse.com/en/blog/apartment-for-rent-da-nang-2026-guide-for-expats"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 6,
+      "title": "Living in Da Nang as an Expat: Costs, Areas and Visas (2026)",
+      "url": "https://www.expatden.com/vietnam/living-in-da-nang/"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 7,
+      "title": "Furnished Apartment Da Nang: Long-Term Rental Guide (2026) - Expats Da Nang",
+      "url": "https://www.expatsdanang.com/guides/furnished-apartment-da-nang-long-term"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 8,
+      "title": "Where to Live in Da Nang for Expats (2026) - myviethouse.com",
+      "url": "https://myviethouse.com/en/blog/where-to-live-in-da-nang"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 9,
+      "title": "House For Rent in Da Nang (Expats) - Facebook",
+      "url": "https://www.facebook.com/groups/house4rentdanang/"
+    },
+    {
+      "query": "Da Nang housing expats",
+      "rank": 10,
+      "title": "Da Nang Real Estate - Houses, Villas & Properties for Sale",
+      "url": "https://danang.homes/"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 1,
+      "title": "Living in Da Nang as an Expat: Costs, Areas and Visas (2026)",
+      "url": "https://www.expatden.com/vietnam/living-in-da-nang/"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 2,
+      "title": "Living in Da Nang: the ultimate expat guide",
+      "url": "https://www.expat.com/en/guide/asia/vietnam/da-nang/"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 3,
+      "title": "Living In Da Nang: The Ultimate 2026 Expat Guide",
+      "url": "https://www.this-is-vietnam.com/living-in-da-nang/"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 4,
+      "title": "Living in Da Nang: Complete Expat Guide (2026)",
+      "url": "https://www.expatsdanang.com/guides/living-in-da-nang"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 5,
+      "title": "Living in Da Nang, Vietnam 2026: Cost of Living, Neighborhoods & Expat Tips",
+      "url": "https://expatlife.ai/vietnam/cities/da-nang"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 6,
+      "title": "Where to Live in Da Nang: Area-by-Area Guide for Expats",
+      "url": "https://myviethouse.com/en/blog/where-to-live-in-da-nang"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 7,
+      "title": "Housing and rentals in Da Nang - Da Nang Guide - Expat.com",
+      "url": "https://www.expat.com/en/guide/asia/vietnam/da-nang/9088-accommodation-in-da-nang.html"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 8,
+      "title": "Best Neighborhoods in Da Nang for Expats 2026: The Honest Guide",
+      "url": "https://basedanang.com/housing/best-neighborhoods-da-nang-expats/"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 9,
+      "title": "Living In Da Nang Vietnam: Expat Guide - Expatolife",
+      "url": "https://www.expatolife.com/living-in-da-nang-vietnam/"
+    },
+    {
+      "query": "Da Nang living areas expats",
+      "rank": 10,
+      "title": "Complete Guide to Living in Da Nang in 2026 | ExpatsList",
+      "url": "https://expatslist.org/da-nang/blogs/complete-guide-to-living-in-da-nang-in-2026-cost-o"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 1,
+      "title": "Best Coworking Spaces in Da Nang 2026 | Expats Da Nang",
+      "url": "https://www.expatsdanang.com/guides/coworking-da-nang"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 2,
+      "title": "Coworking in Da Nang â€” Living guide | Da Nang Expat Rentals",
+      "url": "https://danangexpatrentals.com/moving-guide/coworking"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 3,
+      "title": "Top 20 Coworking Spaces in Da Nang - Sara's Guide 2026",
+      "url": "https://coworkingspaces.me/da-nang/"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 4,
+      "title": "Cafes and Coworking in Da Nang (2026) | Modern Expat Magazine",
+      "url": "https://modernexpatmagazine.com/articles/cafes-and-coworking-in-da-nang"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 5,
+      "title": "Top10 Coworking Spaces in Da Nang, Vietnam - thedigitalnomad.asia",
+      "url": "https://www.thedigitalnomad.asia/coworking-spaces/vietnam/coworking-space-danang/"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 6,
+      "title": "Da Nang Coworking Guide: Best Spaces for Remote Work",
+      "url": "https://www.this-is-vietnam.com/da-nang-coworking-guide/"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 7,
+      "title": "Coworking Spaces in Da Nang - withdanang.com",
+      "url": "https://withdanang.com/coworking/"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 8,
+      "title": "Best Coworking Spaces in Da Nang 2026: Honest Reviews & Prices",
+      "url": "https://basedanang.com/work-life/best-coworking-da-nang/"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 9,
+      "title": "Internet, cafÃ©s & coworking - Da Nang Expat Rentals",
+      "url": "https://danangexpatrentals.com/moving-guide/remote-work"
+    },
+    {
+      "query": "Da Nang coworking expats",
+      "rank": 10,
+      "title": "Welcome to Coworking Danang - Welcome to our coworking space",
+      "url": "https://coworkingdanang.com/"
+    }
+  ],
+  "research_artifact": {
+    "id": "a7f544b3-2176-5103-b013-2b0c032569bf",
+    "content_hash": "6ea53710440c1ae8013dd9745e18d691404c44491fc847b2ca52bb5a7af8cb6c",
+    "context_snapshot_id": "f0cfbe3a-7a5e-4bca-bc30-ea1c67c3c8be",
+    "run_metadata": {
+      "run_id": "02986d39-4449-53b1-b063-3678e75d1143",
+      "trace_id": "plan-task:d02acdc6-af4a-4ff3-8752-880d036e5a78",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "research-v5",
+      "provider_calls": 1
+    },
+    "result": {
+      "status": "ready_for_handoff",
+      "applied": false,
+      "brief_id": "53ef3b42-673f-579e-918b-772d44f9074e",
+      "findings": [
+        {
+          "url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+          "topic": "Remote workers need quiet, spacious areas in Da Nang with minimal coworking options.",
+          "evidence": {
+            "quote": "The northern beachside areas of Son Tra offer a quieter, more residential environment than An Thuong, with coastal access and easier connections towards the Son Tra Peninsula and its nature reserve. They may suit remote workers who prioritise space and calm over being in the middle of the main nomad hub, with the trade-off of fewer coworking spaces and social options nearby.",
+            "license": "TripC first-party content",
+            "locator": "paragraph:17-20",
+            "chunk_id": "17b0c153-6f51-43f2-b100-25cd6d17a568",
+            "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+            "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+            "attribution": "TripC",
+            "source_version": 2
+          },
+          "keywords": [
+            "remote work",
+            "quiet areas",
+            "space"
+          ],
+          "offer_fit": "TripC provides housing and coworking options in Da Nang.",
+          "rationale": "The excerpt highlights Son Tra's quieter environment suitable for remote workers prioritizing space and calm.",
+          "user_need": "Finding quiet areas for remote work with minimal coworking options.",
+          "confidence": "hypothesis",
+          "fetched_at": "2026-10-25T17:46:35.193000Z",
+          "audience_fit": "English-speaking expats seek quiet areas for remote work.",
+          "trend_signals": [
+            {
+              "url": "https://www.this-is-vietnam.com/da-nang-coworking-guide/",
+              "rank": 6,
+              "query": "Da Nang coworking expats",
+              "title": "Da Nang Coworking Guide: Best Spaces for Remote Work",
+              "domain": "www.this-is-vietnam.com",
+              "is_new": false,
+              "signal_id": "e7b964af-c093-4ac0-9ffe-2a96b1f37fdd",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 9
+            },
+            {
+              "url": "https://coworkingdanang.com/",
+              "rank": 10,
+              "query": "Da Nang coworking expats",
+              "title": "Welcome to Coworking Danang - Welcome to our coworking space",
+              "domain": "coworkingdanang.com",
+              "is_new": true,
+              "signal_id": "02742183-3afb-4f13-90ec-cb143f6eb17f",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": null
+            },
+            {
+              "url": "https://www.expatsdanang.com/guides/coworking-da-nang",
+              "rank": 1,
+              "query": "Da Nang coworking expats",
+              "title": "Best Coworking Spaces in Da Nang 2026 | Expats Da Nang",
+              "domain": "www.expatsdanang.com",
+              "is_new": false,
+              "signal_id": "d3ab7610-31c1-42ab-bd8a-610aacbbfd55",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 1
+            },
+            {
+              "url": "https://coworkingspaces.me/da-nang/",
+              "rank": 3,
+              "query": "Da Nang coworking expats",
+              "title": "Top 20 Coworking Spaces in Da Nang - Sara's Guide 2026",
+              "domain": "coworkingspaces.me",
+              "is_new": false,
+              "signal_id": "6348ed48-5a87-486c-a76f-890831f0f18d",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 5
+            },
+            {
+              "url": "https://www.thedigitalnomad.asia/coworking-spaces/vietnam/coworking-space-danang/",
+              "rank": 5,
+              "query": "Da Nang coworking expats",
+              "title": "Top10 Coworking Spaces in Da Nang, Vietnam - thedigitalnomad.asia",
+              "domain": "www.thedigitalnomad.asia",
+              "is_new": false,
+              "signal_id": "6500d9a8-27a1-449e-a0c3-fecbfe32eb60",
+              "observed_at": "2026-10-25T17:14:09.470000Z",
+              "previous_rank": 4
+            }
+          ],
+          "demand_estimate": null,
+          "evidence_updated": null
+        }
+      ],
+      "synthetic": false,
+      "handoff_role": "growth_lead",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "missing_facts": [],
+      "trend_coverage": [
+        {
+          "query": "Da Nang coworking expats",
+          "topic": "coworking",
+          "signal_count": 10,
+          "covered_chunks": 8
+        },
+        {
+          "query": "Da Nang housing expats",
+          "topic": "housing",
+          "signal_count": 10,
+          "covered_chunks": 2
+        },
+        {
+          "query": "Da Nang living areas expats",
+          "topic": "living areas",
+          "signal_count": 10,
+          "covered_chunks": 3
+        }
+      ],
+      "profile_version": 1,
+      "handoff_operation": "opportunity.score",
+      "context_snapshot_id": "f0cfbe3a-7a5e-4bca-bc30-ea1c67c3c8be",
+      "requires_human_approval": true
+    },
+    "evidence": [
+      {
+        "quote": "The northern beachside areas of Son Tra offer a quieter, more residential environment than An Thuong, with coastal access and easier connections towards the Son Tra Peninsula and its nature reserve. They may suit remote workers who prioritise space and calm over being in the middle of the main nomad hub, with the trade-off of fewer coworking spaces and social options nearby.",
+        "license": "TripC first-party content",
+        "locator": "paragraph:17-20",
+        "chunk_id": "17b0c153-6f51-43f2-b100-25cd6d17a568",
+        "source_id": "8c3c09d0-fdd6-4ff1-a7fc-9454a7be0130",
+        "source_url": "https://tripc.ai/blog/da-nang-workcation-digital-nomad-guide",
+        "attribution": "TripC",
+        "source_version": 2
+      }
+    ]
+  },
+  "growth_lead_artifact": {
+    "id": "2495c3fd-156f-5bbc-ae0b-37fcb878ad52",
+    "content_hash": "b0ca22972b46989fd1bef35fa8742667350aa30bd03541df7432cc47997e8be8",
+    "run_metadata": {
+      "run_id": "3df3e955-64e4-5ba4-be22-ad87013276c0",
+      "trace_id": "plan-task:ca7ba71d-d1b6-56bb-ad1a-2835c5d88b74",
+      "input_version": 1,
+      "model_version": "ollama/qwen3:8b",
+      "prompt_version": "growth-lead-v1",
+      "provider_calls": 1
+    },
+    "status": "proposed",
+    "missing_facts": [],
+    "synthetic": false,
+    "selected_topic": "Remote workers need quiet, spacious areas in Da Nang with minimal coworking options.",
+    "research_artifact": {
+      "role": "research",
+      "storage": "ai_run_store",
+      "version": 1,
+      "artifact_id": "a7f544b3-2176-5103-b013-2b0c032569bf",
+      "content_hash": "6ea53710440c1ae8013dd9745e18d691404c44491fc847b2ca52bb5a7af8cb6c",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "context_snapshot_id": "f0cfbe3a-7a5e-4bca-bc30-ea1c67c3c8be"
+    },
+    "tasks": [
+      {
+        "role": "seo",
+        "operation": "seo.local_draft",
+        "depends_on": []
+      },
+      {
+        "role": "content",
+        "operation": "content.repurpose",
+        "depends_on": [
+          "cca77d85-e6ff-5679-8eee-990a80cdae5b"
+        ]
+      }
+    ]
+  }
+}

@@ -9,9 +9,9 @@
  * - UTC scheduled_at with workspace timezone display
  */
 
-import type { JobOperator, JobState } from '../jobs/JobState.ts';
-import type { CmsPublishRequest, CmsPublishResult, CmsPublisher, PublisherRegistry } from './CmsPublisher.ts';
-import { generateManualPack, generateManualPacks, type ManualPack } from './ManualPackGenerator.ts';
+import type { JobOperator, JobState } from '../jobs/JobState';
+import type { CmsPublishRequest, CmsPublishResult, CmsPublisher, PublisherRegistry } from './CmsPublisher';
+import { generateManualPack, generateManualPacks, type ManualPack } from './ManualPackGenerator';
 
 export type PublishStatus = 'Pending_Approval' | 'Approved' | 'Scheduled' | 'Publishing' | 'Published' | 'Failed';
 

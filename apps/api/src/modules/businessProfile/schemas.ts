@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { researchStrategySchema } from './strategy';
 
 const textList = z.array(z.string().trim().min(1).max(200)).max(30);
 
@@ -17,6 +18,7 @@ export const updateBusinessProfileSchema = z
     target_audiences: textList.optional(),
     products_services: textList.optional(),
     competitors: textList.optional(),
+    research_strategy: researchStrategySchema.nullable().optional(),
     brand_voice: z.string().trim().max(100).nullable().optional(),
     brand_guidelines: z.string().max(10000).nullable().optional(),
     safety_rules: z.record(z.boolean()).optional(),
@@ -34,6 +36,7 @@ export const EDITABLE_PROFILE_FIELDS = [
   "target_audiences",
   "products_services",
   "competitors",
+  "research_strategy",
   "brand_voice",
   "brand_guidelines",
   "safety_rules",

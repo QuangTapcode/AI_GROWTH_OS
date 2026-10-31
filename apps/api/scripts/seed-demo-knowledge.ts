@@ -11,6 +11,8 @@ const CHUNK_IDS = [
 ];
 const SOURCE_URL = "https://tripc.vn/knowledge/demo-staging";
 const RETRIEVED_AT = "2026-10-20T10:00:00.000Z";
+const METRICS_ARTIFACT_ID = "50000000-0000-4000-8000-000000000001";
+const METRICS_SNAPSHOT_ID = "50000000-0000-4000-8000-000000000002";
 const CHUNKS = [
   "TripC helps English-speaking expats find housing, coworking and local services in Da Nang.",
   "TripC focuses on housing and local living guidance for people moving to Da Nang.",
@@ -18,6 +20,17 @@ const CHUNKS = [
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 async function main() {
@@ -78,12 +91,54 @@ async function main() {
   }
 
   const issued = await new PgPlanRepository(pool).issueContext(WORKSPACE_ID);
+  const metricResult = {
+    workspace_id: WORKSPACE_ID,
+    snapshot_id: METRICS_SNAPSHOT_ID,
+    version: 1,
+    window_start: "2026-10-01T00:00:00.000Z",
+    window_end: "2026-10-20T23:59:59.000Z",
+    qualified_visits: 1240,
+    leads: 86,
+    impressions: 18200,
+    clicks: 940,
+    synthetic: true,
+  };
+  const metricEvidence: unknown[] = [];
+  const metricHash = sha256(canonical({ result: metricResult, evidence: metricEvidence }));
+  const metricArtifact = {
+    artifact_id: METRICS_ARTIFACT_ID,
+    workspace_id: WORKSPACE_ID,
+    version: 1,
+    content_hash: metricHash,
+    context_snapshot_id: issued.context_snapshot_id,
+    role: "performance",
+  };
+  await pool.query(
+    `INSERT INTO content_artifacts
+       (id, workspace_id, task_id, version, content_hash, context_snapshot_id, role, operation,
+        artifact_type, title, storage, payload, evidence)
+     VALUES ($1,$2,NULL,1,$3,$4,'performance','metrics.snapshot','metrics_snapshot',
+             'Synthetic Performance Metrics','postgres_ledger',$5::jsonb,$6::jsonb)
+     ON CONFLICT (id) DO UPDATE SET
+       content_hash=EXCLUDED.content_hash, context_snapshot_id=EXCLUDED.context_snapshot_id,
+       payload=EXCLUDED.payload, evidence=EXCLUDED.evidence, created_at=NOW()`,
+    [
+      METRICS_ARTIFACT_ID,
+      WORKSPACE_ID,
+      metricHash,
+      issued.context_snapshot_id,
+      JSON.stringify({ artifact: metricArtifact, result: metricResult }),
+      JSON.stringify(metricEvidence),
+    ],
+  );
   console.log(JSON.stringify({
     workspace_id: WORKSPACE_ID,
     source_id: SOURCE_ID,
     source_version: version,
     context_snapshot_id: issued.context_snapshot_id,
     approved_source_versions: issued.approved_source_versions,
+    metrics_artifact_id: METRICS_ARTIFACT_ID,
+    metric_snapshot_id: METRICS_SNAPSHOT_ID,
     synthetic: true,
   }, null, 2));
 }

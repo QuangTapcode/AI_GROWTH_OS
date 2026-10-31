@@ -2,6 +2,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from ...app.schemas import EvidenceRef
 from ..contracts import ArtifactInput, DraftResult, ImageAsset, MarketingContext
+from .social_pack_v2 import FactItem, SentenceMap
 
 
 class ContentPayload(MarketingContext):
@@ -18,8 +19,29 @@ class ContentPayload(MarketingContext):
 
 class ContentDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    caption: str = Field(min_length=1, max_length=800)
+    caption: str = Field(min_length=1, max_length=1800)
     alt_text: str = Field(min_length=1, max_length=160)
+
+
+class FacebookDraft(BaseModel):
+    """Model-written parts of a Facebook Page post; the CTA is appended by code."""
+    model_config = ConfigDict(extra="forbid")
+    hook: str = Field(min_length=1, max_length=150)
+    body: str = Field(min_length=1, max_length=1500)
+    discussion_question: str | None = Field(default=None, max_length=200)
+    hashtags: list[str] = Field(default_factory=list, max_length=2)
+
+
+class ContentFacebookDraft(ContentDraft):
+    # Same structured call as the caption so a Facebook target does not spend
+    # a second provider call (the per-job cap would leave no repair attempt).
+    facebook: FacebookDraft
+
+
+class FacebookPost(FacebookDraft):
+    # Exact text the owner reviews and the Page publisher sends.
+    cta: str
+    text: str = Field(min_length=1, max_length=2200)
 
 
 class SocialPack(DraftResult):
@@ -27,14 +49,21 @@ class SocialPack(DraftResult):
     parent_content_id: UUID
     parent_version: int
     caption: str
+    hook: str = ""
+    key_points: list[str] = Field(default_factory=list)
+    hashtags: list[str] = Field(default_factory=list)
     cta: str
     channels: list[str]
+    facebook: FacebookPost | None = None
     channel_mode: str = "manual_review_pack"
     image_assets: list[ImageAsset]
     alt_text: str
     citations: list[EvidenceRef]
     video_asset_ref: str | None = None
     tiktok_privacy_level: str = "SELF_ONLY"
+    # Traceability of the Facebook post: cited quotes and the fact each sentence restates.
+    extracted_facts: list[FactItem] = Field(default_factory=list)
+    sentence_fact_map: list[SentenceMap] = Field(default_factory=list)
 
 
 # Re-export v2 models for CM-01

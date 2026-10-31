@@ -1,13 +1,39 @@
 """Bounded research contract. Source text is supplied by the scoped worker."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
-from ...app.schemas import BusinessProfile, EvidenceRef, GoalContext, KnowledgeSnapshot
+from ...app.schemas import BusinessProfile, EvidenceRef, GoalContext, GoalKpi, KnowledgeSnapshot, RunArtifact
+from ..contracts import ArtifactInput
+
+
+class SearchQueryMetric(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    query: str = Field(min_length=1, max_length=200)
+    clicks: int = Field(ge=0)
+    impressions: int = Field(ge=0)
+    ctr: int | float = Field(ge=0, le=1)
+    position: int | float = Field(ge=0)
+
+
+class SearchMetricsSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    workspace_id: UUID
+    snapshot_id: UUID
+    version: int = Field(ge=1)
+    site_url: str = Field(min_length=1, max_length=255)
+    window_start: date
+    window_end: date
+    observed_at: datetime
+    timezone: Literal["America/Los_Angeles"] = "America/Los_Angeles"
+    scope: Literal["website_property_only"] = "website_property_only"
+    coverage: Literal["top_queries_not_exhaustive"] = "top_queries_not_exhaustive"
+    rows: list[SearchQueryMetric] = Field(max_length=100)
+    synthetic: bool = False
 
 
 class ContentInventoryItem(BaseModel):
@@ -16,6 +42,24 @@ class ContentInventoryItem(BaseModel):
     workspace_id: UUID
     version: int = Field(ge=1)
     title: str = Field(min_length=1, max_length=200)
+    evidence_quotes: list[str] = Field(default_factory=list, max_length=10)
+    # Source chunks the existing content cites; a new finding from the same chunk repeats it.
+    evidence_chunk_ids: list[str] = Field(default_factory=list, max_length=10)
+
+
+class TrendSignal(BaseModel):
+    """One web search result observed by the backend discovery step (metadata only, no page text)."""
+    model_config = ConfigDict(extra="forbid")
+    signal_id: UUID
+    query: str = Field(min_length=1, max_length=200)
+    rank: int = Field(ge=1, le=50)
+    title: str = Field(min_length=1, max_length=300)
+    url: HttpUrl
+    domain: str = Field(min_length=1, max_length=255)
+    observed_at: datetime
+    # Rank of the same URL for the same query in the previous discovery run (None: not ranked then).
+    previous_rank: int | None = Field(default=None, ge=1, le=50)
+    is_new: bool = False
 
 
 class ResearchPayload(BaseModel):
@@ -25,6 +69,11 @@ class ResearchPayload(BaseModel):
     goal_context: GoalContext | None = None
     snapshot: KnowledgeSnapshot
     content_inventory: list[ContentInventoryItem] = Field(default_factory=list, max_length=100)
+    # Search landscape: what currently ranks for the profile's queries. It guides topic
+    # choice only; every finding must still quote an approved snapshot excerpt.
+    trend_signals: list[TrendSignal] = Field(default_factory=list, max_length=30)
+    search_metrics: ArtifactInput | None = None
+    search_metrics_missing_reason: str = Field(default="gsc_not_connected", max_length=100)
 
 
 class ResearchIdea(BaseModel):
@@ -41,6 +90,7 @@ class ResearchIdea(BaseModel):
 
 class ResearchDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    # One idea per searched topic that approved excerpts support, so Growth Lead has a real choice.
     ideas: list[ResearchIdea] = Field(max_length=3)
 
 
@@ -58,6 +108,30 @@ class ResearchFinding(BaseModel):
     # Defaults keep persisted v1 artifacts readable; new runs always populate these.
     keywords: list[str] = Field(default_factory=list, max_length=5)
     user_need: str | None = None
+    # Year the cited excerpt says it was last updated, e.g. "(updated Jan 2018)"; None if unstated.
+    evidence_updated: int | None = None
+    # Search results whose titles share the finding's terms; matched by code, not the model.
+    trend_signals: list[TrendSignal] = Field(default_factory=list, max_length=5)
+    source_facts: list[str] = Field(default_factory=list, max_length=1)
+    hypotheses: list[str] = Field(default_factory=list, max_length=4)
+    missing_data: list[str] = Field(default_factory=list)
+    quality_checks: dict[str, bool] = Field(default_factory=dict)
+    # Lexical checks are filters, not semantic acceptance by a business reviewer.
+    quality_status: Literal["requires_semantic_review"] = "requires_semantic_review"
+    website_search_metrics: list[SearchQueryMetric] = Field(default_factory=list, max_length=5)
+    strategy_alignment: dict | None = None
+
+
+class TrendCoverage(BaseModel):
+    """Approved excerpts mentioning every word of a searched topic. 0 is a certain source gap;
+    a positive count is a lexical mention, not a judgement that the topic is well covered."""
+    model_config = ConfigDict(extra="forbid")
+    query: str
+    topic: str
+    signal_count: int = Field(ge=0)
+    covered_chunks: int = Field(ge=0)
+    # Distinct domains ranking for the query: how crowded the topic already is.
+    distinct_domains: int = Field(default=0, ge=0)
 
 
 class ResearchBrief(BaseModel):
@@ -69,8 +143,15 @@ class ResearchBrief(BaseModel):
     status: Literal["ready_for_handoff", "insufficient_data"]
     findings: list[ResearchFinding]
     missing_facts: list[str]
+    # Topics from the search landscape with no approved source text become source_gap:<topic> facts.
+    trend_coverage: list[TrendCoverage] = Field(default_factory=list)
     handoff_role: Literal["growth_lead"] = "growth_lead"
     handoff_operation: Literal["opportunity.score"] = "opportunity.score"
     requires_human_approval: Literal[True] = True
     applied: Literal[False] = False
     synthetic: bool
+    kpis: list[GoalKpi] = Field(default_factory=list, max_length=5)
+    rubric_version: str = "research-quality-v1"
+    search_metrics_ref: RunArtifact | None = None
+    measurement_status: Literal["available", "no_matching_queries", "unavailable"] = "unavailable"
+    measurement_missing_facts: list[str] = Field(default_factory=list)

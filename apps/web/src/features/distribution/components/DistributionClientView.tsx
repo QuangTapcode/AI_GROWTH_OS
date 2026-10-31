@@ -5,7 +5,8 @@ import AppShell from "@/features/shell/AppShell";
 import { useWorkspace } from "@/features/shell/WorkspaceProvider";
 import { EmptyBlock, ErrorBlock, LoadingBlock, Toast } from "@/features/shell/StatusViews";
 import { latestApproval } from "@/features/artifacts/adapters";
-import { ApiError, growthApi } from "@/lib/api";
+import { ApiError, apiRequest, growthApi } from "@/lib/api";
+import GeneratedPosts, { type SitePost } from "./GeneratedPosts";
 import type { Channel, ContentArtifact, PublishingJob } from "@/lib/apiTypes";
 import { agentLabel, formatDateTime, humanize, shortCode, timeAgo } from "@/lib/format";
 import { useApiData } from "@/lib/useApiData";
@@ -154,13 +155,19 @@ function DistributionContent() {
   const [toast, setToast] = useState<string | null>(null);
   const [scheduling, setScheduling] = useState<string | null>(null);
   const { data, error, loading, reload } = useApiData(workspace.id, async (signal) => {
-    const [channels, jobs, artifacts, approvals] = await Promise.all([
+    const [channels, jobs, artifacts, approvals, integrations, automation, sitePosts] = await Promise.all([
       growthApi.listChannels(workspace.id, signal),
       growthApi.listPublishingJobs(workspace.id, signal),
       growthApi.listArtifacts(workspace.id, signal),
       growthApi.listApprovals(workspace.id, signal),
+      growthApi.getIntegrations(workspace.id, signal),
+      apiRequest<{ settings: { auto_publish_website?: boolean } | null }>(`/workspaces/${workspace.id}/automation`, { signal }),
+      apiRequest<{ items: SitePost[] }>(`/workspaces/${workspace.id}/site-posts`, { signal }),
     ]);
-    return { channels: channels.items, jobs: jobs.items, artifacts: artifacts.items, approvals: approvals.items };
+    const facebook = integrations.providers.find((p) => p.provider === "facebook_page");
+    return { channels: channels.items, jobs: jobs.items, artifacts: artifacts.items, approvals: approvals.items,
+      facebook: { connected: facebook?.status === "connected", reason: facebook?.missing_reason ?? null },
+      websiteAutoPublish: automation.settings?.auto_publish_website === true, sitePosts: sitePosts.items };
   });
 
   // Chỉ artifact có approval mới nhất = approved và khớp đúng version + hash (cùng quy tắc với BE)
@@ -229,6 +236,8 @@ function DistributionContent() {
       {data && (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
           <div className="xl:col-span-8 space-y-6">
+            <GeneratedPosts artifacts={data.artifacts} approvals={data.approvals} jobs={data.jobs} sitePosts={data.sitePosts}
+              facebook={data.facebook} websiteAutoPublish={data.websiteAutoPublish} />
             <section className={`${card} p-6`}>
               <h2 className="text-sm font-bold text-slate-900">Ready to publish</h2>
               <p className="text-[11px] text-slate-400 mt-0.5 mb-4">Artifacts whose exact current version was approved by an owner.</p>

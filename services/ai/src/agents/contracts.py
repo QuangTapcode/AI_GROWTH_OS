@@ -7,9 +7,10 @@ from uuid import UUID, NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
-from ..app.schemas import BusinessProfile, EvidenceRef, GoalContext, JobRequest, KnowledgeSnapshot, RunArtifact
+from ..app.schemas import BusinessProfile, EvidenceRef, GoalContext, GoalKpi, JobRequest, KnowledgeSnapshot, RunArtifact
 from ..app.runtime import OperationError, RunContext
 from ..guardrails.facts import has_price_claim, unsupported_numbers
+from ..guardrails.support import unsupported_sentences
 from ..rag.chunking import estimate_tokens
 from ..rag.retrieval import eligible_sources
 from .context import context_problems
@@ -42,6 +43,8 @@ class DraftResult(BaseModel):
     requires_human_approval: Literal[True] = True
     applied: Literal[False] = False
     synthetic: bool
+    kpis: list[GoalKpi] = Field(default_factory=list, max_length=5)
+    strategy_alignment: dict | None = None
 
 
 class ImageAsset(BaseModel):
@@ -102,11 +105,19 @@ def result_fields(ctx: RunContext, refs=()):
     return dict(workspace_id=ctx.job.workspace_id, context_snapshot_id=ctx.job.context_snapshot_id,
         profile_version=p.business_profile.version, version=ctx.job.input_version,
         input_artifact_refs=[x.artifact for x in refs],
+        kpis=p.goal_context.kpis if p.goal_context else [],
         synthetic=ctx.job.synthetic or ctx.settings.provider_mode == "fake" or any(x.result.get("synthetic", False) for x in refs))
 
 
 def stable_id(ctx, kind):
     return uuid5(NAMESPACE_URL, f"{ctx.job.workspace_id}:{ctx.job.job_id}:{ctx.job.input_version}:{kind}")
+
+
+def blocking_facts(facts):
+    """Missing facts that block a downstream draft. Research coverage notes (gaps on other topics,
+    dated excerpts of other findings, a dropped model draft) are reported but do not block; the
+    backend applies the same rule (campaignPlans/service.ts blockingFacts)."""
+    return [f for f in facts if not (f.startswith(("source_gap:", "stale_evidence:")) or f == "complete_research_explanation")]
 
 
 def ensure_grounded(text, grounding):
@@ -116,6 +127,10 @@ def ensure_grounded(text, grounding):
 
 
 async def call_draft(ctx, system, data, model, fake):
+    goal = getattr(ctx.payload, "goal_context", None)
+    if goal and goal.kpis:
+        data = {**data, "measurement_objectives": [k.model_dump(mode="json") for k in goal.kpis]}
+        system += "\nMeasurement objectives are internal targets, not measured facts. Never put KPI targets or baselines in public copy or claim an agent caused growth."
     user = json.dumps(data, ensure_ascii=False)
     if estimate_tokens(system + user + json.dumps(model.model_json_schema())) > ctx.settings.max_input_tokens:
         raise OperationError("CONTEXT_BUDGET_EXCEEDED", "Marketing draft context exceeds budget")
@@ -124,3 +139,38 @@ async def call_draft(ctx, system, data, model, fake):
 
 def aware_past(value: datetime):
     return value.tzinfo is not None and value <= datetime.now(timezone.utc)
+
+
+async def call_grounded_draft(ctx, system, data, model, fake, text_of, grounding):
+    """Draft once; if it states unsupported numbers/prices or sentences the sources lack,
+    ask for one grounded rewrite naming them.
+
+    Small local models add stock phrases ("24/7") and plausible extras ("modular furniture").
+    Naming the offending tokens and sentences fixes most drafts within the per-job call cap.
+    Numbers/prices still fail closed; callers strip sentences that remain unsupported.
+    """
+    draft = await call_draft(ctx, system, data, model, fake)
+    text = text_of(draft)
+    numbers, price, loose = unsupported_numbers(text, grounding), has_price_claim(text), unsupported_sentences(text, grounding)
+    if (numbers or price or loose) and ctx.budget.remaining() > 0:
+        issues = []
+        if numbers or price:
+            issues.append("numbers or prices not in the inputs: " + ", ".join(numbers) + (" and a price" if price else ""))
+        if loose:
+            issues.append("sentences adding details the source does not state: " + " | ".join(loose[:5]))
+        note = ("\nRevision required: the previous draft contained " + "; ".join(issues) + ". Rewrite it using only details "
+                "stated in the source passage and inputs. Drop examples, features, amenities, products, durations, "
+                "availability or advice the source does not mention.")
+        draft = await call_draft(ctx, system + note, data, model, fake)
+    ensure_grounded(text_of(draft), grounding)
+    return draft
+
+
+def source_passages(snapshot, evidence) -> list[str]:
+    """Full approved chunk text behind each cited excerpt (the quote alone is too thin to write from)."""
+    wanted = {e.chunk_id for e in evidence}
+    return [chunk.text for source in snapshot.sources for chunk in source.chunks if chunk.chunk_id in wanted]
+
+
+def profile_grounding(profile) -> str:
+    return " ".join([profile.company, *profile.audiences, *profile.locations, *profile.products, *profile.services]).replace("_", " ")

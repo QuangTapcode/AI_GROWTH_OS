@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { strategyAlignmentSchema } from '../businessProfile/strategy';
 
 export const artifactRefSchema = z.object({
   artifact_id: z.string().uuid(), workspace_id: z.string().uuid(), version: z.number().int().positive(),
@@ -15,14 +16,31 @@ const findingSchema = z.object({
   topic: text, audience_fit: text, offer_fit: text, rationale: text, evidence: evidenceSchema,
   url: z.string().url(), fetched_at: z.string().datetime({ offset: true }),
   confidence: z.literal('hypothesis'), demand_estimate: z.null(),
+  strategy_alignment: strategyAlignmentSchema.nullable().optional(),
+  source_facts: z.array(text).max(1).optional(), hypotheses: z.array(text).max(4).optional(),
+  missing_data: z.array(text).optional(), quality_checks: z.record(z.boolean()).optional(),
+  quality_status: z.literal('requires_semantic_review').optional(),
+  website_search_metrics: z.array(z.object({ query: text, clicks: z.number().int().nonnegative(),
+    impressions: z.number().int().nonnegative(), ctr: z.number().finite().min(0).max(1), position: z.number().finite().nonnegative() }).strict()).max(5).optional(),
   keywords: z.array(text).max(5).optional(), user_need: text.nullable().optional(),
+  // research-v5: dated evidence and the search results matched to the finding (metadata only).
+  evidence_updated: z.number().int().min(1990).max(2100).nullable().optional(),
+  trend_signals: z.array(z.object({
+    signal_id: z.string().uuid(), query: text, rank: z.number().int().min(1).max(50), title: text,
+    url: z.string().url(), domain: text, observed_at: z.string().datetime({ offset: true }),
+    previous_rank: z.number().int().min(1).max(50).nullable().optional(), is_new: z.boolean().optional(),
+  }).strict()).max(5).optional(),
 }).strict();
 export const planSchema = z.object({
   contract_version: z.enum(['growth-lead-plan-v1', 'growth-lead-plan-v2']), plan_id: z.string().uuid(),
   workspace_id: z.string().uuid(), input_version: z.number().int().positive(),
   profile_version: z.number().int().positive().nullable(), context_snapshot_id: z.string().uuid(),
   status: z.enum(['proposed', 'blocked']), objective: text,
-  selection_method: z.literal('model_selection_from_grounded_research'),
+  selection_method: z.enum(['model_selection_from_grounded_research', 'derived_score_ranking']),
+  ranked_opportunities: z.array(z.object({
+    finding_index: z.number().int().min(0).max(2), topic: text, score: z.number().finite().nonnegative().nullable(),
+    strategy_alignment: strategyAlignmentSchema.nullable().optional(),
+  }).strict()).max(3).optional(),
   selected_opportunity: findingSchema.nullable(), research_artifact: artifactRefSchema,
   tasks: z.array(z.object({
     task_id: z.string().uuid(), role: z.enum(['seo', 'content']),
@@ -36,18 +54,29 @@ export const planSchema = z.object({
       audience_fit: text, offer_fit: text, intent: z.literal('informational'),
       deliverable: z.enum(['seo_article_draft', 'social_pack_draft']), cta: text.nullable(),
       acceptance: z.array(text).min(1).max(10),
+      strategy_alignment: strategyAlignmentSchema.nullable().optional(),
     }).strict(), requires_human_approval: z.literal(true),
     deadline: z.string().datetime({ offset: true }).nullable().optional(),
   }).strict()).max(2),
   missing_facts: z.array(text).max(100), requires_human_approval: z.literal(true),
   applied: z.literal(false), synthetic: z.boolean(),
+  strategy_alignment: strategyAlignmentSchema.nullable().optional(),
+  kpis: z.array(z.object({
+    metric_name: text, baseline_value: z.number().finite().nonnegative().nullable(),
+    target_value: z.number().finite().nonnegative(), current_value: z.number().finite().nonnegative().nullable(),
+    baseline_status: z.enum(['missing', 'unverified']),
+    measurement: z.object({ definition: text, unit: text, source: z.enum(['first_party', 'ga4', 'gsc', 'meta_ads']), scope: text }).strict().nullable(),
+  }).strict()).max(5).optional(),
   opportunity_score: z.object({
     factors: z.object({ demand: z.number().finite().min(0).max(5).nullable(), business_relevance: z.number().finite().min(0).max(5).nullable(),
       growth_potential: z.number().finite().min(0).max(5).nullable(), content_gap: z.number().finite().min(0).max(5).nullable(),
       freshness: z.number().finite().min(0).max(5).nullable(), conversion_potential: z.number().finite().min(0).max(5).nullable() }).strict(),
     score: z.number().finite().nonnegative().nullable(), estimated: z.literal(true), label: z.enum(['estimated', 'insufficient_data']),
     formula: z.literal('demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential'),
-    source: z.literal('operator_estimate_not_search_volume'),
+    source: z.enum(['operator_estimate_not_search_volume', 'derived_from_research_signals_not_search_volume']),
+    // Per-factor explanation when the score is derived from research signals.
+    basis: z.record(z.enum(['demand', 'business_relevance', 'growth_potential', 'content_gap', 'freshness', 'conversion_potential']),
+      z.string().min(1).max(300)).optional(),
   }).strict().optional(),
 }).strict();
 export type ArtifactRef = z.infer<typeof artifactRefSchema>;

@@ -1,5 +1,5 @@
-import type { CmsPublisher, CmsPublishRequest, CmsPublishResult } from './CmsPublisher.ts';
-import { generateManualPack, type ManualPack } from './ManualPackGenerator.ts';
+import type { CmsPublisher, CmsPublishRequest, CmsPublishResult } from './CmsPublisher';
+import { generateManualPack, type ManualPack } from './ManualPackGenerator';
 
 /**
  * TikTok Content Posting API Adapter (Direct Post video/photo).

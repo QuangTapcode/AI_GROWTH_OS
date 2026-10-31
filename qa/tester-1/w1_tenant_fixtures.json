@@ -1,0 +1,49 @@
+{
+  "tenants": [
+    {
+      "tenant_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "tenant_name": "TripC Da Nang",
+      "users": [
+        {
+          "user_id": "550e8400-e29b-41d4-a716-446655440000",
+          "email": "owner@tripc.vn",
+          "role": "Owner",
+          "description": "Toàn quyền, cấu hình workspace và duyệt cuối"
+        },
+        {
+          "user_id": "660e8400-e29b-41d4-a716-446655440000",
+          "email": "editor@tripc.vn",
+          "role": "Editor",
+          "description": "Viết bài, chỉnh sửa nội dung, quản lý campaign"
+        },
+        {
+          "user_id": "770e8400-e29b-41d4-a716-446655440000",
+          "email": "viewer@tripc.vn",
+          "role": "Viewer",
+          "description": "Chỉ xem báo cáo Performance và Data"
+        }
+      ]
+    },
+    {
+      "tenant_id": "c138c20b-58cc-4372-a567-0e02b2c3d479",
+      "tenant_name": "Global Expat Hub",
+      "users": [
+        {
+          "user_id": "880e8400-e29b-41d4-a716-446655440000",
+          "email": "owner@globalexpat.com",
+          "role": "Owner"
+        },
+        {
+          "user_id": "990e8400-e29b-41d4-a716-446655440000",
+          "email": "editor@globalexpat.com",
+          "role": "Editor"
+        },
+        {
+          "user_id": "aa0e8400-e29b-41d4-a716-446655440000",
+          "email": "viewer@globalexpat.com",
+          "role": "Viewer"
+        }
+      ]
+    }
+  ]
+}

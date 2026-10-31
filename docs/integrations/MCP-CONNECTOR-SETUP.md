@@ -52,6 +52,8 @@ META_AD_ACCOUNT_ID=...
 META_AD_CURRENCY=VND
 ```
 
+Từng bước tạo service account và cấp quyền Search Console: [GSC-SETUP.md](GSC-SETUP.md).
+
 `GOOGLE_SERVICE_ACCOUNT_JSON` được dùng cho GA4; `GSC_SERVICE_ACCOUNT_JSON` có thể dùng riêng cho Search Console. Endpoint gọi API provider, ghi daily snapshots vào `metrics_snapshots`, và chỉ đánh dấu provider `connected` sau khi request thành công. Nếu thiếu credential hoặc provider trả lỗi, response giữ nguyên lý do thiếu dữ liệu và không ghi số 0 giả.
 
 4. Gọi `POST /v1/workspaces/{workspace_id}/integrations` để lưu metadata `status=connecting` (endpoint không nhận raw token). OAuth callback/probe nội bộ cập nhật connection thành `connected` kèm `verified_at`. API `GET /v1/workspaces/{workspace_id}/integrations` chỉ trả status/scopes, không trả secret.

@@ -60,4 +60,27 @@ describe("automation scheduler boundaries", () => {
     expect(pool.query.mock.calls[2][0]).toContain("last_error");
     expect(release).toHaveBeenCalledOnce();
   });
+  it("only work in the current knowledge context can hold back the schedule", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ acquired: true }] });
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const pool = {
+      connect: async () => ({ query, release: vi.fn() }),
+      query: vi.fn(async (sql: string, params: unknown[] = []) => {
+        calls.push({ sql, params });
+        if (sql.includes("FROM agent_automation WHERE")) return { rows: [{ enabled: true, actor_id: "owner", next_run_at: new Date(0), interval_hours: 24 }] };
+        if (sql.includes("FROM memberships")) return { rowCount: 1, rows: [{}] };
+        if (sql.includes("FROM knowledge_contexts")) return { rows: [{ snapshot_id: "ctx-current", snapshot: { sources: [{}] } }] };
+        // An outstanding automation task in the current context: no new research is opened.
+        if (sql.includes("agent_automation_handoffs h ON")) return { rowCount: 1, rows: [{}] };
+        return { rowCount: 0, rows: [] };
+      }),
+    };
+    await tickAutomation(pool as unknown as Pool, "workspace");
+    const blockers = calls.filter((c) => c.sql.includes("status IN ('queued','running','pending','awaiting_approval')") && c.sql.includes("LIMIT 1"));
+    expect(blockers).toHaveLength(2);
+    for (const blocker of blockers) {
+      expect(blocker.sql).toContain("t.context_snapshot_id=$2");
+      expect(blocker.params).toEqual(["workspace", "ctx-current"]);
+    }
+  });
 });

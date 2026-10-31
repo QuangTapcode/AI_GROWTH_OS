@@ -234,3 +234,16 @@ def test_tenant_scope_is_validated_at_create(client) -> None:
     assert response.json()["error"]["code"] == "TENANT_SCOPE_VIOLATION"
     same = make_job("knowledge.ingest", payload, name="svc-tenant-ok", workspace_id=WS_A)
     assert client.post("/internal/v1/runs", json=same).status_code == 202
+
+
+def test_call_cap_is_per_input_version_so_a_new_version_can_rerun(make_client) -> None:
+    provider = ScriptedProvider(["bad_json", "bad_json", "fake"])
+    client = make_client(provider=provider)
+    job = generic_job()
+    first = wait_for_run(client, client.post("/internal/v1/runs", json=job).json()["run_id"])
+    assert first["status"] == "failed" and first["provider_calls"] == 2
+    # Same version: the stored failure is replayed and no provider call is spent.
+    replay = client.post("/internal/v1/runs", json={**job, "trace_id": "replay"})
+    assert replay.status_code == 200 and replay.json()["provider_calls"] == 2
+    rerun = wait_for_run(client, client.post("/internal/v1/runs", json={**job, "input_version": 2}).json()["run_id"])
+    assert rerun["status"] == "completed" and rerun["provider_calls"] == 1

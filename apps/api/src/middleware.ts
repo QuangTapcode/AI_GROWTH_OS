@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * CORS cho /v1/* để web (localhost:3000) gọi API bằng Bearer token.
+ * CORS cho /v1/* (web gọi API bằng Bearer token) và /public/* (website TripC gọi posts/leads/events).
  * /v1/health tự xử lý CORS trong lib/health-response nên bị loại khỏi matcher.
  * Danh sách origin dùng chung CORS_ALLOWED_ORIGINS với lib/env.ts. CORS không phải authentication.
  */
@@ -48,5 +48,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/v1/((?!health$).*)"],
+  // /public/* is called by the TripC site from the browser (posts, leads, events).
+  matcher: ["/v1/((?!health$).*)", "/public/:path*"],
 };

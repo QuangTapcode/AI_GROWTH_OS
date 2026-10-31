@@ -3,6 +3,7 @@ import { query, withTransaction } from "../../lib/db";
 import { AppError } from "../../lib/errors";
 import { CreateSourceInput, ReviewSourceInput } from "./schemas";
 import { invalidateApprovalsForTarget } from "../approvals/repository";
+import { policyFor } from "../research/sourcePolicy";
 
 export interface SourceRow {
   id: string;
@@ -68,9 +69,12 @@ export async function createSource(
   workspaceId: string,
   data: CreateSourceInput
 ): Promise<SourceRow> {
+  // URL sources on the Research source policy carry their reuse terms, so the
+  // worker can ingest them; other URLs stay without a license and are not fetched.
+  const policy = data.kind === "url" ? policyFor(data.url_or_blob) : null;
   const sql = `
-    INSERT INTO sources (workspace_id, title, kind, url_or_blob, category, status, version, content_hash)
-    VALUES ($1, $2, $3, $4, $5, 'imported', 1, $6)
+    INSERT INTO sources (workspace_id, title, kind, url_or_blob, category, status, version, content_hash, license, attribution, source_url)
+    VALUES ($1, $2, $3, $4, $5, 'imported', 1, $6, $7, $8, $9)
     RETURNING *
   `;
   const res = await query<SourceRow>(sql, [
@@ -80,6 +84,9 @@ export async function createSource(
     data.url_or_blob,
     data.category,
     data.content_hash || null,
+    policy?.license ?? null,
+    policy?.attribution ?? null,
+    policy ? data.url_or_blob : null,
   ]);
   return res.rows[0];
 }
@@ -177,6 +184,16 @@ export async function executeSourceReviewTransaction(
 
     if (updateRes.rows.length === 0) {
       throw new AppError(409, "VERSION_CONFLICT", "Source version changed concurrently during review");
+    }
+
+    // Review bumps the version for OCC but does not change content. Re-point the
+    // ingested chunks/facts, otherwise the approved version has no chunks and
+    // knowledge contexts (and Research) would see an empty source.
+    for (const table of ["source_chunks", "source_facts"]) {
+      await client.query(
+        `UPDATE ${table} SET source_version = $1 WHERE workspace_id = $2 AND source_id = $3 AND source_version = $4`,
+        [updateRes.rows[0].version, workspaceId, sourceId, input.expected_version]
+      );
     }
 
     // 4. Cascade invalidation if revoked

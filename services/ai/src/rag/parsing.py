@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import io
 import re
+import time
 import unicodedata
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
+from urllib.robotparser import RobotFileParser
 
 import httpx
 
@@ -19,7 +21,7 @@ from ..app.config import Settings
 from ..app.runtime import OperationError
 
 
-PARSER_VERSION = "w1-parser-1"
+PARSER_VERSION = "w1-parser-2"
 
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _SPACES = re.compile(r"[ \t ]+")
@@ -95,35 +97,84 @@ _BLOCK_TAGS = {
 }
 
 
+_VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+# Structural containers are never chrome even when a theme puts menu-ish classes on them.
+_NEVER_SKIP = {"html", "body", "main", "article"}
+_SKIP_ROLES = {"navigation", "banner", "contentinfo", "search"}
+# Page chrome that sites (Wikimedia, CMS themes) build from plain divs: menus, TOCs,
+# edit links, reference lists, share/cookie bars. Exact class/id tokens only.
+_BOILERPLATE = re.compile(
+    r"^(toc|vector-toc|navbox|navbox-styles|mw-jump-link|mw-editsection|reflist|references|mw-references-wrap|"
+    r"catlinks|printfooter|mw-indicators|noprint|sidebar|breadcrumbs?|cookie-banner|cookie-consent|share-buttons|"
+    r"social-share|related-posts?|site-header|site-footer|mega-menu|skip-link|sr-only|visually-hidden)$"
+)
+# Use <main> only when it really holds the article; some apps stream content outside it.
+_MAIN_SHARE = 0.4
+
+
 class _TextExtractor(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
+        self.main_parts: list[str] = []
         self.title_parts: list[str] = []
+        # Skipped block: its tag name and nesting of that same tag (robust to unclosed <p>/<li>).
+        self._skip_tag: str | None = None
         self._skip_depth = 0
+        self._in_main = False
         self._in_title = False
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+    @staticmethod
+    def _is_chrome(tag: str, attrs: list[tuple[str, str | None]]) -> bool:
+        if tag in _NEVER_SKIP:
+            return False
         if tag in _SKIP_TAGS:
-            self._skip_depth += 1
-        elif tag == "title":
+            return True
+        values = dict(attrs)
+        if (values.get("role") or "").lower() in _SKIP_ROLES or values.get("aria-hidden") == "true":
+            return True
+        tokens = (values.get("class") or "").lower().split() + (values.get("id") or "").lower().split()
+        return any(_BOILERPLATE.match(token) for token in tokens)
+
+    def _emit(self, text: str) -> None:
+        self.parts.append(text)
+        if self._in_main:
+            self.main_parts.append(text)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self._skip_tag:
+            if tag == self._skip_tag:
+                self._skip_depth += 1
+            return
+        if tag == "title":
             self._in_title = True
-        elif tag in _BLOCK_TAGS:
-            self.parts.append("\n\n")
+        elif tag not in _VOID_TAGS and self._is_chrome(tag, attrs):
+            self._skip_tag, self._skip_depth = tag, 1
+            return
+        if tag == "main":
+            self._in_main = True
+        if tag in _BLOCK_TAGS:
+            self._emit("\n\n")
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in _SKIP_TAGS and self._skip_depth:
-            self._skip_depth -= 1
-        elif tag == "title":
+        if self._skip_tag:
+            if tag == self._skip_tag:
+                self._skip_depth -= 1
+                if not self._skip_depth:
+                    self._skip_tag = None
+            return
+        if tag == "title":
             self._in_title = False
-        elif tag in _BLOCK_TAGS:
-            self.parts.append("\n\n")
+        if tag in _BLOCK_TAGS:
+            self._emit("\n\n")
+        if tag == "main":
+            self._in_main = False
 
     def handle_data(self, data: str) -> None:
         if self._in_title:
             self.title_parts.append(data)
-        elif not self._skip_depth:
-            self.parts.append(data)
+        elif not self._skip_tag:
+            self._emit(data)
 
 
 def parse_html(html: str, url: str) -> tuple[list[Segment], str | None]:
@@ -131,9 +182,11 @@ def parse_html(html: str, url: str) -> tuple[list[Segment], str | None]:
     extractor.feed(html)
     extractor.close()
     title = normalize_text(" ".join(extractor.title_parts)) or None
+    whole, main = "".join(extractor.parts), "".join(extractor.main_parts)
+    body = main if len(normalize_text(main)) >= _MAIN_SHARE * len(normalize_text(whole)) > 0 else whole
     segments = [
         Segment(text=paragraph, paragraph=index, url=url)
-        for index, paragraph in enumerate(_paragraphs("".join(extractor.parts)), start=1)
+        for index, paragraph in enumerate(_paragraphs(body), start=1)
     ]
     return segments, title
 
@@ -149,15 +202,45 @@ def check_url_allowed(url: str, allowlist: tuple[str, ...]) -> None:
         raise OperationError("URL_NOT_ALLOWED", f"Host {host} is not in the ingest allowlist")
 
 
+_ROBOTS_TTL_SECONDS = 3600
+_robots_cache: dict[str, tuple[float, RobotFileParser | None]] = {}
+
+
+async def check_robots_allowed(client: httpx.AsyncClient, url: str, user_agent: str) -> None:
+    """RFC 9309: 4xx robots.txt means no rules; 5xx/unreachable means assume full disallow."""
+
+    parts = urlsplit(url)
+    origin = f"{parts.scheme}://{parts.netloc}"
+    cached = _robots_cache.get(origin)
+    if cached is None or time.monotonic() - cached[0] > _ROBOTS_TTL_SECONDS:
+        try:
+            response = await client.get(f"{origin}/robots.txt", headers={"User-Agent": user_agent}, follow_redirects=True)
+        except httpx.HTTPError as exc:
+            raise OperationError("ROBOTS_UNAVAILABLE", f"robots.txt for {parts.hostname} is unreachable", retryable=True) from exc
+        if response.status_code >= 500:
+            raise OperationError("ROBOTS_UNAVAILABLE", f"robots.txt for {parts.hostname} returned HTTP {response.status_code}", retryable=True)
+        rules = None
+        if response.status_code < 400:
+            rules = RobotFileParser()
+            rules.parse(response.text.splitlines())
+        cached = (time.monotonic(), rules)
+        _robots_cache[origin] = cached
+    rules = cached[1]
+    if rules is not None and not rules.can_fetch(user_agent, url):
+        raise OperationError("ROBOTS_DISALLOWED", f"robots.txt of {parts.hostname} disallows this URL")
+
+
 async def fetch_url(url: str, settings: Settings) -> tuple[str, str]:
-    """Fetch an allowlisted page; every redirect hop is re-checked against the allowlist."""
+    """Fetch an allowlisted page; every redirect hop is re-checked against the allowlist and robots.txt."""
 
     current = url
+    headers = {"User-Agent": settings.ingest_user_agent}
     async with httpx.AsyncClient(timeout=settings.url_fetch_timeout_seconds, follow_redirects=False) as client:
         for _ in range(4):
             check_url_allowed(current, settings.ingest_url_allowlist)
+            await check_robots_allowed(client, current, settings.ingest_user_agent)
             try:
-                async with client.stream("GET", current, headers={"User-Agent": "AI-Growth-OS-ingest/0.1"}) as response:
+                async with client.stream("GET", current, headers=headers) as response:
                     if response.is_redirect:
                         location = response.headers.get("location")
                         if not location:

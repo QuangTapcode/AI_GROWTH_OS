@@ -54,7 +54,21 @@ export async function acceptLearningTasks(pool: Pool, workspaceId: string, actor
       const id = randomUUID();
       await db.query("INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,payload) VALUES($1,$2,'research','research.run','queued',1,$3,$4)", [id, workspaceId, context.snapshot_id, JSON.stringify({ ...task, synthetic: Boolean(result.synthetic), learning_artifact: ref })]);
       await db.query("INSERT INTO plan_task_outbox(workspace_id,task_id,input_version,operation) VALUES($1,$2,1,'research.run')", [workspaceId, id]);
-      await db.query("INSERT INTO approvals(workspace_id,target_type,target_id,target_version,target_hash,status,decision,actor_id,actor_role) VALUES($1,'artifact',$2,$3,$4,'approved','approve',$5,'owner')", [workspaceId, ref.artifact_id, ref.version, ref.content_hash, actorId]);
+      // The worker already queued a pending review for this artifact: decide it rather than
+      // adding a second approval, so the Review Queue item does not stay open.
+      const decided = await db.query(
+        `UPDATE approvals SET status='approved',decision='approve',actor_id=$5,actor_role='owner',updated_at=now()
+          WHERE workspace_id=$1 AND target_type='artifact' AND target_id=$2 AND target_version=$3 AND target_hash=$4 AND status='pending'`,
+        [workspaceId, ref.artifact_id, ref.version, ref.content_hash, actorId]);
+      if (!decided.rowCount) {
+        await db.query(
+          `INSERT INTO approvals(workspace_id,target_type,target_id,target_version,target_hash,status,decision,actor_id,actor_role)
+           SELECT $1,'artifact',$2,$3,$4,'approved','approve',$5,'owner'
+            WHERE NOT EXISTS (SELECT 1 FROM approvals WHERE workspace_id=$1 AND target_type='artifact' AND target_id=$2
+              AND target_version=$3 AND target_hash=$4 AND status='approved')`,
+          [workspaceId, ref.artifact_id, ref.version, ref.content_hash, actorId]);
+      }
+      await db.query("UPDATE workflow_tasks SET status='completed',completed_at=now(),updated_at=now() WHERE workspace_id=$1 AND result_ref=$2 AND status='awaiting_approval'", [workspaceId, ref.artifact_id]);
       ids.push(id);
     }
     await db.query('COMMIT');

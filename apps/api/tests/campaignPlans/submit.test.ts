@@ -65,6 +65,21 @@ describe('QQ-04 backend plan boundary', () => {
     expect(s.repo.records).toEqual([]);
   });
 
+  it('enqueues a plan whose research only carries coverage notes', async () => {
+    const s = setup();
+    const research = structuredClone(fixture.research);
+    research.result.missing_facts = ['complete_research_explanation', 'source_gap:housing'];
+    research.artifact.content_hash = sha256Hex(canonicalJson({ result: research.result, evidence: research.evidence }));
+    s.repo.seedArtifact({ ref: research.artifact, result: research.result, evidence: research.evidence });
+    s.plan.research_artifact = research.artifact;
+    for (const task of s.plan.tasks) task.input_artifact_refs = [research.artifact];
+    s.plan.missing_facts.push('complete_research_explanation', 'source_gap:housing');
+    s.save();
+    const response = await createCampaignPlanRoutes(s.deps).handleSubmit(s.plan.workspace_id, s.artifact.ref);
+    expect(response.status).toBe(201);
+    expect(s.repo.records).toHaveLength(1);
+  });
+
   it('rejects modified content, wrong tenant and stale artifact refs', async () => {
     const s = setup();
     s.plan.objective = 'Changed after hash';

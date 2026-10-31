@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { activeGoal, goalContext } from '../growthGoals/service';
+import { agentProfile } from '../businessProfile/strategy';
 import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
+import { validateTaskGraph } from '../tasks/dag';
 import type { ArtifactRef, CampaignPlan } from './schemas';
 import { PlanError, type AcceptedPlan, type PlanContext, type PlanRepository, type StoredArtifact } from './service';
 
@@ -8,7 +11,7 @@ type Db = Pool | PoolClient;
 const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 
 export class PgPlanRepository implements PlanRepository {
-  constructor(private pool: Pool) {}
+  constructor(private pool: Pool, private options: { requireApprovedArtifactId?: string } = {}) {}
 
   /** Backend issues context from approved DB rows; callers cannot approve sources here. */
   async issueContext(workspaceId: string, options: { goal?: unknown; assets?: unknown[] } = {}) {
@@ -18,9 +21,7 @@ export class PgPlanRepository implements PlanRepository {
       await db.query('SELECT id FROM workspaces WHERE id=$1 FOR UPDATE', [workspaceId]);
       const profileRow = (await db.query('SELECT * FROM business_profiles WHERE workspace_id=$1 FOR SHARE', [workspaceId])).rows[0];
       if (!profileRow) throw new PlanError('MISSING_PROFILE', 'Workspace has no business profile');
-      const profile = { workspace_id: workspaceId, company: profileRow.company_name, version: profileRow.version,
-        audiences: profileRow.target_audiences ?? [], locations: profileRow.target_locations ?? [],
-        products: profileRow.products_services ?? [], voice: profileRow.brand_voice, overview: profileRow.overview };
+      const profile = agentProfile(profileRow, workspaceId);
       const sourceRows = (await db.query("SELECT * FROM sources WHERE workspace_id=$1 AND status='approved' AND deleted_at IS NULL ORDER BY id FOR SHARE", [workspaceId])).rows;
       const sources = [];
       for (const s of sourceRows) {
@@ -36,11 +37,13 @@ export class PgPlanRepository implements PlanRepository {
       }
       const id = randomUUID();
       const snapshot = { workspace_id: workspaceId, snapshot_id: id, sources };
+      // The active growth goal is pinned with the snapshot unless a caller supplies one explicitly.
+      const goal = options.goal !== undefined ? options.goal : goalContext(await activeGoal(db, workspaceId), profile.products);
       await db.query('UPDATE knowledge_contexts SET current=false WHERE workspace_id=$1 AND current', [workspaceId]);
       await db.query('INSERT INTO knowledge_contexts(snapshot_id,workspace_id,profile_version,profile,snapshot,goal,assets) VALUES($1,$2,$3,$4,$5,$6,$7)',
-        [id, workspaceId, profile.version, JSON.stringify(profile), JSON.stringify(snapshot), JSON.stringify(options.goal ?? null), JSON.stringify(options.assets ?? [])]);
+        [id, workspaceId, profile.version, JSON.stringify(profile), JSON.stringify(snapshot), JSON.stringify(goal ?? null), JSON.stringify(options.assets ?? [])]);
       await db.query('COMMIT');
-      return { workspace_id: workspaceId, business_profile: profile, snapshot, goal_context: options.goal ?? null,
+      return { workspace_id: workspaceId, business_profile: profile, snapshot, goal_context: goal ?? null,
         approved_source_versions: sources.map(s => ({ source_id: s.source_id, version: s.version })), context_snapshot_id: id };
     } catch (error) { await db.query('ROLLBACK'); throw error; }
     finally { db.release(); }
@@ -50,12 +53,15 @@ export class PgPlanRepository implements PlanRepository {
     const ref = item.ref;
     if (sha256Hex(canonicalJson({ result: item.result, evidence: item.evidence })) !== ref.content_hash)
       throw new PlanError('ARTIFACT_HASH_MISMATCH', 'Cannot persist corrupt AI artifact');
+    const op = item.operation ?? (ref.role === 'research' ? 'research.run' : 'strategy.generate');
+    const res = item.result as any;
+    const title = res?.selected_opportunity?.topic ?? res?.objective ?? (ref.role === 'growth_lead' ? 'Growth Campaign Plan' : ref.role);
     await this.pool.query(`INSERT INTO content_artifacts(id,workspace_id,version,content_hash,context_snapshot_id,role,operation,artifact_type,title,storage,payload,evidence)
-      VALUES($1,$2,$3,$4,$5,$6,$7,'ai_result',$6,'ai_run_store',$8,$9) ON CONFLICT(id) DO NOTHING`,
+      VALUES($1,$2,$3,$4,$5,$6,$7,'ai_result',$8,'ai_run_store',$9,$10) ON CONFLICT(id) DO NOTHING`,
       [ref.artifact_id, ref.workspace_id, ref.version, ref.content_hash, ref.context_snapshot_id, ref.role,
-        ref.role === 'research' ? 'research.run' : 'strategy.generate', JSON.stringify({ artifact: ref, result: item.result }), JSON.stringify(item.evidence)]);
+        op, title, JSON.stringify({ artifact: ref, result: item.result }), JSON.stringify(item.evidence)]);
     const existing = await this.loadArtifact(ref.workspace_id, ref.artifact_id);
-    if (!existing || !same(existing, item)) throw new PlanError('ARTIFACT_CONFLICT', 'Artifact IDs are immutable', 409);
+    if (!existing || !same({ ref: existing.ref, result: existing.result, evidence: existing.evidence }, { ref: item.ref, result: item.result, evidence: item.evidence })) throw new PlanError('ARTIFACT_CONFLICT', 'Artifact IDs are immutable', 409);
   }
 
   async loadArtifact(workspaceId: string, artifactId: string): Promise<StoredArtifact | undefined> {
@@ -80,12 +86,23 @@ export class PgPlanRepository implements PlanRepository {
       await db.query('BEGIN');
       // Serialize accepts and snapshot issuance in this workspace; no broker side effects here.
       await db.query('SELECT id FROM workspaces WHERE id=$1 FOR UPDATE', [plan.workspace_id]);
+      if (this.options.requireApprovedArtifactId) {
+        const approved = (await db.query(`SELECT p.id FROM approvals p JOIN content_artifacts a
+          ON a.workspace_id=p.workspace_id AND a.id=p.target_id AND a.version=p.target_version AND a.content_hash=p.target_hash
+          WHERE p.workspace_id=$1 AND p.target_id=$2 AND p.target_type='artifact' AND p.status='approved'
+          AND a.context_snapshot_id=$3 FOR SHARE OF p,a`, [plan.workspace_id, this.options.requireApprovedArtifactId, context.snapshot_id])).rows[0];
+        if (!approved) throw new PlanError('PLAN_APPROVAL_REQUIRED', 'Approve the exact Growth Lead plan version before starting SEO', 409);
+      }
       if (!same(await this.context(db, plan.workspace_id, true), context)) throw new PlanError('STALE_CONTEXT', 'Context changed during validation');
       const previous = (await db.query('SELECT plan,record FROM campaign_plan_acceptances WHERE workspace_id=$1 AND plan_id=$2 AND input_version=$3', [plan.workspace_id, plan.plan_id, plan.input_version])).rows[0];
       if (previous) {
         if (!same(previous.plan, plan)) throw new PlanError('PLAN_CONFLICT', 'Plan ID/version content changed', 409);
         await db.query('COMMIT');
         return { record: previous.record as AcceptedPlan, deduplicated: true };
+      }
+      const graphCheck = validateTaskGraph(plan.tasks.map(t => ({ id: t.task_id, dependencies: t.depends_on })));
+      if (!graphCheck.valid) {
+        throw new PlanError('CYCLIC_DEPENDENCY', graphCheck.error || 'Campaign plan contains a circular dependency', 422);
       }
       await db.query('INSERT INTO campaigns(id,workspace_id,name,utm_campaign) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING', [plan.plan_id, plan.workspace_id, plan.objective.slice(0, 255), `plan-${plan.plan_id}`]);
       const campaign = (await db.query('SELECT workspace_id FROM campaigns WHERE id=$1 FOR SHARE', [plan.plan_id])).rows[0];

@@ -44,7 +44,7 @@
   "records": [
     {
       "plan": {
-        "contract_version": "growth-lead-plan-v1",
+        "contract_version": "growth-lead-plan-v2",
         "plan_id": "32466218-e270-5175-94d9-79959d6caa8d",
         "workspace_id": "00000000-0000-4000-8000-000000000001",
         "input_version": 1,
@@ -71,13 +71,17 @@
           "url": "https://example.org/qq04-mock",
           "fetched_at": "2026-01-01T00:00:00Z",
           "confidence": "hypothesis",
-          "demand_estimate": null
+          "demand_estimate": null,
+          "keywords": [
+            "Living areas guide"
+          ],
+          "user_need": "Understand local living options before making a decision."
         },
         "research_artifact": {
           "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
           "workspace_id": "00000000-0000-4000-8000-000000000001",
           "version": 1,
-          "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+          "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
           "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
           "role": "research",
           "storage": "ai_run_store"
@@ -97,7 +101,7 @@
                 "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
                 "workspace_id": "00000000-0000-4000-8000-000000000001",
                 "version": 1,
-                "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+                "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
                 "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
                 "role": "research",
                 "storage": "ai_run_store"
@@ -123,7 +127,8 @@
                 "Return a draft for human review before publication."
               ]
             },
-            "requires_human_approval": true
+            "requires_human_approval": true,
+            "deadline": "2026-11-04T10:00:00Z"
           },
           {
             "task_id": "7469b889-944e-5a60-9b4b-8f3c50f80ddc",
@@ -141,7 +146,7 @@
                 "artifact_id": "46c3bc19-fd42-5067-9c14-ceba71581153",
                 "workspace_id": "00000000-0000-4000-8000-000000000001",
                 "version": 1,
-                "content_hash": "50f5273fb945f4c2e2661ff297f0b122348bda761faa17ce80c78a95244dbd62",
+                "content_hash": "af6fd2f1d36d6d1a72aa3130f24bd1f3aab528d0f7142ca67e60e280b4e25d53",
                 "context_snapshot_id": "00000000-0000-4000-8000-000000000003",
                 "role": "research",
                 "storage": "ai_run_store"
@@ -170,13 +175,29 @@
                 "Adapt the approved SEO draft; identify real image assets or report missing assets."
               ]
             },
-            "requires_human_approval": true
+            "requires_human_approval": true,
+            "deadline": "2026-11-04T10:00:00Z"
           }
         ],
         "missing_facts": [],
         "requires_human_approval": true,
         "applied": false,
-        "synthetic": true
+        "synthetic": true,
+        "opportunity_score": {
+          "factors": {
+            "demand": 3,
+            "business_relevance": 3,
+            "growth_potential": 3,
+            "content_gap": 3,
+            "freshness": 3,
+            "conversion_potential": 3
+          },
+          "score": 729,
+          "estimated": true,
+          "label": "estimated",
+          "formula": "demand * business_relevance * growth_potential * content_gap * freshness * conversion_potential",
+          "source": "operator_estimate_not_search_volume"
+        }
       },
       "task_states": {
         "a787c081-5b09-5944-865a-74cf434951f9": "ready",

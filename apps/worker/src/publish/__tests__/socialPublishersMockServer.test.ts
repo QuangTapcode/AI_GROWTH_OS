@@ -1,10 +1,10 @@
-import { describe, it, before, after } from 'node:test';
+import { afterAll as after, beforeAll as before, describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { FacebookPagePublisher } from '../FacebookPagePublisher.ts';
-import { TikTokPublisher } from '../TikTokPublisher.ts';
-import { SocialTokenManager } from '../SocialTokenManager.ts';
-import { generateManualPack } from '../ManualPackGenerator.ts';
+import { FacebookPagePublisher } from '../FacebookPagePublisher';
+import { TikTokPublisher } from '../TikTokPublisher';
+import { SocialTokenManager } from '../SocialTokenManager';
+import { generateManualPack } from '../ManualPackGenerator';
 
 describe('CM-28 & CM-29: Facebook & TikTok Publishers (Mock Server Tests)', () => {
   let server: http.Server;

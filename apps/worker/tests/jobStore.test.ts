@@ -116,3 +116,13 @@ describe('FileJobStore durable (W1-MY-01)', () => {
     }
   });
 });
+describe('FileJobStore state dir removed at runtime', () => {
+  it('recreates the directory instead of crashing the recovery sweep', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'worker-jobs-'));
+    const store = new FileJobStore(dir);
+    expect(await store.listByStatus('running')).toEqual([]);
+    await rm(dir, { recursive: true, force: true });
+    expect(await store.listByStatus('running')).toEqual([]);
+    await rm(dir, { recursive: true, force: true });
+  });
+});

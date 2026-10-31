@@ -57,6 +57,10 @@ async def run_learning(ctx):
     else:
         count = p.lead_summary.result["count"]
         learning = [f"The cited lead aggregate contains {count} leads; causal attribution is not established."]
+        comparisons = p.performance.result.get("kpi_comparisons", [])
+        learning += [f"Measured {c['metric_name']} changed by {c['absolute_change']} against its cited baseline; "
+                     "this observation does not establish cause or ROI."
+                     for c in comparisons if c.get("status") in {"compared", "zero_baseline"}]
         key = hashlib.sha256(f"{ctx.job.workspace_id}:{p.performance.artifact.artifact_id}:{p.performance.artifact.version}:{p.lead_summary.artifact.artifact_id}:{p.lead_summary.artifact.version}:{p.iteration}".encode()).hexdigest()
         if key in p.prior_dedup_keys:
             stopped = "duplicate_proposal"

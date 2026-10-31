@@ -80,9 +80,12 @@ async function jsonRequest<T>(url: string, init: RequestInit, provider: string):
   }
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    const code = body && typeof body === "object" && "error" in body
-      ? String((body as { error?: unknown }).error)
-      : `HTTP_${response.status}`;
+    // Meta and Google return { error: { message, code } }; keep the provider's own reason readable.
+    const error = body && typeof body === "object" && "error" in body ? (body as { error?: unknown }).error : null;
+    const detail = error && typeof error === "object" ? (error as { message?: unknown; code?: unknown }) : null;
+    const code = detail?.message
+      ? `${detail.code !== undefined ? `#${String(detail.code)} ` : ""}${String(detail.message)}`
+      : error ? String(error) : `HTTP_${response.status}`;
     throw new AppError(502, "INTEGRATION_REQUEST_FAILED", `${provider} API request failed (${code})`);
   }
   return body as T;
@@ -158,6 +161,19 @@ async function fetchGa4(from: string, to: string): Promise<LiveMetricPoint[]> {
 }
 
 type GscResponse = { rows?: Array<{ keys?: string[]; clicks?: number; impressions?: number; ctr?: number; position?: number }> };
+
+/** Bounded query-level measurements for Research; these cover one property, not market volume. */
+export async function fetchGscResearchQueries(site: string, from: string, to: string): Promise<GscResponse> {
+  dateRange(from, to);
+  if (site !== config('GSC_SITE_URL')) throw new AppError(422, 'GSC_PROPERTY_MISMATCH', 'Workspace property differs from server credential scope');
+  const token = await googleAccessToken(['https://www.googleapis.com/auth/webmasters.readonly'],
+    config('GSC_SERVICE_ACCOUNT_JSON') ? 'GSC_SERVICE_ACCOUNT_JSON' : 'GOOGLE_SERVICE_ACCOUNT_JSON');
+  return jsonRequest<GscResponse>(
+    `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`,
+    { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ startDate: from, endDate: to, dimensions: ['query'], type: 'web', rowLimit: 100, dataState: 'final' }) },
+    'Search Console');
+}
 
 async function fetchGsc(from: string, to: string): Promise<LiveMetricPoint[]> {
   const site = config("GSC_SITE_URL");

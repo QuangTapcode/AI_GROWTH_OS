@@ -111,17 +111,15 @@ function deserialize(raw: string): JobState {
  */
 export class FileJobStore extends LockedStore implements JobStore {
   private readonly dir: string;
-  private initialized = false;
-
   constructor(dir: string) {
     super();
     this.dir = dir;
   }
 
   private async ensureDir(): Promise<void> {
-    if (this.initialized) return;
+    // Not cached: the state dir can be removed while the worker runs (cleanup, git clean),
+    // and a missing dir must be recreated instead of crashing the recovery sweep.
     await fs.mkdir(this.dir, { recursive: true });
-    this.initialized = true;
   }
 
   private fileOf(id: string): string {

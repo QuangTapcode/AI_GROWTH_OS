@@ -311,8 +311,13 @@ class TestPromptTunerEngine:
         assert attrib_rates == sorted(attrib_rates)
         assert attrib_rates[-1] == 100.0
 
-    def test_iterative_tuning_loop_step_2_and_stopping_criteria(self, datasets: tuple[list[dict], list[dict]]) -> None:
+    def test_iterative_tuning_loop_step_2_and_stopping_criteria(
+        self, datasets: tuple[list[dict], list[dict]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Bước 2: Vòng lặp tuning dừng khi Rubric >= 90 và Attribution 100%."""
+        # Vòng tuning ghi nhật ký CSV; ghi ra thư mục tạm để không sửa file báo cáo đã commit.
+        import evals.prompt_tuner as prompt_tuner
+        monkeypatch.setattr(prompt_tuner, "TUNING_LOG_CSV", tmp_path / "prompt_tuning_iterations.csv")
         dev_items, adv_items = datasets
         store = FewShotVectorStore()
         store.load_from_dev_set(dev_items, workspace_id=WORKSPACE_ID_DEFAULT)

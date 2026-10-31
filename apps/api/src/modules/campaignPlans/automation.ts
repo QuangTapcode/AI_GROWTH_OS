@@ -1,9 +1,16 @@
 import { createHash } from "node:crypto";
+import { defaultSearch, refreshDiscoveryIfStale } from "../research/discovery";
+import { syncResearchSearchMetrics } from "../research/searchMetrics";
+import { ensureBaselineArtifact, ensureMeasurementArtifacts } from "../site/measurement";
+import { publishSeoArtifact } from "../site/publish";
 import type { Pool } from "pg";
 import { enqueueAiTask } from "./aiTasks";
+import { acceptLearningTasks } from "./learningTasks";
 import { PgPlanRepository } from "./pgRepository";
 import { submitCampaignPlan, PlanError } from "./service";
 import { getWorkspaceConnectionStatus } from "../integrations/stubs";
+import { persistCommunityLead } from "../community/leads";
+import { processReceivedCommunityMessages } from "../community/service";
 
 // Stable IDs make a crash between enqueue and acknowledgement safe to replay.
 export function automationTaskId(key: string) {
@@ -69,7 +76,9 @@ async function scheduleFacebookArtifact(
   )).rows[0];
   if (!channel) return;
   const result = row.payload.result;
-  const body = typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
+  // Prefer the Facebook-specific post (hook, body, question, exact CTA) over the generic caption.
+  const facebook = result.facebook as { text?: unknown } | null | undefined;
+  const body = typeof facebook?.text === "string" ? facebook.text : typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
   const content = (await db.query<{ id: string }>(
     `INSERT INTO contents (workspace_id,title,body_markdown,type,status,created_by,approved_by,current_version,content_hash,artifact_id)
      VALUES($1,$2,$3,'social_post','approved','ai',$4,$5,$6,$7)
@@ -80,8 +89,10 @@ async function scheduleFacebookArtifact(
     [workspaceId, row.result_ref],
   )).rows[0];
   if (!content) return;
+  // One automated attempt per artifact: a failed post (e.g. missing Page permission) is
+  // retried by a person, never re-created on every tick.
   const existing = (await db.query(
-    "SELECT id FROM publishing_jobs WHERE workspace_id=$1 AND artifact_id=$2 AND channel_id=$3 AND status IN ('scheduled','publishing')",
+    "SELECT id FROM publishing_jobs WHERE workspace_id=$1 AND artifact_id=$2 AND channel_id=$3",
     [workspaceId, row.result_ref, channel.id],
   )).rows[0];
   if (existing) return;
@@ -127,7 +138,6 @@ async function scheduleApprovedFacebookArtifacts(
         AND NOT EXISTS (
           SELECT 1 FROM publishing_jobs pj
            WHERE pj.workspace_id=t.workspace_id AND pj.artifact_id=a.id
-             AND pj.status IN ('scheduled','publishing','published')
         )
       ORDER BY t.updated_at DESC`,
     [workspaceId, contextSnapshotId],
@@ -151,13 +161,17 @@ async function scheduleApprovedFacebookArtifacts(
   return scheduled;
 }
 
-/** Auto-approval is opt-in and only accepts grounded, non-synthetic, complete outputs. */
-async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: string, publishFacebook: boolean) {
+/**
+ * Auto-approval is opt-in and only accepts grounded, non-synthetic, complete outputs of the
+ * current context; work pinned to an older context is never approved or published unattended.
+ */
+async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: string, contextSnapshotId: string,
+  publishFacebook: boolean, publishWebsite = false) {
   const rows = (await pool.query<AutoArtifactRow>(
     `SELECT t.id AS task_id,t.role,t.campaign_id,t.status,t.result_ref,a.version,a.content_hash,a.title,a.artifact_type,a.payload,a.evidence
        FROM workflow_tasks t JOIN content_artifacts a ON a.id=t.result_ref AND a.workspace_id=t.workspace_id
-      WHERE t.workspace_id=$1 AND t.status='awaiting_approval' ORDER BY t.created_at`,
-    [workspaceId],
+      WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2 AND t.status='awaiting_approval' ORDER BY t.created_at`,
+    [workspaceId, contextSnapshotId],
   )).rows;
   if (!rows.length) return 0;
   let approved = 0;
@@ -188,6 +202,9 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
         await db.query("UPDATE workflow_tasks SET status='completed',completed_at=now(),updated_at=now(),error_details=NULL WHERE id=$1", [row.task_id]);
         await queueReadyChildren(db, workspaceId, row.campaign_id);
         if (publishFacebook && row.role === "content") await scheduleFacebookArtifact(db, workspaceId, actorId, row, approvalId, mode);
+        // The owner opted into publishing approved SEO articles to the workspace's own site.
+        if (publishWebsite && row.role === "seo") await publishSeoArtifact(db, workspaceId, row.result_ref, actorId);
+        if (row.role === "community") await persistCommunityLead(db, workspaceId, row.result_ref, actorId);
       }
       await db.query("COMMIT");
       approved++;
@@ -199,6 +216,71 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
   return approved;
 }
 
+const MAX_LEARNING_ROUNDS = 3;
+
+/** Learning-opened Research rounds since the last scheduled cycle; bounds the closed loop. */
+async function learningRoundsThisCycle(pool: Pool, workspaceId: string, contextSnapshotId: string) {
+  return (await pool.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM workflow_tasks r
+      WHERE r.workspace_id=$1 AND r.context_snapshot_id=$2 AND r.operation='research.run' AND r.payload ? 'learning_artifact'
+        AND r.created_at > COALESCE((SELECT max(s.created_at) FROM workflow_tasks s
+          JOIN agent_automation_handoffs h ON h.workspace_id=s.workspace_id AND h.task_id=s.id
+         WHERE s.workspace_id=$1 AND s.operation='research.run' AND NOT (s.payload ? 'learning_artifact')), 'epoch'::timestamptz)`,
+    [workspaceId, contextSnapshotId],
+  )).rows[0].n;
+}
+
+/**
+ * An approved source (or a new approved version) is not pinned by the context yet. Revocations are
+ * already enforced per task (SOURCE_NOT_APPROVED) and do not trigger a new context here.
+ */
+async function newlyApprovedSources(pool: Pool, workspaceId: string, pinned: { source_id: string; version: number }[]) {
+  const current = new Set(pinned.map((s) => `${s.source_id}:${s.version}`));
+  return (await pool.query<{ id: string; version: number }>(
+    "SELECT id, version FROM sources WHERE workspace_id=$1 AND status='approved' AND deleted_at IS NULL", [workspaceId],
+  )).rows.some((s) => !current.has(`${s.id}:${s.version}`));
+}
+
+/** A learning round already drew its conclusion from this exact measurement: a new round adds no signal. */
+async function measurementAlreadyLearned(pool: Pool, workspaceId: string, contextSnapshotId: string, metricsArtifactId: unknown) {
+  if (typeof metricsArtifactId !== "string") return false;
+  return (await pool.query(
+    `SELECT 1 FROM workflow_tasks l
+       JOIN content_artifacts report ON report.workspace_id=l.workspace_id AND report.id::text=l.payload->'input'->>'performance_artifact_id'
+       JOIN workflow_tasks reportTask ON reportTask.id=report.task_id
+      WHERE l.workspace_id=$1 AND l.context_snapshot_id=$2 AND l.operation='learning.analyze'
+        AND reportTask.payload->'input'->>'metrics_artifact_id'=$3 LIMIT 1`,
+    [workspaceId, contextSnapshotId, metricsArtifactId],
+  )).rowCount === 1;
+}
+
+/**
+ * With auto-approval on, the owner also opts into the Research round a grounded learning
+ * proposes. The same owner check, hash, quota and dedup rules apply as for a manual approval.
+ */
+async function autoAcceptLearning(pool: Pool, workspaceId: string, actorId: string, contextSnapshotId: string) {
+  const rows = (await pool.query(
+    `SELECT t.id, a.payload FROM workflow_tasks t JOIN content_artifacts a ON a.id=t.result_ref AND a.workspace_id=t.workspace_id
+      WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2 AND t.operation='learning.analyze' AND t.status='awaiting_approval'
+      ORDER BY t.created_at`,
+    [workspaceId, contextSnapshotId],
+  )).rows;
+  for (const row of rows) {
+    const result = row.payload?.result ?? {};
+    // Missing data or a stopped loop has nothing to open; it stays visible for review.
+    if (result.status !== "draft" || result.missing_facts?.length || !result.next_tasks?.length) continue;
+    try {
+      const accepted = await acceptLearningTasks(pool, workspaceId, actorId, row.payload.artifact, process.env.APP_ENV !== "production");
+      for (const taskId of accepted.task_ids)
+        await pool.query("INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING", [workspaceId, taskId]);
+    } catch (error) {
+      if (!(error instanceof PlanError)) throw error;
+      await pool.query("UPDATE workflow_tasks SET status='failed',error_details=$2,updated_at=now() WHERE id=$1 AND status='awaiting_approval'",
+        [row.id, JSON.stringify({ code: error.code })]);
+    }
+  }
+}
+
 /** One scheduler owns a workspace at a time; existing approval gates remain authoritative. */
 export async function tickAutomation(
   pool: Pool,
@@ -207,6 +289,7 @@ export async function tickAutomation(
 ) {
   const lock = await pool.connect();
   let acquired = false;
+  let discoveryWarning: string | null = null;
   try {
     acquired = (
       await lock.query(
@@ -246,11 +329,15 @@ export async function tickAutomation(
         "Create a current knowledge context with approved sources first",
       );
     if (settings.auto_approve_outputs) {
-      await autoApproveOutputs(pool, workspaceId, settings.actor_id, settings.auto_publish_facebook === true);
+      await autoApproveOutputs(pool, workspaceId, settings.actor_id, context.snapshot_id, settings.auto_publish_facebook === true,
+        settings.auto_publish_website === true);
+      await autoAcceptLearning(pool, workspaceId, settings.actor_id, context.snapshot_id);
     }
     if (settings.auto_publish_facebook === true) {
       await scheduleApprovedFacebookArtifacts(pool, workspaceId, settings.actor_id, context.snapshot_id);
     }
+    // Process incoming community inbox messages into workflow tasks
+    await processReceivedCommunityMessages(pool, workspaceId, settings.actor_id, context.snapshot_id);
     const enqueue = (key: string, input: unknown) =>
       enqueueAiTask(pool, workspaceId, settings.actor_id, {
         task_id: automationTaskId(key),
@@ -269,9 +356,9 @@ export async function tickAutomation(
       )
     ).rows;
     for (const task of ready) {
-      if (task.operation === "research.run") {
-        if (task.artifact_payload.result?.status !== "ready_for_handoff")
-          continue;
+      // Research or a report without usable output has nothing to hand off: it falls through and
+      // is closed, otherwise an unattended cycle would wait forever on it.
+      if (task.operation === "research.run" && task.artifact_payload.result?.status === "ready_for_handoff") {
         const child = await enqueue(`strategy:${task.id}`, {
           operation: "strategy.generate",
           research_artifact_id: task.result_ref,
@@ -284,47 +371,65 @@ export async function tickAutomation(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, child.task_id],
         );
+        // First-party measurement (site events + leads) pinned to this context for Performance/Learning.
+        await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
         const metric = (
           await pool.query(
             "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='metrics.snapshot' ORDER BY created_at DESC LIMIT 1",
             [workspaceId, context.snapshot_id],
           )
         ).rows[0];
+        const baseline = metric ? await ensureBaselineArtifact(pool, workspaceId, context.snapshot_id, metric.id) : undefined;
         const report = await enqueue(`performance:${child.task_id}`, {
           operation: "analytics.report",
           ...(metric ? { metrics_artifact_id: metric.id } : {}),
+          ...(baseline ? { baseline_metrics_artifact_id: baseline } : {}),
         });
         await pool.query(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, report.task_id],
         );
       } else if (task.operation === "strategy.generate") {
-        await submitCampaignPlan(
-          {
-            repo: new PgPlanRepository(pool),
-            // Synthetic artifacts are only used by the deterministic staging
-            // smoke fixture. Production must continue to reject them.
-            allowSynthetic: process.env.APP_ENV !== "production",
-          },
-          workspaceId,
-          task.artifact_payload.artifact,
-        );
-      } else {
-        if (task.artifact_payload.result?.status !== "draft") continue;
-        const leads = (
+        try {
+          await submitCampaignPlan(
+            {
+              repo: new PgPlanRepository(pool),
+              // Synthetic artifacts are only used by the deterministic staging
+              // smoke fixture. Production must continue to reject them.
+              allowSynthetic: process.env.APP_ENV !== "production",
+            },
+            workspaceId,
+            task.artifact_payload.artifact,
+          );
+        } catch (error) {
+          if (!(error instanceof PlanError)) throw error;
+          // A blocked plan (missing facts, stale source) must not hold the schedule; it stays visible as failed.
           await pool.query(
-            "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='lead.aggregate' ORDER BY created_at DESC LIMIT 1",
-            [workspaceId, context.snapshot_id],
-          )
-        ).rows[0];
-        await enqueue(`learning:${task.id}`, {
-          operation: "learning.analyze",
-          performance_artifact_id: task.result_ref,
-          ...(leads ? { lead_summary_artifact_id: leads.id } : {}),
-          iteration: 0,
-          max_iterations: 3,
-          task_quota: 1,
-        });
+            "UPDATE workflow_tasks SET status='failed',error_details=$3,updated_at=now() WHERE workspace_id=$1 AND id=$2 AND status='awaiting_approval'",
+            [workspaceId, task.id, JSON.stringify({ code: error.code })],
+          );
+          continue;
+        }
+      } else if (task.operation === "analytics.report" && task.artifact_payload.result?.status === "draft") {
+        const iteration = await learningRoundsThisCycle(pool, workspaceId, context.snapshot_id);
+        if (iteration < MAX_LEARNING_ROUNDS &&
+            !(await measurementAlreadyLearned(pool, workspaceId, context.snapshot_id, task.payload?.input?.metrics_artifact_id))) {
+          await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
+          const leads = (
+            await pool.query(
+              "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='lead.aggregate' ORDER BY created_at DESC LIMIT 1",
+              [workspaceId, context.snapshot_id],
+            )
+          ).rows[0];
+          await enqueue(`learning:${task.id}`, {
+            operation: "learning.analyze",
+            performance_artifact_id: task.result_ref,
+            ...(leads ? { lead_summary_artifact_id: leads.id } : {}),
+            iteration,
+            max_iterations: MAX_LEARNING_ROUNDS,
+            task_quota: 1,
+          });
+        }
       }
       await pool.query(
         "UPDATE workflow_tasks SET status='completed',completed_at=now(),updated_at=now() WHERE workspace_id=$1 AND id=$2 AND status='awaiting_approval'",
@@ -335,25 +440,46 @@ export async function tickAutomation(
       const active = (
         await pool.query(
           `SELECT 1 FROM workflow_tasks t JOIN agent_automation_handoffs h ON h.task_id=t.id
-        WHERE t.workspace_id=$1 AND t.status IN ('queued','running','pending','awaiting_approval')
+        WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2 AND t.status IN ('queued','running','pending','awaiting_approval')
         AND t.operation IN ('research.run','strategy.generate') LIMIT 1`,
-          [workspaceId],
+          [workspaceId, context.snapshot_id],
         )
       ).rowCount;
       // Avoid opening a new campaign while its internal work or approval is outstanding.
+      // Work pinned to an older knowledge context can never finish (STALE_CONTEXT), so it
+      // must not hold the schedule hostage after the owner approves new sources.
       const unfinished = (
         await pool.query(
-          `SELECT 1 FROM workflow_tasks t WHERE t.workspace_id=$1 AND t.campaign_id IN
+          `SELECT 1 FROM workflow_tasks t WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2 AND t.campaign_id IN
         (SELECT plan_id FROM campaign_plan_acceptances WHERE workspace_id=$1)
         AND t.status IN ('queued','running','pending','awaiting_approval') LIMIT 1`,
-          [workspaceId],
+          [workspaceId, context.snapshot_id],
         )
       ).rowCount;
       if (!active && !unfinished) {
-        const child = await enqueue(
-          `research:${workspaceId}:${new Date(settings.next_run_at).toISOString()}`,
-          { operation: "research.run" },
-        );
+        // Fresh search landscape for this research run. A search outage must not block
+        // research on the existing approved snapshot; it is reported as last_error instead.
+        try {
+          await refreshDiscoveryIfStale(pool, workspaceId, defaultSearch(), settings.interval_hours);
+        } catch (error) {
+          discoveryWarning = `DISCOVERY_FAILED: ${(error as Error).message}`;
+        }
+        // Sources approved since the context was issued (e.g. newly published first-party articles)
+        // reach Research only through a new context; it is issued at a cycle boundary, never mid-cycle.
+        const cycleContext = await newlyApprovedSources(pool, workspaceId, context.snapshot.sources)
+          ? (await new PgPlanRepository(pool).issueContext(workspaceId)).context_snapshot_id
+          : context.snapshot_id;
+        try {
+          const measured = await syncResearchSearchMetrics(pool, workspaceId, cycleContext, undefined, settings.interval_hours);
+          if (measured.status === 'unavailable') discoveryWarning = [discoveryWarning, measured.reason].filter(Boolean).join('; ');
+        } catch {
+          discoveryWarning = [discoveryWarning, 'GSC_QUERY_SYNC_FAILED'].filter(Boolean).join('; ');
+        }
+        const child = await enqueueAiTask(pool, workspaceId, settings.actor_id, {
+          task_id: automationTaskId(`research:${workspaceId}:${new Date(settings.next_run_at).toISOString()}`),
+          context_snapshot_id: cycleContext,
+          input: { operation: "research.run" },
+        });
         await pool.query(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, child.task_id],
@@ -365,10 +491,10 @@ export async function tickAutomation(
       }
     }
     await pool.query(
-      "UPDATE agent_automation SET last_tick_at=now(),last_error=NULL WHERE workspace_id=$1",
-      [workspaceId],
+      "UPDATE agent_automation SET last_tick_at=now(),last_error=$2 WHERE workspace_id=$1",
+      [workspaceId, discoveryWarning],
     );
-    return { status: "ok" };
+    return discoveryWarning ? { status: "ok", warning: discoveryWarning } : { status: "ok" };
   } catch (error) {
     await pool.query(
       "UPDATE agent_automation SET last_tick_at=now(),last_error=$2 WHERE workspace_id=$1",

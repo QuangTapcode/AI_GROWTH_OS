@@ -300,8 +300,13 @@ class TestContentSampleAuditor:
 class TestInstantBundleRollback:
     """Test suite for CM-31 configuration-based rollback in < 60 seconds."""
 
-    def test_rollback_completes_in_under_60_seconds(self):
+    def test_rollback_completes_in_under_60_seconds(self, tmp_path, monkeypatch):
         """Verifies rollback execution time is strictly < 60s (SLA benchmark)."""
+        # Rollback writes the config file; work on a copy so the committed active_bundle.json is untouched.
+        import src.agents.content.bundle_manager as bundle_manager
+        config = tmp_path / "active_bundle.json"
+        config.write_bytes(bundle_manager.ACTIVE_BUNDLE_CONFIG_PATH.read_bytes())
+        monkeypatch.setattr(bundle_manager, "ACTIVE_BUNDLE_CONFIG_PATH", config)
         current_id = get_active_bundle_id()
         start = time.perf_counter()
 

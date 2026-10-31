@@ -198,11 +198,11 @@ describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
       expect(downFiles.some((f) => f.includes('004_reports_exceptions_outbox.down.sql'))).toBe(true);
 
       // Đọc nội dung để kiểm tra cú pháp DROP TABLE CASCADE trong down files
-      // Down file chỉ drop index (vd 004_learning_task_dedup) không cần DROP TABLE; mọi DROP TABLE phải CASCADE.
+      // Down file chỉ drop index (vd 004_learning_task_dedup) hoặc drop column (vd 011_automation_autopilot) không cần DROP TABLE; mọi DROP TABLE phải CASCADE.
       for (const downFile of downFiles) {
         const content = fs.readFileSync(path.join(migrationsDir, downFile), 'utf-8').toUpperCase();
         const dropTables = content.match(/DROP TABLE[^;]*;/g) ?? [];
-        expect(dropTables.length > 0 || content.includes('DROP INDEX')).toBe(true);
+        expect(dropTables.length > 0 || content.includes('DROP INDEX') || content.includes('DROP COLUMN')).toBe(true);
         for (const stmt of dropTables) {
           expect(stmt).toContain('CASCADE');
         }

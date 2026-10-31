@@ -15,6 +15,7 @@ import {
   InMemoryPublicContentRepository,
   type PublicContentRoutes,
 } from "../modules/publicContent";
+import { PgPublicContentRepository } from "../modules/publicContent/pgRepository";
 import { MemoryAnalyticsSink } from "./analytics";
 import type { HttpResult } from "./http";
 
@@ -23,7 +24,10 @@ export const globalLeadRepo = process.env.DATABASE_URL
   ? new PostgresLeadRepository()
   : new InMemoryLeadRepository();
 export const globalAnalyticsSink = new MemoryAnalyticsSink();
-export const globalPublicContentRepo = new InMemoryPublicContentRepository();
+// Real published posts when a database is configured; the labelled mock seed only without one.
+export const globalPublicContentRepo = process.env.DATABASE_URL
+  ? new PgPublicContentRepository()
+  : new InMemoryPublicContentRepository();
 
 export const leadRoutes: LeadRoutes = createLeadRoutes({
   repo: globalLeadRepo,

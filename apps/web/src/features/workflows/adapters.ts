@@ -15,11 +15,15 @@ import type { ActiveAiRun, GrowthTask, PipelineStage } from "./types";
 /** Chuyển dữ liệu workflow_tasks từ API sang kiểu hiển thị của màn Workflows. */
 
 export function taskTitle(task: WorkflowTask): string {
-  return payloadString(task.payload, "title") ?? operationLabel(task.operation);
+  const brief = (task.payload?.brief ?? {}) as Record<string, unknown>;
+  const briefTopic = typeof brief.topic === "string" ? brief.topic : undefined;
+  return payloadString(task.payload, "title") ?? briefTopic ?? operationLabel(task.operation);
 }
 
 export function taskDescription(task: WorkflowTask): string {
-  return payloadString(task.payload, "description") ?? `${agentLabel(task.role)} · ${task.operation}`;
+  const brief = (task.payload?.brief ?? {}) as Record<string, unknown>;
+  const briefCta = typeof brief.cta === "string" ? `CTA: ${brief.cta}` : undefined;
+  return payloadString(task.payload, "description") ?? briefCta ?? `${agentLabel(task.role)} · ${task.operation}`;
 }
 
 /** Tiến độ chỉ có khi task đã xong hoặc payload báo progress_percent; không tự suy đoán. */

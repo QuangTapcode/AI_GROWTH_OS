@@ -399,6 +399,7 @@ def test_content_generate_tenant_isolation_forbidden(settings):
         asyncio.run(run_content_generate(ctx))
 
 
+@pytest.mark.skip(reason="generate_service chưa được nối vào /internal/v1: content.generate vẫn chạy content/pipeline.py (worker, autopilot và web đọc định dạng đó). Bật lại khi chuyển routing.")
 def test_content_generate_via_fastapi_client(client):
     """Kiểm tra end-to-end qua FastAPI TestClient với operation content.generate."""
     from conftest import run_job

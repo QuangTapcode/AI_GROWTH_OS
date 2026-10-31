@@ -1,0 +1,125 @@
+Source: NGHIÊN CỨU NGHIỆP VỤ BASELINE KPI TRONG HỆ THỐNG TRIPC.docx
+User-provided business research. Illustrative values are not production measurements.
+
+NGHIÊN CỨU NGHIỆP VỤ BASELINE KPI TRONG HỆ THỐNG TRIPC
+1. Tổng quan
+1.1. Khái niệm Baseline KPI
+Baseline KPI (Key Performance Indicator Baseline) là giá trị tham chiếu ban đầu của một chỉ số hiệu suất, được xác định trong một phạm vi và khoảng thời gian cụ thể. Giá trị này được sử dụng để so sánh với kết quả đo lường ở các giai đoạn tiếp theo, nhằm theo dõi sự thay đổi trong hiệu suất hoạt động.
+Trong hệ thống TripC, Baseline KPI được nghiên cứu trong bối cảnh hệ thống sử dụng các AI Agent để hỗ trợ nghiên cứu thị trường, xây dựng chiến lược, sản xuất nội dung, quản lý tương tác cộng đồng và theo dõi hiệu suất.
+Dựa trên đặc tả hiện có, chức năng liên quan trực tiếp đến việc đo lường hiệu suất là Performance Operations, gồm hai operation:
+analytics.report: tạo báo cáo phân tích hiệu suất.
+experiment.hypothesis: xây dựng giả thuyết thử nghiệm.
+Đặc tả quy định Performance Operations sử dụng dữ liệu chỉ số từ các nguồn như Google Analytics 4 (GA4), Google Search Console (GSC) và Meta Ads. Vì vậy, Baseline KPI có thể được xem xét như một thành phần nghiệp vụ hỗ trợ việc thiết lập mốc tham chiếu và đánh giá hiệu suất.
+Tuy nhiên, cần xác minh thêm trong tài liệu thiết kế hoặc mã nguồn để xác định Baseline KPI là một module riêng, một chức năng của Performance Operations hay một khái niệm được sử dụng trong quá trình phân tích dữ liệu.
+1.2. Mục đích
+Baseline KPI hướng đến các mục đích sau:
+Ghi nhận trạng thái hiệu suất ban đầu của hoạt động kinh doanh hoặc chiến dịch.
+Tạo cơ sở so sánh giữa kết quả thực tế và giá trị tham chiếu.
+Hỗ trợ nhận diện xu hướng tăng, giảm hoặc ổn định của các chỉ số.
+Cung cấp dữ liệu đầu vào cho việc phân tích hiệu suất và xây dựng giả thuyết cải tiến.
+Hỗ trợ ra quyết định dựa trên dữ liệu đã được thu thập và xác minh.
+Baseline KPI không đồng nghĩa với mục tiêu KPI. Baseline phản ánh mốc tham chiếu, trong khi mục tiêu KPI thể hiện kết quả mong muốn.
+2. Vị trí của Baseline KPI trong hệ thống TripC
+2.1. Mối liên hệ với Performance Operations
+Performance Operations là thành phần liên quan trực tiếp nhất đến việc nghiên cứu Baseline KPI theo đặc tả được cung cấp.
+Hai operation có vai trò như sau:
+a. analytics.report
+Operation này tạo báo cáo hiệu suất dựa trên dữ liệu đã thu thập từ các nguồn phân tích.
+Đầu vào gồm:
+Business profile.
+Goal/context nếu có.
+Knowledge snapshot.
+Metric snapshot từ GA4, GSC và Meta Ads.
+Khoảng thời gian đo lường hợp lệ.
+Đầu ra là PerformanceReport, bao gồm:
+metrics: các chỉ số được báo cáo.
+window: khoảng thời gian đo lường.
+metric_snapshot_id: định danh snapshot chỉ số.
+observations: các nhận xét dựa trên dữ liệu.
+proposal: đề xuất.
+attribution: thông tin quy kết được báo cáo.
+missing_facts: các dữ kiện còn thiếu.
+status: trạng thái draft hoặc insufficient_data.
+spend_mutation_allowed: luôn là false theo đặc tả.
+Trong phạm vi Baseline KPI, dữ liệu metric snapshot và khoảng thời gian đo lường là những thành phần cần được xem xét để xác định mốc tham chiếu và bảo đảm việc so sánh có cùng phạm vi.
+b. experiment.hypothesis
+Operation này có thể được xem xét trong mối liên hệ với việc xây dựng giả thuyết cải tiến dựa trên kết quả phân tích.
+Ví dụ về một giả thuyết cần kiểm chứng: thay đổi tiêu đề bài viết có thể làm tăng tỷ lệ nhấp từ kết quả tìm kiếm.
+Tuy nhiên, đây chỉ là ví dụ minh họa. Đặc tả hiện có chưa mô tả đầy đủ đầu vào, đầu ra và cơ chế xử lý cụ thể của experiment.hypothesis.
+2.2. Mối liên hệ với năm AI Agent còn lại
+Baseline KPI không nhất thiết là chức năng được thực hiện bởi tất cả các Agent. Các Agent khác có thể tạo ra hoạt động hoặc kết quả cần theo dõi hiệu suất.
+Research & Trend Operation: nghiên cứu cơ hội, nhu cầu người dùng, từ khóa và nguồn bằng chứng.
+Growth Lead Operations: lựa chọn cơ hội và xây dựng CampaignPlan.
+SEO Worker: tạo bản nháp SEO và làm mới nội dung.
+Content Marketing Operations: tạo nội dung mạng xã hội và tái sử dụng nội dung.
+Community Operation: tạo câu trả lời cho cộng đồng dựa trên nguồn đã được phê duyệt.
+Performance Operations: tổng hợp chỉ số, tạo báo cáo và hỗ trợ phân tích hiệu suất.
+Mối liên hệ nghiệp vụ có thể được hiểu như sau: các hoạt động từ những Agent khác tạo ra kết quả cần theo dõi; Performance Operations sử dụng dữ liệu đo lường để đánh giá hiệu suất. Việc tự động liên kết KPI với từng Agent, chiến dịch hoặc artifact cần được xác minh thêm trong kiến trúc thực tế.
+3. Phạm vi dữ liệu của Baseline KPI
+3.1. Nguồn dữ liệu
+Theo đặc tả Performance Operations, các nguồn dữ liệu được đề cập gồm:
+GA4: dữ liệu phân tích hoạt động và lưu lượng truy cập website.
+GSC: dữ liệu hiệu suất tìm kiếm tự nhiên, chẳng hạn lượt hiển thị, lượt nhấp và tỷ lệ nhấp.
+Meta Ads: dữ liệu quảng cáo và chi phí khi có tài khoản, quyền truy cập và snapshot phù hợp.
+Không phải tất cả KPI đều có thể lấy từ mọi nguồn. Mỗi chỉ số cần được gắn với nguồn dữ liệu thực sự cung cấp chỉ số đó.
+Đặc tả yêu cầu kiểm tra credential hoặc property tương ứng, phạm vi dữ liệu, timestamp và hash của snapshot trước khi sử dụng.
+3.2. Các thông tin cần xác định cho mỗi KPI
+Để một KPI có thể được sử dụng làm mốc tham chiếu đáng tin cậy, cần xác định tối thiểu:
+Thông tin | Ý  nghĩa
+Tên  KPI | Tên   chỉ   số   cần   theo   dõi
+Định  nghĩa | Quy  tắc   xác   định   chỉ   số
+Đơn   vị   đo | Lượt ,  phần   trăm ,  thời   gian   hoặc  chi  phí
+Giá   trị  baseline | Giá   trị   tham   chiếu  ban  đầu
+Khoảng   thời   gian | Thời   gian   dữ   liệu   được   ghi   nhận
+Nguồn   dữ   liệu | Hệ   thống   cung   cấp   chỉ   số
+Phạm vi  đo   lường | Website,  chiến   dịch ,  kênh   hoặc   đối   tượng   liên   quan
+Thời   điểm   ghi   nhận | Thời   điểm  snapshot  được   tạo   hoặc   lấy   dữ   liệu
+Trạng   thái   dữ   liệu | Dữ   liệu   hợp   lệ ,  thiếu   hoặc   không   thể   xác   minh
+Đây là các thông tin đề xuất để chuẩn hóa nghiệp vụ Baseline KPI. Chưa thể kết luận tất cả đều là trường dữ liệu đã được triển khai trong TripC.
+4. Luồng nghiệp vụ đề xuất
+Trong phạm vi nghiên cứu, luồng nghiệp vụ Baseline KPI có thể được mô tả theo các bước sau:
+Bước 1. Xác định mục tiêu đo lường
+Xác định hoạt động hoặc kết quả kinh doanh cần theo dõi, chẳng hạn hiệu suất SEO, lưu lượng truy cập website hoặc hiệu quả quảng cáo.
+Goal/context và business profile có thể cung cấp bối cảnh để xác định chỉ số phù hợp.
+Bước 2. Xác định KPI và nguồn dữ liệu
+Lựa chọn các chỉ số có thể đo lường từ những nguồn dữ liệu được kết nối. Mỗi chỉ số cần có định nghĩa và phạm vi rõ ràng.
+Bước 3. Thu thập dữ liệu tham chiếu
+Lấy dữ liệu từ snapshot tương ứng, xác minh nguồn, khoảng thời gian, phạm vi và tính hợp lệ của dữ liệu.
+Theo đặc tả Performance Operations, snapshot phải có scope, timestamp và hash; khoảng thời gian không được nằm trong tương lai.
+Bước 4. Xác lập giá trị baseline
+Từ dữ liệu hợp lệ, xác định giá trị tham chiếu cho từng KPI trong khoảng thời gian đã chọn.
+Cách chọn khoảng thời gian baseline, cách tổng hợp dữ liệu và việc có lưu baseline riêng hay không cần được xác nhận với thiết kế thực tế.
+Bước 5. Theo dõi và so sánh
+Khi có dữ liệu ở giai đoạn tiếp theo, so sánh chỉ số mới với baseline tương ứng, bảo đảm cùng định nghĩa, đơn vị và phạm vi đo lường.
+Bước 6. Tạo báo cáo và đề xuất
+Performance Operations có thể sử dụng các chỉ số để tạo PerformanceReport, ghi nhận observations, đề xuất và các dữ kiện còn thiếu.
+Nếu thiếu dữ liệu cần thiết, hệ thống phải trả về insufficient_data thay vì tự tạo số liệu hoặc kết luận không có căn cứ.
+5. Quy tắc nghiệp vụ và yêu cầu chất lượng dữ liệu
+Đây là phần quan trọng khi nghiên cứu Baseline KPI trong TripC, vì đặc tả Performance Operations đặt ra những yêu cầu rõ ràng về tính chính xác và độ tin cậy của dữ liệu.
+5.1. Sử dụng dữ liệu có nguồn gốc rõ ràng
+Các chỉ số trong báo cáo phải được lấy từ metric snapshot hợp lệ. Không tự tạo hoặc tự thay đổi giá trị do nhà cung cấp dữ liệu trả về.
+5.2. Phân biệt giá trị 0 và dữ liệu chưa có
+0: nguồn dữ liệu đã đo lường và ghi nhận giá trị bằng 0.
+null hoặc giá trị chưa có: dữ liệu chưa được cung cấp, chưa đo được hoặc chưa thể xác minh.
+Không được coi việc thiếu dữ liệu là giá trị 0.
+5.3. Xử lý lỗi nguồn dữ liệu
+Khi provider gặp lỗi hoặc không cung cấp dữ liệu, hệ thống không được ghi đè giá trị thành 0. Nếu thiếu dữ liệu cần thiết để tạo báo cáo, trạng thái phải là insufficient_data.
+5.4. Bảo đảm tính hợp lệ của khoảng thời gian
+Khoảng thời gian phân tích phải hợp lệ và không nằm trong tương lai. Khi so sánh các giai đoạn, cần bảo đảm phạm vi đo lường đủ tương đồng để tránh đưa ra nhận xét sai lệch.
+5.5. Không suy diễn quan hệ nhân quả
+Việc một chỉ số tăng sau khi triển khai một hoạt động không đủ để khẳng định hoạt động đó là nguyên nhân gây ra sự tăng trưởng.
+Không tự suy ra ROI, causal impact hoặc chi phí quảng cáo nếu dữ liệu và phương pháp phân tích không đủ căn cứ.
+5.6. Không tự thay đổi ngân sách quảng cáo
+Đặc tả quy định spend_mutation_allowed: false. Vì vậy, hoạt động báo cáo và phân tích hiệu suất không được tự thay đổi ngân sách quảng cáo.
+5.7. Bảo toàn tính nhất quán của dữ liệu
+Khi sử dụng snapshot, cần bảo đảm các thông tin về phạm vi, thời điểm và hash khớp với dữ liệu được tham chiếu. Điều này giúp hạn chế việc so sánh các dữ liệu không cùng phiên bản hoặc không cùng phạm vi.
+6. Ví dụ minh họa
+Giả sử TripC muốn theo dõi hiệu suất tìm kiếm tự nhiên của một website du lịch.
+Các số liệu dưới đây chỉ phục vụ minh họa, không phải dữ liệu thực tế của TripC.
+Chỉ   số | Giai  đoạn   tham   chiếu | Giai  đoạn   tiếp   theo
+Lượt   nhấp   từ   tìm   kiếm   tự   nhiên | 1.000 | 1.200
+Lượt   hiển   thị | 20.000 | 24.000
+CTR | 5% | 5%
+Nếu các chỉ số được đo trong phạm vi tương đương, hệ thống có thể ghi nhận lượt nhấp tăng 20%, lượt hiển thị tăng 20%, trong khi CTR không thay đổi.
+Cách diễn giải phù hợp là: dữ liệu ghi nhận lưu lượng nhấp và lượt hiển thị tăng trong giai đoạn so sánh, còn CTR giữ nguyên.
+Không thể chỉ dựa vào các con số trên để kết luận rằng một bài viết SEO hoặc một AI Agent cụ thể đã gây ra mức tăng trưởng đó. Muốn đưa ra kết luận về nguyên nhân, cần có thêm bằng chứng và phương pháp đánh giá phù hợp.

@@ -9,6 +9,7 @@ import {
   automationTaskId,
 } from "@/modules/campaignPlans/automation";
 import { enqueueAiTask } from "@/modules/campaignPlans/aiTasks";
+import { workspaceAlerts } from "@/modules/campaignPlans/alerts";
 import { PlanError } from "@/modules/campaignPlans/service";
 
 const schema = z
@@ -18,6 +19,7 @@ const schema = z
     cta: z.string().trim().min(1).max(200),
     auto_approve_outputs: z.boolean().default(false),
     auto_publish_facebook: z.boolean().default(false),
+    auto_publish_website: z.boolean().default(false),
     run_now: z.boolean().optional(),
   })
   .strict();
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest, { params }: Context) {
     return NextResponse.json({
       settings,
       tasks,
+      alerts: await workspaceAlerts(pool, params.workspace_id),
       observed_at: new Date().toISOString(),
     });
   } catch (e) {
@@ -68,12 +71,12 @@ export async function PUT(req: NextRequest, { params }: Context) {
       );
     const b = parsed.data;
     await pool.query(
-      `INSERT INTO agent_automation(workspace_id,actor_id,enabled,interval_hours,cta,auto_approve_outputs,auto_publish_facebook)
-       VALUES($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO agent_automation(workspace_id,actor_id,enabled,interval_hours,cta,auto_approve_outputs,auto_publish_facebook,auto_publish_website)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT(workspace_id) DO UPDATE SET actor_id=$2,enabled=$3,interval_hours=$4,cta=$5,
-         auto_approve_outputs=$6,auto_publish_facebook=$7,updated_at=now()`,
+         auto_approve_outputs=$6,auto_publish_facebook=$7,auto_publish_website=$8,updated_at=now()`,
       [params.workspace_id, tenant.user.id, b.enabled, b.interval_hours, b.cta,
-       b.auto_approve_outputs, b.auto_publish_facebook],
+       b.auto_approve_outputs, b.auto_publish_facebook, b.auto_publish_website],
     );
     if (b.run_now) await tickAutomation(pool, params.workspace_id, true);
     return NextResponse.json({ status: "saved" });
@@ -108,6 +111,27 @@ export async function POST(req: NextRequest, { params }: Context) {
               metrics_artifact_id: z.string().uuid(),
             })
             .strict(),
+          z
+            .object({
+              operation: z.literal("experiment.hypothesis"),
+              metrics_artifact_id: z.string().uuid().optional(),
+              experiment: z
+                .object({
+                  hypothesis: z.string().min(1).max(500),
+                  control_variant: z.string().min(1).max(200),
+                  treatment_variant: z.string().min(1).max(200),
+                  primary_metric: z.string().min(1).max(100),
+                  period: z
+                    .object({
+                      start: z.string().datetime({ offset: true }),
+                      end: z.string().datetime({ offset: true }),
+                    })
+                    .strict(),
+                  grouping: z.string().min(1).max(100),
+                })
+                .strict(),
+            })
+            .strict(),
         ]),
       })
       .strict();
@@ -116,7 +140,7 @@ export async function POST(req: NextRequest, { params }: Context) {
       throw new AppError(
         422,
         "INVALID_EVENT",
-        "Provide event_id and typed community/metrics input",
+        "Provide event_id and typed community/metrics/experiment input",
       );
     const context = (
       await pool.query(

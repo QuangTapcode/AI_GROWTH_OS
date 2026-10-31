@@ -7,8 +7,8 @@
  */
 
 import type { PublishJob } from '../jobs/JobState';
-import { FacebookPagePublisher } from './FacebookPagePublisher.ts';
-import { TikTokPublisher } from './TikTokPublisher.ts';
+import { FacebookPagePublisher } from './FacebookPagePublisher';
+import { TikTokPublisher } from './TikTokPublisher';
 
 export type PublishChannel = 'Website' | 'Facebook' | 'TikTok' | 'Instagram' | 'Newsletter';
 

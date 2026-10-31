@@ -1,4 +1,5 @@
 import { AppError } from "../../lib/errors";
+import pool from "../../lib/db";
 import { AuthUser } from "../../lib/auth";
 import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import {
@@ -11,6 +12,12 @@ import {
 } from "./schemas";
 import * as repo from "./repository";
 import { getCampaignById } from "../campaigns/repository";
+import {
+  expectedRoleForOperation,
+  isExecutableAgentOperation,
+  missingTaskPrerequisite,
+  normalizeTaskPayload,
+} from "./catalog";
 
 export async function createWorkspaceTask(
   user: AuthUser,
@@ -60,7 +67,50 @@ export async function createWorkspaceTask(
     }
   }
 
-  const task = await repo.createTaskWithDependencies(workspaceId, input);
+  const expectedRole = expectedRoleForOperation(input.operation);
+  if (!isExecutableAgentOperation(input.operation) || expectedRole !== input.role) {
+    throw new AppError(
+      422,
+      "UNSUPPORTED_AGENT_OPERATION",
+      `Operation '${input.operation}' is not executable by role '${input.role}'.`,
+    );
+  }
+
+  const normalizedPayload = normalizeTaskPayload(input.operation, input.payload ?? {});
+  const missing = missingTaskPrerequisite(input.operation, normalizedPayload);
+  if (missing) {
+    throw new AppError(
+      422,
+      "MISSING_TASK_PREREQUISITE",
+      `Operation '${input.operation}' requires '${missing}' before it can be queued.`,
+    );
+  }
+
+  // Every executable task is pinned to a backend-issued current context. A
+  // caller may omit the id in the lightweight modal, but may not invent one.
+  let contextSnapshotId = input.context_snapshot_id ?? null;
+  const context = contextSnapshotId
+    ? (await pool.query(
+      "SELECT snapshot_id, current FROM knowledge_contexts WHERE workspace_id=$1 AND snapshot_id=$2",
+      [workspaceId, contextSnapshotId],
+    )).rows[0]
+    : (await pool.query(
+      "SELECT snapshot_id, current FROM knowledge_contexts WHERE workspace_id=$1 AND current",
+      [workspaceId],
+    )).rows[0];
+  if (!context) {
+    throw new AppError(422, "MISSING_CONTEXT", "Create a current knowledge context before queuing agent work.");
+  }
+  if (!context.current) {
+    throw new AppError(409, "STALE_CONTEXT", "The selected knowledge context is no longer current; refresh the workspace context and retry.");
+  }
+  contextSnapshotId = context.snapshot_id;
+
+  const task = await repo.createTaskWithDependencies(workspaceId, {
+    ...input,
+    context_snapshot_id: contextSnapshotId,
+    payload: normalizedPayload,
+  }, { enqueue: true });
   return task;
 }
 
@@ -127,14 +177,28 @@ export async function updateWorkspaceTaskStatus(
   }
 
   // Xác thực result_ref nếu có: Phải tồn tại và thuộc cùng workspace này (chống Cross-Tenant Reference / IDOR)
+  let linkedArtifact: repo.ContentArtifactRow | null = null;
   if (parseResult.data.result_ref) {
-    const linkedArtifact = await repo.getArtifactById(workspaceId, parseResult.data.result_ref);
+    linkedArtifact = await repo.getArtifactById(workspaceId, parseResult.data.result_ref);
     if (!linkedArtifact) {
       throw new AppError(
         422,
         "INVALID_RESULT_REF",
         `Referenced result artifact '${parseResult.data.result_ref}' does not exist in this workspace`
       );
+    }
+  }
+
+  if (parseResult.data.status === "completed") {
+    if (!linkedArtifact) {
+      throw new AppError(422, "RESULT_REQUIRED", "A task can only be completed after its artifact is persisted.");
+    }
+    if (linkedArtifact.task_id && linkedArtifact.task_id !== taskId) {
+      throw new AppError(422, "RESULT_TASK_MISMATCH", "The result artifact belongs to a different task.");
+    }
+    const result = linkedArtifact.payload?.result as Record<string, unknown> | undefined;
+    if (result?.status === "insufficient_data") {
+      throw new AppError(422, "INCOMPLETE_RESULT", "Insufficient-data output cannot be marked completed; resolve its missing facts first.");
     }
   }
 

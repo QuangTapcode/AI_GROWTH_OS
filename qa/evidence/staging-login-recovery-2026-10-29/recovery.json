@@ -1,0 +1,26 @@
+{
+  "checked_at": "2026-10-29T08:35:36.509Z",
+  "site": "https://aigrowthos-staging.pages.dev",
+  "before": {
+    "health_status": 502,
+    "error_code": "API_UNREACHABLE",
+    "upstream_status": 530
+  },
+  "after": {
+    "health_status": 200,
+    "api_status": "ok",
+    "login_validation_status": 422,
+    "login_error_code": "VALIDATION_FAILED"
+  },
+  "deployment": "https://7aa561f7.aigrowthos-staging.pages.dev",
+  "api_proxy": "https://aigrowthos-staging-api.griculture.workers.dev",
+  "tasks": [
+    "AI-Growth-OS API",
+    "AI-Growth-OS Named Tunnel"
+  ],
+  "recovery_interval": "1 minute",
+  "real_account_credentials_used": false,
+  "availability_test": "passed",
+  "proxy_tests_passed": 3,
+  "limitation": "Windows API host, database, tunnel and network must remain available"
+}

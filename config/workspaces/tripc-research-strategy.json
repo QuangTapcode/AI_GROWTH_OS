@@ -1,0 +1,125 @@
+{
+  "version": "tripc-strategy-v1",
+  "status": "operator_strategy_not_measured_demand",
+  "source_document": {
+    "filename": "TripC_Phan_tich_doi_thu_va_Chu_de_uu_tien.docx",
+    "sha256": "dc661dac924813c3beef0c80801db9bcad76e39b6bb959bf2e5652ba1d1fb6a5",
+    "reviewed_at": "2026-10-28"
+  },
+  "topics": [
+    {
+      "id": "PT-01",
+      "title": "Travel and local experiences",
+      "priority": "high",
+      "query_terms": [
+        "local experiences",
+        "food and cafes",
+        "weekend trips"
+      ],
+      "journey_stage": "discover",
+      "objective_metrics": [
+        "clicks",
+        "qualified_visits"
+      ],
+      "verification": [
+        "approved_sources",
+        "recheck_dynamic_facts"
+      ]
+    },
+    {
+      "id": "PT-02",
+      "title": "Living and working in Vietnam",
+      "priority": "high",
+      "query_terms": [
+        "housing",
+        "coworking",
+        "living areas"
+      ],
+      "journey_stage": "settle",
+      "objective_metrics": [
+        "qualified_visits",
+        "leads"
+      ],
+      "verification": [
+        "approved_sources",
+        "recheck_dynamic_facts"
+      ]
+    },
+    {
+      "id": "PT-03",
+      "title": "Soft Landing for new arrivals",
+      "priority": "high",
+      "query_terms": [
+        "arrival checklist",
+        "airport transfer",
+        "settling in"
+      ],
+      "journey_stage": "arrive",
+      "objective_metrics": [
+        "leads"
+      ],
+      "verification": [
+        "approved_sources",
+        "confirmed_capability_before_promotion"
+      ]
+    },
+    {
+      "id": "PT-04",
+      "title": "Practical guides for foreigners",
+      "priority": "medium",
+      "query_terms": [
+        "transport",
+        "banking",
+        "residency procedures"
+      ],
+      "journey_stage": "prepare",
+      "objective_metrics": [
+        "clicks",
+        "qualified_visits"
+      ],
+      "verification": [
+        "approved_sources",
+        "official_sources_for_sensitive_topics"
+      ]
+    },
+    {
+      "id": "PT-05",
+      "title": "Community and local connections",
+      "priority": "medium",
+      "query_terms": [
+        "community events",
+        "meetups",
+        "language exchange"
+      ],
+      "journey_stage": "connect",
+      "objective_metrics": [
+        "qualified_visits",
+        "leads"
+      ],
+      "verification": [
+        "approved_sources",
+        "event_details"
+      ]
+    }
+  ],
+  "competitor_references": [
+    {
+      "name": "Expats Da Nang",
+      "url": "https://www.expatsdanang.com/",
+      "lesson": "Offer one clear next action for each confirmed customer need.",
+      "status": "document_observation_requires_recheck"
+    },
+    {
+      "name": "NEST Living",
+      "url": "https://nestliving.vn/services",
+      "lesson": "Organize support around an arrival journey and structured needs intake.",
+      "status": "document_observation_requires_recheck"
+    },
+    {
+      "name": "Living Da Nang",
+      "url": "https://livingdanang.com/",
+      "lesson": "Make local options comparable using structured location and freshness data.",
+      "status": "document_observation_requires_recheck"
+    }
+  ]
+}

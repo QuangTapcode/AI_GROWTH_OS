@@ -35,6 +35,17 @@ describe('social provider adapters', () => {
     expect(result.externalPostId).toBe('page_123_post_456');
   });
 
+  it('keeps Facebook paragraph breaks and hashtags while stripping markdown', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ id: 'page_123_post_789' }), { status: 200 }));
+    await new FacebookPagePublisher('page_123', 'secret-token').publish({
+      ...request,
+      channel: 'Facebook',
+      bodyMarkdown: '## Choosing a **living area**?\n\n\n• Quiet streets  near the beach\n\nRequest the guide\n\n#TripC #Da_Nang',
+    });
+    const body = fetchSpy.mock.calls[0][1]?.body as URLSearchParams;
+    expect(body.get('message')).toBe('Choosing a living area?\n\n• Quiet streets near the beach\n\nRequest the guide\n\n#TripC #Da_Nang');
+  });
+
   it('initializes a TikTok Direct Post only after media is supplied', async () => {
     process.env.TIKTOK_API_BASE_URL = 'https://tiktok.test';
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: { code: 'ok' }, data: { publish_id: 'pub_123' } }), { status: 200 }));

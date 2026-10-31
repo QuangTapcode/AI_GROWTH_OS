@@ -1,0 +1,14 @@
+{
+  "name": "aigrowthos-staging-api",
+  "main": "index.mjs",
+  "account_id": "a91895e9f1a62616a7c4d4972fbd94e7",
+  "compatibility_date": "2026-10-29",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vpc_services": [
+    {
+      "binding": "LOCAL_API",
+      "service_id": "01a186c8-54fa-7f83-b36b-554806bf971f"
+    }
+  ]
+}

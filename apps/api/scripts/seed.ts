@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import pool from "../src/lib/db";
 import { hashPassword } from "../src/lib/password";
+import { canonicalJson } from "../src/lib/hash";
 
 /**
  * Seed dữ liệu synthetic cho DB local (database/README: tenant A/B + roles).
@@ -258,7 +259,7 @@ const ARTIFACTS: ArtifactSeed[] = [
 ];
 
 function contentHash(title: string, payload: Record<string, unknown>): string {
-  return createHash("sha256").update(JSON.stringify({ title, payload })).digest("hex");
+  return createHash("sha256").update(canonicalJson({ title, payload })).digest("hex");
 }
 
 async function main() {

@@ -4,6 +4,28 @@ Hai giao diện Next.js và một API chạy trên máy Windows, dữ liệu tro
 
 ## Bật staging
 
+Chạy riêng AI và worker tạo nháp (không tự duyệt, không scheduler tự động, không publishing):
+
+```powershell
+.\infra\staging\agents-host.ps1 -Component ai -InstallTask
+.\infra\staging\agents-host.ps1 -Component draft-worker -InstallTask
+```
+
+Chế độ tự động 100%: cài task worker với `-Autopilot` (thêm scheduler tick và publishing outbox),
+rồi owner nhập yêu cầu ở Agent Operations. Xem [AGENT-AUTOMATION.md](../../docs/coordination/AGENT-AUTOMATION.md#autopilot-one-request-no-manual-steps).
+
+AI cần Ollama và các model local sẵn sàng. Draft worker kiểm `/readyz` trước khi
+nhận task; dùng DATABASE_URL và token từ API `.env.local`, không reset credential.
+Worker này xử lý source ingest và task outbox, giữ output ở approval gate. Nó
+không gọi automation tick hoặc publishing runner, kể cả khi các checkbox tự động
+trong database đang bật. Không chạy đồng thời với worker đầy đủ nếu chưa kiểm tra
+mong muốn auto-approve/publish của workspace.
+
+Lỗi Research ngày 29/10: queue không có consumer; sau khi bật worker phát hiện
+prompt vượt 2.800 token do inventory/search metadata. Runtime đã rút gọn title hints
+và search metadata trong prompt, vẫn dedup trên đầy đủ inventory và giữ budget cứng.
+Giao diện phân biệt queued/running, không dùng kết nối API làm bằng chứng worker online.
+
 Yêu cầu Node.js major 24 (`24.14.1` đã dùng), npm, Docker Desktop và PowerShell trên Windows. Từ repository root, lần đầu sau khi clone:
 
 ```powershell
@@ -27,6 +49,58 @@ Script cài dependencies bằng `npm ci` khi thiếu, tạo `.env.local` từ `.
 Server chỉ bind `127.0.0.1`. GA4/GSC đã thiết lập cho URL công khai `https://aigrowthos-staging.pages.dev/`; bootstrap local không gửi telemetry vào GA4.
 
 ## Public staging trên Cloudflare Pages
+
+### Khôi phục đăng nhập ngày 29/10/2026
+
+Public staging hiện dùng đường đi:
+`aigrowthos-staging.pages.dev/v1/*` → Worker
+`aigrowthos-staging-api.griculture.workers.dev` → VPC Service → named tunnel → API local `127.0.0.1:4000`.
+
+Tunnel dùng DNS resolver riêng `1.1.1.1:53` và `8.8.8.8:53` qua
+`--dns-resolver-addrs` để xử lý lỗi định kỳ `Failed to refresh DNS local resolver`.
+Không thay DNS của Windows. Có thể đổi bằng tham số `-DnsResolvers 'IP:PORT,IP:PORT'`
+trong `named-tunnel.ps1`; cài lại task để lưu cấu hình mới. Giữ QUIC cho Workers VPC.
+Xem [tham số chính thức của cloudflared](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#dns-resolver-addrs).
+Sau khi khởi động lại, kiểm tra `/v1/health` qua Pages và theo dõi log qua ít nhất
+một chu kỳ làm mới DNS; kết nối thành công lúc khởi động chưa chứng minh lỗi định kỳ đã hết.
+Worker chỉ chuyển tiếp `/v1/*`, không mở các endpoint `/internal/*`.
+VPC binding dùng tunnel đã có; [tài liệu Cloudflare](https://developers.cloudflare.com/workers-vpc/configuration/tunnel/).
+
+Lỗi đã tái hiện: trang login trả 200 nhưng API trả 502 `API_UNREACHABLE`.
+API không chạy, tunnel task đã dừng; bản proxy build trước trỏ quick tunnel cũ.
+`api.growthos.vn` cũng không trỏ tới Cloudflare ở lần kiểm tra này và không có trong
+zone của tài khoản đang kết nối, nên không dùng hostname đó làm public origin mới.
+
+- `api-host.ps1 -InstallTask` chạy production API build dưới Scheduled Task `AI-Growth-OS API`.
+- `named-tunnel.ps1 -InstallTask -SkipDnsRoute` quản lý tunnel hiện có.
+- Cả hai chạy khi đăng nhập Windows, có trigger khôi phục mỗi phút, không tạo instance trùng, không dừng vì chuyển sang pin.
+- Host không tự build/migrate/seed/reset mật khẩu hoặc AUTH_SECRET khi khởi động lại.
+- `cloudflare-pages/deploy.ps1` ưu tiên `.runtime/public-api-origin.txt` để lần deploy sau giữ endpoint proxy ổn định.
+
+Đây vẫn là backend trên máy Windows: máy, Docker/PostgreSQL và mạng phải hoạt động.
+Tắt máy hoặc sleep vẫn làm API ngừng phục vụ; Scheduled Tasks giúp khởi động/khôi phục
+khi host hoạt động trở lại, không thay một backend được host 24/7.
+
+Trước khi build lại API đang phục vụ, dừng task có chủ đích; không build đè lên `.next` đang chạy:
+
+```powershell
+Disable-ScheduledTask -TaskName 'AI-Growth-OS API'
+Stop-ScheduledTask -TaskName 'AI-Growth-OS API'
+# Build API trong apps/api, sau đó:
+Enable-ScheduledTask -TaskName 'AI-Growth-OS API'
+Start-ScheduledTask -TaskName 'AI-Growth-OS API'
+```
+
+Kiểm tra hồi quy (không gửi mật khẩu hoặc tạo phiên đăng nhập):
+
+```powershell
+$env:STAGING_BASE_URL = 'https://aigrowthos-staging.pages.dev'
+node --test infra/staging/tests/availability.test.mjs
+node --test infra/staging/tests/api-proxy.test.mjs
+```
+
+Các mục quick tunnel/named hostname bên dưới mô tả cấu hình cũ/fallback; route VPC ở trên
+là đường đang sử dụng. Không đổi DNS ngoài tài khoản hoặc quay lại quick URL đã hết hiệu lực.
 
 `https://aigrowthos-staging.pages.dev/` phục vụ `apps/web` (static export). Request `/v1/*` đi qua Pages Function (`cloudflare-pages/v1-proxy.template.js`) tới API local qua Cloudflare Tunnel:
 

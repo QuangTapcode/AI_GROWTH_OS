@@ -26,6 +26,7 @@ import { DbWorkflowStore } from './workflow';
 import { Pool } from 'pg';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
+import { SourceIngestRunner } from './workflow/SourceIngestRunner';
 
 /** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
 let workflowStore: DbWorkflowStore | null = null;
@@ -50,6 +51,18 @@ async function main(): Promise<void> {
     password: cfg.QUEUE_PASSWORD, database: cfg.QUEUE_DATABASE });
   const planOutbox = new PlanOutboxRunner(planPool, buildAiAdapter(cfg));
   const publishingOutbox = new PublishingOutboxRunner(planPool);
+  const sourceIngest = new SourceIngestRunner(planPool, buildAiAdapter(cfg));
+  let ingestRunning = false;
+  const ingestTimer = setInterval(() => {
+    // URL ingest needs the HTTP AI service (fetch + robots.txt + embeddings); the echo adapter cannot ingest.
+    if (cfg.AI_PROVIDER_MODE !== 'live' || ingestRunning) return;
+    ingestRunning = true;
+    void sourceIngest.runOnce()
+      .then(result => { if (result) console.log(`[source-ingest] ${result.source_id} ${result.status}${'error' in result ? ` ${result.error}` : ''}`); })
+      .catch(error => console.error('[source-ingest]', (error as Error).message))
+      .finally(() => { ingestRunning = false; });
+  }, 5_000);
+  ingestTimer.unref();
   let planRunning = false;
   const planTimer = setInterval(() => {
     // A fake echo adapter has no signed AI artifacts; only HTTP-backed workers consume plans.
