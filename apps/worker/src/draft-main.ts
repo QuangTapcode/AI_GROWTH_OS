@@ -79,4 +79,4 @@ async function main() {
     ? '[draft-worker] ready; AUTOPILOT: scheduler tick and publishing enabled, governed by workspace automation settings'
     : '[draft-worker] ready; automatic approval, automation scheduler and publishing are disabled in this process');
 }
-void main().catch(error => { console.error('[draft-worker] startup failed:', error.message); process.exit(1); });
+void main().catch(error => { console.error('[draft-worker] startup failed:', error?.stack || error); process.exit(1); });
