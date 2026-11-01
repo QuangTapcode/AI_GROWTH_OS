@@ -89,9 +89,17 @@ class RunContext:
                 return model.model_validate_json(content)
             except (ValidationError, ValueError) as exc:
                 last_error = exc.__class__.__name__
+                details = (
+                    "; ".join(
+                        f"{'.'.join(str(p) for p in err.get('loc', ()))}: {err.get('msg', '')}"
+                        for err in exc.errors()[:5]
+                    )
+                    if isinstance(exc, ValidationError)
+                    else str(exc)[:300]
+                )
                 messages_user = (
-                    f"{user}\n\nYour previous reply did not match the JSON schema ({last_error}). "
-                    "Reply again with JSON that matches the schema exactly."
+                    f"{user}\n\nYour previous reply did not match the JSON schema ({last_error}: {details}). "
+                    "Reply again with JSON that matches the schema and all field length limits exactly."
                 )
         raise ProviderError("INVALID_STRUCTURED_OUTPUT", f"Model output did not match schema ({last_error})")
 

@@ -157,7 +157,7 @@ class RunStatus(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok"]
     service: str
-    provider_mode: Literal["fake", "live"]
+    provider_mode: Literal["fake", "live", "gemini"]
     model: str
     embedding_model: str
     schema_version: str = SCHEMA_VERSION

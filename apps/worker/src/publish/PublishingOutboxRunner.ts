@@ -196,6 +196,17 @@ export class PublishingOutboxRunner {
     );
 
     const payload = job.artifact_payload ?? {};
+    const payloadResult = (payload.result && typeof payload.result === 'object' ? payload.result : {}) as Record<string, unknown>;
+    const payloadFacebook = (
+      payloadResult.facebook && typeof payloadResult.facebook === 'object' ? payloadResult.facebook : {}
+    ) as Record<string, unknown>;
+    const resolvedBodyMarkdown =
+      asString(job.body_markdown) ??
+      (channel === 'Facebook' ? asString(payloadFacebook.text) : undefined) ??
+      asString(payloadResult.caption) ??
+      asString(payloadResult.body_markdown) ??
+      asString(payload.document_markdown) ??
+      '';
     const gatewayCheck = createGatewayCheck();
 
     let result;
@@ -207,7 +218,7 @@ export class PublishingOutboxRunner {
         channel,
         scheduledAt,
         idempotencyKey,
-        bodyMarkdown: job.body_markdown ?? '',
+        bodyMarkdown: resolvedBodyMarkdown,
         metaTitle: job.content_title,
         linkUrl: job.utm_url ?? undefined,
         mediaUrl: asString(payload.media_url ?? payload.mediaUrl),

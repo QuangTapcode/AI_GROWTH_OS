@@ -201,16 +201,19 @@ class GeminiProvider:
             sanitized_schema = clean_schema_for_gemini(schema)
 
             def _call_gemini():
+                cfg_kwargs: dict[str, Any] = {
+                    "system_instruction": system,
+                    "response_mime_type": "application/json",
+                    "response_schema": sanitized_schema,
+                    "max_output_tokens": max(4096, min(max_output_tokens, self.settings.max_output_tokens)),
+                    "temperature": 0.0,
+                }
+                if "2.5" in self.settings.gemini_model:
+                    cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
                 return self.client.models.generate_content(
                     model=self.settings.gemini_model,
                     contents=user,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system,
-                        response_mime_type="application/json",
-                        response_schema=sanitized_schema,
-                        max_output_tokens=min(max_output_tokens, self.settings.max_output_tokens),
-                        temperature=0.0,
-                    ),
+                    config=types.GenerateContentConfig(**cfg_kwargs),
                 )
 
             response = await asyncio.to_thread(_call_gemini)
