@@ -185,10 +185,17 @@ export class PlanOutboxRunner {
       return { task_id: task.id, artifact, output: result.output, evidence: result.evidence ?? [], model: result.model, run_id: result.run_id, status: 'awaiting_approval' };
     } catch (error) {
       console.error('[plan-outbox]', error);
-      const permanent = (error as { permanent?: boolean }).permanent === true ||
-        ['TASK_NOT_RUNNABLE', 'TASK_DEADLINE_EXCEEDED', 'SELECTED_FINDING_MISSING', 'MISSING_RESEARCH_ARTIFACT', 'MISSING_CTA', 'STALE_CONTEXT', 'SOURCE_NOT_APPROVED', 'DEPENDENCY_NOT_APPROVED', 'UNKNOWN_PLAN_OPERATION', 'INVALID_AI_ARTIFACT', 'ARTIFACT_HASH_MISMATCH'].includes((error as Error).message);
+      // Model output varies between runs, so a malformed reply gets one fresh run. New input_version,
+      // because the AI service keeps a failed run and its call budget per version.
+      const schemaRetry = (error as { code?: string }).code === 'INVALID_STRUCTURED_OUTPUT' && claimed.attempts === 1;
+      const permanent = !schemaRetry && ((error as { permanent?: boolean }).permanent === true ||
+        ['TASK_NOT_RUNNABLE', 'TASK_DEADLINE_EXCEEDED', 'SELECTED_FINDING_MISSING', 'MISSING_RESEARCH_ARTIFACT', 'MISSING_CTA', 'STALE_CONTEXT', 'SOURCE_NOT_APPROVED', 'DEPENDENCY_NOT_APPROVED', 'UNKNOWN_PLAN_OPERATION', 'INVALID_AI_ARTIFACT', 'ARTIFACT_HASH_MISMATCH'].includes((error as Error).message));
       const owned = await this.pool.query("UPDATE plan_task_outbox SET status=$2::varchar,lease_until=NULL,error_code=$3::text WHERE id=$1::uuid AND status='claimed' AND attempts=$4::integer RETURNING task_id", [claimed.id, permanent || claimed.attempts >= 3 ? 'failed' : 'pending', (error as Error).message, claimed.attempts]);
       if (owned.rowCount && !permanent && claimed.attempts < 3) await this.pool.query("UPDATE workflow_tasks SET status='queued',error_details=$2,updated_at=now() WHERE id=$1 AND status='running'", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);
+      if (owned.rowCount && schemaRetry) {
+        const bumped = (await this.pool.query('UPDATE workflow_tasks SET input_version=input_version+1,updated_at=now() WHERE id=$1 RETURNING input_version', [claimed.task_id])).rows[0];
+        await this.pool.query('UPDATE plan_task_outbox SET input_version=$2 WHERE id=$1', [claimed.id, bumped.input_version]);
+      }
       // A question the agents cannot answer goes to a person; it must not stay queued with nobody working on it.
       if (owned.rowCount && (permanent || claimed.attempts >= 3) && claimed.operation === 'community.response')
         await this.pool.query("UPDATE community_messages SET status='escalated',updated_at=now() WHERE workspace_id=$1 AND task_id=$2 AND status='queued'", [claimed.workspace_id, claimed.task_id]);

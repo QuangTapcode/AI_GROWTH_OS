@@ -1,4 +1,5 @@
 import json
+import logging
 from copy import deepcopy
 from uuid import uuid4
 
@@ -83,6 +84,29 @@ def test_invalid_model_output_without_recovery_input_still_fails(make_client):
     out = run_job(make_client(provider=InvalidOutputProvider(), provider_mode='live'), long_source_job())
     assert out['status'] == 'failed'
     assert out['error_code'] == 'INVALID_STRUCTURED_OUTPUT'
+
+
+def test_invalid_model_output_logs_the_field_but_never_the_reply(make_client):
+    events = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            if getattr(record, 'event', '') == 'ai_output_invalid':
+                events.append(record.fields)
+
+    handler = Capture()
+    logger = logging.getLogger('ai_growth_os.ai')
+    logger.addHandler(handler)
+    try:
+        out = run_job(make_client(provider=InvalidOutputProvider(), provider_mode='live'), long_source_job())
+    finally:
+        logger.removeHandler(handler)
+    assert [event['attempt'] for event in events] == [1, 2]
+    assert {'field': 'ideas.0.user_need', 'type': 'string_too_long', 'length': 400} in events[0]['errors']
+    assert events[0]['operation'] == 'research.run'
+    assert 'output_tokens' in events[0] and 'max_output_tokens' in events[0]
+    assert 'xxx' not in json.dumps(events)
+    assert 'ideas.0.user_need' in out['error_message']
 
 
 def housing_after_coworking_job():
