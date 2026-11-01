@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
       if (!message?.mid || !message.text?.trim() || message.is_echo || !sender?.id) continue;
       await pool.query(
         `INSERT INTO community_messages (workspace_id, platform, external_id, author_name, author_contact, content, metadata)
-         SELECT $1, 'facebook_message', $2, 'Facebook user', $3, $4, $5
-          WHERE NOT EXISTS (SELECT 1 FROM community_messages WHERE workspace_id=$1 AND platform='facebook_message' AND external_id=$2)`,
+         SELECT $1::uuid, 'facebook_message', $2::varchar, 'Facebook user', $3::varchar, $4::text, $5::jsonb
+          WHERE NOT EXISTS (SELECT 1 FROM community_messages WHERE workspace_id=$1::uuid AND platform='facebook_message' AND external_id=$2::varchar)`,
         [workspaceId, message.mid, sender.id, message.text.trim().slice(0, 4000), JSON.stringify({ page_id: entry.id })]);
     }
   }
