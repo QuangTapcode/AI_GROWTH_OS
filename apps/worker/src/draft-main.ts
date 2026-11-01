@@ -18,6 +18,9 @@ async function main() {
   const ready = await fetch(`${baseUrl}/readyz`, { signal: AbortSignal.timeout(10000) });
   if (!ready.ok) throw new Error('AI service is not ready; no queued task has been claimed');
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  pool.on('error', (err) => {
+    console.warn('[pg-pool idle error caught]', err.message);
+  });
   await pool.query('SELECT 1');
   const ai = new HttpAiAdapter({ baseUrl, token: process.env.INTERNAL_AI_AUTH_TOKEN || undefined,
     pollIntervalMs: 1000, pollTimeoutMs: 650000, requestTimeoutMs: 15000 });
