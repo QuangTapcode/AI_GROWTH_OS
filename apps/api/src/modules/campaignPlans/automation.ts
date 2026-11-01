@@ -9,6 +9,7 @@ import { acceptLearningTasks } from "./learningTasks";
 import { PgPlanRepository } from "./pgRepository";
 import { submitCampaignPlan, PlanError } from "./service";
 import { getWorkspaceConnectionStatus } from "../integrations/stubs";
+import { propagateUpstreamTaskFailure } from "../tasks/dag";
 import { persistCommunityLead } from "../community/leads";
 import { processReceivedCommunityMessages } from "../community/service";
 
@@ -282,6 +283,21 @@ async function autoAcceptLearning(pool: Pool, workspaceId: string, actorId: stri
 }
 
 /** One scheduler owns a workspace at a time; existing approval gates remain authoritative. */
+/**
+ * A task behind a failed or cancelled parent can never run, and left pending it would hold the
+ * schedule forever. Closed here rather than where tasks fail, so every way of failing is covered.
+ */
+async function closeTasksBehindDeadParents(pool: Pool, workspaceId: string) {
+  const parents = (await pool.query<{ id: string; status: string }>(
+    `SELECT DISTINCT parent.id,parent.status FROM task_dependencies d
+       JOIN workflow_tasks parent ON parent.id=d.depends_on_task_id
+       JOIN workflow_tasks child ON child.id=d.task_id
+      WHERE d.workspace_id=$1 AND parent.status IN ('failed','cancelled') AND child.status IN ('pending','queued')`,
+    [workspaceId],
+  )).rows;
+  for (const parent of parents) await propagateUpstreamTaskFailure(pool, workspaceId, parent.id, parent.status);
+}
+
 export async function tickAutomation(
   pool: Pool,
   workspaceId: string,
@@ -336,6 +352,7 @@ export async function tickAutomation(
     if (settings.auto_publish_facebook === true) {
       await scheduleApprovedFacebookArtifacts(pool, workspaceId, settings.actor_id, context.snapshot_id);
     }
+    await closeTasksBehindDeadParents(pool, workspaceId);
     // Process incoming community inbox messages into workflow tasks
     await processReceivedCommunityMessages(pool, workspaceId, settings.actor_id, context.snapshot_id);
     const enqueue = (key: string, input: unknown) =>

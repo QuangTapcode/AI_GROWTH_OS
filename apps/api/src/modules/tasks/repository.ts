@@ -298,6 +298,13 @@ export async function requeueFailedTask(
     if (planTask) {
       await client.query(`INSERT INTO plan_task_outbox(workspace_id,task_id,input_version,operation) VALUES($1,$2,$3,$4)
         ON CONFLICT(task_id,input_version) DO NOTHING`, [workspaceId, taskId, task.input_version, task.operation]);
+      // What was closed only because this task failed runs again once it succeeds.
+      await client.query(
+        `UPDATE workflow_tasks SET status='pending', error_details=NULL, completed_at=NULL, updated_at=NOW()
+         WHERE workspace_id=$1 AND status='cancelled' AND error_details->>'code'='UPSTREAM_TASK_FAILED'
+           AND error_details->>'upstream_task_id'=$2`,
+        [workspaceId, taskId]
+      );
     }
     await client.query(
       `INSERT INTO audit_events (workspace_id, actor_id, action, entity_type, entity_id, entity_version, details)
