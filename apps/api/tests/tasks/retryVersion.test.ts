@@ -27,6 +27,15 @@ describe('retry of a failed AI plan task', () => {
     expect(outbox.params).toEqual(['w', 't1', 2, 'seo.local_draft']);
   });
 
+  it('reopens the work that was closed only because this task failed', async () => {
+    const { requeueFailedTask } = await import('../../src/modules/tasks/repository');
+    calls.length = 0; planTask = true;
+    await requeueFailedTask('w', 't1', 'owner');
+    const reopen = calls.find((c) => c.sql.includes("status='pending'"))!;
+    expect(reopen.sql).toContain("error_details->>'upstream_task_id'=$2");
+    expect(reopen.params).toEqual(['w', 't1']);
+  });
+
   it('keeps the version for tasks outside the plan outbox', async () => {
     const { requeueFailedTask } = await import('../../src/modules/tasks/repository');
     calls.length = 0; planTask = false;

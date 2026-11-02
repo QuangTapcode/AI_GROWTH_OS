@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { workspaceAlerts } from "../../src/modules/campaignPlans/alerts";
 import { tickAutomation } from "../../src/modules/campaignPlans/automation";
 import { ensureBaselineArtifact, ensureMeasurementArtifacts } from "../../src/modules/site/measurement";
 
@@ -236,6 +237,31 @@ describe.skipIf(process.env.RUN_AUTOMATION_DB !== "1")(
       const status = async (id: string) => (await db.query("SELECT status FROM community_messages WHERE id=$1", [id])).rows[0].status;
       expect(await status(answered)).toBe("queued");
       expect(await status(escalated)).toBe("escalated");
+    });
+    it("a task whose prerequisite failed is closed and the next cycle still starts", async () => {
+      await db.query(
+        "UPDATE workflow_tasks SET status='completed' WHERE workspace_id=$1 AND status IN ('queued','running','pending','awaiting_approval')",
+        [workspace],
+      );
+      const current = (await db.query("SELECT snapshot_id FROM knowledge_contexts WHERE workspace_id=$1 AND current", [workspace])).rows[0].snapshot_id;
+      const plan = randomUUID(), seo = randomUUID(), content = randomUUID();
+      await db.query("INSERT INTO campaigns(id,workspace_id,name,utm_campaign) VALUES($1,$2,'Synthetic plan','synthetic')", [plan, workspace]);
+      await db.query(
+        `INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,campaign_id,payload)
+         VALUES($1,$2,'seo','seo.local_draft','failed',1,$3,$4,'{}'),($5,$2,'content','content.repurpose','pending',1,$3,$4,'{}')`,
+        [seo, workspace, current, plan, content],
+      );
+      await db.query("INSERT INTO task_dependencies(task_id,depends_on_task_id,workspace_id) VALUES($1,$2,$3)", [content, seo, workspace]);
+      await db.query("INSERT INTO campaign_plan_acceptances(plan_id,workspace_id,input_version,plan,record) VALUES($1,$2,1,'{}','{}')", [plan, workspace]);
+      await db.query("UPDATE agent_automation SET next_run_at=now()-interval '1 minute' WHERE workspace_id=$1", [workspace]);
+      const research = async () =>
+        (await db.query("SELECT count(*)::int AS n FROM workflow_tasks WHERE workspace_id=$1 AND operation='research.run'", [workspace])).rows[0].n;
+      const before = await research();
+      await tickAutomation(db, workspace);
+      const closed = (await db.query("SELECT status,error_details FROM workflow_tasks WHERE id=$1", [content])).rows[0];
+      expect(closed).toMatchObject({ status: "cancelled", error_details: { code: "UPSTREAM_TASK_FAILED", upstream_task_id: seo } });
+      expect(await research()).toBe(before + 1);
+      expect((await workspaceAlerts(db, workspace)).map((alert) => alert.code)).toContain("TASK_CHAIN_STOPPED");
     });
     it("disabled automation and suspended owner cannot dispatch more work", async () => {
       await db.query(

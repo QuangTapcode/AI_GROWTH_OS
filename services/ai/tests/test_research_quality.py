@@ -1,4 +1,5 @@
 import json
+import logging
 from copy import deepcopy
 from uuid import uuid4
 
@@ -58,6 +59,77 @@ def test_incomplete_model_idea_can_fallback_to_grounded_excerpt(make_client):
     assert result['findings'][0]['evidence']['quote']
     assert 'INCOMPLETE_BRIEF_DROPPED' in out['result']['warnings']
     assert 'GROUNDED_FALLBACK_USED' in out['result']['warnings']
+
+
+class InvalidOutputProvider(LandscapeProvider):
+    """Model-like output that never matches the schema, on the first call or the repair."""
+
+    async def chat_json(self, *, user, **kwargs):
+        content, usage = await super().chat_json(user=user.split("\n\nYour previous reply")[0], **kwargs)
+        draft = json.loads(content)
+        draft["ideas"][0]["user_need"] = "x" * 400
+        return json.dumps(draft), usage
+
+
+def test_invalid_model_output_recovers_instead_of_failing_the_run(make_client):
+    job = long_source_job()
+    job['payload']['trend_signals'] = [signal('Coworking spaces in Da Nang for expats')]
+    out = run_job(make_client(provider=InvalidOutputProvider(), provider_mode='live'), job)
+    assert out['status'] == 'completed', out
+    assert out['result']['result']['status'] == 'ready_for_handoff'
+    assert {'MODEL_OUTPUT_INVALID', 'GROUNDED_FALLBACK_USED'} <= set(out['result']['warnings'])
+
+
+def test_invalid_model_output_without_recovery_input_still_fails(make_client):
+    out = run_job(make_client(provider=InvalidOutputProvider(), provider_mode='live'), long_source_job())
+    assert out['status'] == 'failed'
+    assert out['error_code'] == 'INVALID_STRUCTURED_OUTPUT'
+
+
+def test_invalid_model_output_logs_the_field_but_never_the_reply(make_client):
+    events = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            if getattr(record, 'event', '') == 'ai_output_invalid':
+                events.append(record.fields)
+
+    handler = Capture()
+    logger = logging.getLogger('ai_growth_os.ai')
+    logger.addHandler(handler)
+    try:
+        out = run_job(make_client(provider=InvalidOutputProvider(), provider_mode='live'), long_source_job())
+    finally:
+        logger.removeHandler(handler)
+    assert [event['attempt'] for event in events] == [1, 2]
+    assert {'field': 'ideas.0.user_need', 'type': 'string_too_long', 'length': 400} in events[0]['errors']
+    assert events[0]['operation'] == 'research.run'
+    assert 'output_tokens' in events[0] and 'max_output_tokens' in events[0]
+    assert 'xxx' not in json.dumps(events)
+    assert 'ideas.0.user_need' in out['error_message']
+
+
+def housing_after_coworking_job():
+    job = long_source_job()
+    job['payload']['business_profile']['products'] = ['coworking', 'housing']
+    job['payload']['snapshot']['sources'][0]['chunks'].append(
+        {'chunk_id': 'home', 'text': 'Housing in Da Nang for expats is easiest to judge by visiting each neighbourhood in person.',
+         'locator': 'paragraph:100'})
+    job['payload']['trend_signals'] = [signal('Coworking spaces in Da Nang for expats')]
+    job['payload']['content_inventory'] = [{'content_id': str(uuid4()), 'workspace_id': job['workspace_id'], 'version': 1,
+                                            'title': 'Coworking spaces for remote-working expats in Da Nang'}]
+    return job
+
+
+@pytest.mark.parametrize('provider', [IncompleteExplanationProvider, LandscapeProvider])
+def test_fallback_moves_to_a_confirmed_offer_when_search_topics_are_used_up(make_client, provider):
+    # LandscapeProvider re-proposes the covered coworking topic: a duplicate must not stop the recovery.
+    out = run_job(make_client(provider=provider(), provider_mode='live'), housing_after_coworking_job())
+    result = out['result']['result']
+    assert result['status'] == 'ready_for_handoff'
+    assert [f['topic'] for f in result['findings']] == ['housing']
+    assert 'housing offering' in result['findings'][0]['offer_fit']
+    assert result['findings'][0]['evidence']['chunk_id'] == 'home'
 
 
 def community_events_job(products):

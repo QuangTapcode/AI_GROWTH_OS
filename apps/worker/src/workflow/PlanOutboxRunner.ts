@@ -21,11 +21,20 @@ export class PlanOutboxRunner {
       WHERE id=(SELECT id FROM plan_task_outbox WHERE (status='pending' OR (status='claimed' AND lease_until<now())) AND attempts<3 ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`)).rows[0];
     if (!claimed) return null;
     try {
-      const task = (await this.pool.query('SELECT * FROM workflow_tasks WHERE workspace_id=$1 AND id=$2', [claimed.workspace_id, claimed.task_id])).rows[0];
+      let task = (await this.pool.query('SELECT * FROM workflow_tasks WHERE workspace_id=$1 AND id=$2', [claimed.workspace_id, claimed.task_id])).rows[0];
       if (!task || !['queued', 'running'].includes(task.status)) throw new Error('TASK_NOT_RUNNABLE');
       const deadline = task?.payload?.deadline ?? task?.payload?.input?.deadline;
       if (deadline && Date.parse(deadline) <= Date.now()) throw new Error('TASK_DEADLINE_EXCEEDED');
-      const context = (await this.pool.query('SELECT * FROM knowledge_contexts WHERE workspace_id=$1 AND snapshot_id=$2 AND current', [claimed.workspace_id, task.context_snapshot_id])).rows[0];
+      let context = (await this.pool.query('SELECT * FROM knowledge_contexts WHERE workspace_id=$1 AND snapshot_id=$2 AND current', [claimed.workspace_id, task.context_snapshot_id])).rows[0];
+      if (!context && task.operation === 'community.response') {
+        // A customer's question belongs to no campaign: a context issued while it waited makes the answer better, not invalid.
+        // New input_version, because the AI service must not treat the re-pinned request as a conflicting retry.
+        context = (await this.pool.query('SELECT * FROM knowledge_contexts WHERE workspace_id=$1 AND current', [claimed.workspace_id])).rows[0];
+        if (context) {
+          task = (await this.pool.query('UPDATE workflow_tasks SET context_snapshot_id=$2,input_version=input_version+1,updated_at=now() WHERE id=$1 RETURNING *', [task.id, context.snapshot_id])).rows[0];
+          await this.pool.query('UPDATE plan_task_outbox SET input_version=$2 WHERE id=$1', [claimed.id, task.input_version]);
+        }
+      }
       const profile = (await this.pool.query('SELECT version FROM business_profiles WHERE workspace_id=$1', [claimed.workspace_id])).rows[0];
       if (!context || profile?.version !== context.profile_version) throw new Error('STALE_CONTEXT');
       for (const source of context.snapshot.sources) {
@@ -176,10 +185,20 @@ export class PlanOutboxRunner {
       return { task_id: task.id, artifact, output: result.output, evidence: result.evidence ?? [], model: result.model, run_id: result.run_id, status: 'awaiting_approval' };
     } catch (error) {
       console.error('[plan-outbox]', error);
-      const permanent = (error as { permanent?: boolean }).permanent === true ||
-        ['TASK_NOT_RUNNABLE', 'TASK_DEADLINE_EXCEEDED', 'SELECTED_FINDING_MISSING', 'MISSING_RESEARCH_ARTIFACT', 'MISSING_CTA', 'STALE_CONTEXT', 'SOURCE_NOT_APPROVED', 'DEPENDENCY_NOT_APPROVED', 'UNKNOWN_PLAN_OPERATION', 'INVALID_AI_ARTIFACT', 'ARTIFACT_HASH_MISMATCH'].includes((error as Error).message);
+      // Model output varies between runs, so a malformed reply gets one fresh run. New input_version,
+      // because the AI service keeps a failed run and its call budget per version.
+      const schemaRetry = (error as { code?: string }).code === 'INVALID_STRUCTURED_OUTPUT' && claimed.attempts === 1;
+      const permanent = !schemaRetry && ((error as { permanent?: boolean }).permanent === true ||
+        ['TASK_NOT_RUNNABLE', 'TASK_DEADLINE_EXCEEDED', 'SELECTED_FINDING_MISSING', 'MISSING_RESEARCH_ARTIFACT', 'MISSING_CTA', 'STALE_CONTEXT', 'SOURCE_NOT_APPROVED', 'DEPENDENCY_NOT_APPROVED', 'UNKNOWN_PLAN_OPERATION', 'INVALID_AI_ARTIFACT', 'ARTIFACT_HASH_MISMATCH'].includes((error as Error).message));
       const owned = await this.pool.query("UPDATE plan_task_outbox SET status=$2::varchar,lease_until=NULL,error_code=$3::text WHERE id=$1::uuid AND status='claimed' AND attempts=$4::integer RETURNING task_id", [claimed.id, permanent || claimed.attempts >= 3 ? 'failed' : 'pending', (error as Error).message, claimed.attempts]);
       if (owned.rowCount && !permanent && claimed.attempts < 3) await this.pool.query("UPDATE workflow_tasks SET status='queued',error_details=$2,updated_at=now() WHERE id=$1 AND status='running'", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);
+      if (owned.rowCount && schemaRetry) {
+        const bumped = (await this.pool.query('UPDATE workflow_tasks SET input_version=input_version+1,updated_at=now() WHERE id=$1 RETURNING input_version', [claimed.task_id])).rows[0];
+        await this.pool.query('UPDATE plan_task_outbox SET input_version=$2 WHERE id=$1', [claimed.id, bumped.input_version]);
+      }
+      // A question the agents cannot answer goes to a person; it must not stay queued with nobody working on it.
+      if (owned.rowCount && (permanent || claimed.attempts >= 3) && claimed.operation === 'community.response')
+        await this.pool.query("UPDATE community_messages SET status='escalated',updated_at=now() WHERE workspace_id=$1 AND task_id=$2 AND status='queued'", [claimed.workspace_id, claimed.task_id]);
       if (owned.rowCount && (permanent || claimed.attempts >= 3)) await this.pool.query("UPDATE workflow_tasks SET status='failed',error_details=$2,updated_at=now() WHERE id=$1 AND status NOT IN('completed','cancelled')", [claimed.task_id, JSON.stringify({ code: (error as Error).message })]);
       throw error;
     }

@@ -17,11 +17,13 @@ export async function workspaceAlerts(pool: Pool, workspaceId: string, now = new
   if (automation?.last_error) {
     alerts.push({ code: 'SCHEDULER_ERROR', severity: 'warning', message: `Lượt lập lịch gần nhất báo lỗi: ${automation.last_error}` });
   }
-  const failures = (await pool.query<{ publishing_failed: number; replies_failed: number; tasks_failed: number }>(`SELECT
+  const failures = (await pool.query<{ publishing_failed: number; replies_failed: number; tasks_failed: number; chain_stopped: number }>(`SELECT
       (SELECT count(*)::int FROM publishing_jobs WHERE workspace_id=$1 AND status='failed' AND created_at > now() - interval '24 hours') AS publishing_failed,
       (SELECT count(*)::int FROM outbox_events WHERE workspace_id=$1 AND event_type='community.reply' AND status='failed'
          AND created_at > now() - interval '24 hours') AS replies_failed,
-      (SELECT count(*)::int FROM workflow_tasks WHERE workspace_id=$1 AND status='failed' AND updated_at > now() - interval '24 hours') AS tasks_failed`,
+      (SELECT count(*)::int FROM workflow_tasks WHERE workspace_id=$1 AND status='failed' AND updated_at > now() - interval '24 hours') AS tasks_failed,
+      (SELECT count(*)::int FROM workflow_tasks WHERE workspace_id=$1 AND status='cancelled' AND error_details->>'code'='UPSTREAM_TASK_FAILED'
+         AND updated_at > now() - interval '24 hours') AS chain_stopped`,
     [workspaceId])).rows[0];
   if (failures?.publishing_failed) alerts.push({ code: 'PUBLISHING_FAILED', severity: 'warning',
     message: `${failures.publishing_failed} lần đăng bài thất bại trong 24 giờ qua. Xem lý do ở trang Phân phối.` });
@@ -29,5 +31,7 @@ export async function workspaceAlerts(pool: Pool, workspaceId: string, now = new
     message: `${failures.replies_failed} câu trả lời Messenger không gửi được trong 24 giờ qua.` });
   if (failures?.tasks_failed) alerts.push({ code: 'TASKS_FAILED', severity: 'warning',
     message: `${failures.tasks_failed} task của agent bị lỗi trong 24 giờ qua. Xem chi tiết và chạy lại ở từng agent.` });
+  if (failures?.chain_stopped) alerts.push({ code: 'TASK_CHAIN_STOPPED', severity: 'warning',
+    message: `${failures.chain_stopped} task bị đóng trong 24 giờ qua vì task trước đó lỗi. Chạy lại task lỗi để làm tiếp.` });
   return alerts;
 }

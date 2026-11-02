@@ -10,6 +10,7 @@ from uuid import NAMESPACE_URL, uuid5
 from pydantic import TypeAdapter, HttpUrl, ValidationError
 
 from ...app.config import Settings
+from ...app.providers import ProviderError
 from ...app.runtime import OperationError, OperationOutcome, RunContext
 from ...app.schemas import EvidenceRef, JobRequest
 from ...guardrails.facts import has_price_claim, sensitive_keys_in, unsupported_numbers
@@ -359,8 +360,15 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                 "rationale": "The cited excerpt supports a content hypothesis; demand is not measured.",
                 "chunk_id": key, "quote": chunk.text[:400], "keywords": [topic],
                 "user_need": f"Understand {topic.lower()} before making a decision."}]}
-        draft = await ctx.call_json(system=SYSTEM_PROMPT, user=json.dumps(base, ensure_ascii=False),
-                                    model=ResearchDraft, fake=fake)
+        try:
+            draft = await ctx.call_json(system=SYSTEM_PROMPT, user=json.dumps(base, ensure_ascii=False),
+                                        model=ResearchDraft, fake=fake)
+        except ProviderError as error:
+            # The recovery below needs no model output; without it the run still fails honestly.
+            if error.code != "INVALID_STRUCTURED_OUTPUT" or not (payload.trend_signals and candidates):
+                raise
+            warnings.append("MODEL_OUTPUT_INVALID")
+            draft = ResearchDraft(ideas=[])
 
     findings = []
     seen = set()
@@ -447,12 +455,16 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     # the citation chain intact and never turns ranking metadata into evidence.
     if (not findings and payload.trend_signals and candidates and
             not any(warning in warnings for warning in
-                    ("DEMAND_CLAIM_DROPPED", "UNSUPPORTED_CLAIM_DROPPED", "DUPLICATE_TOPIC_DROPPED"))):
+                    ("DEMAND_CLAIM_DROPPED", "UNSUPPORTED_CLAIM_DROPPED"))):
         fallback = None
         # Topics about what the owner asked for (e.g. food) come before other search topics.
         focus = {o.replace("_", " ") for o in (payload.goal_context.focus_offers if payload.goal_context else [])}
-        topics = sorted(trend_topics(payload.trend_signals, payload.business_profile.locations),
-                        key=lambda t: offer_for_topic(t[1], payload.business_profile) not in focus)
+        searched = trend_topics(payload.trend_signals, payload.business_profile.locations)
+        # Search topics run out (no matching offer, article already written); every other confirmed offer still qualifies.
+        offers = [offer.replace("_", " ") for offer in [*payload.business_profile.products, *payload.business_profile.services]]
+        searched_names = {topic for _, topic, _, _ in searched}
+        searched += [("", offer, offer.lower().split(), 0) for offer in offers if offer not in searched_names]
+        topics = sorted(searched, key=lambda t: offer_for_topic(t[1], payload.business_profile) not in focus)
         for _, topic, words, _ in topics:
             offer = offer_for_topic(topic, payload.business_profile)
             if offer is None:
