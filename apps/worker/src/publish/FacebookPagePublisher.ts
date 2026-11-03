@@ -62,6 +62,10 @@ export class FacebookPagePublisher implements CmsPublisher {
 
     const hasImage = Boolean(req.mediaUrl && (req.mediaType === 'image' || !req.mediaType));
     const targetPath = hasImage ? 'photos' : 'feed';
+    const isPublicLink = Boolean(req.linkUrl && /^https?:\/\/(?!localhost\b|127\.0\.0\.1\b)/i.test(req.linkUrl));
+    if (req.linkUrl && !isPublicLink && message && !message.includes(req.linkUrl)) {
+      message = `${message}\n\n${req.linkUrl}`;
+    }
 
     const body = new URLSearchParams();
     body.set('access_token', this.accessToken);
@@ -75,7 +79,7 @@ export class FacebookPagePublisher implements CmsPublisher {
       }
     } else {
       if (message) body.set('message', message);
-      if (req.linkUrl) body.set('link', req.linkUrl);
+      if (req.linkUrl && isPublicLink) body.set('link', req.linkUrl);
     }
 
     try {
@@ -103,7 +107,7 @@ export class FacebookPagePublisher implements CmsPublisher {
           const feedBody = new URLSearchParams();
           feedBody.set('access_token', this.accessToken);
           feedBody.set('message', message);
-          if (req.linkUrl) feedBody.set('link', req.linkUrl);
+          if (req.linkUrl && isPublicLink) feedBody.set('link', req.linkUrl);
           const feedRes = await fetch(this.endpoint('feed'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
