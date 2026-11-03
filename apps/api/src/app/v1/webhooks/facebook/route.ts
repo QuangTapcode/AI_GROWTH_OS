@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { tickAutomation } from '@/modules/campaignPlans/automation';
 
 type MessagingEvent = { sender?: { id?: string }; message?: { mid?: string; text?: string; is_echo?: boolean } };
 
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
         [workspaceId, message.mid, sender.id, message.text.trim().slice(0, 4000), JSON.stringify({ page_id: entry.id })]);
     }
   }
+  void tickAutomation(pool, workspaceId).catch(() => {});
   return NextResponse.json({ status: 'received' });
 }
 

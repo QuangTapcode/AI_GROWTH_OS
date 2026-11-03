@@ -122,8 +122,8 @@ export async function processReceivedCommunityMessages(
   limit = 10,
 ): Promise<number> {
   const pending = (
-    await pool.query<{ id: string; content: string }>(
-      `SELECT id, content FROM community_messages
+    await pool.query<{ id: string; content: string; author_contact: string | null }>(
+      `SELECT id, content, author_contact FROM community_messages
        WHERE workspace_id = $1 AND status = 'received' AND task_id IS NULL
        ORDER BY received_at ASC LIMIT $2`,
       [workspaceId, limit],
@@ -132,6 +132,25 @@ export async function processReceivedCommunityMessages(
 
   let enqueued = 0;
   for (const msg of pending) {
+    let history: { question: string; reply: string }[] = [];
+    if (msg.author_contact) {
+      const prior = (
+        await pool.query<{ content: string; reply: string | null }>(
+          `SELECT m.content, a.payload->'result'->>'reply' AS reply
+             FROM community_messages m
+             LEFT JOIN content_artifacts a ON a.workspace_id = m.workspace_id AND a.task_id = m.task_id
+            WHERE m.workspace_id = $1 AND m.author_contact = $2 AND m.id <> $3
+            ORDER BY m.received_at DESC LIMIT 3`,
+          [workspaceId, msg.author_contact, msg.id],
+        )
+      ).rows;
+      history = prior
+        .reverse()
+        .map((row) => ({
+          question: row.content.slice(0, 300),
+          ...(row.reply ? { reply: row.reply.slice(0, 300) } : {}),
+        })) as { question: string; reply: string }[];
+    }
     const taskId = randomUUID();
     await enqueueAiTask(pool, workspaceId, actorId, {
       task_id: taskId,
@@ -139,6 +158,7 @@ export async function processReceivedCommunityMessages(
       input: {
         operation: 'community.response',
         question: msg.content,
+        ...(history.length > 0 ? { history } : {}),
       },
     });
     await pool.query(

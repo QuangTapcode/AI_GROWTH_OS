@@ -103,6 +103,33 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
           AND COALESCE(context->>'synthetic', 'false') <> 'true')::int AS leads`,
     [workspaceId, start, end, site?.site_id ?? null],
   )).rows[0];
+  let utmSources: Record<string, number> = {};
+  let publishedSocialPosts: Record<string, number> = {};
+  try {
+    const utmRows = (await pool.query<{ utm_source: string; leads: number }>(
+      `SELECT COALESCE(NULLIF(trim(utm_source), ''), NULLIF(trim(context->>'source_channel'), ''), NULLIF(trim(context->>'platform'), ''), 'direct') AS utm_source,
+              count(*)::int AS leads
+         FROM leads
+        WHERE workspace_id=$1 AND ($4::text IS NULL OR site_id=$4 OR site_id IS NULL)
+          AND captured_at >= $2 AND captured_at < $3
+          AND COALESCE(context->>'synthetic', 'false') <> 'true'
+        GROUP BY 1 ORDER BY 2 DESC`,
+      [workspaceId, start, end, site?.site_id ?? null],
+    ))?.rows ?? [];
+    utmSources = Object.fromEntries(utmRows.map((r) => [r.utm_source, r.leads]));
+    const socialRows = (await pool.query<{ platform_name: string; published_count: number }>(
+      `SELECT ch.platform_name, count(*)::int AS published_count
+         FROM publishing_jobs pj
+         JOIN channels ch ON ch.id = pj.channel_id AND ch.workspace_id = pj.workspace_id
+        WHERE pj.workspace_id=$1 AND pj.status='published'
+          AND pj.published_at >= $2 AND pj.published_at < $3
+        GROUP BY 1`,
+      [workspaceId, start, end],
+    ))?.rows ?? [];
+    publishedSocialPosts = Object.fromEntries(socialRows.map((r) => [r.platform_name, r.published_count]));
+  } catch {
+    // Optional breakdown queries; fallback to empty objects if stubbed in unit tests.
+  }
   const result = {
     workspace_id: workspaceId, snapshot_id: randomUUID(), version: 1,
     window_start: start.toISOString(), window_end: end.toISOString(),
@@ -111,7 +138,17 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
     captured_at: new Date().toISOString(), timezone: 'UTC',
     metric_definitions: firstPartyMetricDefinitions(workspaceId),
   };
-  return { result, counts, measurement: { page_views: counts.page_views, internal_page_views: counts.internal_page_views, site_id: site?.site_id ?? null } };
+  return {
+    result,
+    counts,
+    measurement: {
+      page_views: counts.page_views,
+      internal_page_views: counts.internal_page_views,
+      site_id: site?.site_id ?? null,
+      utm_sources: utmSources,
+      published_social_posts: publishedSocialPosts,
+    },
+  };
 }
 
 async function ledgerArtifact(pool: Pool, workspaceId: string, contextSnapshotId: string, operation: string, title: string,

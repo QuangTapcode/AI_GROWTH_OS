@@ -51,8 +51,13 @@ async def run_community(ctx):
     sensitive = sensitive_keys_in(p.question)
     sources, _ = eligible_sources(ctx.job, p.snapshot)
 
-    q_terms = terms(p.question)
-    q_u_terms = unicode_terms(p.question)
+    history_questions = " ".join(
+        str(turn.get("question", "")) for turn in getattr(p, "history", []) if isinstance(turn, dict)
+    ).strip()
+    search_text = f"{p.question} {history_questions}".strip()
+
+    q_terms = terms(search_text)
+    q_u_terms = unicode_terms(search_text)
 
     candidates = [
         (max(lexical_overlap(q_terms, c.text), lexical_overlap(q_u_terms, c.text)), s, c)
@@ -62,6 +67,9 @@ async def run_community(ctx):
     ]
     candidates.sort(key=lambda item: item[0], reverse=True)
     selected = [(s, c) for score, s, c in candidates[:3] if score > 0]
+    if not selected and candidates:
+        # Fallback to top approved chunks for short greetings ("hi", "xin chào") or cross-lingual queries
+        selected = [(s, c) for _, s, c in candidates[:3]]
     missing = [f"verified_fact:{key}" for key in sensitive]
     evidence = []
 
@@ -84,10 +92,13 @@ async def run_community(ctx):
             for s, c in selected
         ]
         grounding = [c.text for s, c in selected]
+        draft_input = {"question": p.question, "quotes": [e.quote for e in evidence]}
+        if getattr(p, "history", None):
+            draft_input["history"] = p.history
         draft = await call_grounded_draft(
             ctx,
             SYSTEM_PROMPT,
-            {"question": p.question, "quotes": [e.quote for e in evidence]},
+            draft_input,
             ReplyDraft,
             lambda: {"reply": evidence[0].quote},
             lambda d: d.reply,

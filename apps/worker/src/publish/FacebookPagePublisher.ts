@@ -97,6 +97,31 @@ export class FacebookPagePublisher implements CmsPublisher {
           payload?.error?.code === 10 || // Application does not have permission
           String(payload?.error?.message).toLowerCase().includes('permission');
 
+        // Nếu đăng kèm ảnh (/photos) thất bại do Facebook không tải được URL ảnh ngoài (nhưng không phải lỗi quyền),
+        // tự động fallback sang /feed (đăng nội dung + link) để bài viết vẫn lên Fanpage an toàn.
+        if (hasImage && !isPermissionDenied && message) {
+          const feedBody = new URLSearchParams();
+          feedBody.set('access_token', this.accessToken);
+          feedBody.set('message', message);
+          if (req.linkUrl) feedBody.set('link', req.linkUrl);
+          const feedRes = await fetch(this.endpoint('feed'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: feedBody,
+            signal: AbortSignal.timeout(Number(process.env.SOCIAL_REQUEST_TIMEOUT_MS || 10000)),
+          });
+          const feedPayload = await readJson(feedRes);
+          if (feedRes.ok && (typeof feedPayload?.id === 'string' || typeof feedPayload?.post_id === 'string')) {
+            const fallbackId = (feedPayload.id || feedPayload.post_id) as string;
+            return {
+              success: true,
+              externalPostId: fallbackId,
+              publishedUrl: `https://www.facebook.com/${fallbackId}`,
+              publishedAt: new Date(),
+            };
+          }
+        }
+
         if (isPermissionDenied) {
           // Tự động rơi về ManualPackGenerator khi chưa được duyệt Meta App Review
           const manualPack = generateManualPack(

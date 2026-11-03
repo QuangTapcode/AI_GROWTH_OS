@@ -2143,6 +2143,14 @@
             "maxLength": 100,
             "title": "Search Metrics Missing Reason",
             "type": "string"
+          },
+          "customer_signals": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Customer Signals",
+            "type": "array"
           }
         },
         "required": [
@@ -13420,6 +13428,17 @@
             "minLength": 1,
             "title": "Question",
             "type": "string"
+          },
+          "history": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "maxItems": 10,
+            "title": "History",
+            "type": "array"
           }
         },
         "required": [

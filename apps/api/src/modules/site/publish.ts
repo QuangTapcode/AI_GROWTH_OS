@@ -22,7 +22,7 @@ export async function publishSeoArtifact(db: Db, workspaceId: string, artifactId
   const site = siteForWorkspace(workspaceId);
   if (!site) throw new PublishError('SITE_NOT_CONFIGURED', 'Workspace has no public site');
   const row = (await db.query(
-    `SELECT a.id, a.version, a.content_hash, a.context_snapshot_id, a.role, a.payload FROM content_artifacts a
+    `SELECT a.id, a.version, a.content_hash, a.context_snapshot_id, a.role, a.operation, a.payload FROM content_artifacts a
      WHERE a.workspace_id=$1 AND a.id=$2`, [workspaceId, artifactId],
   )).rows[0];
   if (!row || row.role !== 'seo') throw new PublishError('ARTIFACT_NOT_SEO', 'Only SEO articles can be published to the site', 404);
@@ -38,6 +38,24 @@ export async function publishSeoArtifact(db: Db, workspaceId: string, artifactId
   const existing = (await db.query('SELECT id, slug FROM contents WHERE workspace_id=$1 AND artifact_id=$2', [workspaceId, row.id])).rows[0];
   if (existing?.slug) return { content_id: existing.id as string, slug: existing.slug as string, site_id: site.site_id, published: false };
   const base = slugify(String(result.title ?? 'post'));
+  if (row.operation === 'content.refresh' || row.operation === 'seo.audit') {
+    const refreshTarget = (await db.query<{ id: string; slug: string }>(
+      `SELECT id, slug FROM contents WHERE workspace_id=$1 AND site_id=$2 AND slug=$3 AND type='blog_post' LIMIT 1`,
+      [workspaceId, site.site_id, base],
+    )).rows[0];
+    if (refreshTarget) {
+      await db.query(
+        `UPDATE contents
+            SET title=$2, body_markdown=$3, approved_by=$4, published_at=now(),
+                current_version=COALESCE(current_version, 1) + 1,
+                content_hash=$5, context_snapshot_id=$6, artifact_id=$7, meta_description=$8
+          WHERE id=$1`,
+        [refreshTarget.id, String(result.title).slice(0, 255), result.body_markdown, actorId, row.content_hash,
+          row.context_snapshot_id, row.id, String(result.meta_description ?? '').slice(0, 300) || null],
+      );
+      return { content_id: refreshTarget.id, slug: refreshTarget.slug, site_id: site.site_id, published: true, refreshed: true };
+    }
+  }
   let slug = base;
   for (let n = 2; (await db.query('SELECT 1 FROM contents WHERE site_id=$1 AND slug=$2', [site.site_id, slug])).rowCount; n++) slug = `${base}-${n}`;
   const content = (await db.query(

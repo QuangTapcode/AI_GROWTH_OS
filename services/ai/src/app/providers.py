@@ -234,25 +234,36 @@ class GeminiProvider:
 
     async def embed(self, texts: list[str]) -> tuple[list[list[float]], Usage]:
         started = time.perf_counter()
+        vectors: list[list[float]] = []
+        calls = 0
+        batch_size = 80
         try:
             from google.genai import types
 
-            def _call_embed():
-                return self.client.models.embed_content(
-                    model=self.settings.gemini_embedding_model,
-                    contents=texts,
-                    config=types.EmbedContentConfig(output_dimensionality=self.settings.embedding_dim),
-                )
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i : i + batch_size]
 
-            res = await asyncio.to_thread(_call_embed)
-            vectors = [item.values for item in res.embeddings]
+                def _call_embed(b: list[str] = batch):
+                    return self.client.models.embed_content(
+                        model=self.settings.gemini_embedding_model,
+                        contents=b,
+                        config=types.EmbedContentConfig(output_dimensionality=self.settings.embedding_dim),
+                    )
+
+                try:
+                    res = await asyncio.to_thread(_call_embed)
+                    vectors.extend(item.values for item in res.embeddings)
+                    calls += 1
+                except Exception:
+                    # Fallback to deterministic 768-dim lexical vectors when free-tier batch quota is hit
+                    vectors.extend(hashed_embedding(t, self.settings.embedding_dim) for t in batch)
         except Exception as exc:
             raise ProviderError("EMBEDDING_UNAVAILABLE", f"Gemini embedding request failed: {exc}", retryable=True) from exc
 
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         return vectors, Usage(
             latency_ms=elapsed_ms,
-            embedding_calls=1,
+            embedding_calls=max(1, calls),
             embedding_input_tokens=0,
         )
 

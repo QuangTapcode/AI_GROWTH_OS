@@ -207,6 +207,10 @@ export class PublishingOutboxRunner {
       asString(payloadResult.body_markdown) ??
       asString(payload.document_markdown) ??
       '';
+    const imageAssets = Array.isArray(payloadResult.image_assets) ? (payloadResult.image_assets as Record<string, unknown>[]) : [];
+    const firstImageAsset = imageAssets[0] && typeof imageAssets[0] === 'object' ? imageAssets[0] : undefined;
+    const resolvedMediaUrl = asString(payload.media_url ?? payload.mediaUrl ?? firstImageAsset?.url);
+    const resolvedMediaType = asMediaType(payload.media_type ?? payload.mediaType) ?? (resolvedMediaUrl ? 'image' : undefined);
     const gatewayCheck = createGatewayCheck();
 
     let result;
@@ -221,8 +225,8 @@ export class PublishingOutboxRunner {
         bodyMarkdown: resolvedBodyMarkdown,
         metaTitle: job.content_title,
         linkUrl: job.utm_url ?? undefined,
-        mediaUrl: asString(payload.media_url ?? payload.mediaUrl),
-        mediaType: asMediaType(payload.media_type ?? payload.mediaType),
+        mediaUrl: resolvedMediaUrl,
+        mediaType: resolvedMediaType,
         expectedVersion: job.artifact_version,
         contentHash: job.content_hash,
         approvalId: job.approval_id ?? undefined,

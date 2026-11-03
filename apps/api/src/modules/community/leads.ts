@@ -22,10 +22,16 @@ async function queueMessengerReply(
   workspaceId: string,
   message: { id: string; author_contact: string | null },
   artifactId: string,
-  result: { reply?: string; status?: string; escalation_required?: boolean },
+  result: { reply?: string; status?: string; escalation_required?: boolean; missing_facts?: string[]; lead_proposal?: unknown },
 ) {
   const text = result.reply?.trim();
-  if (result.escalation_required || result.status !== 'draft' || !text || !message.author_contact) {
+  const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
+  const leadConsentOnly =
+    result.status === 'insufficient_data' &&
+    missing.length === 1 &&
+    missing[0] === 'verified_lead_owner_and_consent' &&
+    Boolean(result.lead_proposal);
+  if (((result.escalation_required || result.status !== 'draft') && !leadConsentOnly) || !text || !message.author_contact) {
     await client.query(
       `UPDATE community_messages SET status = 'escalated', updated_at = NOW() WHERE workspace_id = $1 AND id = $2 AND status IN ('received', 'queued')`,
       [workspaceId, message.id],

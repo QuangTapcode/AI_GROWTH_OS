@@ -39,9 +39,12 @@ export class PgPlanRepository implements PlanRepository {
       const snapshot = { workspace_id: workspaceId, snapshot_id: id, sources };
       // The active growth goal is pinned with the snapshot unless a caller supplies one explicitly.
       const goal = options.goal !== undefined ? options.goal : goalContext(await activeGoal(db, workspaceId), profile.products);
+      const prevAssets = options.assets !== undefined
+        ? options.assets
+        : ((await db.query<{ assets: unknown[] }>('SELECT assets FROM knowledge_contexts WHERE workspace_id=$1 AND current LIMIT 1', [workspaceId])).rows[0]?.assets ?? []);
       await db.query('UPDATE knowledge_contexts SET current=false WHERE workspace_id=$1 AND current', [workspaceId]);
       await db.query('INSERT INTO knowledge_contexts(snapshot_id,workspace_id,profile_version,profile,snapshot,goal,assets) VALUES($1,$2,$3,$4,$5,$6,$7)',
-        [id, workspaceId, profile.version, JSON.stringify(profile), JSON.stringify(snapshot), JSON.stringify(goal ?? null), JSON.stringify(options.assets ?? [])]);
+        [id, workspaceId, profile.version, JSON.stringify(profile), JSON.stringify(snapshot), JSON.stringify(goal ?? null), JSON.stringify(prevAssets)]);
       await db.query('COMMIT');
       return { workspace_id: workspaceId, business_profile: profile, snapshot, goal_context: goal ?? null,
         approved_source_versions: sources.map(s => ({ source_id: s.source_id, version: s.version })), context_snapshot_id: id };

@@ -74,6 +74,8 @@ class ResearchPayload(BaseModel):
     trend_signals: list[TrendSignal] = Field(default_factory=list, max_length=30)
     search_metrics: ArtifactInput | None = None
     search_metrics_missing_reason: str = Field(default="gsc_not_connected", max_length=100)
+    # Voice-of-customer questions/topics captured from community inbox and leads.
+    customer_signals: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ResearchIdea(BaseModel):

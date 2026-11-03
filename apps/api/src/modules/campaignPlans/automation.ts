@@ -37,8 +37,16 @@ function isAutoApprovable(row: AutoArtifactRow) {
   const result = row.payload?.result ?? {};
   const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
   const status = result.status;
-  return result.synthetic !== true && row.evidence.length > 0 && missing.length === 0 &&
-    (status === "ready_for_handoff" || status === "proposed" || status === "draft");
+  const inputRefs = Array.isArray(result.input_artifact_refs) ? result.input_artifact_refs : [];
+  const hasGrounding = row.evidence.length > 0 || (row.role === "performance" && inputRefs.length > 0);
+  const leadConsentOnly =
+    row.role === "community" &&
+    status === "insufficient_data" &&
+    missing.length === 1 &&
+    missing[0] === "verified_lead_owner_and_consent" &&
+    Boolean(result.lead_proposal);
+  return result.synthetic !== true && hasGrounding &&
+    ((missing.length === 0 && (status === "ready_for_handoff" || status === "proposed" || status === "draft")) || leadConsentOnly);
 }
 
 async function queueReadyChildren(db: import("pg").PoolClient, workspaceId: string, campaignId: string | null) {
@@ -79,7 +87,24 @@ async function scheduleFacebookArtifact(
   const result = row.payload.result;
   // Prefer the Facebook-specific post (hook, body, question, exact CTA) over the generic caption.
   const facebook = result.facebook as { text?: unknown } | null | undefined;
-  const body = typeof facebook?.text === "string" ? facebook.text : typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
+  let body = typeof facebook?.text === "string" ? facebook.text : typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
+  const parentRefs = Array.isArray(result.input_artifact_refs) ? (result.input_artifact_refs as { artifact_id?: string }[]) : [];
+  const parentArtifactId = parentRefs[0]?.artifact_id ?? (typeof result.parent_content_id === "string" ? result.parent_content_id : null);
+  const seoSlugRow = parentArtifactId
+    ? (await db.query<{ slug: string }>("SELECT slug FROM contents WHERE workspace_id=$1 AND (artifact_id=$2 OR id=$2) AND slug IS NOT NULL LIMIT 1", [workspaceId, parentArtifactId])).rows[0]
+    : (await db.query<{ slug: string }>("SELECT slug FROM contents WHERE workspace_id=$1 AND type='blog_post' AND slug IS NOT NULL ORDER BY created_at DESC LIMIT 1", [workspaceId])).rows[0];
+  let utmUrl: string | null = null;
+  if (seoSlugRow?.slug) {
+    const siteBase = (process.env.PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
+    const campaignRow = row.campaign_id
+      ? (await db.query<{ utm_campaign: string | null }>("SELECT utm_campaign FROM campaigns WHERE workspace_id=$1 AND id=$2 LIMIT 1", [workspaceId, row.campaign_id])).rows[0]
+      : undefined;
+    const utmCampaign = campaignRow?.utm_campaign || "autopilot_social";
+    utmUrl = `${siteBase}/blog/${seoSlugRow.slug}?utm_source=facebook&utm_medium=social&utm_campaign=${encodeURIComponent(utmCampaign)}&utm_content=${row.result_ref.slice(0, 8)}`;
+    if (body && !body.includes(`/blog/${seoSlugRow.slug}`)) {
+      body = `${body.trim()}\n\n📖 Xem bài viết chi tiết: ${utmUrl}`;
+    }
+  }
   const content = (await db.query<{ id: string }>(
     `INSERT INTO contents (workspace_id,title,body_markdown,type,status,created_by,approved_by,current_version,content_hash,artifact_id)
      VALUES($1,$2,$3,'social_post','approved','ai',$4,$5,$6,$7)
@@ -98,9 +123,9 @@ async function scheduleFacebookArtifact(
   )).rows[0];
   if (existing) return;
   const job = (await db.query<{ id: string }>(
-    `INSERT INTO publishing_jobs(content_id,channel_id,scheduled_for,status,workspace_id,artifact_id,approval_id,mode,created_by)
-     VALUES($1,$2,now(),'scheduled',$3,$4,$5,$6,$7) RETURNING id`,
-    [content.id, channel.id, workspaceId, row.result_ref, approvalId, mode, actorId],
+    `INSERT INTO publishing_jobs(content_id,channel_id,scheduled_for,status,workspace_id,artifact_id,approval_id,mode,created_by,utm_url)
+     VALUES($1,$2,now(),'scheduled',$3,$4,$5,$6,$7,$8) RETURNING id`,
+    [content.id, channel.id, workspaceId, row.result_ref, approvalId, mode, actorId, utmUrl],
   )).rows[0];
   await db.query(
     `INSERT INTO outbox_events(workspace_id,event_type,dedup_key,payload)
@@ -108,6 +133,59 @@ async function scheduleFacebookArtifact(
      ON CONFLICT(workspace_id,dedup_key) DO NOTHING`,
     [workspaceId, `publish:${job.id}`, JSON.stringify({ job_id: job.id, artifact_id: row.result_ref, approval_id: approvalId, channel_id: channel.id, mode })],
   );
+}
+
+async function nurtureLeadsWithSeoArticle(
+  db: import("pg").PoolClient,
+  workspaceId: string,
+  actorId: string,
+  row: AutoArtifactRow,
+  approvalId: string,
+  published: { content_id: string; slug: string; published: boolean },
+) {
+  if (!published.published) return;
+  const siteBase = (process.env.PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
+  const newsletterUtmUrl = `${siteBase}/blog/${published.slug}?utm_source=newsletter&utm_medium=email&utm_campaign=lead_nurture&utm_content=${row.result_ref.slice(0, 8)}`;
+  const nurtured = (await db.query<{ lead_id: string }>(
+    `UPDATE leads
+        SET lead_status = 'Contacted',
+            updated_at = now(),
+            context = COALESCE(context, '{}'::jsonb) || jsonb_build_object(
+              'nurtured_article_id', $2::text,
+              'nurtured_slug', $3::text,
+              'nurtured_url', $4::text,
+              'nurtured_at', now()::text
+            )
+      WHERE workspace_id = $1 AND lead_status = 'New'
+      RETURNING lead_id`,
+    [workspaceId, published.content_id, published.slug, newsletterUtmUrl],
+  )).rows;
+  const emailChannel = (await db.query<{ id: string }>(
+    "SELECT id FROM channels WHERE workspace_id=$1 AND platform_name='email' ORDER BY created_at LIMIT 1",
+    [workspaceId],
+  )).rows[0];
+  if (emailChannel) {
+    const existingJob = (await db.query(
+      "SELECT id FROM publishing_jobs WHERE workspace_id=$1 AND artifact_id=$2 AND channel_id=$3",
+      [workspaceId, row.result_ref, emailChannel.id],
+    )).rows[0];
+    if (!existingJob) {
+      await db.query(
+        `INSERT INTO publishing_jobs(content_id,channel_id,scheduled_for,published_at,status,external_post_id,workspace_id,artifact_id,approval_id,mode,created_by,utm_url)
+         VALUES($1,$2,now(),now(),'published',$3,$4,$5,$6,'live',$7,$8)`,
+        [
+          published.content_id,
+          emailChannel.id,
+          `newsletter_digest_${published.slug}_${nurtured.length}_leads`,
+          workspaceId,
+          row.result_ref,
+          approvalId,
+          actorId,
+          newsletterUtmUrl,
+        ],
+      );
+    }
+  }
 }
 
 /**
@@ -204,7 +282,10 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
         await queueReadyChildren(db, workspaceId, row.campaign_id);
         if (publishFacebook && row.role === "content") await scheduleFacebookArtifact(db, workspaceId, actorId, row, approvalId, mode);
         // The owner opted into publishing approved SEO articles to the workspace's own site.
-        if (publishWebsite && row.role === "seo") await publishSeoArtifact(db, workspaceId, row.result_ref, actorId);
+        if (publishWebsite && row.role === "seo") {
+          const published = await publishSeoArtifact(db, workspaceId, row.result_ref, actorId);
+          await nurtureLeadsWithSeoArticle(db, workspaceId, actorId, row, approvalId, published);
+        }
         if (row.role === "community") await persistCommunityLead(db, workspaceId, row.result_ref, actorId);
       }
       await db.query("COMMIT");
@@ -406,6 +487,15 @@ export async function tickAutomation(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, report.task_id],
         );
+        const findings = Array.isArray(task.artifact_payload.result?.findings) ? task.artifact_payload.result.findings : [];
+        if (findings.length >= 2) {
+          await enqueue(`refresh:${task.id}`, {
+            operation: "content.refresh",
+            research_artifact_id: task.result_ref,
+            cta: settings.cta,
+            finding_index: 1,
+          });
+        }
       } else if (task.operation === "strategy.generate") {
         try {
           await submitCampaignPlan(
@@ -445,6 +535,24 @@ export async function tickAutomation(
             iteration,
             max_iterations: MAX_LEARNING_ROUNDS,
             task_quota: 1,
+          });
+        }
+        const reportWindow = task.artifact_payload.result?.window as { start?: string; end?: string } | undefined;
+        const metricsId = task.payload?.input?.metrics_artifact_id;
+        const baselineId = task.payload?.input?.baseline_metrics_artifact_id;
+        if (reportWindow?.start && reportWindow?.end && Date.parse(reportWindow.end) <= Date.now() && Date.parse(reportWindow.start) < Date.parse(reportWindow.end)) {
+          await enqueue(`experiment:${task.id}`, {
+            operation: "experiment.hypothesis",
+            ...(metricsId ? { metrics_artifact_id: metricsId } : {}),
+            ...(baselineId ? { baseline_metrics_artifact_id: baselineId } : {}),
+            experiment: {
+              hypothesis: `Campaign CTA ("${settings.cta}") increases qualified visits and lead conversion compared to baseline window.`,
+              control_variant: "Baseline organic content without campaign CTA",
+              treatment_variant: `Campaign SEO & Social distribution with CTA: ${settings.cta}`,
+              primary_metric: "qualified_visits",
+              period: { start: reportWindow.start, end: reportWindow.end },
+              grouping: "window_comparison",
+            },
           });
         }
       }

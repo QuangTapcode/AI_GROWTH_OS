@@ -17,10 +17,12 @@ const experiment = z.object({
 const input = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('research.run') }).strict(),
   z.object({ operation: z.literal('strategy.generate'), research_artifact_id: id, cta: z.string().min(1).max(200), deadline: z.string().datetime({ offset: true }), score_factors: factors.optional() }).strict(),
-  z.object({ operation: z.literal('community.response'), question: z.string().min(1).max(1000) }).strict(),
+  z.object({ operation: z.literal('community.response'), question: z.string().min(1).max(1000), history: z.array(z.object({ question: z.string(), reply: z.string().optional() }).strict()).max(10).optional() }).strict(),
   z.object({ operation: z.literal('analytics.report'), metrics_artifact_id: id.optional(), baseline_metrics_artifact_id: id.optional() }).strict(),
   z.object({ operation: z.literal('experiment.hypothesis'), metrics_artifact_id: id.optional(), baseline_metrics_artifact_id: id.optional(), experiment }).strict(),
   z.object({ operation: z.literal('learning.analyze'), performance_artifact_id: id.optional(), lead_summary_artifact_id: id.optional(), iteration: z.number().int().min(0).max(3).default(0), max_iterations: z.number().int().min(1).max(3).default(3), task_quota: z.number().int().min(0).max(1).default(1) }).strict(),
+  z.object({ operation: z.literal('seo.audit'), research_artifact_id: id, cta: z.string().min(1).max(200), finding_index: z.number().int().min(0).optional() }).strict(),
+  z.object({ operation: z.literal('content.refresh'), research_artifact_id: id, cta: z.string().min(1).max(200), finding_index: z.number().int().min(0).optional() }).strict(),
 ]);
 const schema = z.object({ task_id: id.optional(), context_snapshot_id: id, synthetic: z.boolean().default(false), input }).strict();
 
@@ -31,7 +33,7 @@ export async function enqueueAiTask(pool: Pool, workspaceId: string, actorId: st
   const body = parsed.data, taskId = body.task_id ?? randomUUID();
   if (body.input.operation === 'strategy.generate' && Date.parse(body.input.deadline) <= Date.now()) throw new PlanError('INVALID_DEADLINE', 'Future deadline required');
   if (body.input.operation === 'experiment.hypothesis' && (Date.parse(body.input.experiment.period.end) > Date.now() || Date.parse(body.input.experiment.period.end) <= Date.parse(body.input.experiment.period.start))) throw new PlanError('INVALID_PERIOD', 'Experiment period must be ordered and not in the future');
-  const roles: Record<string, string> = { 'research.run': 'research', 'strategy.generate': 'growth_lead', 'community.response': 'community', 'analytics.report': 'performance', 'experiment.hypothesis': 'performance', 'learning.analyze': 'growth_lead' };
+  const roles: Record<string, string> = { 'research.run': 'research', 'strategy.generate': 'growth_lead', 'community.response': 'community', 'analytics.report': 'performance', 'experiment.hypothesis': 'performance', 'learning.analyze': 'growth_lead', 'seo.audit': 'seo', 'content.refresh': 'seo' };
   const db = await pool.connect();
   try {
     await db.query('BEGIN');

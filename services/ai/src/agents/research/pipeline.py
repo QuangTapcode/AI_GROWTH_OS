@@ -294,15 +294,19 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     # Query text helps select excerpts; measurements are attached in code, never invented by the model.
     if search_metrics:
         base["website_queries"] = [r.query for r in search_metrics.rows[:10]]
+    if payload.customer_signals:
+        base["customer_inquiries"] = list(payload.customer_signals[:10])
     def prompt_overhead():
         return estimate_tokens(SYSTEM_PROMPT + json.dumps(ResearchDraft.model_json_schema()) + json.dumps(base))
     # Keep room for source evidence. Search metadata and title hints are optional;
     # the complete inventory/signals remain available to the deterministic checks.
-    while prompt_overhead() > ctx.settings.max_input_tokens - 400 and (base['inventory'] or base['search_landscape']):
+    while prompt_overhead() > ctx.settings.max_input_tokens - 400 and (base['inventory'] or base['search_landscape'] or base.get('customer_inquiries')):
         if base['inventory']:
             base['inventory'].pop()
         elif base['search_landscape']:
             base['search_landscape'].pop()
+        elif base.get('customer_inquiries'):
+            base['customer_inquiries'].pop()
     overhead = prompt_overhead()
     if overhead > ctx.settings.max_input_tokens:
         raise OperationError("CONTEXT_BUDGET_EXCEEDED", "Profile/goal/inventory exceeds the research input budget")
@@ -314,6 +318,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     trend = terms(" ".join(s.title for s in payload.trend_signals)) - place
     if search_metrics:
         trend |= terms(" ".join(r.query for r in search_metrics.rows[:10])) - place
+    if payload.customer_signals:
+        trend |= terms(" ".join(payload.customer_signals)) - place
     order = {key: index for index, key in enumerate(candidates)}
     by_relevance = sorted(candidates, key=lambda key: (
         priority_order(topic_alignment(candidates[key][1].text, payload.business_profile)),

@@ -26,11 +26,16 @@ async function main() {
     pollIntervalMs: 1000, pollTimeoutMs: 650000, requestTimeoutMs: 15000 });
   const plan = new PlanOutboxRunner(pool, ai), ingest = new SourceIngestRunner(pool, ai);
   let planBusy = false, ingestBusy = false;
+  let triggerTick = () => {};
   const timers = [setInterval(() => {
     if (planBusy) return;
     planBusy = true;
-    void plan.runOnce().then(result => { if (result) console.log('[draft-worker] completed', result.task_id); })
-      .catch(error => console.error('[draft-worker]', error.message)).finally(() => { planBusy = false; });
+    void plan.runOnce().then(result => {
+      if (result) {
+        console.log('[draft-worker] completed', result.task_id);
+        triggerTick();
+      }
+    }).catch(error => console.error('[draft-worker]', error.message)).finally(() => { planBusy = false; });
   }, 1000), setInterval(() => {
     if (ingestBusy) return;
     ingestBusy = true;
@@ -46,12 +51,13 @@ async function main() {
     const publishing = new PublishingOutboxRunner(pool);
     const replies = new CommunityReplyRunner(pool);
     let replyBusy = false;
-    timers.push(setInterval(() => {
+    const runReplies = () => {
       if (replyBusy) return;
       replyBusy = true;
       void replies.runOnce().then((result) => { if (result !== 'idle') console.log('[community-reply]', result); })
         .catch((error) => console.error('[community-reply]', (error as Error).message)).finally(() => { replyBusy = false; });
-    }, 5000));
+    };
+    timers.push(setInterval(runReplies, 2000));
     const blogSync = new FirstPartyBlogSync(pool, listLinksWithBrowser);
     const syncBlog = () => void blogSync.runOnce()
       .then((result) => { if (result.imported) console.log('[blog-sync] imported', result.imported); })
@@ -59,19 +65,21 @@ async function main() {
     syncBlog();
     timers.push(setInterval(syncBlog, Number(process.env.BLOG_SYNC_HOURS ?? 6) * 3_600_000));
     let tickBusy = false, publishBusy = false;
-    timers.push(setInterval(() => {
+    triggerTick = () => {
       if (tickBusy) return;
       tickBusy = true;
       void fetch(`${apiBase}/internal/automation/tick`, { method: 'POST', headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(25000) }).then(response => {
         if (!response.ok) throw new Error(`scheduler HTTP ${response.status}`);
+        runReplies();
       }).catch(error => console.error('[autopilot]', (error as Error).message)).finally(() => { tickBusy = false; });
-    }, 30000), setInterval(() => {
+    };
+    timers.push(setInterval(triggerTick, 10000), setInterval(() => {
       if (publishBusy) return;
       publishBusy = true;
       void publishing.runOnce().then(result => { if (result !== 'idle') console.log('[publishing-outbox]', result); })
         .catch(error => console.error('[publishing-outbox]', (error as Error).message)).finally(() => { publishBusy = false; });
-    }, 5000));
+    }, 3000));
   }
   const stop = () => { timers.forEach(clearInterval); void pool.end().finally(() => process.exit(0)); };
   process.on('SIGINT', stop); process.on('SIGTERM', stop);

@@ -88,6 +88,9 @@ export class PlanOutboxRunner {
         payload.score_factors = taskInput.score_factors ?? {};
       } else if (task.operation === 'community.response') {
         payload.question = taskInput.question;
+        if (Array.isArray(taskInput.history) && taskInput.history.length > 0) {
+          payload.history = taskInput.history;
+        }
       } else if (task.operation === 'analytics.report' || task.operation === 'experiment.hypothesis') {
         payload.metrics = taskInput.metrics_artifact_id ? await load(taskInput.metrics_artifact_id) : null;
         payload.baseline_metrics = taskInput.baseline_metrics_artifact_id ? await load(taskInput.baseline_metrics_artifact_id) : null;
@@ -129,6 +132,20 @@ export class PlanOutboxRunner {
           WHERE s.workspace_id=$1 AND s.discovery_run_id=(SELECT discovery_run_id FROM cur)
           ORDER BY s.rank, s.query LIMIT 30`, [claimed.workspace_id, task.created_at])).rows
           .map((row: { observed_at: Date | string }) => ({ ...row, observed_at: new Date(row.observed_at).toISOString() }));
+        const customerRows = (await this.pool.query<{ signal: string }>(`
+          SELECT DISTINCT signal FROM (
+            SELECT left(trim(content), 240) AS signal, received_at AS ts
+              FROM community_messages
+             WHERE workspace_id = $1 AND received_at <= $2 AND length(trim(content)) >= 6
+            UNION ALL
+            SELECT left(trim(interest_topic), 240) AS signal, captured_at AS ts
+              FROM leads
+             WHERE workspace_id = $1 AND captured_at <= $2 AND interest_topic IS NOT NULL AND length(trim(interest_topic)) >= 4
+          ) q WHERE signal IS NOT NULL AND length(signal) > 0
+          LIMIT 15`, [claimed.workspace_id, task.created_at])).rows;
+        if (customerRows.length > 0) {
+          payload.customer_signals = customerRows.map((r) => r.signal);
+        }
       } else throw new Error('UNKNOWN_PLAN_OPERATION');
       await this.pool.query("UPDATE workflow_tasks SET status='running',started_at=COALESCE(started_at,now()),updated_at=now() WHERE id=$1 AND status NOT IN ('completed','cancelled','failed')", [task.id]);
       const result = await this.ai.run({ operation: 'content', aiOperation: task.operation, input: payload,
