@@ -250,20 +250,16 @@ class GeminiProvider:
                         config=types.EmbedContentConfig(output_dimensionality=self.settings.embedding_dim),
                     )
 
-                try:
-                    res = await asyncio.to_thread(_call_embed)
-                    vectors.extend(item.values for item in res.embeddings)
-                    calls += 1
-                except Exception:
-                    # Fallback to deterministic 768-dim lexical vectors when free-tier batch quota is hit
-                    vectors.extend(hashed_embedding(t, self.settings.embedding_dim) for t in batch)
+                res = await asyncio.to_thread(_call_embed)
+                vectors.extend(item.values for item in res.embeddings)
+                calls += 1
         except Exception as exc:
             raise ProviderError("EMBEDDING_UNAVAILABLE", f"Gemini embedding request failed: {exc}", retryable=True) from exc
 
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         return vectors, Usage(
             latency_ms=elapsed_ms,
-            embedding_calls=max(1, calls),
+            embedding_calls=calls,
             embedding_input_tokens=0,
         )
 

@@ -126,22 +126,41 @@ def ensure_grounded(text, grounding):
         raise OperationError("UNSUPPORTED_CONTENT_CLAIM", "Draft contains an unsupported numeric/price claim")
 
 
-async def call_draft(ctx, system, data, model, fake):
+CHARS_PER_ESTIMATED_TOKEN = 3
+
+
+def cut_at_sentence(text: str, limit: int) -> str:
+    """At most `limit` characters, ending on a finished sentence: models copy a half word they are given."""
+    head = text[:max(0, limit)]
+    end = max((head.rfind(mark) for mark in (". ", ".\n", "! ", "? ", "!\n", "?\n")), default=-1)
+    return head[:end + 1] if end >= 0 else ""
+
+
+async def call_draft(ctx, system, data, model, fake, trim=()):
+    """`trim` names long reference inputs that may be shortened for the prompt; callers ground on the full text."""
     goal = getattr(ctx.payload, "goal_context", None)
     if goal and goal.kpis:
         data = {**data, "measurement_objectives": [k.model_dump(mode="json") for k in goal.kpis]}
         system += "\nMeasurement objectives are internal targets, not measured facts. Never put KPI targets or baselines in public copy or claim an agent caused growth."
-    user = json.dumps(data, ensure_ascii=False)
-    if estimate_tokens(system + user + json.dumps(model.model_json_schema())) > ctx.settings.max_input_tokens:
+    schema = json.dumps(model.model_json_schema())
+
+    def over_budget(candidate):
+        return estimate_tokens(system + json.dumps(candidate, ensure_ascii=False) + schema) - ctx.settings.max_input_tokens
+
+    for field in trim:
+        over = over_budget(data)
+        if over > 0:
+            data = {**data, field: cut_at_sentence(data[field], len(data[field]) - over * CHARS_PER_ESTIMATED_TOKEN)}
+    if over_budget(data) > 0:
         raise OperationError("CONTEXT_BUDGET_EXCEEDED", "Marketing draft context exceeds budget")
-    return await ctx.call_json(system=system, user=user, model=model, fake=fake)
+    return await ctx.call_json(system=system, user=json.dumps(data, ensure_ascii=False), model=model, fake=fake)
 
 
 def aware_past(value: datetime):
     return value.tzinfo is not None and value <= datetime.now(timezone.utc)
 
 
-async def call_grounded_draft(ctx, system, data, model, fake, text_of, grounding):
+async def call_grounded_draft(ctx, system, data, model, fake, text_of, grounding, trim=()):
     """Draft once; if it states unsupported numbers/prices or sentences the sources lack,
     ask for one grounded rewrite naming them.
 
@@ -149,7 +168,7 @@ async def call_grounded_draft(ctx, system, data, model, fake, text_of, grounding
     Naming the offending tokens and sentences fixes most drafts within the per-job call cap.
     Numbers/prices still fail closed; callers strip sentences that remain unsupported.
     """
-    draft = await call_draft(ctx, system, data, model, fake)
+    draft = await call_draft(ctx, system, data, model, fake, trim)
     text = text_of(draft)
     numbers, price, loose = unsupported_numbers(text, grounding), has_price_claim(text), unsupported_sentences(text, grounding)
     if (numbers or price or loose) and ctx.budget.remaining() > 0:
@@ -161,7 +180,7 @@ async def call_grounded_draft(ctx, system, data, model, fake, text_of, grounding
         note = ("\nRevision required: the previous draft contained " + "; ".join(issues) + ". Rewrite it using only details "
                 "stated in the source passage and inputs. Drop examples, features, amenities, products, durations, "
                 "availability or advice the source does not mention.")
-        draft = await call_draft(ctx, system + note, data, model, fake)
+        draft = await call_draft(ctx, system + note, data, model, fake, trim)
     ensure_grounded(text_of(draft), grounding)
     return draft
 

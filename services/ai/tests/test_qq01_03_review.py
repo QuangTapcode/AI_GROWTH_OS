@@ -86,7 +86,7 @@ def test_QQ01_A05_seven_owners_and_declared_caps_match_runtime():
     limits = json.loads((root / "contracts/schemas/ai-six-role-contracts.json").read_text(encoding="utf-8"))["limits"]
     settings = Settings()
     assert limits["ai_concurrency"] == 1
-    assert limits["max_llm_calls_per_job"] == settings.max_provider_calls == 2
+    assert limits["max_llm_calls_per_job"] == settings.max_provider_calls == 3
     assert limits["max_attempts"] == settings.max_run_attempts == 2
     assert limits["input_token_estimate"] == settings.max_input_tokens == 2800
     assert limits["output_tokens"] == settings.max_output_tokens == 1024
@@ -247,7 +247,7 @@ def test_QQ02_A05_artifact_hash_scope_version_and_retry_survive_restart(make_cli
 def test_QQ01_A04_repair_budget_does_not_reset_across_operations(make_client):
     def invalid(draft): draft["unexpected_tool"] = "publish.everything"
     provider = ObservedProvider(invalid)
-    client = make_client(provider=provider)
+    client = make_client(provider=provider, max_provider_calls=2)
     request = fresh_request()
     failed = run_job(client, request)
     assert failed["error_code"] == "INVALID_STRUCTURED_OUTPUT"

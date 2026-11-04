@@ -68,7 +68,9 @@ class Settings:
     max_context_tokens: int = 4096
     max_input_tokens: int = 2800
     max_output_tokens: int = 1024
-    max_provider_calls: int = 2
+    max_provider_calls: int = 3
+    # Paid and public, so off until a deployment turns it on and configures Replicate, R2 and Tesseract.
+    ai_image_generation: bool = False
     max_run_attempts: int = 2
     provider_timeout_seconds: int = 240
     job_deadline_seconds: int = 600
@@ -102,7 +104,8 @@ class Settings:
             max_context_tokens=_int_env("AI_CONTEXT_TOKENS", 4096),
             max_input_tokens=_int_env("AI_MAX_INPUT_TOKENS", 2800),
             max_output_tokens=_int_env("AI_MAX_OUTPUT_TOKENS", 1024),
-            max_provider_calls=_int_env("AI_MAX_PROVIDER_CALLS", 2),
+            max_provider_calls=_int_env("AI_MAX_PROVIDER_CALLS", 3),
+            ai_image_generation=os.getenv("AI_IMAGE_GENERATION", "off").strip().lower() in {"1", "true", "on"},
             max_run_attempts=_int_env("AI_MAX_RUN_ATTEMPTS", 2),
             provider_timeout_seconds=_int_env("AI_PROVIDER_TIMEOUT_SECONDS", 240),
             job_deadline_seconds=_int_env("AI_JOB_DEADLINE_SECONDS", 600),

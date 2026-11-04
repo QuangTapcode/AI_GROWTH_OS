@@ -192,3 +192,83 @@ def test_findings_are_ranked_by_derived_score_without_a_model_call(client):
     assert plan["ranked_opportunities"][0]["score"] > plan["ranked_opportunities"][1]["score"]
     assert plan["selected_opportunity"]["topic"] == "Living areas guide for services"
     assert plan["opportunity_score"]["score"] == plan["ranked_opportunities"][0]["score"]
+
+
+def test_a_finding_on_the_requested_offer_outranks_a_higher_scored_one(client):
+    from examples.growth_lead_request import growth_lead_request, mock_research_request
+    base = mock_research_request()
+    research = run_job(client, base)["result"]
+    brief = json.loads(json.dumps(research))
+    first = brief["result"]["findings"][0]
+    now = first["fetched_at"]
+    signal = lambda title, rank: {"signal_id": str(uuid4()), "query": "Da Nang living areas expats", "rank": rank, "title": title,
+                                  "url": f"https://x.example/{rank}", "domain": "x.example", "observed_at": now}
+    strong = {**first, "topic": "Living areas guide for services", "trend_signals": [signal("Living areas guide", 1), signal("Areas guide", 2)]}
+    requested = {**first, "topic": "Street food stalls", "keywords": ["street food"], "trend_signals": []}
+    brief["result"]["findings"] = [strong, requested]
+    brief["evidence"] = [strong["evidence"], requested["evidence"]]
+    canonical = json.dumps({"result": brief["result"], "evidence": brief["evidence"]}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    brief["artifact"]["content_hash"] = hashlib.sha256(canonical.encode()).hexdigest()
+    job = growth_lead_request(base, brief)
+    job["job_id"] = str(uuid4())
+    job["payload"].pop("score_factors", None)
+    job["payload"]["goal_context"] = {**(job["payload"].get("goal_context") or {}), "focus_offers": ["food"]}
+    plan = run_job(client, job)["result"]["result"]
+    assert plan["selected_opportunity"]["topic"] == "Street food stalls"
+    assert [r["finding_index"] for r in plan["ranked_opportunities"]] == [1, 0]
+
+
+def kpi_plan(client, metrics_values, target=3):
+    """A plan choosing between a topic people can find and a topic close to the offer, given measured KPIs."""
+    from examples.growth_lead_request import growth_lead_request, mock_research_request
+    from examples.six_role_requests import aggregate
+    base = mock_research_request()
+    base["payload"]["business_profile"]["products"] = ["housing"]
+    research = run_job(client, base)["result"]
+    brief = json.loads(json.dumps(research))
+    first = brief["result"]["findings"][0]
+    now = first["fetched_at"]
+    signal = lambda rank: {"signal_id": str(uuid4()), "query": "Da Nang weather expats", "rank": rank, "title": "Weather overview for expats",
+                           "url": f"https://x.example/{rank}", "domain": "x.example", "observed_at": now, "is_new": True}
+    findable = {**first, "topic": "Weather overview", "keywords": ["weather"], "offer_fit": "Fits.", "trend_signals": [signal(1), signal(2), signal(3)]}
+    close_to_offer = {**first, "topic": "Housing near the river", "keywords": ["housing"], "offer_fit": "TripC can help with housing.", "trend_signals": []}
+    brief["result"]["findings"] = [findable, close_to_offer]
+    brief["evidence"] = [findable["evidence"], close_to_offer["evidence"]]
+    canonical = json.dumps({"result": brief["result"], "evidence": brief["evidence"]}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    brief["artifact"]["content_hash"] = hashlib.sha256(canonical.encode()).hexdigest()
+    job = growth_lead_request(base, brief)
+    job["job_id"] = str(uuid4())
+    job["payload"].pop("score_factors", None)
+    measurement = {"definition": "Leads in the window", "unit": "count", "source": "first_party", "scope": "site"}
+    job["payload"]["goal_context"] = {**(job["payload"].get("goal_context") or {}), "kpis": [
+        {"metric_name": "leads", "baseline_value": None, "target_value": target, "current_value": None, "baseline_status": "missing", "measurement": measurement}]}
+    if metrics_values is not None:
+        job["payload"]["latest_metrics"] = aggregate(job, {"workspace_id": job["workspace_id"], "snapshot_id": str(uuid4()), "version": 1,
+            "window_start": "2026-10-01T00:00:00Z", "window_end": "2026-10-08T00:00:00Z", "synthetic": True, **metrics_values}, role="performance")
+    body = run_job(client, job)
+    assert body["status"] == "completed", body
+    return body["result"]["result"]
+
+
+def test_without_traffic_the_plan_chooses_the_topic_people_can_find(client):
+    plan = kpi_plan(client, {"qualified_visits": 0, "leads": 0, "clicks": 0, "impressions": 0})
+    assert plan["priority"]["mode"] == "reach"
+    assert plan["selected_opportunity"]["topic"] == "Weather overview"
+    assert plan["kpi_progress"] == [{"metric_name": "leads", "target_value": 3, "current_value": 0, "status": "behind"}]
+
+
+def test_with_traffic_but_few_leads_the_plan_chooses_the_topic_close_to_the_offer(client):
+    plan = kpi_plan(client, {"qualified_visits": 40, "leads": 1, "clicks": 70, "impressions": 900})
+    assert plan["priority"]["mode"] == "conversion"
+    assert plan["selected_opportunity"]["topic"] == "Housing near the river"
+
+
+def test_a_reached_target_is_reported_and_the_plan_maintains(client):
+    plan = kpi_plan(client, {"qualified_visits": 40, "leads": 5, "clicks": 70, "impressions": 900})
+    assert plan["priority"]["mode"] == "maintain"
+    assert plan["kpi_progress"][0]["status"] == "reached"
+
+
+def test_without_a_measurement_the_plan_keeps_the_plain_score_and_says_so(client):
+    plan = kpi_plan(client, None)
+    assert plan["priority"] is None and plan["kpi_progress"] == []

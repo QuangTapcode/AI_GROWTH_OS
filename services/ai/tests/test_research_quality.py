@@ -12,13 +12,13 @@ from test_research_trends import ClaimProvider, LandscapeProvider, long_source_j
 
 
 class IncompleteExplanationProvider(LandscapeProvider):
-    """Model-like output with grounded content but omitted terminal punctuation."""
+    """Model-like output with grounded content but explanations that stop mid-sentence."""
 
     async def chat_json(self, *, user, **kwargs):
         content, usage = await super().chat_json(user=user, **kwargs)
         draft = json.loads(content)
         for key in ("audience_fit", "offer_fit", "rationale", "user_need"):
-            draft["ideas"][0][key] = draft["ideas"][0][key].rstrip(".!?")
+            draft["ideas"][0][key] = draft["ideas"][0][key].rstrip(".!?") + " before"
         return json.dumps(draft), usage
 
 
@@ -187,6 +187,8 @@ def test_fallback_prefers_the_offer_the_owner_asked_for(make_client):
 
 def test_an_excerpt_from_a_source_chunk_existing_content_is_built_on_is_not_reproposed(make_client):
     job = community_events_job(['events'])
+    # Few enough chunks that the model still sees the cited one (cited chunks are read last).
+    job['payload']['snapshot']['sources'][0]['chunks'] = job['payload']['snapshot']['sources'][0]['chunks'][-3:]
     # Existing article cites another sentence of the same source chunk.
     job['payload']['content_inventory'] = [{'content_id': str(uuid4()), 'workspace_id': job['workspace_id'], 'version': 1,
                                             'title': 'Meeting people in a new city', 'evidence_chunk_ids': ['work']}]

@@ -8,7 +8,8 @@ def concepts(text):
     words = terms(text)
     words |= {w[:-1] for w in words if w.endswith('s') and len(w) > 4}
     for family in ({'housing', 'apartment', 'accommodation', 'rental', 'home'},
-                   {'coworking', 'workspace', 'work', 'working'}):
+                   {'coworking', 'workspace', 'work', 'working'},
+                   {'food', 'cuisine', 'dish', 'dishes', 'restaurant', 'eatery', 'seafood', 'noodle', 'noodles', 'meal', 'eating'}):
         if words & family:
             words |= family
     return words

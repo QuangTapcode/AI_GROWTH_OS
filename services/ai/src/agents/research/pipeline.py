@@ -13,20 +13,25 @@ from ...app.config import Settings
 from ...app.providers import ProviderError
 from ...app.runtime import OperationError, OperationOutcome, RunContext
 from ...app.schemas import EvidenceRef, JobRequest
-from ...guardrails.facts import has_price_claim, sensitive_keys_in, unsupported_numbers
+from ...guardrails.facts import has_price_claim, sensitive_keys_in, unsupported_numbers, without_contact_details
 from ...rag.chunking import estimate_tokens
 from ...rag.retrieval import eligible_sources, lexical_overlap, terms
 from ..context import context_problems
+from ..copy_quality import ends_mid_sentence, strip_listing_artifacts
 from ..contracts import artifact_problems
 from .quality import GENERIC, concepts, quality_checks
 from .strategy import topic_alignment, priority_order, strategy_missing_data
 from .schemas import ResearchBrief, ResearchDraft, ResearchFinding, ResearchIdea, ResearchPayload, SearchMetricsSnapshot, TrendCoverage, TrendSignal
 
-PROMPT_VERSION = "research-v8"
+PROMPT_VERSION = "research-v9"
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 # Search landscape rows shown to the model; the rest stay available for deterministic matching.
 MAX_LANDSCAPE_IN_PROMPT = 12
 MIN_QUOTE_WORDS = 6
+MAX_EXCERPT_CHARS = 450
+# Prompt tokens kept for excerpts ahead of search titles and old article titles.
+EVIDENCE_TOKENS = 900
+SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
 DEMAND_CLAIM = re.compile(
     # Any mention of demand is a claim the brief cannot support, except stating it is not measured.
     r"\bdemand\b(?!\s+(?:is\s+)?not\s+measured)|\bsearch volume\b|\bmost[- ]searched\b",
@@ -160,6 +165,41 @@ def offer_for_topic(topic: str, profile) -> str | None:
     return None
 
 
+def names_focus(text: str, focus: list[str]) -> bool:
+    """The text is about an offer the owner asked for, in its wording or a close word (restaurant for food)."""
+    found = concepts(text)
+    return any(concepts(offer) & found for offer in focus)
+
+
+def narrowed_excerpt(text: str, wanted: set[str]) -> str:
+    """The unbroken span of a long excerpt with the most sentences about the wanted terms, starting one
+    sentence earlier (which often names the place). Unbroken, because the model quotes across what it reads."""
+    if len(text) <= MAX_EXCERPT_CHARS:
+        return text
+    sentences = SENTENCE_BREAK.split(" ".join(text.split()))
+    about = [bool(concepts(sentence) & wanted) for sentence in sentences]
+    best, best_hits = None, -1
+    for start in [max(0, i - 1) for i, hit in enumerate(about) if hit] or [0]:
+        end, length = start, 0
+        while end < len(sentences) and length + len(sentences[end]) <= MAX_EXCERPT_CHARS:
+            length += len(sentences[end]) + 1
+            end += 1
+        while end > start + 1 and any(about[start:end]) and not about[end - 1]:
+            end -= 1
+        if sum(about[start:end]) > best_hits:
+            best, best_hits = (start, end), sum(about[start:end])
+    return " ".join(sentences[best[0]:best[1]]) or text[:MAX_EXCERPT_CHARS]
+
+
+def grounded_quote(quote: str, text: str) -> str | None:
+    """The quote as it stands in the source, else its longest sentence that does; models join separate sentences."""
+    exact = exact_quote(quote, text)
+    if exact is not None:
+        return exact
+    found = [span for span in (exact_quote(part, text) for part in SENTENCE_BREAK.split(quote)) if span]
+    return max(found, key=len) if found else None
+
+
 def complete_sentence(value: str) -> str:
     """Normalize model prose without changing its claim or adding facts.
 
@@ -175,7 +215,6 @@ def complete_sentence(value: str) -> str:
 
 
 FALLBACK_QUOTE_CHARS = 400  # ResearchIdea.quote max_length
-SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
 
 
 def fallback_quote(text: str, topic_words: list[str], locations: list[str] = ()) -> str:
@@ -275,15 +314,21 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                 continue
             candidates[chunk.chunk_id] = (source, chunk, valid_url, fetched)
 
+    goal_focus = [offer.replace("_", " ") for offer in (payload.goal_context.focus_offers if payload.goal_context else [])]
     profile = payload.business_profile.model_dump(mode="json", exclude_none=True, exclude={'research_strategy', 'competitors'})
+    # Results about the requested offer only when it has any; other topics would take the budget from its excerpts.
+    landscape = [s for s in payload.trend_signals if names_focus(s.query, goal_focus)] or payload.trend_signals
     base = {"profile": profile,
-            "goal": payload.goal_context.model_dump(mode="json", exclude_none=True) if payload.goal_context else None,
+            # What guides the ideas; ids and KPI detail would take budget from the evidence.
+            "goal": payload.goal_context.model_dump(mode="json", include={"objective", "focus_offers"}) if payload.goal_context else None,
             # Model avoidance is a hint; deterministic dedup below still checks all 100 items.
             "inventory": [x.title for x in payload.content_inventory[:12]],
             "search_landscape": [{"query": s.query, "rank": s.rank, "title": s.title, "domain": s.domain,
                                   "movement": movement(s)}
-                                 for s in sorted(payload.trend_signals, key=lambda s: s.rank)[:MAX_LANDSCAPE_IN_PROMPT]],
+                                 for s in sorted(landscape, key=lambda s: s.rank)[:MAX_LANDSCAPE_IN_PROMPT]],
             "excerpts": []}
+    if payload.lessons and (payload.lessons.promising_titles or payload.lessons.weak_titles):
+        base["lessons"] = payload.lessons.model_dump(mode="json")
     if payload.business_profile.research_strategy:
         strategy = payload.business_profile.research_strategy
         base['editorial_strategy'] = {
@@ -294,13 +339,15 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     # Query text helps select excerpts; measurements are attached in code, never invented by the model.
     if search_metrics:
         base["website_queries"] = [r.query for r in search_metrics.rows[:10]]
-    if payload.customer_signals:
-        base["customer_inquiries"] = list(payload.customer_signals[:10])
+    # What customers asked, not how to reach them: a message of only contact details says nothing about demand.
+    customer_signals = [signal for signal in map(without_contact_details, payload.customer_signals) if signal]
+    if customer_signals:
+        base["customer_inquiries"] = customer_signals[:10]
     def prompt_overhead():
         return estimate_tokens(SYSTEM_PROMPT + json.dumps(ResearchDraft.model_json_schema()) + json.dumps(base))
     # Keep room for source evidence. Search metadata and title hints are optional;
     # the complete inventory/signals remain available to the deterministic checks.
-    while prompt_overhead() > ctx.settings.max_input_tokens - 400 and (base['inventory'] or base['search_landscape'] or base.get('customer_inquiries')):
+    while prompt_overhead() > ctx.settings.max_input_tokens - EVIDENCE_TOKENS and (base['inventory'] or base['search_landscape'] or base.get('customer_inquiries')):
         if base['inventory']:
             base['inventory'].pop()
         elif base['search_landscape']:
@@ -318,8 +365,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     trend = terms(" ".join(s.title for s in payload.trend_signals)) - place
     if search_metrics:
         trend |= terms(" ".join(r.query for r in search_metrics.rows[:10])) - place
-    if payload.customer_signals:
-        trend |= terms(" ".join(payload.customer_signals)) - place
+    if customer_signals:
+        trend |= terms(" ".join(customer_signals)) - place
     order = {key: index for index, key in enumerate(candidates)}
     by_relevance = sorted(candidates, key=lambda key: (
         priority_order(topic_alignment(candidates[key][1].text, payload.business_profile)),
@@ -335,12 +382,23 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             priority.append(covering[0])
         else:
             missing.append(f"source_gap:{topic}")
-    ranked = list(dict.fromkeys(priority + by_relevance))
-    base["topics"] = [c.topic for c in coverage if c.covered_chunks]
+    # The owner's request decides what the model reads first; the goal text may not share the sources' language.
+    on_goal = [key for key in by_relevance if names_focus(candidates[key][1].text, goal_focus)]
+    ranked = list(dict.fromkeys(on_goal + priority + by_relevance))
+    # An excerpt an article is already built on would only be dropped as a duplicate; keep the budget for new ones.
+    # Within that, excerpts related to the articles readers acted on come first.
+    promising = terms(" ".join(payload.lessons.promising_titles)) - place - TITLE_FILLER if payload.lessons else set()
+    on_goal_keys = set(on_goal)
+    ranked.sort(key=lambda key: (chunk_has_content(key, payload.content_inventory), bool(goal_focus) and key not in on_goal_keys,
+                                 -len(promising & terms(candidates[key][1].text))))
+    covered_topics = [c.topic for c in coverage if c.covered_chunks]
+    base["topics"] = [t for t in covered_topics if names_focus(t, goal_focus)] or covered_topics
     used += estimate_tokens(json.dumps(base["topics"]))
+    wanted = {word for offer in goal_focus for word in concepts(offer)} or focus | trend
     for key in ranked:
         chunk = candidates[key][1]
-        excerpt = {"chunk_id": key, "text": chunk.text}
+        # Without list numbers and date stamps, which the model would copy into topics and titles.
+        excerpt = {"chunk_id": key, "text": narrowed_excerpt(strip_listing_artifacts(chunk.text), wanted)}
         cost = estimate_tokens(json.dumps(excerpt)) + 10
         if used + cost > ctx.settings.max_input_tokens or len(selected) >= ctx.settings.max_retrieved_chunks:
             warnings.append("EXCERPT_BUDGET_EXCLUDED")
@@ -377,10 +435,10 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             draft = ResearchDraft(ideas=[])
 
     findings = []
-    seen = set()
+    seen, seen_quotes = set(), set()
     for idea in draft.ideas:
         ref = selected.get(idea.chunk_id)
-        quote = exact_quote(idea.quote, ref[1].text) if ref is not None else None
+        quote = grounded_quote(idea.quote, ref[1].text) if ref is not None else None
         if quote is None:
             warnings.append("UNGROUNDED_IDEA_DROPPED")
             continue
@@ -388,12 +446,16 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             # A heading such as "Relax on My Khe Beach" cannot support an opportunity.
             warnings.append("WEAK_QUOTE_DROPPED")
             continue
-        explanations = (idea.audience_fit, idea.offer_fit, idea.rationale, idea.user_need)
-        if any(not text.strip().endswith((".", "!", "?")) for text in explanations):
+        if any(ends_mid_sentence(text) for text in (idea.audience_fit, idea.offer_fit, idea.rationale, idea.user_need)):
             warnings.append("INCOMPLETE_BRIEF_DROPPED")
             missing.append("complete_research_explanation")
             continue
+        # A missing full stop is a formatting slip of small models, not an incomplete idea.
+        explanations = tuple(complete_sentence(text) for text in (idea.audience_fit, idea.offer_fit, idea.rationale, idea.user_need))
         audience_fit, offer_fit, rationale, user_need = explanations
+        named_offer = offer_for_topic(idea.offer_fit, payload.business_profile)
+        if named_offer and len(idea.offer_fit.split()) <= 3:
+            offer_fit = complete_sentence(f"{payload.business_profile.company} can relate this topic to its {named_offer} offering")
         narrative = " ".join((idea.topic, *explanations, *idea.keywords))
         grounding = [json.dumps(profile, ensure_ascii=False), ref[1].text]
         if unsupported_numbers(narrative, grounding) or has_price_claim(narrative) or sensitive_keys_in(narrative):
@@ -407,8 +469,14 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             # Ranking titles show visibility, never measured demand.
             warnings.append("DEMAND_CLAIM_DROPPED")
             continue
+        if goal_focus and not names_focus(quote, goal_focus):
+            # A keyword cannot make a sentence about something else evidence for what the owner asked.
+            warnings.append("OFF_GOAL_IDEA_DROPPED")
+            continue
         topic_key = " ".join(sorted(terms(idea.topic))) or idea.topic.casefold()
-        if (topic_key in seen or topic_has_content(idea.topic, payload.content_inventory)
+        # A requested offer stays open across articles: only the excerpt checks below retire it.
+        if (topic_key in seen or quote in seen_quotes
+                or (not names_focus(idea.topic, goal_focus) and topic_has_content(idea.topic, payload.content_inventory))
                 or cited_by_inventory(quote, payload.content_inventory)
                 or chunk_has_content(idea.chunk_id, payload.content_inventory)):
             warnings.append("DUPLICATE_TOPIC_DROPPED")
@@ -427,6 +495,7 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             warnings.append("AUDIENCE_MISMATCH_DROPPED")
             continue
         seen.add(topic_key)
+        seen_quotes.add(quote)
         source, chunk, url, fetched = ref
         updated = evidence_year(chunk.text)
         if updated is not None and updated < datetime.now(timezone.utc).year - STALE_AFTER_YEARS:
@@ -471,13 +540,17 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
         searched_names = {topic for _, topic, _, _ in searched}
         searched += [("", offer, offer.lower().split(), 0) for offer in offers if offer not in searched_names]
         topics = sorted(searched, key=lambda t: offer_for_topic(t[1], payload.business_profile) not in focus)
+        if focus:
+            # Another topic would answer a question the owner did not ask; report the gap instead.
+            topics = [t for t in topics if offer_for_topic(t[1], payload.business_profile) in focus]
         for _, topic, words, _ in topics:
             offer = offer_for_topic(topic, payload.business_profile)
             if offer is None:
                 # e.g. "transport": covered by sources, but TripC has no confirmed offer to relate it to.
                 warnings.append("FALLBACK_NO_MATCHING_OFFER")
                 continue
-            if topic_has_content(topic, payload.content_inventory):
+            # A requested offer stays open across articles; each new one needs an excerpt not yet used (checked below).
+            if offer not in focus and topic_has_content(topic, payload.content_inventory):
                 warnings.append("DUPLICATE_TOPIC_DROPPED")
                 continue
             for key in ranked:
@@ -497,6 +570,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                     break
             if fallback:
                 break
+        if not fallback:
+            missing += [f"goal_focus_sources_exhausted:{offer}" for offer in sorted(focus)]
         if fallback:
             topic, words, offer, key, source, chunk, url, fetched = fallback
             quote = fallback_quote(chunk.text, words, payload.business_profile.locations)
@@ -506,7 +581,7 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                 idea = ResearchIdea(
                     topic=topic,
                     audience_fit=complete_sentence(f"{audience} may use a practical guide to {topic} in {location}"),
-                    offer_fit=complete_sentence(f"TripC can relate this topic to its {offer} offering"),
+                    offer_fit=complete_sentence(f"{payload.business_profile.company} can relate this topic to its {offer} offering"),
                     rationale=complete_sentence("The approved excerpt supports this content hypothesis; demand is not measured"),
                     chunk_id=key,
                     quote=quote,

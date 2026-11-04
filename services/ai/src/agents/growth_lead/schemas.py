@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...app.schemas import BusinessProfile, GoalContext, GoalKpi, KnowledgeSnapshot, RunArtifact
+from ..contracts import ArtifactInput
 from ..research.schemas import ResearchBrief, ResearchFinding
 
 
@@ -19,6 +20,8 @@ class GrowthLeadPayload(BaseModel):
     research_artifact: RunArtifact
     cta: str | None = Field(default=None, min_length=1, max_length=200)
     deadline: datetime | None = None
+    # Latest measured snapshot: what it shows decides whether this plan goes for reach or for conversion.
+    latest_metrics: ArtifactInput | None = None
     score_factors: dict[Literal["demand", "business_relevance", "growth_potential", "content_gap", "freshness", "conversion_potential"], float | None] = Field(default_factory=dict)
 
 
@@ -77,4 +80,7 @@ class CampaignPlan(BaseModel):
     synthetic: bool
     opportunity_score: dict = Field(default_factory=dict)
     kpis: list[GoalKpi] = Field(default_factory=list, max_length=5)
+    # How the goal stands in the latest measurement and what this plan therefore goes for; null when nothing is measured.
+    kpi_progress: list[dict] = Field(default_factory=list, max_length=5)
+    priority: dict | None = None
     strategy_alignment: dict | None = None

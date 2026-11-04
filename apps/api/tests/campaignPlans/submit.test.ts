@@ -12,6 +12,8 @@ const fixture = JSON.parse(readFileSync(resolve(process.cwd(), '../../qa/evidenc
 function setup() {
   const repo = new MockPlanRepository();
   const plan = structuredClone(fixture.plan.result) as CampaignPlan;
+  // The evidence was captured with a deadline that has since passed; a new plan needs a future one.
+  for (const task of plan.tasks) task.deadline = '2099-01-01T00:00:00Z';
   const artifact: StoredArtifact = { ref: structuredClone(fixture.plan.artifact), result: plan,
     evidence: structuredClone(fixture.plan.evidence) };
   const context = { snapshot_id: plan.context_snapshot_id, profile_version: 1,

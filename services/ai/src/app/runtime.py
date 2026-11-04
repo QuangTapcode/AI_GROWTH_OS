@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Callable, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -78,6 +79,18 @@ class RunContext:
     budget: CallBudget
     logger: logging.Logger
     usage: Usage = field(default_factory=Usage)
+    deadline_at: datetime | None = None
+
+    def seconds_left(self) -> float:
+        return (self.deadline_at - datetime.now(timezone.utc)).total_seconds() if self.deadline_at else float("inf")
+
+    def optional_call_blocker(self) -> str | None:
+        """Why a call the job can do without must not run: at the deadline the whole run fails, main output included."""
+        if self.budget.remaining() == 0:
+            return "NO_PROVIDER_CALLS_LEFT"
+        if self.seconds_left() < self.settings.provider_timeout_seconds:
+            return "NOT_ENOUGH_TIME"
+        return None
 
     async def call_json(
         self,

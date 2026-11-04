@@ -32,6 +32,6 @@ def growth_lead_request(research_request: dict, research_result: dict) -> dict:
                    trace_id="qq04-mock-plan")
     request["payload"].pop("content_inventory", None)
     request["payload"].update(research=research_result["result"], research_artifact=research_result["artifact"],
-                              cta="Request the newcomer guide (MOCK)", deadline="2026-11-04T10:00:00Z",
+                              cta="Request the newcomer guide (MOCK)", deadline="2099-01-01T00:00:00Z",
                               score_factors={key: 3 for key in ("demand", "business_relevance", "growth_potential", "content_gap", "freshness", "conversion_potential")})
     return request

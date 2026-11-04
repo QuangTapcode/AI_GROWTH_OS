@@ -10,6 +10,15 @@ import re
 from dataclasses import dataclass
 
 
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PHONE = re.compile(r"(?<!\w)\+?\d(?:[ .()-]*\d){7,}")
+
+
+def without_contact_details(text: str) -> str:
+    """A customer's words without an e-mail address or phone number; empty if nothing else was said."""
+    return re.sub(r"\s{2,}", " ", _PHONE.sub("", _EMAIL.sub("", text))).strip(" ,;:-")
+
+
 @dataclass(frozen=True)
 class SensitiveFact:
     key: str

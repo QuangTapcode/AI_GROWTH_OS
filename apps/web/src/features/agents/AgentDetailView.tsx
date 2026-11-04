@@ -94,6 +94,7 @@ const learningStopLabels: Record<string, string> = {
   max_iterations: `Đã đạt giới hạn ${MAX_LEARNING_ITERATIONS} vòng học`,
   task_quota: "Quota task bằng 0",
   duplicate_proposal: "Đề xuất trùng với vòng đã mở",
+  no_measured_signal: "Chưa đo được lượt xem, click hay lead nào nên chưa có gì để học. Vòng theo lịch vẫn chạy.",
 };
 
 type CheckState = "ready" | "missing" | "warning";

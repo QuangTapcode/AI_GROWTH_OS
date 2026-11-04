@@ -4,6 +4,8 @@ from ...app.runtime import OperationOutcome
 from ..contracts import ArtifactInput, DraftResult, MarketingContext, artifact_problems, result_fields, validate_context
 
 PROMPT_VERSION = "learning-v1"
+MIN_READERS_FOR_WEAK = 10
+MAX_LESSON_TITLES = 5
 
 
 class LearningPayload(MarketingContext):
@@ -21,6 +23,14 @@ class LearningReport(DraftResult):
     learning: list[str]
     next_tasks: list[dict]
     stopped_reason: str | None
+    # Which past articles readers acted on: passed to the Research round this report opens.
+    lessons: dict[str, list[str]] = Field(default_factory=lambda: {"promising_titles": [], "weak_titles": []})
+
+
+def article_lessons(articles: list[dict]) -> dict[str, list[str]]:
+    """A click shows interest; views without one count against an article only once enough people came."""
+    return {"promising_titles": [a["title"] for a in articles if a["cta_clicks"] > 0][:MAX_LESSON_TITLES],
+            "weak_titles": [a["title"] for a in articles if a["page_views"] >= MIN_READERS_FOR_WEAK and not a["cta_clicks"]][:MAX_LESSON_TITLES]}
 
 
 def validate_learning(job, p, settings):
@@ -48,6 +58,7 @@ async def run_learning(ctx):
     learning = []
     tasks = []
     stopped = None
+    lessons = article_lessons([])
     if missing:
         stopped = "insufficient_data"
     elif p.iteration >= p.max_iterations:
@@ -56,11 +67,24 @@ async def run_learning(ctx):
         stopped = "task_quota"
     else:
         count = p.lead_summary.result["count"]
+        measured = [value for value in (p.performance.result.get("metrics") or {}).values() if value]
+        articles = p.performance.result.get("content_metrics") or []
+        if not count and not measured and not any(article["page_views"] for article in articles):
+            # Another round would rewrite the same article; the next scheduled cycle brings new data instead.
+            result = LearningReport(**result_fields(ctx, refs), status="draft", missing_facts=[], iteration=p.iteration,
+                max_iterations=p.max_iterations, next_tasks=[], stopped_reason="no_measured_signal",
+                learning=["No visits, clicks or leads were measured in this window, so there is nothing to learn from yet."])
+            return OperationOutcome(result=result.model_dump(mode="json"))
         learning = [f"The cited lead aggregate contains {count} leads; causal attribution is not established."]
         comparisons = p.performance.result.get("kpi_comparisons", [])
         learning += [f"Measured {c['metric_name']} changed by {c['absolute_change']} against its cited baseline; "
                      "this observation does not establish cause or ROI."
                      for c in comparisons if c.get("status") in {"compared", "zero_baseline"}]
+        lessons = article_lessons(articles)
+        if lessons["promising_titles"]:
+            learning.append(f"Readers clicked the CTA on: {'; '.join(lessons['promising_titles'])}. Next articles may try related angles; this is not proof of cause.")
+        if lessons["weak_titles"]:
+            learning.append(f"Readers came but did not click on: {'; '.join(lessons['weak_titles'])}.")
         key = hashlib.sha256(f"{ctx.job.workspace_id}:{p.performance.artifact.artifact_id}:{p.performance.artifact.version}:{p.lead_summary.artifact.artifact_id}:{p.lead_summary.artifact.version}:{p.iteration}".encode()).hexdigest()
         if key in p.prior_dedup_keys:
             stopped = "duplicate_proposal"
@@ -71,5 +95,5 @@ async def run_learning(ctx):
                       "requires_human_approval": True}]
     result = LearningReport(**result_fields(ctx, refs), status="insufficient_data" if missing else "draft",
         missing_facts=missing, iteration=p.iteration, max_iterations=p.max_iterations,
-        learning=learning, next_tasks=tasks, stopped_reason=stopped)
+        learning=learning, next_tasks=tasks, stopped_reason=stopped, lessons=lessons)
     return OperationOutcome(result=result.model_dump(mode="json"))

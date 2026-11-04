@@ -62,6 +62,13 @@ class TrendSignal(BaseModel):
     is_new: bool = False
 
 
+class LearningLessons(BaseModel):
+    """What the Learning round before this one observed about past articles."""
+    model_config = ConfigDict(extra="forbid")
+    promising_titles: list[str] = Field(default_factory=list, max_length=5)
+    weak_titles: list[str] = Field(default_factory=list, max_length=5)
+
+
 class ResearchPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
     workspace_id: UUID
@@ -76,6 +83,7 @@ class ResearchPayload(BaseModel):
     search_metrics_missing_reason: str = Field(default="gsc_not_connected", max_length=100)
     # Voice-of-customer questions/topics captured from community inbox and leads.
     customer_signals: list[str] = Field(default_factory=list, max_length=20)
+    lessons: LearningLessons | None = None
 
 
 class ResearchIdea(BaseModel):
