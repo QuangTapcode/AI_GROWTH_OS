@@ -14,6 +14,7 @@
     "test:workspaces": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/test-workspaces.ts",
     "test:sources": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/test-sources.ts",
     "test:boundary": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/test-boundary-rag.ts",
+    "telegram:webhook": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/set-telegram-webhook.ts",
     "db:migrate": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/migrate.ts",
     "db:rollback": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/migrate.ts --down",
     "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.ts",

@@ -31,7 +31,7 @@ $configuredIntegration = Read-EnvValue $apiEnvPath 'INTEGRATION_MODE'
 $env:INTEGRATION_MODE = if ($IntegrationMode) { $IntegrationMode } elseif ($configuredIntegration) { $configuredIntegration } else { 'fake' }
 # Publishing credentials are read only by the worker publisher. They remain
 # server-side and are never printed or returned by the API.
-foreach ($name in @('FACEBOOK_PAGE_ID','FACEBOOK_PAGE_ACCESS_TOKEN','TIKTOK_ACCESS_TOKEN','TIKTOK_OPEN_ID','TIKTOK_DIRECT_POST_ENABLED','TIKTOK_API_BASE_URL','WORKER_GATEWAY_TOKEN')) {
+foreach ($name in @('FACEBOOK_PAGE_ID','FACEBOOK_PAGE_ACCESS_TOKEN','TELEGRAM_BOT_TOKEN','TIKTOK_ACCESS_TOKEN','TIKTOK_OPEN_ID','TIKTOK_DIRECT_POST_ENABLED','TIKTOK_API_BASE_URL','WORKER_GATEWAY_TOKEN')) {
     Set-Item -Path ('Env:' + $name) -Value (Read-EnvValue $apiEnvPath $name)
 }
 $env:API_BASE_URL = 'http://127.0.0.1:4000'

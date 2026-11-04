@@ -18,24 +18,47 @@ export const sendMessengerReply: SendReply = async (recipient, text) => {
   return body;
 };
 
+export type SendTelegramReply = (chatId: string, text: string, businessConnectionId?: string) => Promise<{ message_id?: string }>;
+
+/** Telegram Bot API; with a business connection the reply goes out from the connected account. */
+export const sendTelegramReply: SendTelegramReply = async (chatId, text, businessConnectionId) => {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error('TELEGRAM_NOT_CONFIGURED');
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, business_connection_id: businessConnectionId }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json().catch(() => ({})) as { ok?: boolean; error_code?: number; description?: string; result?: { message_id?: number } };
+  if (!response.ok || !body.ok) throw new Error(`TELEGRAM_REFUSED: (#${body.error_code ?? response.status}) ${body.description ?? 'request failed'}`);
+  return { message_id: body.result?.message_id?.toString() };
+};
+
 /**
  * Sends approved Community replies queued as `community.reply` outbox events. A message becomes
- * 'replied' only after Messenger accepted the reply; a refusal is recorded once and never resent
+ * 'replied' only after the platform accepted the reply; a refusal is recorded once and never resent
  * automatically, so a person is not messaged twice.
  */
 export class CommunityReplyRunner {
-  constructor(private readonly pool: Pool, private readonly send: SendReply = sendMessengerReply) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly send: SendReply = sendMessengerReply,
+    private readonly sendTelegram: SendTelegramReply = sendTelegramReply,
+  ) {}
 
   async runOnce(): Promise<'idle' | 'sent' | 'failed'> {
-    const event = (await this.pool.query<{ id: string; workspace_id: string; payload: { message_id: string; recipient: string; text: string } }>(`
+    const event = (await this.pool.query<{ id: string; workspace_id: string; payload: { message_id: string; recipient: string; text: string; platform?: string; business_connection_id?: string } }>(`
       UPDATE outbox_events SET status = 'processing', retry_count = retry_count + 1
        WHERE id = (SELECT id FROM outbox_events WHERE event_type = 'community.reply' AND status = 'pending'
                     ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1)
        RETURNING id, workspace_id, payload`)).rows[0];
     if (!event) return 'idle';
-    const { message_id: messageId, recipient, text } = event.payload;
+    const { message_id: messageId, recipient, text, platform, business_connection_id: businessConnectionId } = event.payload;
     try {
-      const sent = await this.send(recipient, text);
+      const sent = platform === 'telegram_message'
+        ? await this.sendTelegram(recipient, text, businessConnectionId)
+        : await this.send(recipient, text);
       await this.pool.query(
         `UPDATE community_messages SET status = 'replied', metadata = metadata || $3::jsonb, updated_at = now()
           WHERE workspace_id = $1 AND id = $2`,
