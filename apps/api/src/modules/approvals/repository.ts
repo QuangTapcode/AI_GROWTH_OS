@@ -389,6 +389,16 @@ export async function executeApprovalReviewTransaction(
       } catch (err) {
         // Non-blocking for the approval review itself
       }
+    } else if (effectiveTargetType === "artifact") {
+      // A rejected or revoked draft will never be approved: close its task so the tasks
+      // behind it and the automation schedule can move on instead of waiting forever.
+      await client.query(
+        `UPDATE workflow_tasks
+            SET status = 'cancelled', error_details = jsonb_build_object('code', 'DRAFT_NOT_APPROVED', 'decision', $3::text),
+                completed_at = NOW(), updated_at = NOW()
+          WHERE workspace_id = $1 AND result_ref = $2 AND status = 'awaiting_approval'`,
+        [workspaceId, effectiveTargetId, input.decision],
+      );
     }
 
     // 7. Cascade Invalidation nguyên tử trong transaction: Nếu thu hồi nguồn (source revoke)

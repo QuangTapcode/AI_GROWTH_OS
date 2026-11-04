@@ -46,6 +46,51 @@ describe('social provider adapters', () => {
     expect(body.get('message')).toBe('Choosing a living area?\n\n• Quiet streets near the beach\n\nRequest the guide\n\n#TripC #Da_Nang');
   });
 
+  const facebook = { ...request, channel: 'Facebook' as const, bodyMarkdown: 'Street food by the river' };
+  const sent = (spy: { mock: { calls: unknown[][] } }, call = 0) => spy.mock.calls[call][1] as { body: URLSearchParams };
+  const graph = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+
+  it.each(['http://localhost:3001/posts/a?utm_source=facebook', 'http://127.0.0.1:3001/posts/a', 'http://192.168.1.5/posts/a'])(
+    'a local address %s never goes out in a public post', async (linkUrl) => {
+      const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(graph({ id: 'post-1' }));
+      await new FacebookPagePublisher('page_123', 'secret-token').publish({ ...facebook, linkUrl });
+      const { body } = sent(spy);
+      expect(body.get('link')).toBeNull();
+      expect(body.get('message')).toBe('Street food by the river');
+    });
+
+  it('a post with an image carries its link in the caption, because the photo endpoint has no link field', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(graph({ id: 'photo-1', post_id: 'post-1' }));
+    await new FacebookPagePublisher('page_123', 'secret-token').publish({
+      ...facebook, linkUrl: 'https://guide.tripc.vn/posts/a', mediaUrl: 'https://cdn.tripc.vn/a.jpg', mediaType: 'image',
+    });
+    expect(String(spy.mock.calls[0][0])).toContain('/photos');
+    expect(sent(spy).body.get('caption')).toBe('Street food by the river\n\nhttps://guide.tripc.vn/posts/a');
+  });
+
+  it.each([[324], [100]])('an image Facebook cannot read (error %s) still posts the text, without the AI image label', async (code) => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(graph({ error: { code, message: 'Missing or invalid image file' } }, 400))
+      .mockResolvedValueOnce(graph({ id: 'post-2' }));
+    const result = await new FacebookPagePublisher('page_123', 'secret-token').publish({
+      ...facebook, linkUrl: 'https://guide.tripc.vn/posts/a', mediaUrl: 'https://cdn.tripc.vn/a.png', mediaType: 'image', isAiGenerated: true,
+    });
+    expect(String(spy.mock.calls[1][0])).toContain('/feed');
+    expect(sent(spy, 1).body.get('message')).toBe('Street food by the river');
+    expect(sent(spy, 1).body.get('link')).toBe('https://guide.tripc.vn/posts/a');
+    expect(result).toMatchObject({ success: true, externalPostId: 'post-2' });
+  });
+
+  it.each([[{ error: { code: 2, message: 'Service temporarily unavailable' } }, 500], [{ error: { code: 4, message: 'Too many calls' } }, 400]])(
+    'a failure that may be temporary (%j) is not retried as a second post', async (body, status) => {
+      const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(graph(body, status));
+      const result = await new FacebookPagePublisher('page_123', 'secret-token').publish({
+        ...facebook, mediaUrl: 'https://cdn.tripc.vn/a.jpg', mediaType: 'image',
+      });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(result.success).toBe(false);
+    });
+
   it('initializes a TikTok Direct Post only after media is supplied', async () => {
     process.env.TIKTOK_API_BASE_URL = 'https://tiktok.test';
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: { code: 'ok' }, data: { publish_id: 'pub_123' } }), { status: 200 }));

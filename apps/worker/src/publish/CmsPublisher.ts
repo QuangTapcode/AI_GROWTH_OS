@@ -132,36 +132,6 @@ export class UnavailablePublisher extends CmsPublisher {
 }
 
 /**
- * First-party Newsletter / Lead Digest publisher: delivers approved content
- * digest to captured workspace leads without requiring an external SaaS API key.
- */
-export class NewsletterLeadPublisher extends CmsPublisher {
-  channel = 'Newsletter' as const;
-
-  async publish(req: CmsPublishRequest): Promise<CmsPublishResult> {
-    if (!req.bodyMarkdown?.trim()) {
-      return { success: false, errorCode: 'NEWSLETTER_EMPTY_BODY', errorMessage: 'Newsletter requires body content' };
-    }
-    const externalPostId = `newsletter_digest_${req.idempotencyKey.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48)}`;
-    return {
-      success: true,
-      externalPostId,
-      publishedUrl: req.linkUrl ?? `https://tripc.vn/newsletter/${req.contentId}`,
-      publishedAt: new Date(),
-    };
-  }
-
-  async reconcile(externalPostId: string): Promise<CmsPublishResult> {
-    if (!externalPostId) return { success: false, errorCode: 'NEWSLETTER_RECONCILE_MISSING_ID' };
-    return {
-      success: true,
-      externalPostId,
-      publishedAt: new Date(),
-    };
-  }
-}
-
-/**
  * Publisher registry — maps channel to publisher instance.
  * Easy to swap mock for real adapter when TQ-04/TQ-06 contract is ready.
  */

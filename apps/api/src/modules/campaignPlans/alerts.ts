@@ -28,10 +28,22 @@ export async function workspaceAlerts(pool: Pool, workspaceId: string, now = new
   if (failures?.publishing_failed) alerts.push({ code: 'PUBLISHING_FAILED', severity: 'warning',
     message: `${failures.publishing_failed} lần đăng bài thất bại trong 24 giờ qua. Xem lý do ở trang Phân phối.` });
   if (failures?.replies_failed) alerts.push({ code: 'REPLIES_FAILED', severity: 'warning',
-    message: `${failures.replies_failed} câu trả lời Messenger không gửi được trong 24 giờ qua.` });
+    message: `${failures.replies_failed} câu trả lời Community không gửi được trong 24 giờ qua.` });
   if (failures?.tasks_failed) alerts.push({ code: 'TASKS_FAILED', severity: 'warning',
     message: `${failures.tasks_failed} task của agent bị lỗi trong 24 giờ qua. Xem chi tiết và chạy lại ở từng agent.` });
   if (failures?.chain_stopped) alerts.push({ code: 'TASK_CHAIN_STOPPED', severity: 'warning',
     message: `${failures.chain_stopped} task bị đóng trong 24 giờ qua vì task trước đó lỗi. Chạy lại task lỗi để làm tiếp.` });
+  const review = (await pool.query<{ waiting: number; expired: number }>(`SELECT
+      (SELECT count(*)::int FROM workflow_tasks t JOIN agent_automation a ON a.workspace_id=t.workspace_id
+        JOIN knowledge_contexts k ON k.workspace_id=t.workspace_id AND k.snapshot_id=t.context_snapshot_id AND k.current
+        WHERE t.workspace_id=$1 AND t.status='awaiting_approval' AND a.enabled AND a.next_run_at <= now()
+          AND t.campaign_id IN (SELECT plan_id FROM campaign_plan_acceptances WHERE workspace_id=$1)) AS waiting,
+      (SELECT count(*)::int FROM workflow_tasks WHERE workspace_id=$1 AND status='cancelled' AND error_details->>'code'='REVIEW_TIMEOUT'
+        AND updated_at > now() - interval '24 hours') AS expired`,
+    [workspaceId])).rows[0];
+  if (review?.waiting) alerts.push({ code: 'CYCLE_WAITING_ON_REVIEW', severity: 'warning',
+    message: `Đến lịch chạy vòng mới nhưng còn ${review.waiting} bản nháp chờ duyệt. Vào Review Queue để duyệt hoặc từ chối; nếu không, bản nháp sẽ hết hạn sau một chu kỳ.` });
+  if (review?.expired) alerts.push({ code: 'DRAFTS_EXPIRED', severity: 'warning',
+    message: `${review.expired} bản nháp hết hạn duyệt trong 24 giờ qua nên không được đăng. Vòng tự động vẫn chạy tiếp.` });
   return alerts;
 }

@@ -10,6 +10,15 @@ import { generateManualPack, type ManualPack } from './ManualPackGenerator';
  * 3. Ảnh AI phải gắn nhãn rõ ràng: thông báo trong caption và cờ metadata theo chuẩn Meta IPTC.
  * 4. Fallback tự động sang ManualPackGenerator khi bị từ chối quyền (401/403 Permission Denied - chưa duyệt app).
  */
+function isPublicUrl(address: string) {
+  try {
+    const { protocol, hostname } = new URL(address);
+    return /^https?:$/.test(protocol) && !/^(localhost$|127\.|0\.0\.0\.0$|10\.|192\.168\.|\[::1\]$)/.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
 export class FacebookPagePublisher implements CmsPublisher {
   channel = 'Facebook' as const;
   private readonly pageId: string;
@@ -48,7 +57,8 @@ export class FacebookPagePublisher implements CmsPublisher {
   }
 
   async publish(req: CmsPublishRequest): Promise<CmsPublishResult & { manualPack?: ManualPack }> {
-    let message = toPlainText(req.bodyMarkdown);
+    const text = toPlainText(req.bodyMarkdown);
+    let message = text;
     if (!message && !req.mediaUrl) {
       return { success: false, errorCode: 'FACEBOOK_EMPTY_MESSAGE', errorMessage: 'Facebook Page post requires text or image' };
     }
@@ -62,9 +72,11 @@ export class FacebookPagePublisher implements CmsPublisher {
 
     const hasImage = Boolean(req.mediaUrl && (req.mediaType === 'image' || !req.mediaType));
     const targetPath = hasImage ? 'photos' : 'feed';
-    const isPublicLink = Boolean(req.linkUrl && /^https?:\/\/(?!localhost\b|127\.0\.0\.1\b)/i.test(req.linkUrl));
-    if (req.linkUrl && !isPublicLink && message && !message.includes(req.linkUrl)) {
-      message = `${message}\n\n${req.linkUrl}`;
+    // A post is read by the public, so a local address goes nowhere near it.
+    const link = req.linkUrl && isPublicUrl(req.linkUrl) ? req.linkUrl : undefined;
+    // The photo endpoint has no link field: a post with an image carries its link in the caption.
+    if (hasImage && link && !message.includes(link)) {
+      message = `${message}\n\n${link}`;
     }
 
     const body = new URLSearchParams();
@@ -79,7 +91,7 @@ export class FacebookPagePublisher implements CmsPublisher {
       }
     } else {
       if (message) body.set('message', message);
-      if (req.linkUrl && isPublicLink) body.set('link', req.linkUrl);
+      if (link) body.set('link', link);
     }
 
     try {
@@ -101,13 +113,15 @@ export class FacebookPagePublisher implements CmsPublisher {
           payload?.error?.code === 10 || // Application does not have permission
           String(payload?.error?.message).toLowerCase().includes('permission');
 
-        // Nếu đăng kèm ảnh (/photos) thất bại do Facebook không tải được URL ảnh ngoài (nhưng không phải lỗi quyền),
-        // tự động fallback sang /feed (đăng nội dung + link) để bài viết vẫn lên Fanpage an toàn.
-        if (hasImage && !isPermissionDenied && message) {
+        // Facebook could not read the image (324 invalid file, 100 bad url): the text still goes out, without
+        // the label for an image it no longer has. Any other failure may be temporary, and a second post
+        // here could duplicate one that did go through, so it is left to the retry.
+        const imageUnreadable = hasImage && !isPermissionDenied && (payload?.error?.code === 324 || payload?.error?.code === 100);
+        if (imageUnreadable && text) {
           const feedBody = new URLSearchParams();
           feedBody.set('access_token', this.accessToken);
-          feedBody.set('message', message);
-          if (req.linkUrl && isPublicLink) feedBody.set('link', req.linkUrl);
+          feedBody.set('message', text);
+          if (link) feedBody.set('link', link);
           const feedRes = await fetch(this.endpoint('feed'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

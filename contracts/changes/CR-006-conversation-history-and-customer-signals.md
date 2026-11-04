@@ -1,0 +1,22 @@
+# CR-006 — Conversation history, customer signals and post links
+
+- Owner/consumer reviewers: nhánh `thieuquang_be` (Quang), merge và kiểm tra 2026-11-04 theo yêu cầu PO. BA/API/worker/QA chưa review.
+- Story/module và lý do: Community trả lời khách quen rời rạc và từ chối cả lời chào; Research không biết khách đang hỏi gì; bài Facebook không dẫn về bài viết. Nhánh không kèm CR hay test, nên CR này ghi lại contract sau khi kiểm tra.
+- Contract hiện tại → bản đề xuất:
+  - `CommunityPayload.history: ConversationTurn[]`, tối đa 10 lượt, mỗi lượt `question` (1–1000 ký tự) và `reply` (tối đa 1000 ký tự, không bắt buộc). Bản trên nhánh là `dict[str, str]`, không giới hạn độ dài.
+  - `ResearchPayload.customer_signals: string[]`, tối đa 20 mục. Model chỉ nhận tối đa 10 mục sau khi đã bỏ email và số điện thoại.
+- Endpoint/schema/error/state/authorization/metric bị đổi:
+  - Community: lịch sử chỉ gồm tin của cùng người trên cùng kênh; `reply` chỉ có khi tin đã thật sự gửi (`status='replied'`). Lịch sử giúp xếp hạng nguồn, nhưng việc có trả lời được hay không vẫn xét theo câu hỏi hiện tại. Lời chào thuần tuý được trả lời từ nguồn thay vì chuyển người; nếu câu của model bị từ chối, hoặc khách chào tiếng Anh mà model trả lời tiếng Việt, thì dùng câu chào cố định. Câu trả lời tự khẳng định điều doanh nghiệp không làm, hoặc nói về điều "mentioned", chuyển cho người.
+  - Tự duyệt: Community được duyệt khi chỉ còn thiếu `verified_lead_owner_and_consent`; lead khi đó lưu `consent_accepted=false`, `consent_policy_version='community-unverified'`. Vì vậy `lead_proposal` chỉ tạo khi từ ý định đứng thành từ riêng: "possible", "different", "Facebook", "nhà hàng", "đánh giá" không còn là lead. Performance có `input_artifact_refs` được duyệt dù không có quote.
+  - Đăng Facebook: `publishing_jobs.utm_url` là `PUBLIC_SITE_URL/posts/<slug>` của đúng bài SEO gốc. Không có địa chỉ công khai hoặc không có bài gốc thì không gắn link. Nội dung đã duyệt không bị đổi. Bài có ảnh đưa link vào caption vì `/photos` không có trường link. Ảnh không đọc được (lỗi 324, 100) thì đăng chữ, bỏ nhãn ảnh AI; lỗi khác không đăng lại để tránh trùng.
+  - Scheduler: sau báo cáo Performance có cửa sổ đo thì thêm task `experiment.hypothesis`. Scheduler không tự thêm bài nào ngoài kế hoạch; `content.refresh` chỉ chạy khi được yêu cầu qua API.
+  - Website: `content.refresh` và `seo.audit` trùng slug thì cập nhật bài đã đăng thay vì tạo bài mới.
+  - `metrics.snapshot.measurement` thêm `utm_sources`, `published_social_posts`.
+- Breaking hay additive, vì sao: additive về schema. Thay đổi hành vi: một chu kỳ tự động có thể chạy thêm 1 task.
+- Examples trước/sau và validation: `contracts/schemas/ai-six-role-contracts.json` đã export lại. Test: `test_community_history.py`, `test_community_lead_intent.py`, `test_research_customer_signals.py`, `test_gemini_embedding.py`, `unattendedPublishing.pg.test.ts`, `customerSignals.pg.test.ts`, `communityHistoryInput.test.ts`, `socialPublishers.test.ts`.
+- FE/BE/AI/QA cần đổi gì: FE chưa hiển thị `utm_sources`, `published_social_posts`. QA kiểm tra đoạn hội thoại nhiều lượt trên Messenger thật khi Meta mở chặn.
+- Kế hoạch provider trước → consumer sau → bỏ bản cũ: deploy AI trước, rồi worker và API. Worker cũ không gửi hai trường mới, và AI vẫn chạy bình thường khi thiếu chúng.
+- Compatibility, migration và rollback: không có migration. Bật link bằng `PUBLIC_SITE_URL`; bỏ biến này thì bài không gắn link.
+- Evidence/checks/decision:
+  - Không nhận từ nhánh: gán `lead_status='Contacted'` và tạo `publishing_jobs` trạng thái `published` khi không gửi email nào; `NewsletterLeadPublisher` báo thành công mà không gửi; thay vector Gemini lỗi bằng vector băm; dùng tạm 3 đoạn bất kỳ cho câu hỏi lạc đề; link `localhost` và đường dẫn `/blog/` không tồn tại.
+  - PO quyết định 2026-11-04: bỏ task `content.refresh` do scheduler tự thêm cho chủ đề thứ hai, vì kế hoạch đã chốt 2 task mỗi chu kỳ.

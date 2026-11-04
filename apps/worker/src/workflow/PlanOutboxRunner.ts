@@ -9,7 +9,44 @@ function sort(value: unknown): unknown {
   return value;
 }
 
+// 768 numbers at four decimals are about 6.5 KB per chunk; stay well below the AI service's 8 MB request limit.
+const MAX_CHUNKS_WITH_VECTORS = 800;
+
+type SnapshotChunks = { sources: { chunks: { chunk_id: string }[] }[] };
+
+/** Vectors stored at ingest, so a question is compared with the corpus without embedding it again. Never kept in the pinned context. */
+async function withStoredVectors(pool: Pool, workspaceId: string, snapshot: SnapshotChunks) {
+  const ids = snapshot.sources.flatMap((source) => source.chunks.map((chunk) => chunk.chunk_id));
+  if (!ids.length || ids.length > MAX_CHUNKS_WITH_VECTORS) return snapshot;
+  const rows = (await pool.query<{ id: string; model: string | null; embedding: string }>(
+    'SELECT id, model, embedding::text AS embedding FROM source_chunks WHERE workspace_id=$1 AND id::text=ANY($2::text[]) AND embedding IS NOT NULL',
+    [workspaceId, ids])).rows;
+  const stored = new Map(rows.map((row) => [row.id, row]));
+  const withVector = (chunk: { chunk_id: string }) => {
+    const row = stored.get(chunk.chunk_id);
+    if (!row) return chunk;
+    return { ...chunk, model: row.model, embedding: (JSON.parse(row.embedding) as number[]).map((value) => Math.round(value * 1e4) / 1e4) };
+  };
+  return { ...snapshot, sources: snapshot.sources.map((source) => ({ ...source, chunks: source.chunks.map(withVector) })) };
+}
+
 /** Durable DB outbox consumer; one task per tick, stable AI idempotency across lease recovery. */
+/**
+ * What customers asked before this task, newest first. A community lead's topic is a fixed label and its
+ * message is already counted; "general" is what a form records when nothing was chosen.
+ */
+export async function customerSignals(pool: Pool, workspaceId: string, until: Date | string) {
+  return (await pool.query<{ signal: string }>(`
+    SELECT signal FROM (
+      SELECT left(trim(content), 240) AS signal, received_at AS at FROM community_messages
+       WHERE workspace_id = $1 AND received_at <= $2 AND length(trim(content)) >= 6
+      UNION ALL
+      SELECT left(trim(interest_topic), 240), captured_at FROM leads
+       WHERE workspace_id = $1 AND captured_at <= $2 AND length(trim(interest_topic)) >= 4 AND interest_topic <> 'general'
+         AND COALESCE(context->>'synthetic', 'false') <> 'true' AND utm_source IS DISTINCT FROM 'community'
+    ) asked GROUP BY signal ORDER BY max(at) DESC LIMIT 15`, [workspaceId, until])).rows.map((row) => row.signal);
+}
+
 export class PlanOutboxRunner {
   constructor(private pool: Pool, private ai: AiAdapter) {}
 
@@ -75,10 +112,16 @@ export class PlanOutboxRunner {
         payload.assets = taskInput.assets ?? context.assets;
         if (Array.isArray(taskInput.target_channels)) payload.target_channels = taskInput.target_channels;
         const automation = (await this.pool.query(
-          'SELECT auto_publish_facebook FROM agent_automation WHERE workspace_id=$1',
+          'SELECT auto_publish_facebook,auto_approve_outputs FROM agent_automation WHERE workspace_id=$1',
           [claimed.workspace_id],
         )).rows[0];
-        if (automation?.auto_publish_facebook === true) payload.target_channels = ['facebook'];
+        if (automation?.auto_publish_facebook === true) {
+          // A TikTok target would hold the post on video assets; the script alone goes to the reviewer.
+          payload.target_channels = ['facebook'];
+          payload.draft_tiktok_script = true;
+        }
+        // An illustration waits for a person, so an unattended run would pay for one nobody looks at.
+        if (automation?.auto_approve_outputs === true) payload.allow_ai_image = false;
       } else if (['strategy.generate', 'opportunity.score', 'brief.generate'].includes(task.operation)) {
         const researchId = taskInput.research_artifact_id;
         if (!researchId) throw new Error('MISSING_RESEARCH_ARTIFACT');
@@ -86,11 +129,16 @@ export class PlanOutboxRunner {
         payload.research = research.result; payload.research_artifact = research.artifact;
         payload.cta = taskInput.cta; payload.deadline = taskInput.deadline;
         payload.score_factors = taskInput.score_factors ?? {};
+        const measured = (await this.pool.query(`SELECT payload,evidence FROM content_artifacts
+          WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='metrics.snapshot'
+          ORDER BY (payload->'result'->>'window_end')::timestamptz DESC LIMIT 1`, [claimed.workspace_id, context.snapshot_id])).rows[0];
+        if (measured?.payload?.artifact) payload.latest_metrics = { artifact: measured.payload.artifact, result: measured.payload.result, evidence: measured.evidence };
       } else if (task.operation === 'community.response') {
         payload.question = taskInput.question;
         if (Array.isArray(taskInput.history) && taskInput.history.length > 0) {
           payload.history = taskInput.history;
         }
+        payload.snapshot = await withStoredVectors(this.pool, claimed.workspace_id, context.snapshot);
       } else if (task.operation === 'analytics.report' || task.operation === 'experiment.hypothesis') {
         payload.metrics = taskInput.metrics_artifact_id ? await load(taskInput.metrics_artifact_id) : null;
         payload.baseline_metrics = taskInput.baseline_metrics_artifact_id ? await load(taskInput.baseline_metrics_artifact_id) : null;
@@ -101,9 +149,11 @@ export class PlanOutboxRunner {
         payload.lead_summary = input.lead_summary_artifact_id ? await load(input.lead_summary_artifact_id) : null;
         payload.iteration = input.iteration; payload.max_iterations = input.max_iterations; payload.task_quota = input.task_quota;
       } else if (task.operation === 'research.run') {
+        // A round opened by Learning carries what it observed about past articles.
+        if (taskInput.lessons) payload.lessons = taskInput.lessons;
         payload.content_inventory = (await this.pool.query(`SELECT content_id,workspace_id,version,title,evidence_quotes,evidence_chunk_ids FROM (
           SELECT id AS content_id,workspace_id,1 AS version,left(title,200) AS title,created_at,'[]'::jsonb AS evidence_quotes,
-            '[]'::jsonb AS evidence_chunk_ids FROM contents WHERE workspace_id=$1
+            '[]'::jsonb AS evidence_chunk_ids FROM contents WHERE workspace_id=$1 AND type <> 'social_post'
           UNION ALL
           SELECT id AS content_id,workspace_id,version,left(payload->'result'->>'title',200) AS title,created_at,
             (SELECT coalesce(jsonb_agg(e->>'quote'),'[]'::jsonb) FROM (SELECT e FROM jsonb_array_elements(evidence) e LIMIT 10) q) AS evidence_quotes,
@@ -132,20 +182,8 @@ export class PlanOutboxRunner {
           WHERE s.workspace_id=$1 AND s.discovery_run_id=(SELECT discovery_run_id FROM cur)
           ORDER BY s.rank, s.query LIMIT 30`, [claimed.workspace_id, task.created_at])).rows
           .map((row: { observed_at: Date | string }) => ({ ...row, observed_at: new Date(row.observed_at).toISOString() }));
-        const customerRows = (await this.pool.query<{ signal: string }>(`
-          SELECT DISTINCT signal FROM (
-            SELECT left(trim(content), 240) AS signal, received_at AS ts
-              FROM community_messages
-             WHERE workspace_id = $1 AND received_at <= $2 AND length(trim(content)) >= 6
-            UNION ALL
-            SELECT left(trim(interest_topic), 240) AS signal, captured_at AS ts
-              FROM leads
-             WHERE workspace_id = $1 AND captured_at <= $2 AND interest_topic IS NOT NULL AND length(trim(interest_topic)) >= 4
-          ) q WHERE signal IS NOT NULL AND length(signal) > 0
-          LIMIT 15`, [claimed.workspace_id, task.created_at])).rows;
-        if (customerRows.length > 0) {
-          payload.customer_signals = customerRows.map((r) => r.signal);
-        }
+        const signals = await customerSignals(this.pool, claimed.workspace_id, task.created_at);
+        if (signals.length > 0) payload.customer_signals = signals;
       } else throw new Error('UNKNOWN_PLAN_OPERATION');
       await this.pool.query("UPDATE workflow_tasks SET status='running',started_at=COALESCE(started_at,now()),updated_at=now() WHERE id=$1 AND status NOT IN ('completed','cancelled','failed')", [task.id]);
       const result = await this.ai.run({ operation: 'content', aiOperation: task.operation, input: payload,
