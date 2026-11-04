@@ -134,7 +134,7 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
         if (sql.includes("SELECT snapshot_id FROM knowledge_contexts")) {
           return { rows: [{ snapshot_id: snapshotId }] };
         }
-        if (sql.includes("SELECT id, content FROM community_messages")) {
+        if (sql.includes("SELECT id, content, platform, author_contact FROM community_messages")) {
           return { rows: unhandled };
         }
         if (sql.includes("INSERT INTO workflow_tasks")) {
@@ -157,7 +157,7 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
 
       expect(enqueuedCount).toBe(2);
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("SELECT id, content FROM community_messages"),
+        expect.stringContaining("FROM community_messages"),
         [workspaceId, 10],
       );
     });
@@ -242,7 +242,7 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
             status: "draft", reply: "Street food stalls open every evening near the river.", escalation_required: false,
             lead_proposal: { intent: "request_information", status: "proposed", contact: {} } } } }] };
         }
-        if (sql.includes("platform = 'facebook_message'")) return { rows: [{ id: "msg-fb", author_contact: "psid-123" }] };
+        if (sql.includes("platform IN ('facebook_message', 'telegram_message')")) return { rows: [{ id: "msg-fb", platform: "facebook_message", author_contact: "psid-123", metadata: {} }] };
         if (sql.includes("SELECT id, author_name, author_contact, content FROM community_messages")) {
           return { rows: [{ id: "msg-fb", author_name: "Facebook user", author_contact: "psid-123", content: "Street food?" }] };
         }
@@ -252,6 +252,32 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
       await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
       const lead = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO leads"))!;
       expect(lead[1]).not.toContain("psid-123");
+      expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'replied'"))).toBe(false);
+    });
+
+    it("queues a Telegram reply for its chat and connected account, and never stores the chat id as a phone", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000103";
+      const taskId = "00000000-0000-0000-0000-000000000203";
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return { rows: [{ id: artifactId, role: "community", task_id: taskId, payload: { result: {
+            status: "draft", reply: "Street food stalls open every evening near the river.", escalation_required: false,
+            lead_proposal: { intent: "request_information", status: "proposed", contact: {} } } } }] };
+        }
+        if (sql.includes("platform IN ('facebook_message', 'telegram_message')")) {
+          return { rows: [{ id: "msg-tg", platform: "telegram_message", author_contact: "555", metadata: { business_connection_id: "conn-1" } }] };
+        }
+        if (sql.includes("SELECT id, author_name, author_contact, content FROM community_messages")) {
+          return { rows: [{ id: "msg-tg", author_name: "Telegram user", author_contact: "555", content: "Street food?" }] };
+        }
+        if (sql.includes("INSERT INTO leads")) return { rows: [{ lead_id: "lead-tg" }] };
+        return { rows: [], rowCount: 1 };
+      });
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      const outbox = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO outbox_events"))!;
+      expect(JSON.parse(outbox[1][2])).toMatchObject({ message_id: "msg-tg", recipient: "555", platform: "telegram_message", business_connection_id: "conn-1" });
+      const lead = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO leads"))!;
+      expect(lead[1]).not.toContain("555");
       expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'replied'"))).toBe(false);
     });
 
