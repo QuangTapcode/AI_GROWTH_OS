@@ -19,10 +19,10 @@ export class FirstPartyBlogSync {
     const workspaces = (await this.pool.query(
       `SELECT DISTINCT workspace_id FROM sources WHERE url_or_blob LIKE $1 AND status='approved' AND deleted_at IS NULL`,
       [`${BLOG_PREFIX}%`])).rows.map((r: { workspace_id: string }) => r.workspace_id);
-    if (!workspaces.length) return { imported: 0 };
+    if (!workspaces.length) return { imported: 0, retried: 0 };
     const articles = new Map((await this.listLinks(BLOG_PREFIX.replace(/\/$/, '')))
       .filter((link) => ARTICLE.test(link.url)).map((link) => [link.url, link.title.trim()]));
-    let imported = 0;
+    let imported = 0, retried = 0;
     for (const workspaceId of workspaces) {
       const known = new Set((await this.pool.query(
         'SELECT url_or_blob FROM sources WHERE workspace_id=$1 AND url_or_blob LIKE $2 AND deleted_at IS NULL',
@@ -35,7 +35,12 @@ export class FirstPartyBlogSync {
           [workspaceId, `${(title || url.slice(BLOG_PREFIX.length)).slice(0, 230)} (tripc.ai)`, url]);
         imported++;
       }
+      // An article the blog still lists exists: a failed render was temporary, so try again with fresh attempts.
+      retried += (await this.pool.query(
+        `UPDATE sources SET ingest_attempts=0, ingest_error=NULL, updated_at=now()
+          WHERE workspace_id=$1 AND status='imported' AND ingest_error IS NOT NULL AND deleted_at IS NULL AND url_or_blob=ANY($2)`,
+        [workspaceId, [...articles.keys()]])).rowCount ?? 0;
     }
-    return { imported };
+    return { imported, retried };
   }
 }

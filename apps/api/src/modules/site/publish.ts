@@ -7,6 +7,15 @@ export class PublishError extends Error {
   constructor(public code: string, message: string, public status = 422) { super(message); }
 }
 
+const MIN_PUBLIC_WORDS = 150;
+
+/** Words the reader gets: headings, citation lines and the CTA line are structure added by code. */
+function articleWords(markdown: string): number {
+  return markdown.split('\n')
+    .filter((line) => !/^\s*(#|\[source:|\[Request information\])/.test(line))
+    .join(' ').split(/\s+/).filter(Boolean).length;
+}
+
 export function slugify(title: string): string {
   // "Đ/đ" has no decomposition, so it is mapped explicitly before stripping diacritics.
   return title.replace(/[Đđ]/g, 'd').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -29,6 +38,8 @@ export async function publishSeoArtifact(db: Db, workspaceId: string, artifactId
   const result = row.payload?.result ?? {};
   if (result.synthetic === true) throw new PublishError('SYNTHETIC_NOT_PUBLISHABLE', 'Synthetic drafts are never published');
   if (result.status !== 'draft' || (result.missing_facts ?? []).length) throw new PublishError('ARTICLE_NOT_READY', 'Resolve missing facts before publishing');
+  const words = articleWords(String(result.body_markdown ?? ''));
+  if (words < MIN_PUBLIC_WORDS) throw new PublishError('ARTICLE_TOO_SHORT', `A public article needs at least ${MIN_PUBLIC_WORDS} words; this one has ${words}`);
   const approved = (await db.query(
     `SELECT 1 FROM approvals WHERE workspace_id=$1 AND target_type='artifact' AND target_id=$2 AND target_version=$3
        AND target_hash=$4 AND status='approved'`, [workspaceId, row.id, row.version, row.content_hash],
