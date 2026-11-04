@@ -36,6 +36,7 @@ class FactItem(BaseModel):
     fact_id: str = Field(pattern=r"^f\d+$", description="Mã định danh duy nhất của fact: f01, f02...")
     text: str = Field(min_length=1, max_length=1000, description="Nội dung khẳng định sự thật")
     source_type: str = Field(default="seo_body", max_length=50, description="Nguồn bóc tách: seo_body, seo_title, citation...")
+    source_url: str | None = Field(default=None, max_length=2000, description="Đường dẫn nguồn của fact trích từ citation")
 
 
 class SentenceMap(BaseModel):

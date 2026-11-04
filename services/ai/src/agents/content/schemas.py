@@ -12,6 +12,8 @@ class ContentPayload(MarketingContext):
     # Distribution target is explicit so Content can produce a Facebook/TikTok
     # pack without silently assuming Instagram or a live connector.
     target_channels: list[str] = Field(default_factory=lambda: ["facebook", "tiktok"], max_length=4)
+    # A script for the reviewer even when TikTok is not a target, which would hold the pack on video assets.
+    draft_tiktok_script: bool = False
     brand_voice: str | None = Field(default=None, max_length=500)
     allow_ai_image: bool = Field(default=True)
     real_product: bool | None = Field(default=None)
@@ -26,7 +28,8 @@ class ContentDraft(BaseModel):
 class FacebookDraft(BaseModel):
     """Model-written parts of a Facebook Page post; the CTA is appended by code."""
     model_config = ConfigDict(extra="forbid")
-    hook: str = Field(min_length=1, max_length=150)
+    # Above the 150-character display limit, applied in code: Ollama would stop the model here while generating.
+    hook: str = Field(min_length=1, max_length=300)
     body: str = Field(min_length=1, max_length=1500)
     discussion_question: str | None = Field(default=None, max_length=200)
     hashtags: list[str] = Field(default_factory=list, max_length=2)
@@ -42,6 +45,58 @@ class FacebookPost(FacebookDraft):
     # Exact text the owner reviews and the Page publisher sends.
     cta: str
     text: str = Field(min_length=1, max_length=2200)
+
+
+class TikTokScene(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    voiceover: str = Field(min_length=1, max_length=600)
+    visual: str = Field(min_length=1, max_length=200)
+
+
+class TikTokDraftScene(TikTokScene):
+    # Held while the model writes, not checked afterwards: a shorter line is still usable, and the script is flagged by length.
+    voiceover: str = Field(min_length=1, max_length=600, json_schema_extra={"minLength": 170})
+
+
+class TikTokDraft(BaseModel):
+    """Model-written parts of a TikTok script; the CTA is appended by code."""
+    model_config = ConfigDict(extra="forbid")
+    hook: str = Field(min_length=1, max_length=300)
+    scenes: list[TikTokDraftScene] = Field(min_length=1, max_length=5, json_schema_extra={"minItems": 4})
+
+
+class TikTokScript(TikTokDraft):
+    # Filming the script and approving the video stay with a person; nothing here publishes.
+    scenes: list[TikTokScene] = Field(min_length=1, max_length=5)
+    cta: str
+    word_count: int
+    within_length: bool
+
+
+class ImageSuggestion(BaseModel):
+    """What to shoot or generate when a post has no approved image (Dual-Asset policy, CM-05/CM-10)."""
+    model_config = ConfigDict(extra="forbid")
+    status: str
+    prompt: str
+    negative_prompt: str
+    aspect_ratio: str
+    reason: str | None = None
+
+
+class GeneratedImage(BaseModel):
+    """An AI illustration waiting for a person: it is never auto-approved and is labelled as AI when published."""
+    model_config = ConfigDict(extra="forbid")
+    url: str = Field(min_length=1, max_length=2000)
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    aspect_ratio: str = Field(min_length=1, max_length=10)
+    width: int = Field(ge=1)
+    height: int = Field(ge=1)
+    alt_text: str = Field(min_length=1, max_length=400)
+    prompt: str = Field(min_length=1, max_length=4000)
+    model_name: str = Field(min_length=1, max_length=100)
+    seed: int
+    cost_usd: float = Field(ge=0)
+    ocr_checked: bool
 
 
 class SocialPack(DraftResult):
@@ -64,6 +119,9 @@ class SocialPack(DraftResult):
     # Traceability of the Facebook post: cited quotes and the fact each sentence restates.
     extracted_facts: list[FactItem] = Field(default_factory=list)
     sentence_fact_map: list[SentenceMap] = Field(default_factory=list)
+    tiktok: TikTokScript | None = None
+    image_suggestion: ImageSuggestion | None = None
+    generated_image: GeneratedImage | None = None
 
 
 # Re-export v2 models for CM-01
@@ -173,7 +231,7 @@ from .image_client import (
     ImageClient,
     ImageGenerationRequest,
     ImageGenerationResult,
-    ImagenImageProvider,
+    ImageProviderError,
     ProviderImageOutput,
     R2StorageClient,
 )

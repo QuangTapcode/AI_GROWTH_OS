@@ -50,6 +50,7 @@ export function formatDocumentMarkdown(payload: Record<string, unknown>): string
     "",
     objective ? `**Objective**: ${objective}` : "",
     scoreObj?.score !== undefined ? `**Opportunity Score**: ${scoreObj.score} / 1000` : "",
+    payloadString((planResult.priority ?? {}) as Record<string, unknown>, "reason") ? `**Priority**: ${(planResult.priority as Record<string, unknown>).reason}` : "",
     selected?.audience_fit ? `**Target Audience**: ${selected.audience_fit}` : "",
     selected?.user_need ? `**User Need**: ${selected.user_need}` : "",
     "",

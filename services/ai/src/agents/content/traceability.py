@@ -12,18 +12,31 @@ UNMAPPED = "f_unmapped"
 BULLET = re.compile(r"^\s*(?:[-*•✅]\s*)+")
 
 
-def cited_facts(evidence):
-    """One fact per distinct cited quote (f01, f02...): the only facts a post may state."""
-    quotes = list(dict.fromkeys(e.quote.strip() for e in evidence if e.quote and e.quote.strip()))
-    return [FactItem(fact_id=f"f{i:02d}", text=quote[:1000], source_type="citation") for i, quote in enumerate(quotes, 1)]
-
-
 def _sentences(text):
     # The shared splitter joins lines, so split per line first and drop bullet markers.
     for line in text.splitlines():
         line = BULLET.sub("", line).strip()
         if line:
             yield from (s for s in split_vietnamese_sentences(line) if s.strip())
+
+
+def cited_facts(evidence, snapshot=None):
+    """One fact per distinct cited sentence (f01, f02...): the quotes, then the rest of their chunks.
+
+    Posts are written from the whole chunk, so checking them against the quote alone flags
+    true sentences as unsourced (seen on real runs: a 201-character quote of a 965-character chunk).
+    """
+    chunks = {chunk.chunk_id: chunk.text for source in snapshot.sources for chunk in source.chunks} if snapshot else {}
+    facts = {}
+    for e in evidence:
+        if e.quote and e.quote.strip():
+            facts.setdefault(e.quote.strip(), e.source_url)
+    for e in evidence:
+        for sentence in _sentences(chunks.get(e.chunk_id, "")):
+            if not any(sentence.strip() in known for known in facts):
+                facts[sentence.strip()] = e.source_url
+    return [FactItem(fact_id=f"f{i:02d}", text=text[:1000], source_type="citation", source_url=str(url) if url else None)
+            for i, (text, url) in enumerate(facts.items(), 1)]
 
 
 def sentence_fact_map(post, facts):
@@ -33,7 +46,11 @@ def sentence_fact_map(post, facts):
     for kind, part in (("hook", post.hook), ("factual", post.body), ("cta", post.cta)):
         for sentence in _sentences(part):
             if kind == "factual":
-                ids = auto_associate_facts(sentence, facts_map) or [UNMAPPED]
+                ids = auto_associate_facts(sentence, facts_map)
+                # A question to the reader states nothing, unless it restates a source.
+                if not ids and sentence.rstrip().endswith("?"):
+                    continue
+                ids = ids or [UNMAPPED]
                 status, _ = check_factual_entailment(sentence, ids, facts_map)
                 fact_id = ids
             else:

@@ -12,7 +12,7 @@
 | Idempotency | `job_id + input_version + operation` | Đúng khóa này. `run_id = uuid5(job_id:operation:input_version)`. Cùng khóa + cùng request (bỏ qua `trace_id`) → 200 run cũ; khác request → 409; `input_version` mới → run mới. |
 | Run status | `queued/running/completed/failed` | Thêm `input_version`, `attempt`, `provider_calls`, `max_provider_calls`, `retryable`, `deadline_at`. `completed` chỉ sau khi result đã ghi store. |
 | Recovery | Chưa chọn | SQLite trong AI service (`AI_RUN_STORE_PATH`), một process. Restart → run dở thành `failed` + `RUN_INTERRUPTED` + `retryable=true`; worker gửi lại **đúng request** → requeue cùng `run_id`, `attempt+1`. Không lưu payload. **Cần Mỹ chốt** (xem dưới). |
-| Caps | PILOT_LIMITS | ≤2 LLM calls/job_id gồm repair, đếm bền vững, không reset khi retry/restart (`CALL_CAP_EXCEEDED`); ≤2 attempts/run; deadline tính từ lần accept đầu (`DEADLINE_EXCEEDED`). `constraints.max_provider_calls` tùy chọn chỉ được hạ cap. |
+| Caps | PILOT_LIMITS | ≤3 LLM calls/job_id gồm repair (nâng từ 2 ở CR-005), đếm bền vững, không reset khi retry/restart (`CALL_CAP_EXCEEDED`); ≤2 attempts/run; deadline tính từ lần accept đầu (`DEADLINE_EXCEEDED`). `constraints.max_provider_calls` tùy chọn chỉ được hạ cap. |
 | Pins | Không có | `prompt_version`, `model_version` tùy chọn trong request; khác service → 409. |
 | Operations | 15 mã trong §3 | Thêm `knowledge.answer`, `growth_map.suggest` (M01 `/growth-map-suggestions`). `knowledge.ingest` có pipeline thật; 13 mã còn lại vẫn đi đường bootstrap generic. |
 | Evidence | `source_id/source_version/locator/quote` | Thêm `chunk_id`. |

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { latestApproval } from "@/features/artifacts/adapters";
+import GeneratedImagePreview from "@/features/review-queue/components/GeneratedImagePreview";
 import type { Approval, ContentArtifact, PublishingJob } from "@/lib/apiTypes";
 import { formatDateTime } from "@/lib/format";
 
@@ -70,6 +71,39 @@ function publishState(artifact: ContentArtifact, props: Props): { label: string;
     : { label: `Chưa đăng: ${FACEBOOK_REASONS[props.facebook.reason ?? ""] ?? "Facebook chưa kết nối được"}. Đây là bản nháp để xem và đăng tay.`, tone: "bg-amber-50 text-amber-900" };
 }
 
+function TikTokScript({ script }: { script: Record<string, unknown> }) {
+  if (!text(script.hook)) return null;
+  const scenes = Array.isArray(script.scenes) ? script.scenes.map(obj) : [];
+  return (
+    <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-sm text-slate-800">
+      <summary className="cursor-pointer text-xs font-bold text-slate-900">
+        Kịch bản TikTok · {String(script.word_count ?? 0)} từ{script.within_length === false ? " (ngoài khoảng 120–180 từ)" : ""}
+      </summary>
+      <p className="mt-2 font-semibold">{text(script.hook)}</p>
+      <ol className="mt-2 space-y-2">
+        {scenes.map((scene, index) => (
+          <li key={index}>
+            <p>{text(scene.voiceover)}</p>
+            <p className="text-xs text-slate-500">Hình ảnh: {text(scene.visual)}</p>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 font-semibold text-blue-800">Lời kêu gọi: {text(script.cta)}</p>
+    </details>
+  );
+}
+
+function ImageSuggestion({ suggestion }: { suggestion: Record<string, unknown> }) {
+  const prompt = text(suggestion.prompt), reason = text(suggestion.reason);
+  if (!prompt && !reason) return null;
+  return (
+    <details className="mt-3 rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-xs text-slate-700">
+      <summary className="cursor-pointer font-bold text-slate-900">Chưa có ảnh đã duyệt: gợi ý ảnh</summary>
+      {reason ? <p className="mt-2">{reason}</p> : <p className="mt-2">Tỉ lệ {text(suggestion.aspect_ratio)}. Mô tả để tạo ảnh: {prompt}</p>}
+    </details>
+  );
+}
+
 function PostCard({ artifact, props }: { artifact: ContentArtifact; props: Props }) {
   const [copied, setCopied] = useState(false);
   const result = obj(artifact.payload.result);
@@ -96,7 +130,7 @@ function PostCard({ artifact, props }: { artifact: ContentArtifact; props: Props
           <span className="rounded-md bg-blue-50 px-2 py-0.5 font-bold text-blue-800">{isArticle ? "Bài website (SEO)" : "Bài Facebook"}</span>
           <span className="text-slate-500">{formatDateTime(artifact.created_at)}</span>
           <span className={`rounded-md px-2 py-0.5 font-semibold ${approval === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
-            {approval === "approved" ? "Đã duyệt" : approval === "rejected" ? "Bị từ chối" : "Chờ duyệt"}
+            {approval === "approved" ? "Đã duyệt" : approval === "rejected" ? "Bị từ chối" : approval === "revoked" ? "Hết hạn duyệt" : "Chờ duyệt"}
           </span>
         </div>
         <button type="button" onClick={copy} disabled={!copyText.trim()}
@@ -119,6 +153,9 @@ function PostCard({ artifact, props }: { artifact: ContentArtifact; props: Props
           </>
         )}
       </div>
+      {!isArticle && <TikTokScript script={obj(result.tiktok)} />}
+      {!isArticle && <GeneratedImagePreview image={obj(result.generated_image)} />}
+      {!isArticle && <ImageSuggestion suggestion={obj(result.image_suggestion)} />}
     </li>
   );
 }
