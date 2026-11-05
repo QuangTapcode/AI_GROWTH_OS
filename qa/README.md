@@ -1,10 +1,30 @@
-# Tester — Hai lane trong pilot 4 tuần
+# QA — Frontend và backend
 
-Thiệu phụ trách hai lane: `tester-1/**` cho UI/nghiệp vụ/E2E/accessibility/UAT; `tester-2/**` cho API/data/contract/security/integration/performance/AI verification. Mỗi lane có suite và môi trường riêng.
+QA được chia theo phạm vi kiểm thử: [frontend](frontend/README.md) cho UI/E2E/accessibility/UAT và [backend](backend/README.md) cho API/data/contract/security/integration/performance/AI verification. Các suite tester hiện hữu được giữ nguyên trong lúc chuyển dần tài liệu và cấu hình sang cách phân loại mới.
 
 ## QQ_test — regression khi tích hợp BE
 
 [QQ_test](QQ_test/README.md) lưu automation và [test case](QQ_test/TEST_CASES.md) của Quang Quang dùng khi merge BE vào `Quang-Quang`: migration/PostgreSQL, workspace/member/tenant, source lifecycle, API response, lead/public content và worker retry/recovery. Suite có manifest/lockfile riêng, database tạm và evidence từng lần chạy. Xem [baseline](QQ_test/BASELINE.md) để phân biệt kết quả đạt với gate cấu hình hoặc coverage còn thiếu.
+
+## Kiểm thử frontend trước
+
+Chạy suite frontend độc lập từ repo:
+
+```powershell
+npm.cmd --prefix qa/frontend ci
+npx.cmd --prefix qa/frontend playwright install chromium
+npm.cmd --prefix qa/frontend test
+```
+
+Sau đó chạy test bootstrap và các kiểm tra tĩnh của web admin:
+
+```powershell
+npm.cmd --prefix apps/web test
+npm.cmd --prefix apps/web run lint
+npm.cmd --prefix apps/web run typecheck
+```
+
+E2E tích hợp web/API của app: `npm.cmd --prefix apps/web run test:e2e`. Chi tiết suite độc lập nằm trong [Frontend QA](frontend/README.md).
 
 ## Làm độc lập
 
@@ -30,4 +50,4 @@ Không còn blocker/critical trước release; mọi critical tenant/source/appr
 
 ## Roster và ngôn ngữ đã chốt
 
-Thiệu phụ trách cả hai lane trong cùng capacity: lane 1 TypeScript/Playwright (qa/tester-1/, package/lockfile riêng); lane 2 Python/pytest/HTTP client/SQL (qa/tester-2/, pyproject/lockfile/venv riêng). BA Dương và service owner review suite/evidence; không giả định có Tester thứ hai. [TEAM](../docs/coordination/TEAM.md) quy định phân công.
+Thiệu phụ trách cả hai lane trong cùng capacity: lane 1 TypeScript/Playwright (`qa/tester-1/`, package/lockfile riêng); lane 2 Python/pytest/HTTP client/SQL (`qa/tester-2/`, pyproject/lockfile/venv riêng). `qa/frontend/` và `qa/backend/` là điểm vào mới để tìm tài liệu theo phạm vi kiểm thử; suite chưa được di chuyển. BA Dương và service owner review suite/evidence; không giả định có Tester thứ hai. [TEAM](../docs/coordination/TEAM.md) quy định phân công.

@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start AI Growth OS staging",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\infra\\staging\\start.ps1"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}
