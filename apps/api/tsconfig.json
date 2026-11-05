@@ -18,9 +18,11 @@
         "name": "next"
       }
     ],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "next/server": ["./node_modules/next/server.d.ts"],
+      "vitest": ["./node_modules/vitest/dist/index.d.ts"],
+      "zod": ["./node_modules/zod/index.d.ts"]
     }
   },
   "include": [
@@ -29,7 +31,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "src/**/*.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "../../qa/backend/tests/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

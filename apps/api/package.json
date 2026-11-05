@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit",
     "test": "vitest run",
+    "test:business-profile": "vitest run tests/businessProfile",
+    "test:qa-backend": "vitest run ../../qa/backend/tests",
     "test:workspaces": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/test-workspaces.ts",
     "test:sources": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/test-sources.ts",
     "test:boundary": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/test-boundary-rag.ts",
