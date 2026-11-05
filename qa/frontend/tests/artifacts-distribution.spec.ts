@@ -15,14 +15,15 @@ test.describe("Artifact versioning and publishing gate", () => {
           return { body: { items: [original] } };
         }
         if (request.method() === "POST" && pathname.endsWith("/artifacts")) {
-          createInput = request.postDataJSON();
+          const input = request.postDataJSON() as Record<string, unknown>;
+          createInput = input;
           return {
             body: sampleArtifact({
               id: "artifact-frontend-2",
               version: 2,
-              content_hash: String(createInput.content_hash),
-              title: String(createInput.title),
-              payload: createInput.payload,
+              content_hash: String(input.content_hash),
+              title: String(input.title),
+              payload: input.payload,
             }),
           };
         }
@@ -37,6 +38,7 @@ test.describe("Artifact versioning and publishing gate", () => {
     await page.getByRole("button", { name: "Save as v2", exact: true }).click();
 
     await expect(page.getByText(/Saved .* as version v2\./)).toBeVisible();
+    if (!createInput) throw new Error("Artifact save request was not sent.");
     expect(createInput).toMatchObject({
       version: 2,
       title: "Revised frontend QA pack",
@@ -101,11 +103,12 @@ test.describe("Artifact versioning and publishing gate", () => {
     await page.getByRole("button", { name: "Schedule", exact: true }).last().click();
 
     await expect(page.getByText(/Scheduled on TripC Website \(manual\)/)).toBeVisible();
+    if (!scheduleInput) throw new Error("Publishing schedule request was not sent.");
     expect(scheduleInput).toMatchObject({
       artifact_id: artifact.id,
       channel_id: "channel-1",
       utm_campaign: "frontend-qa-campaign",
     });
-    expect(Date.parse(String(scheduleInput?.scheduled_for))).toBeGreaterThan(Date.now());
+    expect(Date.parse(String(scheduleInput.scheduled_for))).toBeGreaterThan(Date.now());
   });
 });

@@ -50,22 +50,23 @@ test.describe("Workspace permissions and task creation", () => {
     await mockAuthenticatedApi(page, {
       handleRequest: (request, pathname) => {
         if (request.method() === "PUT" && pathname.endsWith("/business-profile")) {
-          update = request.postDataJSON();
+          const input = request.postDataJSON() as Record<string, unknown>;
+          update = input;
           return {
             body: {
               id: "profile-1",
               workspace_id: "frontend-workspace",
-              company_name: String(update.company_name),
-              website_url: update.website_url,
-              industry: update.industry,
-              overview: update.overview,
+              company_name: String(input.company_name),
+              website_url: input.website_url,
+              industry: input.industry,
+              overview: input.overview,
               safety_rules: {},
-              target_locations: update.target_locations,
-              target_audiences: update.target_audiences,
-              products_services: update.products_services,
-              brand_voice: update.brand_voice,
-              brand_guidelines: update.brand_guidelines,
-              competitors: update.competitors,
+              target_locations: input.target_locations,
+              target_audiences: input.target_audiences,
+              products_services: input.products_services,
+              brand_voice: input.brand_voice,
+              brand_guidelines: input.brand_guidelines,
+              competitors: input.competitors,
               research_strategy: null,
               version: 2,
               updated_by: "frontend-qa-user",
@@ -83,6 +84,7 @@ test.describe("Workspace permissions and task creation", () => {
     await page.getByRole("button", { name: "Save as version 2", exact: true }).click();
 
     await expect(page.getByText("Business profile saved as version 2.")).toBeVisible();
+    if (!update) throw new Error("Business profile update request was not sent.");
     expect(update).toMatchObject({
       expected_version: 1,
       company_name: "TripC Frontend QA",
