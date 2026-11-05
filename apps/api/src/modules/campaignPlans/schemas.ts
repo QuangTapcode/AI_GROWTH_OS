@@ -67,6 +67,11 @@ export const planSchema = z.object({
     baseline_status: z.enum(['missing', 'unverified']),
     measurement: z.object({ definition: text, unit: text, source: z.enum(['first_party', 'ga4', 'gsc', 'meta_ads']), scope: text }).strict().nullable(),
   }).strict()).max(5).optional(),
+  kpi_progress: z.array(z.object({
+    metric_name: text, target_value: z.number().finite().nonnegative(), current_value: z.number().finite().nonnegative().nullable(),
+    status: z.enum(['reached', 'behind', 'not_measured']),
+  }).strict()).max(5).optional(),
+  priority: z.object({ mode: z.enum(['reach', 'conversion', 'maintain']), reason: text }).strict().nullable().optional(),
   opportunity_score: z.object({
     factors: z.object({ demand: z.number().finite().min(0).max(5).nullable(), business_relevance: z.number().finite().min(0).max(5).nullable(),
       growth_potential: z.number().finite().min(0).max(5).nullable(), content_gap: z.number().finite().min(0).max(5).nullable(),

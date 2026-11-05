@@ -1,0 +1,26 @@
+# CR-005 — Third model call, too-short articles, TikTok script on autopilot, AI illustrations
+
+- Owner/consumer reviewers: PO quyết định 2026-11-04 (nâng giới hạn gọi model, nối ảnh AI thật và tắt mặc định). BA/API/worker/QA chưa review.
+- Story/module và lý do: mỗi job chỉ có 2 lần gọi model, nên bài phải sửa lại thì mất kịch bản TikTok và không được viết bù khi quá ngắn. Code ảnh AI trả về ảnh và URL giả.
+- Contract hiện tại → bản đề xuất:
+  - `limits.max_llm_calls_per_job`: 2 → 3 (`AI_MAX_PROVIDER_CALLS`). Lần gọi tuỳ chọn tự bỏ qua khi job không còn đủ thời gian cho một lần gọi chậm nhất, vì đến hạn thì cả run thất bại.
+  - `ContentPayload.draft_tiktok_script: bool = false`: có kịch bản cho người duyệt mà không nhắm kênh TikTok.
+  - `ContentPayload.real_product` nay có tác dụng; trước đây bị bỏ qua.
+  - `SocialPack.generated_image: GeneratedImage | null`: ảnh AI đã qua kiểm tra chữ và số.
+  - `SeoArticle.missing_facts` có thể chứa `article_too_short`, cùng `status=insufficient_data`.
+  - `TikTokDraft` giữ model ở `minItems` 4 cảnh và `minLength` 170 ký tự mỗi lời thoại trong lúc sinh. Chỉ áp dụng ở schema gửi cho model, kiểm tra sau đó vẫn nhận câu trả lời ngắn hơn. `TikTokScript` ở đầu ra không đổi.
+- Endpoint/schema/error/state/authorization/metric bị đổi:
+  - Cảnh báo mới: `ARTICLE_TOO_SHORT:<n>`, `SEO_EXPANSION_SKIPPED:<code>`, `TIKTOK_SCRIPT_SKIPPED:NOT_ENOUGH_TIME`, `AI_IMAGE_SKIPPED:<code>`, `AI_IMAGE_REJECTED:<số lần thử>`.
+  - Tự duyệt: bản nháp có `generated_image` luôn chờ người duyệt.
+  - Đăng bài: ảnh đã duyệt được ưu tiên; `generated_image` chỉ dùng khi không có ảnh đó và luôn khai báo là ảnh AI.
+- Breaking hay additive, vì sao: additive về schema. Thay đổi hành vi: bài SEO dưới 150 từ không còn tự duyệt, và một job có thể dùng tới 3 lần gọi model.
+- Examples trước/sau và validation: `contracts/schemas/ai-six-role-contracts.json` đã export lại. Test: `test_call_budget.py`, `test_seo_depth.py`, `test_source_faithfulness.py`, `test_content_generated_image.py`, `test_image_live_adapters.py`.
+- FE/BE/AI/QA cần đổi gì:
+  - FE hiển thị ảnh AI ở màn hình duyệt và trang Phân phối.
+  - Worker gửi `draft_tiktok_script=true` khi tự đăng Facebook, và `allow_ai_image=false` khi tự duyệt.
+  - AI bỏ `ImagenImageProvider` (chỉ từng trả ảnh giả) và bỏ phần đọc metadata thử nghiệm trong `TesseractOcrEngine`.
+- Kế hoạch provider trước → consumer sau → bỏ bản cũ: deploy AI trước, rồi worker và API. Schema của AI chấp nhận cả khi worker chưa gửi trường mới.
+- Compatibility, migration và rollback: không có migration. Rollback giới hạn gọi model bằng `AI_MAX_PROVIDER_CALLS=2`. Ảnh AI tắt mặc định, tắt lại bằng cách bỏ `AI_IMAGE_GENERATION`.
+- Evidence/checks/decision:
+  - Replicate và R2 chỉ mới kiểm thử bằng HTTP giả, chữ ký S3 khớp ví dụ AWS công bố. Chưa từng gọi dịch vụ thật vì chưa có key.
+  - Bật ảnh AI cần: `AI_IMAGE_GENERATION=on`, `REPLICATE_API_TOKEN`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_BASE_URL`, và Tesseract cài trên máy chạy AI. Thiếu thứ nào thì không sinh ảnh và có cảnh báo nêu rõ.

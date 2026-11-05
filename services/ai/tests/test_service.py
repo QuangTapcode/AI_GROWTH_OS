@@ -200,7 +200,7 @@ def test_repair_call_recovers_invalid_output(make_client) -> None:
 
 def test_retries_never_exceed_provider_call_cap(make_client) -> None:
     provider = ScriptedProvider(["unavailable", "unavailable", "unavailable"])
-    client = make_client(provider=provider, max_run_attempts=3)
+    client = make_client(provider=provider, max_run_attempts=3, max_provider_calls=2)
     job = generic_job()
     first = run_job(client, job)
     assert (first["error_code"], first["retryable"]) == ("PROVIDER_UNAVAILABLE", True)

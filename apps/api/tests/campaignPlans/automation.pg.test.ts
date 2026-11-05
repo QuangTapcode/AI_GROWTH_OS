@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { workspaceAlerts } from "../../src/modules/campaignPlans/alerts";
 import { tickAutomation } from "../../src/modules/campaignPlans/automation";
 import { ensureBaselineArtifact, ensureMeasurementArtifacts } from "../../src/modules/site/measurement";
 
@@ -214,7 +215,7 @@ describe.skipIf(process.env.RUN_AUTOMATION_DB !== "1")(
       await db.query("INSERT INTO knowledge_contexts(snapshot_id,workspace_id,profile_version,profile,snapshot) VALUES($1,$2,1,'{}',$3)",
         [ctx, ws, JSON.stringify({ sources: [{ source_id: randomUUID(), version: 1 }] })]);
       await db.query("INSERT INTO agent_automation(workspace_id,actor_id,enabled,auto_approve_outputs,next_run_at) VALUES($1,$2,true,true,now()+interval '1 day')", [ws, owner]);
-      const inbound = async (mid: string, result: Record<string, unknown>) => {
+      const inbound = async (mid: string, result: Record<string, unknown>, platform = "facebook_message", metadata = {}) => {
         const task = randomUUID(), artifact = randomUUID(), message = randomUUID();
         await db.query(`INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,payload)
           VALUES($1,$2,'community','community.response','queued',1,$3,'{}')`, [task, ws, ctx]);
@@ -223,19 +224,51 @@ describe.skipIf(process.env.RUN_AUTOMATION_DB !== "1")(
           [artifact, ws, task, artifact.replace(/-/g, "").padEnd(64, "0"), ctx, JSON.stringify({ result: { synthetic: false, missing_facts: [], ...result } }),
            JSON.stringify([{ quote: "Street food stalls open every evening near the river." }])]);
         await db.query("UPDATE workflow_tasks SET status='awaiting_approval',result_ref=$2 WHERE id=$1", [task, artifact]);
-        await db.query(`INSERT INTO community_messages(id,workspace_id,platform,external_id,author_name,author_contact,content,status,task_id)
-          VALUES($1,$2,'facebook_message',$3,'Facebook user',$4,'Where is good street food?','queued',$5)`, [message, ws, mid, `psid-${mid}`, task]);
+        await db.query(`INSERT INTO community_messages(id,workspace_id,platform,external_id,author_name,author_contact,content,status,task_id,metadata)
+          VALUES($1,$2,$3,$4,'Facebook user',$5,'Where is good street food?','queued',$6,$7)`, [message, ws, platform, mid, `psid-${mid}`, task, JSON.stringify(metadata)]);
         return message;
       };
       const answered = await inbound("m1", { status: "draft", reply: "Street food stalls open every evening near the river.", escalation_required: false });
       const escalated = await inbound("m2", { status: "draft", reply: "Prices need confirmation.", escalation_required: true });
+      const telegram = await inbound("m3", { status: "draft", reply: "Street food stalls open every evening near the river.", escalation_required: false },
+        "telegram_message", { business_connection_id: "conn-1" });
       await tickAutomation(db, ws);
       const events = (await db.query("SELECT payload FROM outbox_events WHERE workspace_id=$1 AND event_type='community.reply'", [ws])).rows;
-      expect(events.map((e) => e.payload)).toEqual([expect.objectContaining({ message_id: answered, recipient: "psid-m1",
-        text: "Street food stalls open every evening near the river." })]);
+      expect(events).toHaveLength(2);
+      expect(events.map((e) => e.payload)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ message_id: answered, recipient: "psid-m1", platform: "facebook_message",
+          text: "Street food stalls open every evening near the river." }),
+        expect.objectContaining({ message_id: telegram, recipient: "psid-m3", platform: "telegram_message", business_connection_id: "conn-1" }),
+      ]));
       const status = async (id: string) => (await db.query("SELECT status FROM community_messages WHERE id=$1", [id])).rows[0].status;
       expect(await status(answered)).toBe("queued");
+      expect(await status(telegram)).toBe("queued");
       expect(await status(escalated)).toBe("escalated");
+    });
+    it("a task whose prerequisite failed is closed and the next cycle still starts", async () => {
+      await db.query(
+        "UPDATE workflow_tasks SET status='completed' WHERE workspace_id=$1 AND status IN ('queued','running','pending','awaiting_approval')",
+        [workspace],
+      );
+      const current = (await db.query("SELECT snapshot_id FROM knowledge_contexts WHERE workspace_id=$1 AND current", [workspace])).rows[0].snapshot_id;
+      const plan = randomUUID(), seo = randomUUID(), content = randomUUID();
+      await db.query("INSERT INTO campaigns(id,workspace_id,name,utm_campaign) VALUES($1,$2,'Synthetic plan','synthetic')", [plan, workspace]);
+      await db.query(
+        `INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,campaign_id,payload)
+         VALUES($1,$2,'seo','seo.local_draft','failed',1,$3,$4,'{}'),($5,$2,'content','content.repurpose','pending',1,$3,$4,'{}')`,
+        [seo, workspace, current, plan, content],
+      );
+      await db.query("INSERT INTO task_dependencies(task_id,depends_on_task_id,workspace_id) VALUES($1,$2,$3)", [content, seo, workspace]);
+      await db.query("INSERT INTO campaign_plan_acceptances(plan_id,workspace_id,input_version,plan,record) VALUES($1,$2,1,'{}','{}')", [plan, workspace]);
+      await db.query("UPDATE agent_automation SET next_run_at=now()-interval '1 minute' WHERE workspace_id=$1", [workspace]);
+      const research = async () =>
+        (await db.query("SELECT count(*)::int AS n FROM workflow_tasks WHERE workspace_id=$1 AND operation='research.run'", [workspace])).rows[0].n;
+      const before = await research();
+      await tickAutomation(db, workspace);
+      const closed = (await db.query("SELECT status,error_details FROM workflow_tasks WHERE id=$1", [content])).rows[0];
+      expect(closed).toMatchObject({ status: "cancelled", error_details: { code: "UPSTREAM_TASK_FAILED", upstream_task_id: seo } });
+      expect(await research()).toBe(before + 1);
+      expect((await workspaceAlerts(db, workspace)).map((alert) => alert.code)).toContain("TASK_CHAIN_STOPPED");
     });
     it("disabled automation and suspended owner cannot dispatch more work", async () => {
       await db.query(

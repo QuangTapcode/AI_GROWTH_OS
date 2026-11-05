@@ -1,23 +1,55 @@
 from pathlib import Path
 import re
 import unicodedata
-from ...app.runtime import OperationOutcome
+from ...app.providers import ProviderError
+from ...app.runtime import OperationError, OperationOutcome
 from ...app.schemas import EvidenceRef
 from ...guardrails.facts import sensitive_keys_in
-from ...rag.retrieval import eligible_sources, lexical_overlap, terms, _STOPWORDS
+from ...guardrails.support import strip_unsupported
+from ...rag.ingest import document_embedding_input, query_embedding_input
+from ...rag.retrieval import cosine, eligible_sources, lexical_overlap, terms, _STOPWORDS
 from ..contracts import aware_past, call_draft, call_grounded_draft, ensure_grounded, result_fields, validate_context
+from ..copy_quality import drop_broken_sentences, has_cjk
 from .schemas import CommunityReply, ReplyDraft
 
-PROMPT_VERSION = "community-v2"
-PROMPT_FILE = Path(__file__).resolve().parents[3] / "prompts/community-v2.md"
-if not PROMPT_FILE.exists():
-    PROMPT_FILE = Path(__file__).resolve().parents[3] / "prompts/community-v1.md"
+PROMPT_VERSION = "community-v3"
+PROMPT_FILE = Path(__file__).resolve().parents[3] / f"prompts/{PROMPT_VERSION}.md"
 SYSTEM_PROMPT = PROMPT_FILE.read_text(encoding="utf-8")
+HANDOFF_REPLY = "The verified information needed for this question is unavailable. A human needs to review it."
+# Words of asking, not subjects: a source need not contain them to answer.
+QUESTION_WORDS = {"please", "help", "find", "good", "best", "recommend", "suggest", "explain", "tell", "know", "need", "want",
+                  "looking", "look", "where", "what", "which", "when", "there", "can", "could", "would", "should", "like",
+                  "nice", "great", "try", "get", "go", "hi", "hello", "thanks", "thank", "you", "tripc", "anyone", "any"}
+# The model saying its sources have no answer, or talking about them, is not an answer for a customer.
+MIN_CHUNKS_FOR_ABSENCE = 100
+# Measured on the real corpus with embeddinggemma (17 questions, 430 chunks): questions the sources can answer
+# peak at 0.53-0.77; unrelated or unstated ones at 0.18-0.47, with one listing match at 0.52.
+MIN_SIMILARITY = 0.5
+# Below every question the corpus relates to (the lowest was 0.37): a shared word here is a coincidence.
+MIN_RELATED_SIMILARITY = 0.3
+LEXICAL_WEIGHT = 0.25
+MAX_LIVE_EMBEDDINGS = 64
+NO_ANSWER = re.compile(
+    r"NO_ANSWER|\b(?:no mention|(?:does|do) not (?:mention|say|state|include|specify)|no information"
+    r"|\bmentioned\b|provided (?:information|quotes?|excerpts?|sources?)|the (?:quotes?|excerpts?)\b"
+    # Guessing beyond the quotes.
+    r"|there (?:may|might|could) be|(?:may|might) (?:also )?(?:be available|offer|have)"
+    r"|is not (?:offered|provided|sold))\b"
+    r"|không có thông tin|không được đề cập|thông tin được cung cấp|chúng tôi không (?:bán|cung cấp|có)",
+    re.IGNORECASE,
+)
 
 _UNICODE_WORD = re.compile(r"[\w\u00C0-\u1EF9]+", re.UNICODE)
-_INTENT_WORDS = (
-    "contact", "consult", "book", "request", "interested", "rent", "housing", "apartment",
-    "liên hệ", "tư vấn", "thuê", "đặt phòng", "giá", "quan tâm", "inbox", "ib", "alo", "nhà", "căn hộ"
+_GREETING_WORDS = {"hi", "hello", "hey", "chao", "morning", "afternoon", "evening"}
+# Who is greeted, or the words around a greeting. Any other word makes the message a question.
+_AROUND_A_GREETING = {"xin", "good", "there", "shop", "ad", "admin", "ban", "oi", "team", "tripc", "anh", "chi", "em"}
+_VIETNAMESE_GREETING = {"chao", "xin", "ban", "oi", "anh", "chi", "em"}
+_VIETNAMESE_LETTER = re.compile(r"[\u00C0-\u1EF9]")
+# Whole words: "possible" is not "ib", "different" is not "rent", and a restaurant or a review asks for no home or price.
+LEAD_INTENT = re.compile(
+    r"\b(?:contact\w*|consult\w*|book(?:s|ed|ing|ings)?|request\w*|interested|rent(?:s|ed|al|als|ing)?|housing|apartments?"
+    r"|liên hệ|tư vấn|thuê|đặt phòng|(?<!đánh )giá|quan tâm|inbox|ib|alo|nhà(?! (?:hàng|sách|thờ|hát|ga|thuốc))|căn hộ)\b",
+    re.IGNORECASE,
 )
 
 
@@ -31,6 +63,25 @@ def unicode_terms(text: str) -> set[str]:
     return {w for w in all_words if len(w) > 1 and (w not in _STOPWORDS or w in {"an", "in", "to", "do", "me"})}
 
 
+def plain_words(text: str) -> set[str]:
+    plain = "".join(c for c in unicodedata.normalize("NFD", text.casefold()) if unicodedata.category(c) != "Mn")
+    return set(_UNICODE_WORD.findall(plain))
+
+
+def is_greeting(text: str) -> bool:
+    words = plain_words(text)
+    return bool(words & _GREETING_WORDS) and words <= _GREETING_WORDS | _AROUND_A_GREETING
+
+
+def welcome(greeting: str) -> str:
+    return "Xin chào! Mình có thể giúp gì cho bạn?" if plain_words(greeting) & _VIETNAMESE_GREETING else "Hello! How can I help you?"
+
+
+def welcome_needed(reply: str, greeting: str) -> bool:
+    """The model's welcome was refused, or followed Vietnamese quotes instead of an English greeting."""
+    return not reply or (bool(_VIETNAMESE_LETTER.search(reply)) and not plain_words(greeting) & _VIETNAMESE_GREETING)
+
+
 def extract_contact_info(text: str) -> dict[str, str] | None:
     contact: dict[str, str] = {}
     phone_match = re.search(r"(?:(?:\+84|0)[3|5|7|8|9])\d{8}\b", text)
@@ -40,6 +91,42 @@ def extract_contact_info(text: str) -> dict[str, str] | None:
     if email_match:
         contact["email"] = email_match.group(0)
     return contact if contact else None
+
+
+def denies_for_the_business(reply: str, company: str) -> bool:
+    """No quote says what the business will not do, and only the owner knows: a person answers that."""
+    return bool(re.search(rf"\b(?:i|we|{re.escape(company)}) (?:do not|does not|don't|doesn't|cannot|can't|will not|won't)\b",
+                          reply.replace("\u2019", "'"), re.IGNORECASE))
+
+
+def finished_reply(reply: str, question: str, grounding: list[str], company: str = "") -> str:
+    """The part of a drafted reply that may reach a customer; empty when the draft does not answer."""
+    if NO_ANSWER.search(reply) or denies_for_the_business(reply, company or "we"):
+        return ""
+    clean, _ = drop_broken_sentences(reply, keep_cjk=has_cjk(question), grounding=grounding)
+    clean, _ = strip_unsupported(clean, grounding)
+    return clean
+
+
+async def similarity_by_chunk(ctx, question, chunks):
+    """Cosine between the question and each chunk, reusing the vectors stored at ingest.
+
+    An embedding outage must not stop a customer's answer: keywords still find a grounded source.
+    """
+    model = ctx.provider.embedding_model_version
+    stored = {c.chunk_id: c.embedding for _, c in chunks
+              if c.embedding and c.model == model and len(c.embedding) == ctx.settings.embedding_dim}
+    missing = [(s, c) for s, c in chunks if c.chunk_id not in stored]
+    # Too many to embed while the customer waits; those chunks can still match by keyword.
+    warnings = [f"RETRIEVAL_KEYWORDS_ONLY_FOR_CHUNKS:{len(missing)}"] if len(missing) > MAX_LIVE_EMBEDDINGS else []
+    if warnings:
+        missing = []
+    try:
+        vectors = await ctx.embed([query_embedding_input(question), *(document_embedding_input(s.title, c.text) for s, c in missing)])
+    except (ProviderError, OperationError) as error:
+        return {}, [f"RETRIEVAL_KEYWORDS_ONLY:{error.code}"]
+    stored.update((c.chunk_id, vector) for (_, c), vector in zip(missing, vectors[1:]))
+    return {chunk_id: cosine(vectors[0], vector) for chunk_id, vector in stored.items()}, warnings
 
 
 def validate_community(job, p, settings):
@@ -53,22 +140,47 @@ async def run_community(ctx):
 
     q_terms = terms(p.question)
     q_u_terms = unicode_terms(p.question)
+    # Earlier questions steer which source a follow-up reads. Whether a source answers at all is decided by this one.
+    earlier = " ".join(turn.question for turn in p.history)
+    earlier_terms = terms(earlier)
+    earlier_u_terms = unicode_terms(earlier)
 
-    candidates = [
-        (max(lexical_overlap(q_terms, c.text), lexical_overlap(q_u_terms, c.text)), s, c)
-        for s in sources if s.provenance and s.provenance.source_url
+    chunks = [
+        (s, c) for s in sources if s.provenance and s.provenance.source_url
         and s.provenance.retrieved_at and aware_past(s.provenance.retrieved_at)
         for c in s.chunks
     ]
-    candidates.sort(key=lambda item: item[0], reverse=True)
-    selected = [(s, c) for score, s, c in candidates[:3] if score > 0]
-    missing = [f"verified_fact:{key}" for key in sensitive]
+    similarity, warnings = await similarity_by_chunk(ctx, p.question, chunks)
+    # A follow-up ("which one...?") is searched together with the question it follows; whether a source answers it is judged on its own.
+    in_context = similarity
+    if p.history:
+        in_context, _ = await similarity_by_chunk(ctx, f"{p.history[-1].question} {p.question}", chunks)
+    scored = [(similarity.get(c.chunk_id, 0.0), max(lexical_overlap(q_terms, c.text), lexical_overlap(q_u_terms, c.text)), s, c)
+              for s, c in chunks]
+    follows_up = lambda text: max(lexical_overlap(earlier_terms, text), lexical_overlap(earlier_u_terms, text))
+    scored.sort(key=lambda item: in_context.get(item[3].chunk_id, item[0]) + LEXICAL_WEIGHT * (item[1] + follows_up(item[3].text)), reverse=True)
+    selected = [(s, c) for meaning, words, s, c in scored if words > 0 or meaning >= MIN_SIMILARITY][:3]
+    known = terms(" ".join(c.text for _, c in chunks))
+    # A subject no approved source mentions cannot be answered from them; a model would only guess.
+    # Absence says something only in a corpus large enough to use ordinary words, and only
+    # when no source is close in meaning: a paraphrase uses words the sources do not.
+    if (len(chunks) >= MIN_CHUNKS_FOR_ABSENCE and q_terms - known - QUESTION_WORDS
+            and not any(meaning >= MIN_SIMILARITY for meaning, *_ in scored)):
+        selected = []
+    # Fake-mode vectors only hash words, so they carry no meaning to judge by.
+    if (ctx.settings.provider_mode != "fake" and len(similarity) == len(chunks)
+            and all(meaning < MIN_RELATED_SIMILARITY for meaning, *_ in scored)):
+        selected = []
+    # A greeting asks nothing a source must answer: the model greets back and says what it can help with.
+    if not selected and is_greeting(p.question):
+        selected = [(s, c) for _, _, s, c in scored[:3]]
+    missing = [f"verified_fact:{fact.key}" for fact in sensitive]
     evidence = []
 
     if sensitive or not selected:
         if not selected:
             missing.append("grounded_answer")
-        reply = "The verified information needed for this question is unavailable. A human needs to review it."
+        reply = HANDOFF_REPLY
     else:
         evidence = [
             EvidenceRef(
@@ -84,19 +196,28 @@ async def run_community(ctx):
             for s, c in selected
         ]
         grounding = [c.text for s, c in selected]
+        draft_input = {"question": p.question, "quotes": [e.quote for e in evidence]}
+        if p.history:
+            draft_input["history"] = [turn.model_dump(exclude_none=True) for turn in p.history]
         draft = await call_grounded_draft(
             ctx,
             SYSTEM_PROMPT,
-            {"question": p.question, "quotes": [e.quote for e in evidence]},
+            draft_input,
             ReplyDraft,
             lambda: {"reply": evidence[0].quote},
             lambda d: d.reply,
             grounding,
         )
-        reply = draft.reply
+        # A welcome states no fact, so a greeting need not reach a person when the model's own one is refused.
+        reply = finished_reply(draft.reply, p.question, grounding, p.business_profile.company)
+        if is_greeting(p.question) and welcome_needed(reply, p.question):
+            reply = welcome(p.question)
+        if not reply:
+            # Better a person answers than the customer reading "the provided information has no mention...".
+            reply, evidence = HANDOFF_REPLY, []
+            missing.append("grounded_answer")
 
-    q_lower = p.question.casefold()
-    intent = any(word in q_lower for word in _INTENT_WORDS)
+    intent = LEAD_INTENT.search(p.question)
     contact = extract_contact_info(p.question)
 
     proposal = None
@@ -122,4 +243,4 @@ async def run_community(ctx):
         escalation_reason="missing_verified_context_or_lead_handoff" if missing else None,
         lead_proposal=proposal,
     )
-    return OperationOutcome(result=result.model_dump(mode="json"), evidence=evidence)
+    return OperationOutcome(result=result.model_dump(mode="json"), evidence=evidence, warnings=warnings)

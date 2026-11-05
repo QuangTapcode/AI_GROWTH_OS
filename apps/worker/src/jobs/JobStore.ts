@@ -3,6 +3,24 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { JobState, JobStatus } from './JobState';
 
+// Windows refuses for a moment to replace or read a file another process holds open, and a file being
+// replaced can look absent to a reader. Measured: 794 EPERM in 19827 renames with one reader.
+const BUSY_FILE = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const BEING_REPLACED = new Set([...BUSY_FILE, 'ENOENT']);
+const FILE_ATTEMPTS = 8;
+const FILE_BACKOFF_MS = 5;
+
+async function whileShared<T>(action: () => Promise<T>, passing: Set<string>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await action();
+    } catch (err) {
+      if (attempt >= FILE_ATTEMPTS || !passing.has((err as NodeJS.ErrnoException).code ?? '')) throw err;
+      await new Promise((resolve) => setTimeout(resolve, FILE_BACKOFF_MS * attempt));
+    }
+  }
+}
+
 /**
  * Persistence seam cho job state (W1-MY-01).
  * - MemoryJobStore: test/dev, cùng-process.
@@ -133,7 +151,7 @@ export class FileJobStore extends LockedStore implements JobStore {
     const target = this.fileOf(id);
     const tmp = `${target}.${randomUUID()}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(serialize(job)), 'utf8');
-    await fs.rename(tmp, target);
+    await whileShared(() => fs.rename(tmp, target), BUSY_FILE);
   }
 
   async insert(job: JobState): Promise<void> {
@@ -152,7 +170,7 @@ export class FileJobStore extends LockedStore implements JobStore {
 
   async get(id: string): Promise<JobState | null> {
     try {
-      const raw = await fs.readFile(this.fileOf(id), 'utf8');
+      const raw = await whileShared(() => fs.readFile(this.fileOf(id), 'utf8'), BEING_REPLACED);
       return deserialize(raw);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;

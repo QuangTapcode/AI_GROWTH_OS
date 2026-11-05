@@ -497,7 +497,7 @@
   },
   "limits": {
     "ai_concurrency": 1,
-    "max_llm_calls_per_job": 2,
+    "max_llm_calls_per_job": 3,
     "max_attempts": 2,
     "input_token_estimate": 2800,
     "output_tokens": 1024,
@@ -1286,6 +1286,30 @@
               "scope"
             ],
             "title": "KpiMeasurement",
+            "type": "object"
+          },
+          "LearningLessons": {
+            "additionalProperties": false,
+            "description": "What the Learning round before this one observed about past articles.",
+            "properties": {
+              "promising_titles": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "title": "Promising Titles",
+                "type": "array"
+              },
+              "weak_titles": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "title": "Weak Titles",
+                "type": "array"
+              }
+            },
+            "title": "LearningLessons",
             "type": "object"
           },
           "PriorityTopic": {
@@ -2143,6 +2167,25 @@
             "maxLength": 100,
             "title": "Search Metrics Missing Reason",
             "type": "string"
+          },
+          "customer_signals": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Customer Signals",
+            "type": "array"
+          },
+          "lessons": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/LearningLessons"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -2940,9 +2983,9 @@
         "research.run": "dedicated"
       },
       "prompt_versions": {
-        "research.run": "research-v8"
+        "research.run": "research-v9"
       },
-      "prompt_version": "research-v8",
+      "prompt_version": "research-v9",
       "schema_operations": [
         "research.run"
       ]
@@ -2965,6 +3008,33 @@
       "contract_status": "implemented_awaiting_independent_review",
       "input_schema": {
         "$defs": {
+          "ArtifactInput": {
+            "additionalProperties": false,
+            "properties": {
+              "artifact": {
+                "$ref": "#/$defs/RunArtifact"
+              },
+              "result": {
+                "additionalProperties": true,
+                "title": "Result",
+                "type": "object"
+              },
+              "evidence": {
+                "items": {
+                  "$ref": "#/$defs/EvidenceRef"
+                },
+                "maxItems": 50,
+                "title": "Evidence",
+                "type": "array"
+              }
+            },
+            "required": [
+              "artifact",
+              "result"
+            ],
+            "title": "ArtifactInput",
+            "type": "object"
+          },
           "BusinessProfile": {
             "additionalProperties": false,
             "properties": {
@@ -4909,6 +4979,17 @@
             "default": null,
             "title": "Deadline"
           },
+          "latest_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "score_factors": {
             "additionalProperties": {
               "anyOf": [
@@ -5848,6 +5929,28 @@
             "maxItems": 5,
             "title": "Kpis",
             "type": "array"
+          },
+          "kpi_progress": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 5,
+            "title": "Kpi Progress",
+            "type": "array"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Priority"
           },
           "strategy_alignment": {
             "anyOf": [
@@ -7738,6 +7841,16 @@
                 }
               ],
               "title": "Stopped Reason"
+            },
+            "lessons": {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "title": "Lessons",
+              "type": "object"
             }
           },
           "required": [
@@ -9731,11 +9844,11 @@
         "content.refresh": "dedicated"
       },
       "prompt_versions": {
-        "seo.audit": "seo-v3",
-        "seo.local_draft": "seo-v3",
-        "content.refresh": "seo-v3"
+        "seo.audit": "seo-v4",
+        "seo.local_draft": "seo-v4",
+        "content.refresh": "seo-v4"
       },
-      "prompt_version": "seo-v3",
+      "prompt_version": "seo-v4",
       "schema_operations": [
         "seo.audit",
         "seo.local_draft",
@@ -11319,6 +11432,11 @@
             "title": "Target Channels",
             "type": "array"
           },
+          "draft_tiktok_script": {
+            "default": false,
+            "title": "Draft Tiktok Script",
+            "type": "boolean"
+          },
           "brand_voice": {
             "anyOf": [
               {
@@ -11477,7 +11595,7 @@
             "additionalProperties": false,
             "properties": {
               "hook": {
-                "maxLength": 150,
+                "maxLength": 300,
                 "minLength": 1,
                 "title": "Hook",
                 "type": "string"
@@ -11551,6 +11669,20 @@
                 "maxLength": 50,
                 "title": "Source Type",
                 "type": "string"
+              },
+              "source_url": {
+                "anyOf": [
+                  {
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Đường dẫn nguồn của fact trích từ citation",
+                "title": "Source Url"
               }
             },
             "required": [
@@ -11558,6 +11690,85 @@
               "text"
             ],
             "title": "FactItem",
+            "type": "object"
+          },
+          "GeneratedImage": {
+            "additionalProperties": false,
+            "description": "An AI illustration waiting for a person: it is never auto-approved and is labelled as AI when published.",
+            "properties": {
+              "url": {
+                "maxLength": 2000,
+                "minLength": 1,
+                "title": "Url",
+                "type": "string"
+              },
+              "content_hash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "title": "Content Hash",
+                "type": "string"
+              },
+              "aspect_ratio": {
+                "maxLength": 10,
+                "minLength": 1,
+                "title": "Aspect Ratio",
+                "type": "string"
+              },
+              "width": {
+                "minimum": 1,
+                "title": "Width",
+                "type": "integer"
+              },
+              "height": {
+                "minimum": 1,
+                "title": "Height",
+                "type": "integer"
+              },
+              "alt_text": {
+                "maxLength": 400,
+                "minLength": 1,
+                "title": "Alt Text",
+                "type": "string"
+              },
+              "prompt": {
+                "maxLength": 4000,
+                "minLength": 1,
+                "title": "Prompt",
+                "type": "string"
+              },
+              "model_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Model Name",
+                "type": "string"
+              },
+              "seed": {
+                "title": "Seed",
+                "type": "integer"
+              },
+              "cost_usd": {
+                "minimum": 0,
+                "title": "Cost Usd",
+                "type": "number"
+              },
+              "ocr_checked": {
+                "title": "Ocr Checked",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "url",
+              "content_hash",
+              "aspect_ratio",
+              "width",
+              "height",
+              "alt_text",
+              "prompt",
+              "model_name",
+              "seed",
+              "cost_usd",
+              "ocr_checked"
+            ],
+            "title": "GeneratedImage",
             "type": "object"
           },
           "GoalKpi": {
@@ -11717,6 +11928,48 @@
               "status"
             ],
             "title": "ImageAsset",
+            "type": "object"
+          },
+          "ImageSuggestion": {
+            "additionalProperties": false,
+            "description": "What to shoot or generate when a post has no approved image (Dual-Asset policy, CM-05/CM-10).",
+            "properties": {
+              "status": {
+                "title": "Status",
+                "type": "string"
+              },
+              "prompt": {
+                "title": "Prompt",
+                "type": "string"
+              },
+              "negative_prompt": {
+                "title": "Negative Prompt",
+                "type": "string"
+              },
+              "aspect_ratio": {
+                "title": "Aspect Ratio",
+                "type": "string"
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Reason"
+              }
+            },
+            "required": [
+              "status",
+              "prompt",
+              "negative_prompt",
+              "aspect_ratio"
+            ],
+            "title": "ImageSuggestion",
             "type": "object"
           },
           "KpiMeasurement": {
@@ -11906,6 +12159,70 @@
               "fact_id"
             ],
             "title": "SentenceMap",
+            "type": "object"
+          },
+          "TikTokScene": {
+            "additionalProperties": false,
+            "properties": {
+              "voiceover": {
+                "maxLength": 600,
+                "minLength": 1,
+                "title": "Voiceover",
+                "type": "string"
+              },
+              "visual": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Visual",
+                "type": "string"
+              }
+            },
+            "required": [
+              "voiceover",
+              "visual"
+            ],
+            "title": "TikTokScene",
+            "type": "object"
+          },
+          "TikTokScript": {
+            "additionalProperties": false,
+            "properties": {
+              "hook": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Hook",
+                "type": "string"
+              },
+              "scenes": {
+                "items": {
+                  "$ref": "#/$defs/TikTokScene"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "title": "Scenes",
+                "type": "array"
+              },
+              "cta": {
+                "title": "Cta",
+                "type": "string"
+              },
+              "word_count": {
+                "title": "Word Count",
+                "type": "integer"
+              },
+              "within_length": {
+                "title": "Within Length",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "hook",
+              "scenes",
+              "cta",
+              "word_count",
+              "within_length"
+            ],
+            "title": "TikTokScript",
             "type": "object"
           }
         },
@@ -12101,6 +12418,39 @@
             },
             "title": "Sentence Fact Map",
             "type": "array"
+          },
+          "tiktok": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TikTokScript"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "image_suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ImageSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "generated_image": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/GeneratedImage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -12374,6 +12724,36 @@
               "company"
             ],
             "title": "BusinessProfile",
+            "type": "object"
+          },
+          "ConversationTurn": {
+            "additionalProperties": false,
+            "description": "An earlier message of this customer: context for a follow-up, never a source of facts.",
+            "properties": {
+              "question": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "reply": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Reply"
+              }
+            },
+            "required": [
+              "question"
+            ],
+            "title": "ConversationTurn",
             "type": "object"
           },
           "GoalContext": {
@@ -13420,6 +13800,14 @@
             "minLength": 1,
             "title": "Question",
             "type": "string"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/$defs/ConversationTurn"
+            },
+            "maxItems": 10,
+            "title": "History",
+            "type": "array"
           }
         },
         "required": [
@@ -13881,9 +14269,9 @@
         "community.response": "dedicated"
       },
       "prompt_versions": {
-        "community.response": "community-v2"
+        "community.response": "community-v3"
       },
-      "prompt_version": "community-v2",
+      "prompt_version": "community-v3",
       "schema_operations": [
         "community.response"
       ]
@@ -15482,6 +15870,42 @@
       },
       "output_schema": {
         "$defs": {
+          "ContentMetric": {
+            "additionalProperties": false,
+            "description": "One article in the window: counts only, never a session or a person.",
+            "properties": {
+              "slug": {
+                "maxLength": 200,
+                "minLength": 1,
+                "title": "Slug",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "page_views": {
+                "minimum": 0,
+                "title": "Page Views",
+                "type": "integer"
+              },
+              "cta_clicks": {
+                "minimum": 0,
+                "title": "Cta Clicks",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "slug",
+              "title",
+              "page_views",
+              "cta_clicks"
+            ],
+            "title": "ContentMetric",
+            "type": "object"
+          },
           "ExperimentPeriod": {
             "additionalProperties": false,
             "properties": {
@@ -15946,6 +16370,13 @@
               "type": "object"
             },
             "title": "Kpi Comparisons",
+            "type": "array"
+          },
+          "content_metrics": {
+            "items": {
+              "$ref": "#/$defs/ContentMetric"
+            },
+            "title": "Content Metrics",
             "type": "array"
           }
         },

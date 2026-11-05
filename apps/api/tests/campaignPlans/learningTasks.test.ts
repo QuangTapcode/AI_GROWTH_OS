@@ -298,6 +298,7 @@ describe("Growth Lead: Closed-Loop Learning & Deduplicated Task Dispatch Suite",
       next_tasks: nextTasks,
       input_artifact_refs: [perfRef, leadRef],
       stopped_reason: iteration >= maxIterations ? "max_iterations" : null,
+      lessons: { promising_titles: ["Street Food in Da Nang"], weak_titles: [] },
     };
 
     const learningHash = sha256Hex(canonicalJson({ result: learningResult, evidence: [] }));
@@ -343,6 +344,8 @@ describe("Growth Lead: Closed-Loop Learning & Deduplicated Task Dispatch Suite",
     expect(task.role).toBe("research");
     expect(task.operation).toBe("research.run");
     expect(task.status).toBe("queued");
+    // What Learning observed goes with the round it opens.
+    expect((task.payload as { lessons?: unknown }).lessons).toEqual({ promising_titles: ["Street Food in Da Nang"], weak_titles: [] });
     expect(task.payload.dedup_key).toBe(expectedDedupKey);
     expect(task.payload.iteration).toBe(1);
 

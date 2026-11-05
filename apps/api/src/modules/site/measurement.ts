@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { siteForWorkspace } from '../../lib/sites';
+import { fetchGscTotals } from '../integrations/liveMetrics';
 
 const WINDOW_DAYS = 7;
 const NOT_CONNECTED = 'search_console_not_connected';
+const SEARCH_SETTLE_DAYS = 3;
 
 /** Pin one measured historical window, not the latest overlapping rolling snapshot.
  * Old contexts are deliberately excluded; scope/definition/timezone are checked again by AI.
@@ -33,7 +35,7 @@ export async function baselineMetricArtifact(pool: Pool, workspaceId: string, co
  * - qualified_visits: non-internal sessions that viewed a published post AND clicked its CTA in
  *   the window (PILOT.md qualifier: topic page + CTA signal; a behavioural proxy, not identity).
  * - leads: successful lead submissions for the site in the window, synthetic fixtures excluded.
- * - impressions/clicks: search metrics need Search Console; declared unavailable, never 0.
+ * - impressions/clicks: Search Console totals when the property is connected; otherwise declared unavailable, never 0.
  *
  * Results are stored as backend ledger artifacts (storage=postgres_ledger) whose content hash
  * is verified by the AI service like any other upstream artifact.
@@ -103,15 +105,73 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
           AND COALESCE(context->>'synthetic', 'false') <> 'true')::int AS leads`,
     [workspaceId, start, end, site?.site_id ?? null],
   )).rows[0];
+  const search = await searchTotals(pool, workspaceId, start, end);
+  // Article titles and counts only: never a session, address or person.
+  const articles = (await pool.query<{ slug: string; title: string; page_views: number; cta_clicks: number }>(
+    `SELECT c.slug, c.title,
+        count(*) FILTER (WHERE e.event_type='page_view')::int AS page_views,
+        count(*) FILTER (WHERE e.event_type='cta_click')::int AS cta_clicks
+       FROM site_events e JOIN contents c ON c.id=e.content_id AND c.workspace_id=e.workspace_id
+      WHERE e.workspace_id=$1 AND NOT e.internal AND e.occurred_at >= $2 AND e.occurred_at < $3 AND c.slug IS NOT NULL
+      GROUP BY c.id, c.slug, c.title ORDER BY cta_clicks DESC, page_views DESC, c.slug LIMIT 20`,
+    [workspaceId, start, end],
+  )).rows;
+  const utmRows = (await pool.query<{ utm_source: string; leads: number }>(
+    `SELECT COALESCE(NULLIF(trim(utm_source), ''), NULLIF(trim(context->>'source_channel'), ''), NULLIF(trim(context->>'platform'), ''), 'direct') AS utm_source,
+            count(*)::int AS leads
+       FROM leads
+      WHERE workspace_id=$1 AND ($4::text IS NULL OR site_id=$4 OR site_id IS NULL)
+        AND captured_at >= $2 AND captured_at < $3
+        AND COALESCE(context->>'synthetic', 'false') <> 'true'
+      GROUP BY 1 ORDER BY 2 DESC`,
+    [workspaceId, start, end, site?.site_id ?? null],
+  )).rows;
+  const socialRows = (await pool.query<{ platform_name: string; published_count: number }>(
+    `SELECT ch.platform_name, count(*)::int AS published_count
+       FROM publishing_jobs pj
+       JOIN channels ch ON ch.id = pj.channel_id AND ch.workspace_id = pj.workspace_id
+      WHERE pj.workspace_id=$1 AND pj.status='published'
+        AND pj.published_at >= $2 AND pj.published_at < $3
+      GROUP BY 1`,
+    [workspaceId, start, end],
+  )).rows;
   const result = {
     workspace_id: workspaceId, snapshot_id: randomUUID(), version: 1,
     window_start: start.toISOString(), window_end: end.toISOString(),
-    qualified_visits: counts.qualified_visits, leads: counts.leads, impressions: null, clicks: null,
-    synthetic: false, source: 'first_party', unavailable: { impressions: NOT_CONNECTED, clicks: NOT_CONNECTED },
+    qualified_visits: counts.qualified_visits, leads: counts.leads,
+    impressions: 'impressions' in search ? search.impressions : null, clicks: 'clicks' in search ? search.clicks : null,
+    synthetic: false, source: 'first_party',
+    unavailable: 'reason' in search ? { impressions: search.reason, clicks: search.reason } : {},
     captured_at: new Date().toISOString(), timezone: 'UTC',
     metric_definitions: firstPartyMetricDefinitions(workspaceId),
+    content_metrics: articles,
   };
-  return { result, counts, measurement: { page_views: counts.page_views, internal_page_views: counts.internal_page_views, site_id: site?.site_id ?? null } };
+  return { result, counts, measurement: { page_views: counts.page_views, internal_page_views: counts.internal_page_views, site_id: site?.site_id ?? null,
+    utm_sources: Object.fromEntries(utmRows.map((r) => [r.utm_source, r.leads])),
+    published_social_posts: Object.fromEntries(socialRows.map((r) => [r.platform_name, r.published_count])),
+    ...('coverage' in search ? { search_console: search.coverage } : {}) } };
+}
+
+/** Totals for the part of the window Search Console has settled; a missing or failed source is declared, never 0. */
+async function searchTotals(pool: Pool, workspaceId: string, start: Date, end: Date) {
+  if (process.env.INTEGRATION_MODE !== 'production' || !process.env.GSC_SITE_URL ||
+      !(process.env.GSC_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON)) return { reason: NOT_CONNECTED };
+  const connection = (await pool.query<{ account_ref: string }>(
+    `SELECT account_ref FROM integration_connections WHERE workspace_id=$1 AND provider='gsc' AND account_ref=$2
+       AND status='connected' AND verified_at IS NOT NULL`,
+    [workspaceId, process.env.GSC_SITE_URL],
+  )).rows[0];
+  if (!connection) return { reason: NOT_CONNECTED };
+  const from = start.toISOString().slice(0, 10);
+  const settled = new Date(Date.now() - SEARCH_SETTLE_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const to = [end.toISOString().slice(0, 10), settled].sort()[0];
+  if (from > to) return { reason: 'search_console_data_not_settled' };
+  try {
+    const totals = await fetchGscTotals(from, to);
+    return { ...totals, coverage: { site_url: connection.account_ref, from, to } };
+  } catch {
+    return { reason: 'search_console_request_failed' };
+  }
 }
 
 async function ledgerArtifact(pool: Pool, workspaceId: string, contextSnapshotId: string, operation: string, title: string,

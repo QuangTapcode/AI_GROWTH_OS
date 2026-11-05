@@ -201,16 +201,19 @@ class GeminiProvider:
             sanitized_schema = clean_schema_for_gemini(schema)
 
             def _call_gemini():
+                cfg_kwargs: dict[str, Any] = {
+                    "system_instruction": system,
+                    "response_mime_type": "application/json",
+                    "response_schema": sanitized_schema,
+                    "max_output_tokens": max(4096, min(max_output_tokens, self.settings.max_output_tokens)),
+                    "temperature": 0.0,
+                }
+                if "2.5" in self.settings.gemini_model:
+                    cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
                 return self.client.models.generate_content(
                     model=self.settings.gemini_model,
                     contents=user,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system,
-                        response_mime_type="application/json",
-                        response_schema=sanitized_schema,
-                        max_output_tokens=min(max_output_tokens, self.settings.max_output_tokens),
-                        temperature=0.0,
-                    ),
+                    config=types.GenerateContentConfig(**cfg_kwargs),
                 )
 
             response = await asyncio.to_thread(_call_gemini)
@@ -231,25 +234,32 @@ class GeminiProvider:
 
     async def embed(self, texts: list[str]) -> tuple[list[list[float]], Usage]:
         started = time.perf_counter()
+        vectors: list[list[float]] = []
+        calls = 0
+        batch_size = 80
         try:
             from google.genai import types
 
-            def _call_embed():
-                return self.client.models.embed_content(
-                    model=self.settings.gemini_embedding_model,
-                    contents=texts,
-                    config=types.EmbedContentConfig(output_dimensionality=self.settings.embedding_dim),
-                )
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i : i + batch_size]
 
-            res = await asyncio.to_thread(_call_embed)
-            vectors = [item.values for item in res.embeddings]
+                def _call_embed(b: list[str] = batch):
+                    return self.client.models.embed_content(
+                        model=self.settings.gemini_embedding_model,
+                        contents=b,
+                        config=types.EmbedContentConfig(output_dimensionality=self.settings.embedding_dim),
+                    )
+
+                res = await asyncio.to_thread(_call_embed)
+                vectors.extend(item.values for item in res.embeddings)
+                calls += 1
         except Exception as exc:
             raise ProviderError("EMBEDDING_UNAVAILABLE", f"Gemini embedding request failed: {exc}", retryable=True) from exc
 
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         return vectors, Usage(
             latency_ms=elapsed_ms,
-            embedding_calls=1,
+            embedding_calls=calls,
             embedding_input_tokens=0,
         )
 

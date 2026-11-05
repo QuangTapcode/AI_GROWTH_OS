@@ -35,7 +35,6 @@ from src.agents.content.image_guardrail import (
     ImageGuardrail,
     ImageGuardrailReport,
     MockOcrEngine,
-    TesseractOcrEngine,
 )
 
 
@@ -137,7 +136,7 @@ class TestOcrGuardrail:
 
     @pytest.fixture
     def guardrail(self) -> ImageGuardrail:
-        return ImageGuardrail(ocr_engine=TesseractOcrEngine())
+        return ImageGuardrail(ocr_engine=MockOcrEngine())
 
     def test_clean_square_image_passes(self, guardrail: ImageGuardrail):
         clean_bytes = create_test_image_bytes(1080, 1080, drawn_text=None, mock_ocr_text="")
@@ -319,7 +318,7 @@ class TestGuardedPipelineAndRetries:
         provider = FlakyImageProvider(failure_count=1, failure_text="Méo mó text $200")
         storage = FakeStorageClient()
         client = ImageClient(provider=provider, storage=storage)
-        guardrail = ImageGuardrail(ocr_engine=TesseractOcrEngine())
+        guardrail = ImageGuardrail(ocr_engine=MockOcrEngine())
         pipeline = GuardedImagePipeline(image_client=client, guardrail=guardrail, max_retries=2)
 
         req = ImageGenerationRequest(
@@ -349,7 +348,7 @@ class TestGuardedPipelineAndRetries:
         provider = FlakyImageProvider(failure_count=3, failure_text="Fake price 8.5tr")
         storage = FakeStorageClient()
         client = ImageClient(provider=provider, storage=storage)
-        guardrail = ImageGuardrail(ocr_engine=TesseractOcrEngine())
+        guardrail = ImageGuardrail(ocr_engine=MockOcrEngine())
         pipeline = GuardedImagePipeline(image_client=client, guardrail=guardrail, max_retries=2)
 
         req = ImageGenerationRequest(

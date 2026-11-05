@@ -33,7 +33,7 @@ def test_sections_are_rendered_as_markdown_headings_in_code(client, make_client)
     assert result["headings"] == ["Overview?", "Next steps for newcomers"] and result["seo_checks"]["headings"] is True
     assert result["body_markdown"].startswith("## Overview?" + chr(10)) and "## Next steps for newcomers" in result["body_markdown"]
     assert result["body_markdown"].rstrip().endswith("Request the guide")
-    assert out["result"]["prompt_version"] == "seo-v3"
+    assert out["result"]["prompt_version"] == "seo-v4"
 
 
 def test_headings_that_are_only_hashes_do_not_count(client, make_client):
@@ -107,7 +107,8 @@ def research_with_missing_facts(client, facts):
 
 
 def test_research_coverage_notes_do_not_make_the_article_insufficient(client, make_client):
-    sections = [{"heading": "Overview", "body": "The guide compares living areas for newcomers."},
+    # Long enough for the public site, so that only the research notes can hold it.
+    sections = [{"heading": "Overview", "body": " ".join(["The guide compares living areas for newcomers."] * 25)},
                 {"heading": "Next steps", "body": "Compare the areas before you sign a lease."}]
     job = research_with_missing_facts(client, ["complete_research_explanation", "source_gap:housing"])
     result = run_job(make_client(provider=SectionProvider(sections), provider_mode="live"), job)["result"]["result"]

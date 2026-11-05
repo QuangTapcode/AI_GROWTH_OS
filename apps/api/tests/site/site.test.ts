@@ -6,6 +6,7 @@ import { ensureMeasurementArtifacts } from '../../src/modules/site/measurement';
 import { publishSeoArtifact, slugify } from '../../src/modules/site/publish';
 
 const WS = '10000000-0000-4000-8000-000000000001';
+const LONG_BODY = `## Guide\n\n${'Street food stalls near the river open every evening. '.repeat(30)}\n\n[source:c1](https://example.test/a)\n\n[Request information](/contact) — Ask TripC`;
 
 describe('site publishing', () => {
   it('builds readable ASCII slugs', () => {
@@ -25,7 +26,12 @@ describe('site publishing', () => {
     }),
   }) as unknown as Pool;
   const seo = (result: Record<string, unknown>) => ({ id: 'a1', version: 4, content_hash: 'h', context_snapshot_id: 'c', role: 'seo',
-    payload: { result: { title: 'Working from home in Da Nang', body_markdown: '## A\n\nB', meta_description: 'M', status: 'draft', missing_facts: [], synthetic: false, ...result } } });
+    payload: { result: { title: 'Working from home in Da Nang', body_markdown: LONG_BODY, meta_description: 'M', status: 'draft', missing_facts: [], synthetic: false, ...result } } });
+
+  it('refuses an article too short to be worth a public page; its citation and CTA lines do not count', async () => {
+    const short = '## Guide\n\nStreet food stalls open every evening.\n\n[source:c1](https://example.test/a)\n\n[Request information](/contact) — Ask TripC';
+    await expect(publishSeoArtifact(pool(seo({ body_markdown: short }), true), WS, 'a1', 'owner')).rejects.toMatchObject({ code: 'ARTICLE_TOO_SHORT' });
+  });
 
   it('publishes only an approved, complete, real SEO article', async () => {
     await expect(publishSeoArtifact(pool(seo({}), true), WS, 'a1', 'owner')).resolves.toMatchObject({ slug: 'working-from-home-in-da-nang', published: true });

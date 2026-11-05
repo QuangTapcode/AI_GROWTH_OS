@@ -4,17 +4,34 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Callable, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
 from .config import Settings
+from .logging_config import log_event
 from .providers import Provider, ProviderError
 from .run_store import RunStore
 from .schemas import EvidenceRef, JobRequest, Usage
 
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
+
+
+def invalid_fields(exc: ValueError) -> list[dict[str, Any]]:
+    """Where a reply broke the schema, without the reply: logs and errors never hold model text."""
+
+    if not isinstance(exc, ValidationError):
+        return [{"field": "$", "type": exc.__class__.__name__}]
+    return [
+        {
+            "field": ".".join(str(part) for part in error["loc"]) or "$",
+            "type": error["type"],
+            **({"length": len(error["input"])} if isinstance(error.get("input"), str) else {}),
+        }
+        for error in exc.errors()[:5]
+    ]
 
 
 class OperationError(Exception):
@@ -62,6 +79,18 @@ class RunContext:
     budget: CallBudget
     logger: logging.Logger
     usage: Usage = field(default_factory=Usage)
+    deadline_at: datetime | None = None
+
+    def seconds_left(self) -> float:
+        return (self.deadline_at - datetime.now(timezone.utc)).total_seconds() if self.deadline_at else float("inf")
+
+    def optional_call_blocker(self) -> str | None:
+        """Why a call the job can do without must not run: at the deadline the whole run fails, main output included."""
+        if self.budget.remaining() == 0:
+            return "NO_PROVIDER_CALLS_LEFT"
+        if self.seconds_left() < self.settings.provider_timeout_seconds:
+            return "NOT_ENOUGH_TIME"
+        return None
 
     async def call_json(
         self,
@@ -88,10 +117,30 @@ class RunContext:
             try:
                 return model.model_validate_json(content)
             except (ValidationError, ValueError) as exc:
-                last_error = exc.__class__.__name__
+                fields = invalid_fields(exc)
+                last_error = exc.__class__.__name__ + ": " + ", ".join(f"{f['field']} {f['type']}" for f in fields)
+                log_event(
+                    self.logger,
+                    "ai_output_invalid",
+                    job_id=str(self.job.job_id),
+                    workspace_id=str(self.job.workspace_id),
+                    operation=self.job.operation,
+                    attempt=attempt + 1,
+                    errors=fields,
+                    output_tokens=usage.output_tokens,
+                    max_output_tokens=max_tokens,
+                )
+                details = (
+                    "; ".join(
+                        f"{'.'.join(str(p) for p in err.get('loc', ()))}: {err.get('msg', '')}"
+                        for err in exc.errors()[:5]
+                    )
+                    if isinstance(exc, ValidationError)
+                    else str(exc)[:300]
+                )
                 messages_user = (
-                    f"{user}\n\nYour previous reply did not match the JSON schema ({last_error}). "
-                    "Reply again with JSON that matches the schema exactly."
+                    f"{user}\n\nYour previous reply did not match the JSON schema ({exc.__class__.__name__}: {details}). "
+                    "Reply again with JSON that matches the schema and all field length limits exactly."
                 )
         raise ProviderError("INVALID_STRUCTURED_OUTPUT", f"Model output did not match schema ({last_error})")
 

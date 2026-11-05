@@ -54,8 +54,15 @@ logger = logging.getLogger(__name__)
 # 1. OCR ENGINE ABSTRACTION & IMPLEMENTATION
 # ==============================================================================
 
+class OcrUnavailableError(RuntimeError):
+    """OCR could not run, so text in the image cannot be ruled out."""
+
+
 class BaseOcrEngine(ABC):
     """Abstract interface for image OCR text and digit extraction."""
+
+    def is_available(self) -> bool:
+        return True
 
     @abstractmethod
     def extract_text(self, image: Image.Image) -> str:
@@ -80,11 +87,9 @@ class TesseractOcrEngine(BaseOcrEngine):
         return shutil.which("tesseract") is not None
 
     def extract_text(self, image: Image.Image) -> str:
-        """Perform OCR using Tesseract if installed, else fallback gracefully."""
+        """Perform OCR with Tesseract; an empty answer must mean an image without text, never an engine that did not run."""
         if not self.is_available():
-            # If tesseract binary is not installed on the host OS, check for embedded test metadata
-            # or return empty string while logging limitation warning.
-            return self._fallback_extract(image)
+            raise OcrUnavailableError("Tesseract is not installed")
 
         try:
             # Preprocess image to grayscale for cleaner character recognition
@@ -92,15 +97,7 @@ class TesseractOcrEngine(BaseOcrEngine):
             raw_text = pytesseract.image_to_string(gray_img, config="--psm 6")
             return raw_text.strip()
         except Exception as exc:  # pragma: no cover
-            logger.warning("Tesseract execution failed: %s. Falling back to heuristic scan.", exc)
-            return self._fallback_extract(image)
-
-    def _fallback_extract(self, image: Image.Image) -> str:
-        """Fallback extractor checking PIL image metadata or custom tags for test environments."""
-        info = image.info or {}
-        if "mock_ocr_text" in info:
-            return str(info["mock_ocr_text"])
-        return ""
+            raise OcrUnavailableError(f"Tesseract failed: {exc.__class__.__name__}") from exc
 
 
 class MockOcrEngine(BaseOcrEngine):
@@ -197,7 +194,12 @@ class ImageGuardrail:
         # ----------------------------------------------------------------------
         # 1. OCR Text & Digit Detection
         # ----------------------------------------------------------------------
-        detected_text = self.ocr_engine.extract_text(image)
+        ocr_ran = True
+        try:
+            detected_text = self.ocr_engine.extract_text(image)
+        except OcrUnavailableError as exc:
+            ocr_ran, detected_text = False, ""
+            rejection_reasons.append(f"OCR could not run, so text in the image cannot be ruled out: {exc}")
         # Strip extraneous whitespace
         clean_text = " ".join(detected_text.split())
         has_text = bool(self.ALPHANUMERIC_REGEX.search(clean_text))
@@ -256,7 +258,8 @@ class ImageGuardrail:
                 break
 
         passed = (
-            (not has_text)
+            ocr_ran
+            and (not has_text)
             and dimensions_valid
             and aspect_ratio_valid
             and safety_valid
@@ -304,6 +307,16 @@ class GuardedImagePipeline:
         self.guardrail = guardrail or ImageGuardrail()
         self.max_retries = max_retries  # 1 initial + max_retries = max 3 attempts
 
+    def not_ready(self) -> str | None:
+        """What a deployment still has to set up before an image can be generated, inspected and stored."""
+        if not self.image_client.provider.is_configured:
+            return "IMAGE_PROVIDER_NOT_CONFIGURED"
+        if not self.image_client.storage.is_configured:
+            return "IMAGE_STORAGE_NOT_CONFIGURED"
+        if not self.guardrail.ocr_engine.is_available():
+            return "OCR_NOT_AVAILABLE"
+        return None
+
     def generate_guarded_image(
         self,
         request: ImageGenerationRequest,
@@ -317,6 +330,11 @@ class GuardedImagePipeline:
         attempts_made = 0
         all_reports: list[ImageGuardrailReport] = []
         all_rejection_reasons: list[str] = []
+
+        # An image that can never pass inspection is not worth paying for.
+        if not self.guardrail.ocr_engine.is_available():
+            return GuardedImageOutcome(status="needs_assets", result=None, attempts_made=0, all_reports=[],
+                                       failure_reasons=["OCR engine is not available"])
 
         total_allowed_attempts = 1 + self.max_retries
         current_request = request
@@ -339,14 +357,8 @@ class GuardedImagePipeline:
             all_reports.append(report)
 
             if report.passed:
-                # Store and produce media_assets payload with ocr_checked=True
-                generation_result = self.image_client.generate_and_store(
-                    request=current_request,
-                    workspace_id=workspace_id,
-                )
-                # Ensure ocr_checked is stamped True
-                generation_result.ai_metadata.ocr_checked = True
-                generation_result.media_asset_record["ai_metadata"]["ocr_checked"] = True
+                # Store the very image inspected and produce media_assets payload with ocr_checked=True
+                generation_result = self.image_client.store(raw_output, current_request, workspace_id, ocr_checked=True)
 
                 return GuardedImageOutcome(
                     status="approved",

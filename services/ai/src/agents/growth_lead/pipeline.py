@@ -6,14 +6,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
+from pydantic import ValidationError
+
 from ...app.runtime import OperationError, OperationOutcome, RunContext
 from ...app.schemas import JobRequest
 from ...app.config import Settings
 from ...rag.chunking import estimate_tokens
 from ...rag.retrieval import eligible_sources
 from ..context import context_problems
-from ..contracts import blocking_facts
-from ..research.pipeline import STALE_AFTER_YEARS
+from ..contracts import artifact_problems, blocking_facts
+from ..performance.baseline import metric_value
+from ..performance.schemas import MetricsData
+from ..research.pipeline import STALE_AFTER_YEARS, names_focus
 from ..research.strategy import topic_alignment, priority_order
 from .scoring import SOURCE as SCORE_SOURCE, derive_factors
 from .schemas import CampaignPlan, CampaignTask, GrowthLeadPayload, OpportunitySelection, TaskBrief
@@ -22,8 +26,39 @@ PROMPT_VERSION = "growth-lead-v1"
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 
 
+TRAFFIC_METRICS = ("qualified_visits", "clicks")
+# The factors a priority looks at first; the full score still ranks within them.
+PRIORITY_FACTORS = {"reach": ("demand", "content_gap"), "conversion": ("conversion_potential", "business_relevance"), "maintain": ()}
+PRIORITY_REASONS = {"reach": "No traffic is measured yet, so this plan goes for the topic people can find.",
+                    "conversion": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer.",
+                    "maintain": "The measured targets are reached, so this plan keeps the usual ranking."}
+
+
+def measured_progress(p: GrowthLeadPayload) -> tuple[list[dict], dict | None]:
+    """KPI status in the latest snapshot and the priority it calls for; only measured values count."""
+    if not p.latest_metrics:
+        return [], None
+    data = MetricsData.model_validate(p.latest_metrics.result)
+    progress = []
+    for kpi in (p.goal_context.kpis if p.goal_context else []):
+        value = metric_value(data, kpi.metric_name)
+        status = "not_measured" if value is None else "reached" if value >= kpi.target_value else "behind"
+        progress.append({"metric_name": kpi.metric_name, "target_value": kpi.target_value, "current_value": value, "status": status})
+    if progress and all(item["status"] == "reached" for item in progress):
+        mode = "maintain"
+    else:
+        mode = "conversion" if any(metric_value(data, metric) for metric in TRAFFIC_METRICS) else "reach"
+    return progress, {"mode": mode, "reason": PRIORITY_REASONS[mode]}
+
+
 def validate_growth_lead(job: JobRequest, payload: GrowthLeadPayload, settings: Settings) -> list[tuple[str, str]]:
     problems = context_problems(job, payload.business_profile, payload.goal_context, payload.snapshot)
+    if payload.latest_metrics:
+        problems += artifact_problems(job, payload.latest_metrics)
+        try:
+            MetricsData.model_validate(payload.latest_metrics.result)
+        except ValidationError:
+            problems.append(("INVALID_METRICS", "Latest metrics snapshot is invalid"))
     research, artifact = payload.research, payload.research_artifact
     if any(x != job.workspace_id for x in (payload.workspace_id, research.workspace_id, artifact.workspace_id)):
         problems.append(("TENANT_SCOPE_VIOLATION", "Research/artifact belongs to another workspace"))
@@ -78,6 +113,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
     selected = None
     tasks = []
     selection_method, ranking, derived = "model_selection_from_grounded_research", [], None
+    kpi_progress, priority = measured_progress(p)
     if research.status == "ready_for_handoff" and research.findings and not p.score_factors:
         # No operator estimate: rank every finding by the same transparent derived score and
         # pick the best; the model is not asked to choose blindly between hypotheses.
@@ -87,7 +123,13 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
             scored.append((math.prod(factors_i.values()), index, factors_i, basis_i))
         def alignment_of(finding):
             return topic_alignment(' '.join([finding.topic, *finding.keywords, finding.user_need or '']), p.business_profile)
-        scored.sort(key=lambda row: (priority_order(alignment_of(research.findings[row[1]])), -row[0], row[1]))
+        focus = [offer.replace("_", " ") for offer in (p.goal_context.focus_offers if p.goal_context else [])]
+        def off_goal(finding):
+            return bool(focus) and not names_focus(" ".join([finding.topic, *finding.keywords, finding.user_need or ""]), focus)
+        # What the owner asked for comes first, then what the measurements call for; the score ranks within them.
+        first_factors = PRIORITY_FACTORS[priority["mode"]] if priority else ()
+        scored.sort(key=lambda row: (off_goal(research.findings[row[1]]), priority_order(alignment_of(research.findings[row[1]])),
+                                     *(-row[2][name] for name in first_factors), -row[0], row[1]))
         ranking = [{"finding_index": index, "topic": research.findings[index].topic, "score": score,
                     "strategy_alignment": alignment_of(research.findings[index])}
                    for score, index, _, _ in scored]
@@ -155,6 +197,7 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                         selected_opportunity=selected, research_artifact=p.research_artifact,
                         tasks=tasks, missing_facts=sorted(missing),
                         kpis=[k.model_dump(mode="json") for k in p.goal_context.kpis] if p.goal_context else [],
+                        kpi_progress=kpi_progress, priority=priority,
                         strategy_alignment=topic_alignment(' '.join([selected.topic, *selected.keywords, selected.user_need or '']), p.business_profile) if selected else None,
                         synthetic=ctx.job.synthetic or research.synthetic or ctx.settings.provider_mode == "fake",
                         opportunity_score={"factors": factors, "score": score, "estimated": True,

@@ -7,7 +7,7 @@ const now = new Date('2026-10-30T10:00:00Z');
 function pool(rows: { automation?: Record<string, unknown>; failures?: Record<string, number> } = {}) {
   const query = vi.fn(async (sql: string) => {
     if (sql.includes('FROM agent_automation')) return { rows: rows.automation ? [rows.automation] : [] };
-    if (sql.includes('publishing_failed')) return { rows: [{ publishing_failed: 0, replies_failed: 0, tasks_failed: 0, ...rows.failures }] };
+    if (sql.includes('publishing_failed')) return { rows: [{ publishing_failed: 0, replies_failed: 0, tasks_failed: 0, chain_stopped: 0, ...rows.failures }] };
     return { rows: [] };
   });
   return { query } as unknown as Pool;
@@ -29,5 +29,11 @@ describe('workspace alerts', () => {
     expect(alerts.map((a) => a.code)).toEqual(['SCHEDULER_ERROR', 'PUBLISHING_FAILED', 'REPLIES_FAILED', 'TASKS_FAILED']);
     expect(alerts[0].message).toContain('DISCOVERY_FAILED: timeout');
     expect(alerts[1].message).toContain('2');
+  });
+
+  it('says when work was closed because the task it waited on failed', async () => {
+    const alerts = await workspaceAlerts(pool({ failures: { tasks_failed: 1, chain_stopped: 1 } }), 'ws', now);
+    expect(alerts.map((a) => a.code)).toEqual(['TASKS_FAILED', 'TASK_CHAIN_STOPPED']);
+    expect(alerts[1].message).toContain('1');
   });
 });

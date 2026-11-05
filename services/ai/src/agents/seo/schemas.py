@@ -19,8 +19,9 @@ class SeoSection(BaseModel):
 class SeoDraft(BaseModel):
     """Model-written parts; code renders the Markdown so headings always exist in the body."""
     model_config = ConfigDict(extra="forbid")
-    title: str = Field(min_length=1, max_length=70)
-    meta_description: str = Field(min_length=1, max_length=160)
+    # Above the display limits, which are applied in code: Ollama would stop the model at these while generating.
+    title: str = Field(min_length=1, max_length=160)
+    meta_description: str = Field(min_length=1, max_length=400)
     sections: list[SeoSection] = Field(min_length=2, max_length=5)
 
 

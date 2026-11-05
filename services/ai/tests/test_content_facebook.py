@@ -10,7 +10,7 @@ from src.app.schemas import Usage
 
 def run(client, job):
     body = run_job(client, job)
-    assert body["status"] == "completed", body
+    assert body["status"] == "completed", (body.get("error_code"), body.get("error_message"))
     return body
 
 
@@ -23,7 +23,10 @@ def content_job(client, channels=None, assets=True, locations=None):
     payload = {"source_article": artifact_input(seo), "cta": "Request the guide", "assets": [image(base)] if assets else []}
     if channels is not None:
         payload["target_channels"] = channels
-    return seo, request(base, "content.repurpose", payload)
+    job = request(base, "content.repurpose", payload)
+    # As the worker sends it: an optional call needs room for one slow call before the deadline.
+    job["constraints"] = {**job.get("constraints", {}), "timeout_seconds": 600}
+    return seo, job
 
 
 class FacebookProvider:
@@ -43,7 +46,7 @@ class FacebookProvider:
 
 
 def test_facebook_post_is_part_of_social_pack(client):
-    seo, job = content_job(client)
+    seo, job = content_job(client, channels=["facebook"])
     body = run(client, job)
     result = body["result"]["result"]
     post = result["facebook"]
@@ -165,3 +168,94 @@ def test_facebook_post_with_a_promotional_claim_the_sources_lack_is_rejected(cli
                                  "discussion_question": None, "hashtags": []})
     out = run_job(make_client(provider=provider, provider_mode="live"), job)
     assert out["status"] == "failed" and out["error_code"] == "UNSUPPORTED_CONTENT_CLAIM", out
+
+
+class LongArticleProvider:
+    """SEO model answering with an article as long as the schema allows."""
+    model_version = "test/seo"
+    embedding_model_version = "test/embed"
+
+    async def chat_json(self, **kwargs):
+        body = " ".join(["The guide compares living areas for newcomers."] * 30)[:1490]
+        sections = [{"heading": f"Living areas {name}", "body": body} for name in "abcde"]
+        return json.dumps({"title": "Living areas guide", "meta_description": "A cited guide to living areas.", "sections": sections}), Usage(llm_calls=1)
+
+
+def test_a_long_article_still_fits_the_content_prompt(client, make_client):
+    # Real run: a 300-word SEO article made Content fail with CONTEXT_BUDGET_EXCEEDED.
+    base = mock_research_request()
+    research = run(client, base)["result"]
+    seo = run(make_client(provider=LongArticleProvider(), provider_mode="live"),
+              request(base, "seo.local_draft", {"research": artifact_input(research), "cta": "Request the guide"}))["result"]
+    job = request(base, "content.repurpose", {"source_article": artifact_input(seo), "cta": "Request the guide", "target_channels": ["facebook"]})
+    provider = FacebookProvider({"hook": "Choosing a living area?", "body": "• The guide compares living areas for newcomers.",
+                                 "discussion_question": None, "hashtags": []})
+    result = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]
+    assert result["facebook"]["text"].startswith("Choosing a living area?")
+
+
+def test_a_hook_repeated_as_the_first_body_line_is_posted_once(client, make_client):
+    # Real run: hook and first body line said the same thing in almost the same words.
+    _, job = content_job(client, channels=["facebook"])
+    provider = FacebookProvider({"hook": "Moving to Da Nang? The guide compares living areas for newcomers.",
+                                 "body": "Moving to Da Nang? The guide compares living areas for newcomers and more.\n• Compare the living areas before choosing.",
+                                 "discussion_question": None, "hashtags": []})
+    post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
+    assert post["body"] == "• Compare the living areas before choosing."
+    assert post["text"].count("Moving to Da Nang?") == 1
+
+
+def test_a_sentence_drifting_into_another_script_is_not_posted(client, make_client):
+    _, job = content_job(client, channels=["facebook"])
+    provider = FacebookProvider({"hook": "Choosing a living area?",
+                                 "body": "• The guide compares living areas for newcomers.\n• Newcomers compare living areas 机会",
+                                 "discussion_question": None, "hashtags": []})
+    result = run(make_client(provider=provider, provider_mode="live"), job)["result"]
+    assert "机会" not in result["result"]["facebook"]["text"]
+
+
+class RecordingFacebookProvider(FacebookProvider):
+    async def chat_json(self, *, user, schema, **kwargs):
+        self.user = json.loads(user)
+        return await super().chat_json(schema=schema, **kwargs)
+
+
+def test_a_trimmed_prompt_never_ends_in_the_middle_of_a_word(client, make_client):
+    # Real run: the prompt ended on "rice vermic" and the model copied that into the post.
+    base = mock_research_request()
+    research = run(client, base)["result"]
+    seo = run(make_client(provider=LongArticleProvider(), provider_mode="live"),
+              request(base, "seo.local_draft", {"research": artifact_input(research), "cta": "Request the guide"}))["result"]
+    job = request(base, "content.repurpose", {"source_article": artifact_input(seo), "cta": "Request the guide", "target_channels": ["facebook"]})
+    provider = RecordingFacebookProvider({"hook": "Choosing a living area?", "body": "• The guide compares living areas for newcomers.",
+                                          "discussion_question": None, "hashtags": []})
+    run(make_client(provider=provider, provider_mode="live"), job)
+    assert provider.user["body"].rstrip().endswith((".", "!", "?")) or provider.user["body"] == ""
+
+
+def test_a_line_ending_in_a_cut_off_word_is_not_posted(client, make_client):
+    # "newcom" is the start of a word in the sources, not a word of its own.
+    _, job = content_job(client, channels=["facebook"])
+    provider = FacebookProvider({"hook": "Choosing a living area?",
+                                 "body": "• The guide compares living areas for newcomers.\n• Compare the living areas for newcom",
+                                 "discussion_question": None, "hashtags": []})
+    post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
+    assert post["body"] == "• The guide compares living areas for newcomers."
+
+
+def test_a_long_hook_is_shortened_on_a_word_boundary(client, make_client):
+    _, job = content_job(client, channels=["facebook"])
+    hook = "Choosing a living area? The guide compares living areas for newcomers, and it compares living areas for newcomers again across the whole city and every quarter"
+    provider = FacebookProvider({"hook": hook, "body": "• Compare the living areas before choosing.", "discussion_question": None, "hashtags": []})
+    post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
+    assert len(post["hook"]) <= 150 and not post["hook"].endswith(("the", "and", "of", "across"))
+
+
+def test_a_line_asking_the_hook_again_in_other_words_is_posted_once(client, make_client):
+    # Real run: "Want real Vietnamese food without the crowds?" then "Looking for real Vietnamese food without the chaos of street stalls?"
+    _, job = content_job(client, channels=["facebook"])
+    provider = FacebookProvider({"hook": "Want living areas guide without the fuss?",
+                                 "body": "Looking for a living areas guide without the stress of searching alone?\n• The guide compares living areas for newcomers.",
+                                 "discussion_question": None, "hashtags": []})
+    post = run(make_client(provider=provider, provider_mode="live"), job)["result"]["result"]["facebook"]
+    assert post["body"] == "• The guide compares living areas for newcomers."

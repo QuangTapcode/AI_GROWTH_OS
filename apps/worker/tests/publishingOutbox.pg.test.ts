@@ -66,9 +66,9 @@ describe.skipIf(process.env.RUN_PUBLISH_DB !== '1')('publishing outbox on dispos
   });
 
   /** An approved Content artifact scheduled for Facebook exactly as API automation does it. */
-  async function scheduleFacebookJob(text = 'Cafés in An Thuong have reliable Wi-Fi.') {
+  async function scheduleFacebookJob(text = 'Cafés in An Thuong have reliable Wi-Fi.', extra: Record<string, unknown> = {}) {
     const artifact = randomUUID();
-    const result = { facebook: { text }, caption: text, synthetic: false };
+    const result = { facebook: { text }, caption: text, synthetic: false, ...extra };
     const evidence = [{ chunk_id: randomUUID(), quote: text }];
     const hash = sha256(canonicalJson({ result, evidence }));
     await db.query(
@@ -105,6 +105,37 @@ describe.skipIf(process.env.RUN_PUBLISH_DB !== '1')('publishing outbox on dispos
     expect(facebook.requests).toHaveLength(1);
     const row = (await db.query('SELECT status, external_post_id FROM publishing_jobs WHERE id=$1', [job])).rows[0];
     expect(row).toEqual({ status: 'published', external_post_id: 'fb_post_1' });
+  });
+
+  it('an approved image in the post goes out with it', async () => {
+    await scheduleFacebookJob('Cafés in Hai Chau open early.', { image_assets: [{ url: 'https://cdn.example.test/cafe.jpg', synthetic: false }] });
+    const facebook = new FakeFacebook();
+    expect(await runner(facebook).runOnce()).toBe('published');
+    expect(facebook.requests[0]).toMatchObject({ mediaUrl: 'https://cdn.example.test/cafe.jpg', mediaType: 'image', isAiGenerated: false });
+  });
+
+  it('an AI-made image is declared as such when it is posted', async () => {
+    await scheduleFacebookJob('Cafés in Son Tra open late.', { image_assets: [{ url: 'https://cdn.example.test/art.webp', synthetic: true }] });
+    const facebook = new FakeFacebook();
+    expect(await runner(facebook).runOnce()).toBe('published');
+    expect(facebook.requests[0]).toMatchObject({ mediaUrl: 'https://cdn.example.test/art.webp', isAiGenerated: true });
+  });
+
+  it('a generated illustration the owner approved goes out and is declared as AI', async () => {
+    await scheduleFacebookJob('Cafés in My Khe open at dawn.', { generated_image: { url: 'https://media.example.test/generated/gen.webp' } });
+    const facebook = new FakeFacebook();
+    expect(await runner(facebook).runOnce()).toBe('published');
+    expect(facebook.requests[0]).toMatchObject({ mediaUrl: 'https://media.example.test/generated/gen.webp', mediaType: 'image', isAiGenerated: true });
+  });
+
+  it('an approved photo is posted instead of an illustration generated for the same draft', async () => {
+    await scheduleFacebookJob('Cafés in Ngu Hanh Son open at dawn.', {
+      image_assets: [{ url: 'https://cdn.example.test/real.jpg', synthetic: false }],
+      generated_image: { url: 'https://media.example.test/generated/gen.webp' },
+    });
+    const facebook = new FakeFacebook();
+    expect(await runner(facebook).runOnce()).toBe('published');
+    expect(facebook.requests[0]).toMatchObject({ mediaUrl: 'https://cdn.example.test/real.jpg', isAiGenerated: false });
   });
 
   it('does not publish a post whose stored text changed after approval', async () => {

@@ -6,6 +6,15 @@ from ..contracts import ArtifactInput, DraftResult, MarketingContext
 from ...app.schemas import KpiMeasurement
 
 
+class ContentMetric(BaseModel):
+    """One article in the window: counts only, never a session or a person."""
+    model_config = ConfigDict(extra="forbid")
+    slug: str = Field(min_length=1, max_length=200)
+    title: str = Field(min_length=1, max_length=300)
+    page_views: int = Field(ge=0)
+    cta_clicks: int = Field(ge=0)
+
+
 class MetricsData(BaseModel):
     model_config = ConfigDict(extra="forbid")
     workspace_id: UUID
@@ -28,6 +37,7 @@ class MetricsData(BaseModel):
     # declared, null metric is excused; an undeclared null still counts as missing data.
     unavailable: dict[Literal["impressions", "clicks"], str] = Field(default_factory=dict, max_length=2)
     source: str | None = Field(default=None, max_length=50)
+    content_metrics: list[ContentMetric] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def valid_window(self):
@@ -76,3 +86,4 @@ class PerformanceReport(DraftResult):
     baseline_snapshot_id: UUID | None = None
     baseline_window: dict[str, str] | None = None
     kpi_comparisons: list[dict] = Field(default_factory=list)
+    content_metrics: list[ContentMetric] = Field(default_factory=list)

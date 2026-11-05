@@ -24,6 +24,7 @@
                                                          │
                                                          ▼
 [AI Service: community.response (v2)] ◄─── [Approved TripC Knowledge]
+   - Tìm nguồn theo nghĩa (embedding) kết hợp từ khoá
    - Tokenizer Unicode tiếng Việt
    - Trích xuất Intent & SĐT / Email
    - RAG Grounding & Chặn Hallucination
@@ -62,7 +63,7 @@
 - **System Prompt:** `services/ai/prompts/community-v2.md` hỗ trợ song ngữ (Anh / Việt) với nguyên tắc grounding chống bịa đặt thông tin nhạy cảm (giá thuê, địa chỉ riêng tư).
 - **Pipeline:** `services/ai/src/agents/community/pipeline.py`
   - Tokenizer từ vựng Unicode tiếng Việt (`[\w\u00C0-\u1EF9]+`) thay thế tokenizer ASCII cũ.
-  - Từ khóa nhận diện nhu cầu tư vấn (`_INTENT_WORDS`) song ngữ: "thuê", "căn hộ", "tư vấn", "inbox", "rent", "housing", "interested"...
+  - Từ khóa nhận diện nhu cầu tư vấn (`LEAD_INTENT`, khớp nguyên từ) song ngữ: "thuê", "căn hộ", "tư vấn", "inbox", "rent", "housing", "interested"...
   - Bộ bóc tách thông tin liên hệ tự động: số điện thoại Việt Nam (`+84` / `09x, 08x, 07x, 05x, 03x`) và email.
 
 ### D. Tự động lưu Lead (`leads` table)

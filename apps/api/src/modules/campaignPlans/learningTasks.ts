@@ -52,7 +52,7 @@ export async function acceptLearningTasks(pool: Pool, workspaceId: string, actor
       const existing = (await db.query("SELECT id FROM workflow_tasks WHERE workspace_id=$1 AND operation='research.run' AND payload->>'dedup_key'=$2", [workspaceId, expectedKey])).rows[0];
       if (existing) { ids.push(existing.id); continue; }
       const id = randomUUID();
-      await db.query("INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,payload) VALUES($1,$2,'research','research.run','queued',1,$3,$4)", [id, workspaceId, context.snapshot_id, JSON.stringify({ ...task, synthetic: Boolean(result.synthetic), learning_artifact: ref })]);
+      await db.query("INSERT INTO workflow_tasks(id,workspace_id,role,operation,status,input_version,context_snapshot_id,payload) VALUES($1,$2,'research','research.run','queued',1,$3,$4)", [id, workspaceId, context.snapshot_id, JSON.stringify({ ...task, synthetic: Boolean(result.synthetic), learning_artifact: ref, ...(result.lessons ? { lessons: result.lessons } : {}) })]);
       await db.query("INSERT INTO plan_task_outbox(workspace_id,task_id,input_version,operation) VALUES($1,$2,1,'research.run')", [workspaceId, id]);
       // The worker already queued a pending review for this artifact: decide it rather than
       // adding a second approval, so the Review Queue item does not stay open.

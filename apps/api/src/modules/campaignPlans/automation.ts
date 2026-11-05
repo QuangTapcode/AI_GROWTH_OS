@@ -2,13 +2,14 @@ import { createHash } from "node:crypto";
 import { defaultSearch, refreshDiscoveryIfStale } from "../research/discovery";
 import { syncResearchSearchMetrics } from "../research/searchMetrics";
 import { ensureBaselineArtifact, ensureMeasurementArtifacts } from "../site/measurement";
-import { publishSeoArtifact } from "../site/publish";
+import { publishSeoArtifact, PublishError } from "../site/publish";
 import type { Pool } from "pg";
 import { enqueueAiTask } from "./aiTasks";
 import { acceptLearningTasks } from "./learningTasks";
 import { PgPlanRepository } from "./pgRepository";
 import { submitCampaignPlan, PlanError } from "./service";
 import { getWorkspaceConnectionStatus } from "../integrations/stubs";
+import { propagateUpstreamTaskFailure } from "../tasks/dag";
 import { persistCommunityLead } from "../community/leads";
 import { processReceivedCommunityMessages } from "../community/service";
 
@@ -32,12 +33,21 @@ type AutoArtifactRow = {
   evidence: unknown[];
 };
 
-function isAutoApprovable(row: AutoArtifactRow) {
+export function isAutoApprovable(row: AutoArtifactRow) {
   const result = row.payload?.result ?? {};
   const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
   const status = result.status;
-  return result.synthetic !== true && row.evidence.length > 0 && missing.length === 0 &&
-    (status === "ready_for_handoff" || status === "proposed" || status === "draft");
+  const inputRefs = Array.isArray(result.input_artifact_refs) ? result.input_artifact_refs : [];
+  const hasGrounding = row.evidence.length > 0 || (row.role === "performance" && inputRefs.length > 0);
+  const leadConsentOnly =
+    row.role === "community" &&
+    status === "insufficient_data" &&
+    missing.length === 1 &&
+    missing[0] === "verified_lead_owner_and_consent" &&
+    Boolean(result.lead_proposal);
+  // An AI illustration always goes past a person: code checks lettering, not what the image shows.
+  return result.synthetic !== true && !result.generated_image && hasGrounding &&
+    ((missing.length === 0 && (status === "ready_for_handoff" || status === "proposed" || status === "draft")) || leadConsentOnly);
 }
 
 async function queueReadyChildren(db: import("pg").PoolClient, workspaceId: string, campaignId: string | null) {
@@ -56,6 +66,36 @@ async function queueReadyChildren(db: import("pg").PoolClient, workspaceId: stri
     );
   }
   return children.map((child) => child.id as string);
+}
+
+/** The public site's address; none when it is unset or local, since a post is read by the public. */
+function publicSiteBase() {
+  try {
+    const url = new URL(process.env.PUBLIC_SITE_URL ?? "");
+    if (!/^https?:$/.test(url.protocol) || /^(localhost$|127\.|0\.0\.0\.0$|10\.|192\.168\.|\[::1\]$)/.test(url.hostname)) return null;
+    return url.origin + url.pathname.replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+/** Where a post sends people: the article it was written from, or nowhere. */
+async function articleLink(db: import("pg").PoolClient, workspaceId: string, row: AutoArtifactRow) {
+  const siteBase = publicSiteBase();
+  const refs = row.payload.result?.input_artifact_refs;
+  const parent = Array.isArray(refs) ? (refs[0] as { artifact_id?: string } | undefined)?.artifact_id : undefined;
+  if (!siteBase || !parent) return null;
+  const article = (await db.query<{ slug: string }>(
+    "SELECT slug FROM contents WHERE workspace_id=$1 AND artifact_id=$2 AND slug IS NOT NULL LIMIT 1",
+    [workspaceId, parent],
+  )).rows[0];
+  if (!article) return null;
+  const campaign = row.campaign_id
+    ? (await db.query<{ utm_campaign: string | null }>("SELECT utm_campaign FROM campaigns WHERE workspace_id=$1 AND id=$2 LIMIT 1", [workspaceId, row.campaign_id])).rows[0]
+    : undefined;
+  const utm = new URLSearchParams({ utm_source: "facebook", utm_medium: "social",
+    utm_campaign: campaign?.utm_campaign || "autopilot_social", utm_content: row.result_ref.slice(0, 8) });
+  return `${siteBase}/posts/${article.slug}?${utm}`;
 }
 
 async function scheduleFacebookArtifact(
@@ -79,6 +119,7 @@ async function scheduleFacebookArtifact(
   // Prefer the Facebook-specific post (hook, body, question, exact CTA) over the generic caption.
   const facebook = result.facebook as { text?: unknown } | null | undefined;
   const body = typeof facebook?.text === "string" ? facebook.text : typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
+  const utmUrl = await articleLink(db, workspaceId, row);
   const content = (await db.query<{ id: string }>(
     `INSERT INTO contents (workspace_id,title,body_markdown,type,status,created_by,approved_by,current_version,content_hash,artifact_id)
      VALUES($1,$2,$3,'social_post','approved','ai',$4,$5,$6,$7)
@@ -97,9 +138,9 @@ async function scheduleFacebookArtifact(
   )).rows[0];
   if (existing) return;
   const job = (await db.query<{ id: string }>(
-    `INSERT INTO publishing_jobs(content_id,channel_id,scheduled_for,status,workspace_id,artifact_id,approval_id,mode,created_by)
-     VALUES($1,$2,now(),'scheduled',$3,$4,$5,$6,$7) RETURNING id`,
-    [content.id, channel.id, workspaceId, row.result_ref, approvalId, mode, actorId],
+    `INSERT INTO publishing_jobs(content_id,channel_id,scheduled_for,status,workspace_id,artifact_id,approval_id,mode,created_by,utm_url)
+     VALUES($1,$2,now(),'scheduled',$3,$4,$5,$6,$7,$8) RETURNING id`,
+    [content.id, channel.id, workspaceId, row.result_ref, approvalId, mode, actorId, utmUrl],
   )).rows[0];
   await db.query(
     `INSERT INTO outbox_events(workspace_id,event_type,dedup_key,payload)
@@ -173,8 +214,8 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
       WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2 AND t.status='awaiting_approval' ORDER BY t.created_at`,
     [workspaceId, contextSnapshotId],
   )).rows;
-  if (!rows.length) return 0;
-  let approved = 0;
+  const warnings: string[] = [];
+  if (!rows.length) return warnings;
   const fbStatus = publishFacebook ? await getWorkspaceConnectionStatus(workspaceId, "facebook_page") : null;
   const mode = fbStatus?.status === "connected" ? "live" : "manual";
   for (const row of rows) {
@@ -203,17 +244,24 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
         await queueReadyChildren(db, workspaceId, row.campaign_id);
         if (publishFacebook && row.role === "content") await scheduleFacebookArtifact(db, workspaceId, actorId, row, approvalId, mode);
         // The owner opted into publishing approved SEO articles to the workspace's own site.
-        if (publishWebsite && row.role === "seo") await publishSeoArtifact(db, workspaceId, row.result_ref, actorId);
-        if (row.role === "community") await persistCommunityLead(db, workspaceId, row.result_ref, actorId);
+        if (publishWebsite && row.role === "seo") {
+          // A refusal concerns the website only: the approved article still feeds Content, and the scheduler must not stop.
+          try {
+            await publishSeoArtifact(db, workspaceId, row.result_ref, actorId);
+          } catch (error) {
+            if (!(error instanceof PublishError)) throw error;
+            warnings.push(`WEBSITE_NOT_PUBLISHED: ${error.code}`);
+          }
+        }
+        if (row.role === "community") await persistCommunityLead(db, workspaceId, row.result_ref, actorId, { consentVerified: false });
       }
       await db.query("COMMIT");
-      approved++;
     } catch (error) {
       await db.query("ROLLBACK");
       throw error;
     } finally { db.release(); }
   }
-  return approved;
+  return warnings;
 }
 
 const MAX_LEARNING_ROUNDS = 3;
@@ -267,6 +315,17 @@ async function autoAcceptLearning(pool: Pool, workspaceId: string, actorId: stri
   )).rows;
   for (const row of rows) {
     const result = row.payload?.result ?? {};
+    if (result.stopped_reason === "no_measured_signal") {
+      // Nothing was measured, so there is nothing for a person to decide; the report stays readable.
+      await pool.query("UPDATE workflow_tasks SET status='completed',completed_at=now(),updated_at=now() WHERE id=$1 AND status='awaiting_approval'", [row.id]);
+      await pool.query(
+        `UPDATE approvals SET status='revoked',invalidated_reason='NOTHING_TO_REVIEW',invalidated_at=now(),updated_at=now()
+          WHERE workspace_id=$1 AND target_type='artifact' AND status='pending'
+            AND target_id=(SELECT result_ref FROM workflow_tasks WHERE id=$2)`,
+        [workspaceId, row.id],
+      );
+      continue;
+    }
     // Missing data or a stopped loop has nothing to open; it stays visible for review.
     if (result.status !== "draft" || result.missing_facts?.length || !result.next_tasks?.length) continue;
     try {
@@ -282,6 +341,57 @@ async function autoAcceptLearning(pool: Pool, workspaceId: string, actorId: stri
 }
 
 /** One scheduler owns a workspace at a time; existing approval gates remain authoritative. */
+/**
+ * A task behind a failed or cancelled parent can never run, and left pending it would hold the
+ * schedule forever. Closed here rather than where tasks fail, so every way of failing is covered.
+ */
+async function closeTasksBehindDeadParents(pool: Pool, workspaceId: string) {
+  const parents = (await pool.query<{ id: string; status: string }>(
+    `SELECT DISTINCT parent.id,parent.status FROM task_dependencies d
+       JOIN workflow_tasks parent ON parent.id=d.depends_on_task_id
+       JOIN workflow_tasks child ON child.id=d.task_id
+      WHERE d.workspace_id=$1 AND parent.status IN ('failed','cancelled') AND child.status IN ('pending','queued')`,
+    [workspaceId],
+  )).rows;
+  for (const parent of parents) await propagateUpstreamTaskFailure(pool, workspaceId, parent.id, parent.status);
+}
+
+/**
+ * A review on a superseded context can never be acted on (its work fails STALE_CONTEXT), and one
+ * on a finished task changes nothing. Neither should wait in the owner's queue.
+ */
+async function closeDeadReviews(pool: Pool, workspaceId: string, contextSnapshotId: string) {
+  await pool.query(
+    `UPDATE workflow_tasks SET status='cancelled',error_details=jsonb_build_object('code','SUPERSEDED_CONTEXT'),completed_at=now(),updated_at=now()
+      WHERE workspace_id=$1 AND status='awaiting_approval' AND context_snapshot_id<>$2`,
+    [workspaceId, contextSnapshotId],
+  );
+  await pool.query(
+    `UPDATE approvals a SET status='revoked',invalidated_at=now(),updated_at=now(),
+        invalidated_reason=CASE WHEN c.context_snapshot_id<>$2 THEN 'SUPERSEDED_CONTEXT' ELSE 'TASK_ALREADY_CLOSED' END
+       FROM content_artifacts c
+      WHERE a.workspace_id=$1 AND a.target_type='artifact' AND a.status='pending' AND c.workspace_id=$1 AND c.id=a.target_id
+        AND (c.context_snapshot_id<>$2 OR EXISTS (SELECT 1 FROM workflow_tasks t WHERE t.workspace_id=$1 AND t.result_ref=c.id
+          AND t.status IN ('completed','failed','cancelled')))`,
+    [workspaceId, contextSnapshotId],
+  );
+}
+
+async function expireUnreviewedDrafts(pool: Pool, workspaceId: string, contextSnapshotId: string) {
+  const expired = (await pool.query<{ result_ref: string }>(
+    `UPDATE workflow_tasks SET status='cancelled',error_details=jsonb_build_object('code','REVIEW_TIMEOUT'),completed_at=now(),updated_at=now()
+      WHERE workspace_id=$1 AND context_snapshot_id=$2 AND status='awaiting_approval'
+        AND campaign_id IN (SELECT plan_id FROM campaign_plan_acceptances WHERE workspace_id=$1) RETURNING result_ref`,
+    [workspaceId, contextSnapshotId],
+  )).rows;
+  if (!expired.length) return;
+  await pool.query(
+    `UPDATE approvals SET status='revoked',invalidated_reason='REVIEW_TIMEOUT',invalidated_at=now(),updated_at=now()
+      WHERE workspace_id=$1 AND target_type='artifact' AND status='pending' AND target_id=ANY($2::uuid[])`,
+    [workspaceId, expired.map((row) => row.result_ref)],
+  );
+}
+
 export async function tickAutomation(
   pool: Pool,
   workspaceId: string,
@@ -329,13 +439,16 @@ export async function tickAutomation(
         "Create a current knowledge context with approved sources first",
       );
     if (settings.auto_approve_outputs) {
-      await autoApproveOutputs(pool, workspaceId, settings.actor_id, context.snapshot_id, settings.auto_publish_facebook === true,
+      const publishWarnings = await autoApproveOutputs(pool, workspaceId, settings.actor_id, context.snapshot_id, settings.auto_publish_facebook === true,
         settings.auto_publish_website === true);
+      if (publishWarnings.length) discoveryWarning = publishWarnings.join('; ');
       await autoAcceptLearning(pool, workspaceId, settings.actor_id, context.snapshot_id);
     }
     if (settings.auto_publish_facebook === true) {
       await scheduleApprovedFacebookArtifacts(pool, workspaceId, settings.actor_id, context.snapshot_id);
     }
+    await closeTasksBehindDeadParents(pool, workspaceId);
+    await closeDeadReviews(pool, workspaceId, context.snapshot_id);
     // Process incoming community inbox messages into workflow tasks
     await processReceivedCommunityMessages(pool, workspaceId, settings.actor_id, context.snapshot_id);
     const enqueue = (key: string, input: unknown) =>
@@ -359,6 +472,9 @@ export async function tickAutomation(
       // Research or a report without usable output has nothing to hand off: it falls through and
       // is closed, otherwise an unattended cycle would wait forever on it.
       if (task.operation === "research.run" && task.artifact_payload.result?.status === "ready_for_handoff") {
+        // First-party measurement (site events + leads) pinned to this context for Growth Lead, Performance and Learning;
+        // taken before the strategy task exists, so the plan can see it.
+        await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
         const child = await enqueue(`strategy:${task.id}`, {
           operation: "strategy.generate",
           research_artifact_id: task.result_ref,
@@ -371,8 +487,6 @@ export async function tickAutomation(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, child.task_id],
         );
-        // First-party measurement (site events + leads) pinned to this context for Performance/Learning.
-        await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
         const metric = (
           await pool.query(
             "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='metrics.snapshot' ORDER BY created_at DESC LIMIT 1",
@@ -430,6 +544,25 @@ export async function tickAutomation(
             task_quota: 1,
           });
         }
+        const reportWindow = task.artifact_payload.result?.window as { start?: string; end?: string } | undefined;
+        const metricsId = task.payload?.input?.metrics_artifact_id;
+        const baselineId = task.payload?.input?.baseline_metrics_artifact_id;
+        if (reportWindow?.start && reportWindow?.end && Date.parse(reportWindow.end) <= Date.now() && Date.parse(reportWindow.start) < Date.parse(reportWindow.end)) {
+          const cta = String(settings.cta).slice(0, 150);
+          await enqueue(`experiment:${task.id}`, {
+            operation: "experiment.hypothesis",
+            ...(metricsId ? { metrics_artifact_id: metricsId } : {}),
+            ...(baselineId ? { baseline_metrics_artifact_id: baselineId } : {}),
+            experiment: {
+              hypothesis: `Campaign CTA ("${cta}") increases qualified visits and lead conversion compared to baseline window.`,
+              control_variant: "Baseline organic content without campaign CTA",
+              treatment_variant: `Campaign SEO & Social distribution with CTA: ${cta}`,
+              primary_metric: "qualified_visits",
+              period: { start: reportWindow.start, end: reportWindow.end },
+              grouping: "window_comparison",
+            },
+          });
+        }
       }
       await pool.query(
         "UPDATE workflow_tasks SET status='completed',completed_at=now(),updated_at=now() WHERE workspace_id=$1 AND id=$2 AND status='awaiting_approval'",
@@ -456,13 +589,18 @@ export async function tickAutomation(
           [workspaceId, context.snapshot_id],
         )
       ).rowCount;
+      // Overdue by a whole extra cycle: nobody is reviewing, and a waiting draft must not stop an
+      // unattended schedule. The draft stays readable; it is simply never approved or published.
+      if (unfinished && new Date(settings.next_run_at).getTime() + settings.interval_hours * 3_600_000 <= Date.now()) {
+        await expireUnreviewedDrafts(pool, workspaceId, context.snapshot_id);
+      }
       if (!active && !unfinished) {
         // Fresh search landscape for this research run. A search outage must not block
         // research on the existing approved snapshot; it is reported as last_error instead.
         try {
           await refreshDiscoveryIfStale(pool, workspaceId, defaultSearch(), settings.interval_hours);
         } catch (error) {
-          discoveryWarning = `DISCOVERY_FAILED: ${(error as Error).message}`;
+          discoveryWarning = [discoveryWarning, `DISCOVERY_FAILED: ${(error as Error).message}`].filter(Boolean).join('; ');
         }
         // Sources approved since the context was issued (e.g. newly published first-party articles)
         // reach Research only through a new context; it is issued at a cycle boundary, never mid-cycle.

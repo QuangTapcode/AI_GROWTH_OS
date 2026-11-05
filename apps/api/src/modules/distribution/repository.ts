@@ -132,17 +132,34 @@ export async function upsertContentForArtifact(
   artifact: { id: string; title: string; version: number; content_hash: string; artifact_type: string; payload: Record<string, unknown> },
   approvedBy: string | null
 ): Promise<string> {
-  const existing = await client.query<{ id: string }>(
-    `SELECT id FROM contents WHERE workspace_id = $1 AND artifact_id = $2`,
-    [workspaceId, artifact.id]
-  );
-  if (existing.rowCount && existing.rowCount > 0) return existing.rows[0].id;
+  const result = (
+    artifact.payload?.result && typeof artifact.payload.result === "object" ? artifact.payload.result : null
+  ) as Record<string, unknown> | null;
+  const facebook = (
+    result?.facebook && typeof result.facebook === "object" ? result.facebook : null
+  ) as { text?: unknown } | null;
   const body =
-    typeof artifact.payload?.document_markdown === "string"
+    typeof facebook?.text === "string" && facebook.text.trim()
+      ? facebook.text
+      : typeof result?.caption === "string" && result.caption.trim()
+      ? result.caption
+      : typeof result?.body_markdown === "string" && result.body_markdown.trim()
+      ? result.body_markdown
+      : typeof artifact.payload?.document_markdown === "string"
       ? artifact.payload.document_markdown
       : typeof artifact.payload?.summary === "string"
       ? artifact.payload.summary
       : null;
+  const existing = await client.query<{ id: string; body_markdown: string | null }>(
+    `SELECT id, body_markdown FROM contents WHERE workspace_id = $1 AND artifact_id = $2`,
+    [workspaceId, artifact.id]
+  );
+  if (existing.rowCount && existing.rowCount > 0) {
+    if ((!existing.rows[0].body_markdown || !existing.rows[0].body_markdown.trim()) && body) {
+      await client.query(`UPDATE contents SET body_markdown = $1 WHERE id = $2`, [body, existing.rows[0].id]);
+    }
+    return existing.rows[0].id;
+  }
   const res = await client.query<{ id: string }>(
     `INSERT INTO contents (workspace_id, title, body_markdown, type, status, created_by, approved_by,
        current_version, content_hash, artifact_id)

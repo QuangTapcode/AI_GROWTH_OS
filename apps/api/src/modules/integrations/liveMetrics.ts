@@ -201,6 +201,14 @@ async function fetchGsc(from: string, to: string): Promise<LiveMetricPoint[]> {
   return points;
 }
 
+/** Clicks and impressions of the configured property over the range; an empty range measured zero. */
+export async function fetchGscTotals(from: string, to: string): Promise<{ clicks: number; impressions: number }> {
+  const sum = (points: LiveMetricPoint[], metric: string) =>
+    points.filter((point) => point.metric_name === metric).reduce((total, point) => total + point.value, 0);
+  const points = await fetchGsc(from, to);
+  return { clicks: sum(points, "search_clicks"), impressions: sum(points, "search_impressions") };
+}
+
 type MetaResponse = { data?: Array<{ date_start?: string; date_stop?: string; spend?: string }> };
 
 async function fetchMeta(from: string, to: string): Promise<LiveMetricPoint[]> {

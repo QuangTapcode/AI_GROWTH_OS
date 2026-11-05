@@ -114,6 +114,22 @@ export class CommunityService {
 /**
  * Autopilot helper: enqueues pending received community messages into workflow_tasks.
  */
+/** A reply counts only once it was sent: a draft nobody sent was never said to this person. */
+async function conversationHistory(pool: Pool, workspaceId: string, platform: string, contact: string, messageId: string) {
+  const prior = (await pool.query<{ content: string; reply: string | null }>(
+    `SELECT m.content, CASE WHEN m.status = 'replied' THEN a.payload->'result'->>'reply' END AS reply
+       FROM community_messages m
+       LEFT JOIN content_artifacts a ON a.workspace_id = m.workspace_id AND a.task_id = m.task_id
+      WHERE m.workspace_id = $1 AND m.platform = $2 AND m.author_contact = $3 AND m.id <> $4
+      ORDER BY m.received_at DESC LIMIT 3`,
+    [workspaceId, platform, contact, messageId],
+  )).rows;
+  return prior.reverse().map((row) => ({
+    question: row.content.slice(0, 300),
+    ...(row.reply ? { reply: row.reply.slice(0, 300) } : {}),
+  }));
+}
+
 export async function processReceivedCommunityMessages(
   pool: Pool,
   workspaceId: string,
@@ -122,8 +138,8 @@ export async function processReceivedCommunityMessages(
   limit = 10,
 ): Promise<number> {
   const pending = (
-    await pool.query<{ id: string; content: string }>(
-      `SELECT id, content FROM community_messages
+    await pool.query<{ id: string; content: string; platform: string; author_contact: string | null }>(
+      `SELECT id, content, platform, author_contact FROM community_messages
        WHERE workspace_id = $1 AND status = 'received' AND task_id IS NULL
        ORDER BY received_at ASC LIMIT $2`,
       [workspaceId, limit],
@@ -132,6 +148,7 @@ export async function processReceivedCommunityMessages(
 
   let enqueued = 0;
   for (const msg of pending) {
+    const history = msg.author_contact ? await conversationHistory(pool, workspaceId, msg.platform, msg.author_contact, msg.id) : [];
     const taskId = randomUUID();
     await enqueueAiTask(pool, workspaceId, actorId, {
       task_id: taskId,
@@ -139,6 +156,7 @@ export async function processReceivedCommunityMessages(
       input: {
         operation: 'community.response',
         question: msg.content,
+        ...(history.length > 0 ? { history } : {}),
       },
     });
     await pool.query(

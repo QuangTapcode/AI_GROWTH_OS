@@ -118,7 +118,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     log_event(logger, "ai_run_failed", **fields, error_code="DEADLINE_EXCEEDED")
                     return
                 store.mark_running(run_id)
-                ctx = RunContext(job, payload, settings, provider, CallBudget(store, budget_key(job.job_id, job.input_version), call_cap(job)), logger)
+                ctx = RunContext(job, payload, settings, provider, CallBudget(store, budget_key(job.job_id, job.input_version), call_cap(job)), logger, deadline_at=datetime.fromisoformat(row["deadline_at"]))
                 log_event(
                     logger,
                     "ai_run_started",

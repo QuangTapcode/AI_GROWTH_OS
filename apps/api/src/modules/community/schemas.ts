@@ -6,6 +6,7 @@ export const communityPlatformSchema = z.enum([
   'website_comment',
   'manual',
   'tripc_chat',
+  'telegram_message',
 ]);
 
 export const communityStatusSchema = z.enum([

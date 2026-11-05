@@ -196,6 +196,22 @@ export class PublishingOutboxRunner {
     );
 
     const payload = job.artifact_payload ?? {};
+    // The approved post carries its images in the artifact result; the first one goes out with it,
+    // and a generated illustration, always declared as AI, only when there is no approved photo.
+    const approvedPost = payload.result as { image_assets?: { url?: unknown; synthetic?: unknown }[]; generated_image?: { url?: unknown } | null } | undefined;
+    const image = (approvedPost?.image_assets ?? [])[0]
+      ?? (approvedPost?.generated_image ? { url: approvedPost.generated_image.url, synthetic: true } : undefined);
+    const payloadResult = (payload.result && typeof payload.result === 'object' ? payload.result : {}) as Record<string, unknown>;
+    const payloadFacebook = (
+      payloadResult.facebook && typeof payloadResult.facebook === 'object' ? payloadResult.facebook : {}
+    ) as Record<string, unknown>;
+    const resolvedBodyMarkdown =
+      asString(job.body_markdown) ??
+      (channel === 'Facebook' ? asString(payloadFacebook.text) : undefined) ??
+      asString(payloadResult.caption) ??
+      asString(payloadResult.body_markdown) ??
+      asString(payload.document_markdown) ??
+      '';
     const gatewayCheck = createGatewayCheck();
 
     let result;
@@ -207,15 +223,15 @@ export class PublishingOutboxRunner {
         channel,
         scheduledAt,
         idempotencyKey,
-        bodyMarkdown: job.body_markdown ?? '',
+        bodyMarkdown: resolvedBodyMarkdown,
         metaTitle: job.content_title,
         linkUrl: job.utm_url ?? undefined,
-        mediaUrl: asString(payload.media_url ?? payload.mediaUrl),
-        mediaType: asMediaType(payload.media_type ?? payload.mediaType),
+        mediaUrl: asString(payload.media_url ?? payload.mediaUrl ?? image?.url),
+        mediaType: asMediaType(payload.media_type ?? payload.mediaType ?? (image ? 'image' : undefined)),
         expectedVersion: job.artifact_version,
         contentHash: job.content_hash,
         approvalId: job.approval_id ?? undefined,
-        isAiGenerated: Boolean(payload.is_ai_generated ?? payload.isAiGenerated ?? payload.ai_metadata),
+        isAiGenerated: Boolean(payload.is_ai_generated ?? payload.isAiGenerated ?? payload.ai_metadata ?? image?.synthetic),
         aiImageMeta: (payload.ai_metadata ?? payload.aiImageMeta) as Record<string, any> | undefined,
         ...(gatewayCheck ? { gatewayCheck } : {}),
       });

@@ -51,6 +51,10 @@ async def run_performance(ctx):
                      + ("relative change unavailable for a zero baseline. " if c['status'] == 'zero_baseline'
                         else f"relative change {c['relative_change_pct']}%. ") + "Observation only, not causal."
                      for c in comparisons if c['status'] in {"compared", "zero_baseline"}]
+    articles = data.content_metrics if data else []
+    if articles:
+        top = articles[0]
+        observations.append(f"Top article '{top.title}': {top.page_views} views, {top.cta_clicks} CTA clicks. Observation only, not causal.")
     fields = result_fields(ctx, [item for item in (p.metrics, p.baseline_metrics) if item])
     proposal = None
     if not missing:
@@ -66,5 +70,5 @@ async def run_performance(ctx):
         observations=observations, proposal=proposal, experiment=experiment,
         baseline_snapshot_id=baseline.snapshot_id if baseline else None,
         baseline_window={"start": baseline.window_start.isoformat(), "end": baseline.window_end.isoformat()} if baseline else None,
-        kpi_comparisons=comparisons)
+        kpi_comparisons=comparisons, content_metrics=articles)
     return OperationOutcome(result=result.model_dump(mode="json"), warnings=["NO_CAUSAL_OR_ROI_CLAIM"])
