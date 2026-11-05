@@ -34,3 +34,7 @@ Giữ Level 2, human approval trước publish/send, tenant isolation, approved 
 [Checklist kiểm tra và phát triển sáu agent](docs/coordination/AGENT-TEST-DEV-TODO.md) — gồm lane Dương + Trường và Community RAG do Quang Quang phụ trách.
 
 [Biên bản dọn bản cũ](docs/coordination/sprint-3-weeks/bao-cao/2026-10-14-CLEANUP.md): checklist trùng đã xóa; dùng bảy file cá nhân hiện hành để nhận việc.
+
+[Deploy và test từng agent bằng trình duyệt ngày 05/11/2026](docs/reports/AGENT-BROWSER-TEST-2026-11-05.md) — bản mới đã chạy, 12 lỗi mới và thứ tự sửa.
+
+[Nghiệm thu 6 agent ngày 04/11/2026 và việc cần làm](docs/reports/AGENT-ACCEPTANCE-2026-11-04.md) — kết quả test so với yêu cầu ban đầu, workflow và thứ tự sửa.
