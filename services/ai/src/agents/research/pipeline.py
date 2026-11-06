@@ -389,7 +389,15 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     # Within that, excerpts related to the articles readers acted on come first.
     promising = terms(" ".join(payload.lessons.promising_titles)) - place - TITLE_FILLER if payload.lessons else set()
     on_goal_keys = set(on_goal)
-    ranked.sort(key=lambda key: (chunk_has_content(key, payload.content_inventory), bool(goal_focus) and key not in on_goal_keys,
+    used_sources = {
+        candidates[cid][0].source_id
+        for item in payload.content_inventory
+        for cid in item.evidence_chunk_ids
+        if cid in candidates
+    }
+    ranked.sort(key=lambda key: (chunk_has_content(key, payload.content_inventory),
+                                 candidates[key][0].source_id in used_sources,
+                                 bool(goal_focus) and key not in on_goal_keys,
                                  -len(promising & terms(candidates[key][1].text))))
     covered_topics = [c.topic for c in coverage if c.covered_chunks]
     base["topics"] = [t for t in covered_topics if names_focus(t, goal_focus)] or covered_topics

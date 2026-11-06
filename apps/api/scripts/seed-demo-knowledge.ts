@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import pool from "../src/lib/db";
 import { PgPlanRepository } from "../src/modules/campaignPlans/pgRepository";
+import { getPlaybookImageAssets } from "../src/modules/community/hub";
 
 const WORKSPACE_ID = "10000000-0000-4000-8000-000000000001"; // TripC
 const OWNER_ID = "a0000000-0000-4000-8000-000000000001";
@@ -90,7 +91,8 @@ async function main() {
     client.release();
   }
 
-  const issued = await new PgPlanRepository(pool).issueContext(WORKSPACE_ID);
+  const assets = getPlaybookImageAssets(WORKSPACE_ID).map(({ topic_tags, ...rest }) => rest);
+  const issued = await new PgPlanRepository(pool).issueContext(WORKSPACE_ID, { assets });
   const metricResult = {
     workspace_id: WORKSPACE_ID,
     snapshot_id: METRICS_SNAPSHOT_ID,

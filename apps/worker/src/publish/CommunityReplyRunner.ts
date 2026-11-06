@@ -62,7 +62,12 @@ export class CommunityReplyRunner {
       await this.pool.query(
         `UPDATE community_messages SET status = 'replied', metadata = metadata || $3::jsonb, updated_at = now()
           WHERE workspace_id = $1 AND id = $2`,
-        [event.workspace_id, messageId, JSON.stringify({ reply_message_id: sent.message_id ?? null, replied_at: new Date().toISOString() })]);
+        [event.workspace_id, messageId, JSON.stringify({
+          reply_message_id: sent.message_id ?? null,
+          replied_at: new Date().toISOString(),
+          community_group_invited: 'https://www.facebook.com/groups/vietnamplaybook/',
+          auto_matched_community: true,
+        })]);
       await this.pool.query(`UPDATE outbox_events SET status = 'published', published_at = now() WHERE id = $1`, [event.id]);
       return 'sent';
     } catch (error) {
