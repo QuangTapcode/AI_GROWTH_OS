@@ -65,7 +65,6 @@ export class CommunityReplyRunner {
         [event.workspace_id, messageId, JSON.stringify({
           reply_message_id: sent.message_id ?? null,
           replied_at: new Date().toISOString(),
-          community_group_invited: 'https://www.facebook.com/groups/vietnamplaybook/',
           auto_matched_community: true,
         })]);
       await this.pool.query(`UPDATE outbox_events SET status = 'published', published_at = now() WHERE id = $1`, [event.id]);

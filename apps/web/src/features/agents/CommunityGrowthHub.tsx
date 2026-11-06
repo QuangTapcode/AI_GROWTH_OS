@@ -136,6 +136,11 @@ export default function CommunityGrowthHub({
   const [calendarView, setCalendarView] = useState<"daily" | "weekly" | "monthly">("daily");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [bannerMessage, setBannerMessage] = useState<string>("");
+  const [editingSettings, setEditingSettings] = useState(false);
+
+  // Settings form state
+  const [customCommunityName, setCustomCommunityName] = useState("");
+  const [customGroupUrl, setCustomGroupUrl] = useState("");
 
   // Form states for adding prospect & creating discussion
   const [prospectName, setProspectName] = useState("");
@@ -149,6 +154,8 @@ export default function CommunityGrowthHub({
     try {
       const res = await apiRequest<HubResponse>(`/workspaces/${workspaceId}/community/hub`);
       setHub(res);
+      setCustomCommunityName(res.group.name);
+      setCustomGroupUrl(res.group.group_url);
     } catch (err) {
       setBannerMessage((err as Error).message);
     } finally {
@@ -159,6 +166,29 @@ export default function CommunityGrowthHub({
   useEffect(() => {
     void fetchHub();
   }, [workspaceId]);
+
+  async function handleSaveSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setBusyAction("save_settings");
+    setBannerMessage("");
+    try {
+      const res = await apiRequest<{ data: HubResponse }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: {
+          action: "update_settings",
+          community_name: customCommunityName.trim(),
+          group_url: customGroupUrl.trim(),
+        },
+      });
+      setHub(res.data);
+      setEditingSettings(false);
+      setBannerMessage("Đã lưu cấu hình Cộng đồng & Link Group của riêng bạn!");
+    } catch (err) {
+      setBannerMessage((err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
 
   async function handleScanMembers() {
     setBusyAction("scan");
@@ -177,7 +207,7 @@ export default function CommunityGrowthHub({
       setProspectName("");
       setProspectSignal("");
       setBannerMessage(
-        "Đã tự động quét tin nhắn Fanpage, bình luận và tín hiệu xu hướng — tự động phân loại sở thích và thêm thành viên phù hợp vào danh sách Group Vietnam Playbook!"
+        `Đã tự động quét tin nhắn Fanpage "${res.data.group.page_name}", bình luận và tín hiệu xu hướng — tự động phân loại sở thích và thêm thành viên phù hợp vào "${res.data.group.name}" của bạn!`
       );
       onUpdated?.();
     } catch (err) {
@@ -197,19 +227,19 @@ export default function CommunityGrowthHub({
         method: "POST",
         body: {
           action: "create_discussion",
-          category: "Community Discussion",
+          category: "Thảo luận Cộng đồng",
           title: discussionTitle.trim(),
           body: discussionBody.trim(),
           discussion_prompt:
             discussionPrompt.trim() ||
-            "Chia sẻ góc nhìn và kinh nghiệm thực tế của bạn cùng các thành viên trong Group nhé!",
+            "Chia sẻ góc nhìn và kinh nghiệm thực tế của bạn cùng các thành viên trong cộng đồng mình nhé!",
         },
       });
       setHub(res.data);
       setDiscussionTitle("");
       setDiscussionBody("");
       setDiscussionPrompt("");
-      setBannerMessage("Đã tạo chủ đề thảo luận 2 chiều mới trong Cộng đồng Vietnam Playbook!");
+      setBannerMessage(`Đã tạo chủ đề thảo luận 2 chiều mới trong "${res.data.group.name}"!`);
     } catch (err) {
       setBannerMessage((err as Error).message);
     } finally {
@@ -233,7 +263,7 @@ export default function CommunityGrowthHub({
       });
       setHub(res.data);
       setBannerMessage(
-        `Đã xuất bản bài viết mới 100% không trùng lặp: "${res.published.title}" lên Website (/posts/${res.published.website_slug}) và xếp lịch đăng kèm ảnh riêng biệt lên Facebook Fanpage & Cộng đồng!`
+        `Đã xuất bản bài viết mới 100% không trùng lặp: "${res.published.title}" lên Website (/posts/${res.published.website_slug}) và đăng trực tiếp kèm ảnh riêng biệt + lời mời tham gia "${res.data.group.name}" lên Fanpage "${res.data.group.page_name}"!`
       );
       onUpdated?.();
     } catch (err) {
@@ -247,7 +277,7 @@ export default function CommunityGrowthHub({
     return (
       <section className="rounded-2xl border border-blue-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold text-blue-800">
-          Đang tải hệ thống Cộng đồng Tương tác 2 Chiều & Kế hoạch Nội dung Vietnam Playbook…
+          Đang tải hệ thống Cộng đồng Tương tác 2 Chiều & Kế hoạch Nội dung của bạn…
         </p>
       </section>
     );
@@ -262,7 +292,7 @@ export default function CommunityGrowthHub({
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-blue-700 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
-              Interactive Community Hub
+              Cộng đồng Tương tác 2 Chiều của Riêng Bạn
             </span>
             <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
               Chống trùng lặp Hình ảnh & Nội dung: 100% Unique
@@ -277,7 +307,7 @@ export default function CommunityGrowthHub({
               rel="noreferrer"
               className="rounded-lg bg-blue-700 px-3 py-1.5 text-white hover:bg-blue-800"
             >
-              Mở Group Vietnam Playbook ↗
+              Mở Cộng đồng / Group của Bạn ↗
             </a>
             <a
               href={hub.group.page_url}
@@ -285,8 +315,15 @@ export default function CommunityGrowthHub({
               rel="noreferrer"
               className="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-blue-800 hover:bg-blue-50"
             >
-              Mở Fanpage TripC.AI - Viet Nam Playbook ↗
+              Mở Fanpage: {hub.group.page_name} ↗
             </a>
+            <button
+              type="button"
+              onClick={() => setEditingSettings((v) => !v)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              ⚙️ Tùy chỉnh Tên Cộng đồng & Link Group của bạn
+            </button>
             <button
               type="button"
               disabled={!canEdit || !!busyAction}
@@ -295,9 +332,56 @@ export default function CommunityGrowthHub({
             >
               {busyAction === "publish_fresh"
                 ? "Đang tạo & đăng bài mới…"
-                : "⚡ Đăng ngay 1 bài Playbook mới (Chủ đề & Ảnh không trùng)"}
+                : "⚡ Đăng ngay 1 bài mới lên Fanpage & Cộng đồng của bạn (Không trùng lặp)"}
             </button>
           </div>
+
+          {editingSettings && (
+            <form onSubmit={handleSaveSettings} className="mt-4 space-y-3 rounded-xl border border-blue-200 bg-white p-4">
+              <p className="text-xs font-bold text-slate-900">
+                Cấu hình Tên Cộng đồng & Link Group Facebook của Riêng Bạn (Mọi bài đăng và lời mời thành viên sẽ dẫn về đây)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Tên Cộng đồng của bạn
+                  <input
+                    type="text"
+                    required
+                    value={customCommunityName}
+                    onChange={(e) => setCustomCommunityName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Link Group / Cộng đồng Facebook của bạn
+                  <input
+                    type="url"
+                    required
+                    value={customGroupUrl}
+                    onChange={(e) => setCustomGroupUrl(e.target.value)}
+                    placeholder="https://www.facebook.com/groups/ten-group-cua-ban"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
+                  />
+                </label>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={!canEdit || busyAction === "save_settings"}
+                  className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
+                >
+                  {busyAction === "save_settings" ? "Đang lưu…" : "Lưu cấu hình Cộng đồng của tôi"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingSettings(false)}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                >
+                  Đóng
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* KPI Summary Cards */}
@@ -307,14 +391,14 @@ export default function CommunityGrowthHub({
             <p className="mt-1 text-2xl font-bold text-emerald-900">
               {hub.stats.week1_achieved}/{hub.stats.week1_target}
             </p>
-            <p className="text-[11px] font-medium text-emerald-700">✓ Đạt 100% chỉ tiêu Tuần 1</p>
+            <p className="text-[11px] font-medium text-emerald-700">✓ Đạt chỉ tiêu Tuần 1</p>
           </div>
           <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
             <p className="text-xs font-semibold text-blue-800">Tuần 2 (Mục tiêu 50 người)</p>
             <p className="mt-1 text-2xl font-bold text-blue-900">
               {hub.stats.week2_progress}/{hub.stats.week2_target}
             </p>
-            <p className="text-[11px] font-medium text-blue-700">Auto-Match theo xu hướng</p>
+            <p className="text-[11px] font-medium text-blue-700">Tự động gom vào Group của bạn</p>
           </div>
           <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3">
             <p className="text-xs font-semibold text-purple-800">Thảo luận 2 chiều</p>
@@ -359,7 +443,7 @@ export default function CommunityGrowthHub({
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }`}
         >
-          2. Cộng đồng Tương tác 2 Chiều ({hub.discussions.length} Chủ đề Thảo luận)
+          2. Cộng đồng Tương tác 2 Chiều của Bạn ({hub.discussions.length} Chủ đề Thảo luận)
         </button>
         <button
           type="button"
@@ -379,10 +463,10 @@ export default function CommunityGrowthHub({
         <div className="space-y-6">
           <div>
             <h3 className="text-lg font-bold text-slate-900">
-              Lộ trình Chiến dịch Thu hút Thành viên vào Cộng đồng theo từng Tuần
+              Lộ trình Chiến dịch Thu hút Thành viên vào Cộng đồng của Riêng Bạn theo từng Tuần
             </h3>
             <p className="mt-1 text-sm text-slate-600">
-              Mục tiêu rõ ràng theo tuần (Tuần 1: 5 thành viên hạt nhân → Tuần 2: 50 thành viên → Tuần 3: 150 → Tuần 4: 300) kèm chiến thuật tự động nhận diện người có cùng mối quan tâm để đưa vào Group.
+              Mục tiêu rõ ràng theo tuần (Tuần 1: thu hút 5 thành viên hạt nhân → Tuần 2: 50 thành viên → Tuần 3: 150 → Tuần 4: 300) kèm chiến thuật tự động nhận diện người có cùng mối quan tâm để mời vào cộng đồng của bạn.
             </p>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {hub.weekly_campaigns.map((c) => {
@@ -451,10 +535,10 @@ export default function CommunityGrowthHub({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Radar Tự động Nhận diện & Thêm Người có cùng Xu hướng vào Cộng đồng ({hub.matched_members.length} thành viên)
+                  Radar Tự động Nhận diện & Thêm Người có cùng Xu hướng vào Cộng đồng của Bạn ({hub.matched_members.length} thành viên)
                 </h3>
                 <p className="mt-1 text-xs text-slate-600">
-                  Agent tự động phân tích nội dung tin nhắn Messenger, bình luận trên Page và hành vi tìm kiếm để gắn thẻ xu hướng (Trend/Interest Tags), chấm điểm phù hợp (Affinity Score) và tự động thêm vào danh sách thành viên Group Vietnam Playbook.
+                  Agent tự động phân tích nội dung tin nhắn Messenger trên Fanpage &ldquo;{hub.group.page_name}&rdquo;, bình luận và hành vi tìm kiếm để gắn thẻ xu hướng (Trend/Interest Tags), chấm điểm phù hợp (Affinity Score) và tự động thêm vào danh sách thành viên cộng đồng của bạn.
                 </p>
               </div>
               <button
@@ -465,7 +549,7 @@ export default function CommunityGrowthHub({
               >
                 {busyAction === "scan"
                   ? "Đang quét xu hướng…"
-                  : "🔍 Quét & Tự động thêm người cùng xu hướng"}
+                  : "🔍 Quét & Tự động thêm người cùng xu hướng vào Cộng đồng của tôi"}
               </button>
             </div>
 
@@ -473,14 +557,14 @@ export default function CommunityGrowthHub({
             <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-[1fr_1.6fr_auto]">
               <input
                 type="text"
-                placeholder="Tên người dùng / khách hàng tiềm năng (VD: Alex Turner - Nomad)"
+                placeholder="Tên người dùng / khách tiềm năng (VD: Nguyễn Minh Tuấn)"
                 value={prospectName}
                 onChange={(e) => setProspectName(e.target.value)}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs"
               />
               <input
                 type="text"
-                placeholder="Tín hiệu / Nhu cầu quan tâm (VD: Looking for coworking space & apartment in Da Nang)"
+                placeholder="Tín hiệu / Nhu cầu quan tâm (VD: Muốn tìm chỗ ở và lịch trình du lịch Đà Nẵng 2 tuần)"
                 value={prospectSignal}
                 onChange={(e) => setProspectSignal(e.target.value)}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs"
@@ -491,7 +575,7 @@ export default function CommunityGrowthHub({
                 onClick={handleScanMembers}
                 className="rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
               >
-                + Phân tích Xu hướng & Tự động thêm vào Group
+                + Phân tích Xu hướng & Thêm vào Cộng đồng của tôi
               </button>
             </div>
 
@@ -504,7 +588,7 @@ export default function CommunityGrowthHub({
                     <th className="px-3 py-2.5">Xu hướng & Nhãn sở thích (Auto-Matched)</th>
                     <th className="px-3 py-2.5">Độ khớp</th>
                     <th className="px-3 py-2.5">Chiến dịch</th>
-                    <th className="px-3 py-2.5">Trạng thái Group</th>
+                    <th className="px-3 py-2.5">Trạng thái trong Cộng đồng của bạn</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -543,7 +627,7 @@ export default function CommunityGrowthHub({
                       <td className="px-3 py-3 font-semibold text-slate-700">Tuần {m.campaign_week}</td>
                       <td className="px-3 py-3">
                         <span className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white">
-                          {m.status === "auto_added" ? "✓ Đã tự động thêm" : "Đã gửi lời mời Group"}
+                          {m.status === "auto_added" ? "✓ Đã thêm vào Cộng đồng của bạn" : "Đã gửi lời mời tham gia"}
                         </span>
                       </td>
                     </tr>
@@ -561,7 +645,7 @@ export default function CommunityGrowthHub({
           <div className="grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-slate-900">
-                Bảng Thảo luận Cộng đồng 2 Chiều (Thành viên hỏi đáp & chia sẻ kinh nghiệm thực tế)
+                Bảng Thảo luận Cộng đồng 2 Chiều của Bạn (Thành viên hỏi đáp & chia sẻ kinh nghiệm thực tế)
               </h3>
               {hub.discussions.map((d) => (
                 <article key={d.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -581,16 +665,6 @@ export default function CommunityGrowthHub({
                   <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs font-semibold text-amber-900">
                     💬 Câu hỏi mở kích hoạt thảo luận 2 chiều: {d.discussion_prompt}
                   </div>
-                  {d.source_url && (
-                    <a
-                      href={d.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-block text-xs font-semibold text-blue-700 hover:underline"
-                    >
-                      📚 Nguồn kiến thức chuẩn Vietnam Playbook: {d.source_url} ↗
-                    </a>
-                  )}
                   <div className="mt-4 space-y-2.5 border-t border-slate-100 pt-3">
                     <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
                       Bình luận tương tác giữa các thành viên ({d.replies.length})
@@ -614,10 +688,10 @@ export default function CommunityGrowthHub({
             {/* Create New Interactive Thread */}
             <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h3 className="text-base font-bold text-slate-900">
-                Tạo Chủ đề Thảo luận 2 Chiều mới cho Cộng đồng
+                Tạo Chủ đề Thảo luận 2 Chiều mới cho Cộng đồng của Bạn
               </h3>
               <p className="mt-1 text-xs text-slate-600">
-                Khác với bài thông báo 1 chiều, mỗi bài đăng trong Cộng đồng Vietnam Playbook đều có tình huống thực tế và câu hỏi mở để các thành viên bình luận chia sẻ kinh nghiệm cho nhau.
+                Khác với bài thông báo 1 chiều, mỗi bài đăng trong &ldquo;{hub.group.name}&rdquo; đều có tình huống thực tế và câu hỏi mở để các thành viên bình luận chia sẻ kinh nghiệm cho nhau.
               </p>
               <form onSubmit={handleCreateDiscussion} className="mt-4 space-y-3">
                 <label className="block text-xs font-bold text-slate-800">
@@ -638,7 +712,7 @@ export default function CommunityGrowthHub({
                     required
                     value={discussionBody}
                     onChange={(e) => setDiscussionBody(e.target.value)}
-                    placeholder="Mô tả tình huống thực tế hoặc trích dẫn từ Vietnam Playbook để mở đầu cuộc trò chuyện..."
+                    placeholder="Mô tả tình huống thực tế hoặc kinh nghiệm để mở đầu cuộc trò chuyện trong cộng đồng của bạn..."
                     className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs"
                   />
                 </label>
@@ -648,7 +722,7 @@ export default function CommunityGrowthHub({
                     type="text"
                     value={discussionPrompt}
                     onChange={(e) => setDiscussionPrompt(e.target.value)}
-                    placeholder="VD: Bạn đang ở khu vực nào và giá điện/nước chủ nhà đang tính bao nhiêu?"
+                    placeholder="VD: Bạn đang ở khu vực nào và kinh nghiệm thực tế của bạn là gì?"
                     className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs"
                   />
                 </label>
@@ -659,7 +733,7 @@ export default function CommunityGrowthHub({
                 >
                   {busyAction === "discussion"
                     ? "Đang đăng chủ đề thảo luận…"
-                    : "💬 Đăng Chủ đề Thảo luận 2 Chiều vào Cộng đồng"}
+                    : "💬 Đăng Chủ đề Thảo luận 2 Chiều vào Cộng đồng của Tôi"}
                 </button>
               </form>
             </div>
@@ -673,10 +747,10 @@ export default function CommunityGrowthHub({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-bold text-slate-900">
-                Lịch trình Nội dung Mỗi Ngày • Mỗi Tuần • Mỗi Tháng (100% Thông tin Mới & Ảnh Riêng biệt)
+                Lịch trình Nội dung Mỗi Ngày • Mỗi Tuần • Mỗi Tháng cho Cộng đồng của Bạn (100% Thông tin Mới & Ảnh Riêng biệt)
               </h3>
               <p className="mt-1 text-xs text-slate-600">
-                Mỗi bài đăng đều được đối chiếu chống trùng lặp: mỗi ngày khai thác 1 nguồn bài viết chuẩn khác nhau từ 22 chủ đề Vietnam Playbook và tự động gán 1 hình ảnh minh họa khớp chủ đề riêng biệt từ kho 16 ảnh chuẩn.
+                Mỗi bài đăng đều được đối chiếu chống trùng lặp: mỗi ngày khai thác 1 chủ đề mới khác nhau và tự động gán 1 hình ảnh minh họa khớp chủ đề riêng biệt từ kho 16 ảnh chuẩn để đăng lên Fanpage &ldquo;{hub.group.page_name}&rdquo; và Cộng đồng của bạn.
               </p>
             </div>
             <div className="flex gap-2">
@@ -755,14 +829,9 @@ export default function CommunityGrowthHub({
                   </div>
                   <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
                     <div className="flex items-center justify-between gap-2">
-                      <a
-                        href={item.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs font-semibold text-blue-700 hover:underline"
-                      >
-                        Xem nguồn bài gốc ↗
-                      </a>
+                      <span className="text-xs font-semibold text-slate-600">
+                        Kênh: {hub.group.page_name}
+                      </span>
                       {item.status === "published" && item.published_slug ? (
                         <span className="text-xs font-bold text-emerald-700">
                           Đã lên bài (/posts/{item.published_slug.slice(0, 18)}…)
@@ -774,7 +843,7 @@ export default function CommunityGrowthHub({
                           onClick={() => handlePublishFreshPost(item.source_id)}
                           className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
                         >
-                          {busyAction === item.source_id ? "Đang đăng…" : "Đăng ngay bài này"}
+                          {busyAction === item.source_id ? "Đang đăng…" : "Đăng ngay lên Cộng đồng của tôi"}
                         </button>
                       )}
                     </div>

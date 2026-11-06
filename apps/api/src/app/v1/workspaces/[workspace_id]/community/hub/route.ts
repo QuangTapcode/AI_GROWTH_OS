@@ -29,6 +29,16 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
     const action = String(body.action || 'scan_members');
     const service = new CommunityHubService(pool);
 
+    if (action === 'update_settings') {
+      await service.updateCommunitySettings(params.workspace_id, {
+        community_name: body.community_name ? String(body.community_name) : undefined,
+        group_url: body.group_url ? String(body.group_url) : undefined,
+        positioning: body.positioning ? String(body.positioning) : undefined,
+      });
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: 'updated', data });
+    }
+
     if (action === 'scan_members') {
       if (body.display_name && body.signal) {
         await service.addProspectMember(params.workspace_id, {

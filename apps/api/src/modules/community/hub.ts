@@ -223,42 +223,42 @@ export function classifyMemberInterests(text: string): {
 } {
   const lower = text.toLowerCase();
   const tags: string[] = [];
-  let trend = 'Vietnam Relocation & Expat Playbook';
+  let trend = 'Du lịch, Lưu trú & Kinh nghiệm Sống tại Việt Nam';
   let score = 88;
   let topic = 'Where Should You Stay During Your First Two Weeks in Vietnam?';
 
   if (/du lịch|travel|trip|chuyến đi|visit|bay|flight|airport|hà nội|đà nẵng|da nang/i.test(lower)) {
-    tags.push('Vietnam Travel & Arrival', 'Da Nang & Local Guide');
-    trend = 'New Arrivals & Vietnam Travel Playbook';
+    tags.push('Du lịch & Lịch trình', 'Đà Nẵng & Việt Nam');
+    trend = 'Lịch trình Du lịch, Sân bay & Lưu trú tại Việt Nam';
     score = 95;
     topic = 'Where Should You Stay During Your First Two Weeks in Vietnam?';
   }
   if (/thuê nhà|apartment|housing|rent|chỗ ở|khách sạn|accommodation|stay/i.test(lower)) {
-    tags.push('Expat Housing & Apartments', 'First 2 Weeks Stay');
-    trend = 'Long-Term Rentals & Apartment Viewing in Da Nang';
+    tags.push('Thuê căn hộ & Lưu trú', 'Chỗ ở 2 tuần đầu');
+    trend = 'Tìm chỗ ở & Kinh nghiệm thuê căn hộ tại Đà Nẵng / Việt Nam';
     score = 97;
     topic = 'Apartment Viewing Checklist in Vietnam: What to Check Before You Sign';
   }
   if (/remote|coworking|wifi|esim|sim|làm việc|nomad|cafe/i.test(lower)) {
-    tags.push('Digital Nomad & Remote Work', 'eSIM & Connectivity');
-    trend = 'Remote Work Setup & Coworking in Vietnam';
+    tags.push('Làm việc từ xa (Remote Work)', 'eSIM & Kết nối Internet');
+    trend = 'Làm việc từ xa, Coworking & SIM/eSIM tại Việt Nam';
     score = 96;
     topic = 'Working Remotely from Vietnam: How to Build a Reliable Work Setup';
   }
   if (/bank|ngân hàng|vietqr|tiền|chi phí|budget|cost|atm/i.test(lower)) {
-    tags.push('Banking & VietQR', 'Cost of Living');
-    trend = 'Expat Banking, VietQR & Daily Budget';
+    tags.push('Thanh toán VietQR & Ngân hàng', 'Chi phí du lịch mỗi ngày');
+    trend = 'Chi phí du lịch, Thanh toán VietQR & Ngân hàng tại Việt Nam';
     score = 94;
     topic = 'Opening a Bank Account in Vietnam as a Foreigner: The 2026 Reality';
   }
   if (/visa|evisa|e-visa|hộ chiếu|passport|nhập cảnh|entry/i.test(lower)) {
-    tags.push('Vietnam E-Visa & Entry', 'Official Portal Verification');
-    trend = 'Official E-Visa & 90-Day Entry Compliance';
+    tags.push('Thủ tục E-Visa & Nhập cảnh', 'Kiểm tra Hộ chiếu');
+    trend = 'Hướng dẫn E-Visa & Thủ tục nhập cảnh Việt Nam';
     score = 96;
     topic = 'Vietnam E-Visa Guide 2026: How to Apply, Enter, and Avoid Common Mistakes';
   }
   if (tags.length === 0) {
-    tags.push('Vietnam Playbook Community', 'Expat & Nomad Network', 'Local Living Tips');
+    tags.push('Cộng đồng Du lịch Việt Nam', 'Chia sẻ Kinh nghiệm Thực tế', 'Hỗ trợ Du khách');
     score = 91;
   }
   return {
@@ -269,10 +269,117 @@ export function classifyMemberInterests(text: string): {
   };
 }
 
+export interface CommunitySettings {
+  community_name: string;
+  group_url: string;
+  page_name: string;
+  page_url: string;
+  connected_fanpage_id: string;
+  positioning: string;
+}
+
 export class CommunityHubService {
   constructor(private readonly pool: Pool) {}
 
-  async ensureSchemaAndContext(workspaceId: string): Promise<void> {
+  async getCommunitySettings(workspaceId: string): Promise<CommunitySettings> {
+    const fbConn = (
+      await this.pool.query<{ account_ref: string | null; display_name: string | null }>(
+        `SELECT account_ref, display_name
+           FROM integration_connections
+          WHERE workspace_id = $1 AND provider = 'facebook_page'
+          ORDER BY updated_at DESC LIMIT 1`,
+        [workspaceId],
+      )
+    ).rows[0];
+
+    const pageId = fbConn?.account_ref || '1381196421750749';
+    const pageName = fbConn?.display_name || 'Dịch vụ hỗ trợ du lịch';
+    const defaultPageUrl = `https://www.facebook.com/profile.php?id=${pageId}`;
+    const defaultCommunityName = `Cộng đồng ${pageName} – Giao lưu & Chia sẻ Kinh nghiệm Du lịch Việt Nam`;
+    const defaultPositioning = `Cộng đồng tương tác 2 chiều của riêng bạn ( vận hành trên Fanpage "${pageName}" & Group Cộng đồng riêng ) — nơi các thành viên cùng sở thích du lịch, lưu trú, làm việc từ xa và khám phá Việt Nam trực tiếp hỏi đáp, chia sẻ kinh nghiệm thực tế với nhau.`;
+
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS community_hub_settings (
+        workspace_id UUID PRIMARY KEY,
+        community_name VARCHAR(255) NOT NULL,
+        group_url TEXT NOT NULL,
+        page_name VARCHAR(255) NOT NULL,
+        page_url TEXT NOT NULL,
+        positioning TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    const saved = (
+      await this.pool.query<{
+        community_name: string;
+        group_url: string;
+        page_name: string;
+        page_url: string;
+        positioning: string;
+      }>('SELECT * FROM community_hub_settings WHERE workspace_id = $1', [workspaceId])
+    ).rows[0];
+
+    if (!saved) {
+      await this.pool.query(
+        `INSERT INTO community_hub_settings (workspace_id, community_name, group_url, page_name, page_url, positioning)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (workspace_id) DO NOTHING`,
+        [workspaceId, defaultCommunityName, defaultPageUrl, pageName, defaultPageUrl, defaultPositioning],
+      );
+      return {
+        community_name: defaultCommunityName,
+        group_url: defaultPageUrl,
+        page_name: pageName,
+        page_url: defaultPageUrl,
+        connected_fanpage_id: pageId,
+        positioning: defaultPositioning,
+      };
+    }
+
+    return {
+      community_name: saved.community_name,
+      group_url: saved.group_url,
+      page_name: saved.page_name || pageName,
+      page_url: saved.page_url || defaultPageUrl,
+      connected_fanpage_id: pageId,
+      positioning: saved.positioning,
+    };
+  }
+
+  async updateCommunitySettings(
+    workspaceId: string,
+    input: { community_name?: string; group_url?: string; positioning?: string },
+  ): Promise<CommunitySettings> {
+    const current = await this.getCommunitySettings(workspaceId);
+    const nextName = input.community_name?.trim() || current.community_name;
+    const nextGroupUrl = input.group_url?.trim() || current.group_url;
+    const nextPositioning = input.positioning?.trim() || current.positioning;
+
+    await this.pool.query(
+      `UPDATE community_hub_settings
+          SET community_name = $2,
+              group_url = $3,
+              positioning = $4,
+              updated_at = NOW()
+        WHERE workspace_id = $1`,
+      [workspaceId, nextName, nextGroupUrl, nextPositioning],
+    );
+
+    await this.pool.query(
+      `UPDATE community_hub_members
+          SET invite_group_url = $2,
+              updated_at = NOW()
+        WHERE workspace_id = $1`,
+      [workspaceId, nextGroupUrl],
+    );
+
+    return this.getCommunitySettings(workspaceId);
+  }
+
+  async ensureSchemaAndContext(workspaceId: string): Promise<CommunitySettings> {
+    const settings = await this.getCommunitySettings(workspaceId);
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS community_hub_members (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -286,7 +393,7 @@ export class CommunityHubService {
         affinity_score INT NOT NULL DEFAULT 90,
         campaign_week INT NOT NULL DEFAULT 1,
         status VARCHAR(32) NOT NULL DEFAULT 'auto_added',
-        invite_group_url TEXT NOT NULL DEFAULT 'https://www.facebook.com/groups/vietnamplaybook/',
+        invite_group_url TEXT NOT NULL DEFAULT '',
         recommended_topic TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -311,9 +418,28 @@ export class CommunityHubService {
       );
     `);
 
+    // Clean up any legacy references to the leader's external group URL so all members & threads belong strictly to the user's own community
+    await this.pool.query(
+      `UPDATE community_hub_members
+          SET invite_group_url = $2
+        WHERE workspace_id = $1 AND (invite_group_url LIKE '%vietnamplaybook%' OR invite_group_url = '')`,
+      [workspaceId, settings.group_url],
+    );
+
+    const legacyDiscussions = (
+      await this.pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM community_hub_discussions
+          WHERE workspace_id = $1 AND (title LIKE '%Vietnam Playbook%' OR author_name LIKE '%Playbook%' OR discussion_prompt LIKE '%vietnamplaybook%')`,
+        [workspaceId],
+      )
+    ).rows[0]?.n ?? 0;
+
+    if (legacyDiscussions > 0) {
+      await this.pool.query('DELETE FROM community_hub_discussions WHERE workspace_id = $1', [workspaceId]);
+    }
+
     const assets = getPlaybookImageAssets(workspaceId).map(({ topic_tags, ...rest }) => rest);
 
-    // Ensure business_profiles and knowledge_contexts have all 23 Playbook offers and 16 distinct images
     const profileRow = (
       await this.pool.query<{ products_services: string[]; version: number }>(
         'SELECT products_services, version FROM business_profiles WHERE workspace_id = $1',
@@ -334,30 +460,27 @@ export class CommunityHubService {
           workspaceId,
           PLAYBOOK_OFFERS,
           ['Vietnam', 'Da Nang', 'Hanoi', 'Ho Chi Minh City'],
-          ['Expats, digital nomads, remote workers, and founders living in or moving to Vietnam'],
-          'TripC.AI – Vietnam Playbook: the friendly help desk and interactive community for expats, digital nomads, remote workers, and founders living in or moving to Vietnam.',
+          ['Travelers, expats, digital nomads, and remote workers visiting or living in Vietnam'],
+          `${settings.community_name}: cộng đồng hỗ trợ du lịch, lưu trú, ẩm thực, di chuyển và kinh nghiệm sống thực tế tại Đà Nẵng & Việt Nam.`,
         ],
       );
     }
 
-    // Ensure active growth_goal does not lock focus_offers strictly to "visa" only
     const goalRow = (
       await this.pool.query<{ id: string; title: string }>(
         "SELECT id, title FROM growth_goals WHERE workspace_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1",
         [workspaceId],
       )
     ).rows[0];
-    if (goalRow && /\be-?visa\b/i.test(goalRow.title)) {
+    if (goalRow && (/\be-?visa\b/i.test(goalRow.title) || /Playbook/i.test(goalRow.title))) {
       await this.pool.query(
         `UPDATE growth_goals
-            SET title = 'Grow TripC.AI Vietnam Playbook interactive community and expat relocation guides across Vietnam'
+            SET title = 'Phát triển Cộng đồng Dịch vụ Hỗ trợ Du lịch tương tác 2 chiều và chuỗi bài cẩm nang du lịch, lưu trú tại Việt Nam'
           WHERE id = $1`,
         [goalRow.id],
       );
     }
 
-    // Update current knowledge_contexts snapshot in-place so active tasks don't fail STALE_CONTEXT
-    // while immediately gaining all 16 distinct images and all 23 Playbook offers
     const currentCtx = (
       await this.pool.query<{ snapshot_id: string; profile: Record<string, any>; goal: Record<string, any> | null; assets: unknown[] }>(
         'SELECT snapshot_id, profile, goal, assets FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
@@ -375,14 +498,14 @@ export class CommunityHubService {
           ...(currentCtx.profile ?? {}),
           products: PLAYBOOK_OFFERS,
           locations: ['Vietnam', 'Da Nang', 'Hanoi', 'Ho Chi Minh City'],
-          audiences: ['Expats, digital nomads, remote workers, and founders living in or moving to Vietnam'],
-          overview:
-            'TripC.AI – Vietnam Playbook: the friendly help desk and interactive community for expats, digital nomads, remote workers, and founders living in or moving to Vietnam.',
+          audiences: ['Travelers, expats, digital nomads, and remote workers visiting or living in Vietnam'],
+          overview: `${settings.community_name}: cộng đồng hỗ trợ du lịch, lưu trú, di chuyển và kinh nghiệm sống thực tế tại Việt Nam.`,
         };
         const updatedGoal = currentCtx.goal
           ? {
               ...currentCtx.goal,
-              objective: 'Grow TripC.AI Vietnam Playbook interactive community and expat relocation guides across Vietnam',
+              objective:
+                'Phát triển Cộng đồng Dịch vụ Hỗ trợ Du lịch tương tác 2 chiều và chuỗi bài cẩm nang du lịch, lưu trú tại Việt Nam',
               focus_offers: [],
             }
           : null;
@@ -398,7 +521,6 @@ export class CommunityHubService {
       }
     }
 
-    // Ensure trend_signals include diverse Vietnam Playbook queries in the latest discovery run
     const latestRun = (
       await this.pool.query<{ discovery_run_id: string; count: string }>(
         `SELECT discovery_run_id, count(*)::text AS count
@@ -432,11 +554,12 @@ export class CommunityHubService {
       }
     }
 
-    await this.seedInitialDiscussionsIfEmpty(workspaceId);
-    await this.syncMembersFromInteractions(workspaceId);
+    await this.seedInitialDiscussionsIfEmpty(workspaceId, settings);
+    await this.syncMembersFromInteractions(workspaceId, settings);
+    return settings;
   }
 
-  private async seedInitialDiscussionsIfEmpty(workspaceId: string): Promise<void> {
+  private async seedInitialDiscussionsIfEmpty(workspaceId: string, settings: CommunitySettings): Promise<void> {
     const count = (
       await this.pool.query<{ n: number }>('SELECT count(*)::int AS n FROM community_hub_discussions WHERE workspace_id = $1', [
         workspaceId,
@@ -447,107 +570,107 @@ export class CommunityHubService {
     const assets = getPlaybookImageAssets(workspaceId);
     const initialThreads = [
       {
-        category: 'Accommodation & Housing',
-        title: 'Where did you stay during your first 2 weeks in Da Nang / Vietnam before signing a long-term lease?',
-        author_name: 'Liam Carter (Digital Nomad • Moved to Da Nang)',
-        author_role: 'Founding Member • Week 1 Cohort',
-        body: 'Just landed in Da Nang! Following the Vietnam Playbook rule to book a short-term stay for the first 10–14 days so I can view apartments in person during daytime and after rain. Comparing My An (An Thuong) vs Son Tra right now.',
-        discussion_prompt: 'Which neighborhood did you pick after your first 2 weeks, and what was the #1 thing you checked before paying a deposit?',
+        category: 'Lưu trú & Kinh nghiệm Thuê chỗ ở',
+        title: 'Nên ở khu vực nào trong 2 tuần đầu tiên khi mới đến Đà Nẵng / Việt Nam trước khi thuê dài hạn?',
+        author_name: 'Liam Carter (Thành viên Cộng đồng • Đà Nẵng)',
+        author_role: 'Thành viên Hạt nhân • Tuần 1',
+        body: 'Mình vừa hạ cánh xuống Đà Nẵng! Theo kinh nghiệm được chia sẻ trong cộng đồng mình, mình đặt chỗ ở ngắn hạn 10–14 ngày đầu để trực tiếp đi xem phòng vào ban ngày và sau cơn mưa. Hiện mình đang phân vân giữa khu Mỹ An (An Thượng) và Sơn Trà.',
+        discussion_prompt: 'Các thành viên trong cộng đồng mình thường chọn khu vực nào sau 2 tuần đầu, và tiêu chí số #1 bạn kiểm tra trước khi đặt cọc thuê phòng là gì?',
         source_url: 'https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide',
         image_url: assets[6].url,
         participants_count: 8,
         replies: [
           {
-            author: 'Hannah Nguyen (Community Host • TripC Playbook)',
-            role: 'Community Host',
-            text: 'Welcome to Da Nang Liam! Make sure you check phone signal inside the bedroom, water pressure, and ask whether electricity is billed at the official EVN rate or a fixed landlord rate (3,500–4,000 VND/kWh).',
+            author: `Ban Quản Trị (${settings.page_name})`,
+            role: 'Quản trị viên Cộng đồng',
+            text: 'Chào mừng Liam! Khi đi xem phòng thực tế bạn nhớ kiểm tra sóng điện thoại trong phòng ngủ, áp lực nước, và hỏi rõ giá điện tính theo giá nhà nước (EVN) hay giá cố định của chủ nhà nhé.',
             created_at: new Date(Date.now() - 3600_000 * 5).toISOString(),
           },
           {
-            author: 'Marcus Weber (Remote Software Engineer)',
-            role: 'Member • Matched via Remote Work Trend',
-            text: 'I stayed 10 days near My Khe first, then rented in Son Tra. Definitely visit the street after 9 PM too — karaoke noise is something you only notice at night!',
+            author: 'Marcus Weber (Kỹ sư làm việc từ xa)',
+            role: 'Thành viên • Tự động gom theo xu hướng Remote Work',
+            text: 'Mình ở gần biển Mỹ Khê 10 ngày đầu rồi chuyển sang Sơn Trà. Bạn nên ghé xem con phố đó sau 9h tối nữa để kiểm tra xem có bị ồn bởi karaoke không nhé!',
             created_at: new Date(Date.now() - 3600_000 * 3).toISOString(),
           },
           {
-            author: 'Sofia Rossi (Founder • Ho Chi Minh City & Da Nang)',
-            role: 'Member • Week 1 Cohort',
-            text: 'Also confirm right away that the landlord registers your Temporary Residence (Khai báo tạm trú) with the ward police — you will need that confirmation if you open a bank account later.',
+            author: 'Sofia Rossi (Thành viên Cộng đồng)',
+            role: 'Thành viên Hạt nhân • Tuần 1',
+            text: 'Nhớ nhắc chủ nhà làm thủ tục Khai báo tạm trú (Temporary Residence Registration) ngay khi nhận phòng để thuận tiện cho mọi thủ tục về sau.',
             created_at: new Date(Date.now() - 3600_000 * 2).toISOString(),
           },
         ],
       },
       {
-        category: 'Remote Work & Connectivity',
-        title: 'Reliable Remote Work Setup in Vietnam: Fiber Wi-Fi + Which Local SIM/eSIM for Backup?',
+        category: 'Làm việc từ xa & Kết nối Internet',
+        title: 'Kinh nghiệm thiết lập góc làm việc từ xa ổn định tại Việt Nam: Wi-Fi cáp quang + SIM/eSIM dự phòng nào tốt nhất?',
         author_name: 'Elena Rostova (Product Designer • Remote Worker)',
-        author_role: 'Founding Member • Week 1 Cohort',
-        body: 'I have daily European afternoon video calls from Vietnam. Setting up my main apartment fiber + a hotspot backup in case a storm or undersea cable issue slows down international routes.',
-        discussion_prompt: 'Are you using Viettel, Vinaphone, or MobiFone for your 4G/5G hotspot backup, and what are your favorite quiet coworking spots?',
+        author_role: 'Thành viên Hạt nhân • Tuần 1',
+        body: 'Mình có lịch họp video hàng ngày nên cần đường truyền thật ổn định. Mình đang kết hợp mạng cáp quang tại căn hộ và 1 gói 4G/5G dự phòng trên điện thoại.',
+        discussion_prompt: 'Mọi người trong cộng đồng mình đang dùng Viettel, Vinaphone hay MobiFone để phát 4G/5G dự phòng, và quán cafe / coworking nào ở Đà Nẵng yên tĩnh nhất?',
         source_url: 'https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide',
         image_url: assets[1].url,
         participants_count: 7,
         replies: [
           {
-            author: 'David Kim (SaaS Founder • Da Nang)',
-            role: 'Member • Matched via Coworking Trend',
-            text: 'Viettel local SIM registered with my passport at an official Viettel store has been rock solid everywhere from Da Nang to Ha Giang.',
+            author: 'David Kim (Thành viên Cộng đồng • Đà Nẵng)',
+            role: 'Thành viên • Tự động gom theo xu hướng Coworking',
+            text: 'Mình đăng ký SIM vật lý Viettel chính chủ bằng hộ chiếu tại cửa hàng Viettel, sóng 4G/5G cực kỳ ổn định cả ở Đà Nẵng lẫn khi đi du lịch các tỉnh.',
             created_at: new Date(Date.now() - 3600_000 * 8).toISOString(),
           },
           {
-            author: 'Hannah Nguyen (Community Host • TripC Playbook)',
-            role: 'Community Host',
-            text: 'Tip from the Playbook: an airport eSIM is great for landing Day 1 (Grab + Google Maps), then switch to a passport-registered Viettel/Vinaphone SIM if you stay longer than 30 days!',
+            author: `Ban Quản Trị (${settings.page_name})`,
+            role: 'Quản trị viên Cộng đồng',
+            text: 'Mẹo nhỏ cho các thành viên mới: bạn có thể dùng eSIM ngay khi vừa hạ cánh ở sân bay để đặt Grab về khách sạn, sau đó nếu ở trên 1 tháng thì đổi sang SIM Viettel/Vinaphone đăng ký chính chủ nhé!',
             created_at: new Date(Date.now() - 3600_000 * 6).toISOString(),
           },
         ],
       },
       {
-        category: 'Banking, VietQR & Daily Life',
-        title: '2026 Reality Check: How are 90-day E-Visa nomads handling VietQR payments vs Local Bank Accounts?',
-        author_name: 'Noah Vance (Remote Consultant)',
-        author_role: 'Member • Week 2 Cohort',
-        body: 'Every local coffee shop, market stall, and landlord uses VietQR now. Since Circular 17/2024 tightened bank rules for short-term visas, what is working best for everyone day-to-day?',
-        discussion_prompt: 'Share your setup: multi-currency card (Wise/Revolut) + low-fee ATMs, or did you open a local account with a TRC/Work Permit?',
+        category: 'Thanh toán, Ngân hàng & Chi phí Sống',
+        title: 'Chia sẻ kinh nghiệm thanh toán VietQR, rút tiền ATM và dự toán chi phí du lịch / sinh hoạt mỗi ngày năm 2026',
+        author_name: 'Noah Vance (Chuyên gia Tư vấn • Đà Nẵng)',
+        author_role: 'Thành viên • Chiến dịch Tuần 2',
+        body: 'Hiện tại hầu hết quán ăn, cafe và siêu thị tại Việt Nam đều quét mã VietQR. Mình muốn lập chủ đề này để anh chị em trong cộng đồng chia sẻ cách thanh toán tiện và tiết kiệm phí nhất.',
+        discussion_prompt: 'Bạn đang kết hợp thẻ quốc tế (Wise/Revolut) + ATM miễn phí rút, hay đã mở tài khoản ngân hàng nội địa? Chi phí trung bình mỗi ngày của bạn khoảng bao nhiêu?',
         source_url: 'https://tripc.ai/blog/open-bank-account-vietnam-foreigner-guide',
         image_url: assets[3].url,
         participants_count: 9,
         replies: [
           {
-            author: 'Chloe Dubois (Expat Teacher • Hanoi)',
-            role: 'Member • Matched via Banking Trend',
-            text: 'With my Work Permit + TRC, Timo and Vietcombank opened smoothly, plus you must complete biometric face verification for transfers above 10M VND.',
+            author: 'Chloe Dubois (Thành viên Cộng đồng • Hà Nội)',
+            role: 'Thành viên • Tự động gom theo xu hướng Ngân hàng & Chi phí',
+            text: 'Nếu có giấy phép lao động / thẻ tạm trú thì mở Vietcombank hoặc Timo rất nhanh, chỉ cần xác thực sinh trắc học khuôn mặt trên app là chuyển khoản VietQR thoải mái.',
             created_at: new Date(Date.now() - 3600_000 * 12).toISOString(),
           },
           {
-            author: 'Liam Carter (Digital Nomad • Moved to Da Nang)',
-            role: 'Founding Member • Week 1 Cohort',
-            text: 'On a 90-day e-visa, carrying two foreign cards (Wise + backup Visa) and grabbing cash at VPBank/TPBank ATMs + linking card on Grab/Xanh SM covers 95% of daily expenses.',
+            author: 'Liam Carter (Thành viên Cộng đồng • Đà Nẵng)',
+            role: 'Thành viên Hạt nhân • Tuần 1',
+            text: 'Với khách du lịch 30–90 ngày thì mang theo 2 thẻ quốc tế + rút tiền mặt tại cây ATM VPBank/TPBank và liên kết thẻ vào ứng dụng Grab là đáp ứng được 95% nhu cầu.',
             created_at: new Date(Date.now() - 3600_000 * 10).toISOString(),
           },
         ],
       },
       {
-        category: 'Community Icebreaker & Weekly Meetup',
-        title: '[Weekly Thread] New to Vietnam Playbook? Introduce yourself, your city (Da Nang / Hanoi / HCMC) & what you are working on!',
-        author_name: 'TripC.AI - Viet Nam Playbook Host',
-        author_role: 'Official Community Host',
-        body: 'Welcome to Vietnam Playbook – the friendly help desk & interactive community for expats, digital nomads, remote workers, and founders in Vietnam! Drop a comment below so we can connect you with members sharing the same interests.',
-        discussion_prompt: '1) Where are you based or moving to? 2) What are you building/working on? 3) What is your #1 question about living or traveling in Vietnam this week?',
-        source_url: 'https://tripc.ai/blog/essential-apps-for-living-in-vietnam',
+        category: 'Giao lưu Thành viên Mới & Kết nối Cộng đồng',
+        title: `[Chủ đề Gắn kết Tuần] Chào mừng thành viên mới của ${settings.community_name}! Hãy giới thiệu bản thân & điểm đến của bạn nhé!`,
+        author_name: `Ban Quản Trị (${settings.page_name})`,
+        author_role: 'Quản trị viên Cộng đồng',
+        body: `Chào mừng bạn đến với ${settings.community_name} — không gian thảo luận 2 chiều dành cho những người yêu thích du lịch, khám phá và sinh sống tại Việt Nam! Hãy để lại bình luận bên dưới để kết nối với các thành viên có cùng mối quan tâm nhé.`,
+        discussion_prompt: '1) Bạn đang ở thành phố nào (hoặc sắp đi du lịch ở đâu)? 2) Mối quan tâm lớn nhất của bạn tuần này là gì (Lịch trình, Chỗ ở, Ẩm thực, Di chuyển hay Thủ tục)?',
+        source_url: settings.group_url,
         image_url: assets[11].url,
         participants_count: 14,
         replies: [
           {
-            author: ' Duong Thieu Quang (Traveler & Community Member)',
-            role: 'Member • Matched via Messenger Travel Inquiry',
+            author: 'Duong Thieu Quang (Thành viên Cộng đồng)',
+            role: 'Thành viên • Tự động kết nối từ Messenger Fanpage',
             text: 'Mình đang tìm hiểu lịch trình du lịch và kinh nghiệm di chuyển, lưu trú tại Đà Nẵng & Việt Nam!',
             created_at: new Date(Date.now() - 1800_000).toISOString(),
           },
           {
-            author: 'Hannah Nguyen (Community Host • TripC Playbook)',
-            role: 'Community Host',
-            text: 'Chào mừng bạn vào cộng đồng Vietnam Playbook! Mình đã gắn thẻ xu hướng Travel & Arrival để gợi ý các bài hướng dẫn sân bay, tàu/xe và chi phí du lịch mỗi ngày cho bạn nhé.',
+            author: `Ban Quản Trị (${settings.page_name})`,
+            role: 'Quản trị viên Cộng đồng',
+            text: `Chào mừng bạn gia nhập ${settings.community_name}! Hệ thống đã tự động gắn thẻ xu hướng Du lịch & Lưu trú để kết nối bạn với các thành viên và bài cẩm nang phù hợp nhất nhé.`,
             created_at: new Date(Date.now() - 1200_000).toISOString(),
           },
         ],
@@ -576,7 +699,8 @@ export class CommunityHubService {
     }
   }
 
-  async syncMembersFromInteractions(workspaceId: string): Promise<number> {
+  async syncMembersFromInteractions(workspaceId: string, settings?: CommunitySettings): Promise<number> {
+    const resolvedSettings = settings ?? (await this.getCommunitySettings(workspaceId));
     let addedCount = 0;
 
     // 1. Scan real community_messages (Messenger / Telegram / Facebook comments)
@@ -612,16 +736,17 @@ export class CommunityHubService {
         m.author_name && !/^user-\d+$/i.test(m.author_name)
           ? m.author_name
           : m.author_id
-            ? `Facebook Member #${m.author_id.slice(-4)} (Messenger)`
-            : 'Facebook Community Visitor';
+            ? `Khách tương tác Fanpage #${m.author_id.slice(-4)} (Messenger)`
+            : 'Khách tương tác Fanpage';
       const res = await this.pool.query(
         `INSERT INTO community_hub_members
-           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, recommended_topic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1, 'auto_added', $9)
+           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1, 'auto_added', $9, $10)
          ON CONFLICT (workspace_id, external_ref) DO UPDATE SET
            matched_signal = EXCLUDED.matched_signal,
            matched_trend = EXCLUDED.matched_trend,
            interest_tags = EXCLUDED.interest_tags,
+           invite_group_url = EXCLUDED.invite_group_url,
            affinity_score = GREATEST(community_hub_members.affinity_score, EXCLUDED.affinity_score),
            updated_at = NOW()`,
         [
@@ -633,6 +758,7 @@ export class CommunityHubService {
           match.matched_trend,
           JSON.stringify(match.interest_tags),
           match.affinity_score,
+          resolvedSettings.group_url,
           match.recommended_playbook_topic,
         ],
       );
@@ -658,35 +784,38 @@ export class CommunityHubService {
 
     for (const l of leadRows) {
       const ref = `lead:${l.id}`;
-      const match = classifyMemberInterests(l.interest_topic || 'Vietnam Playbook relocation');
+      const match = classifyMemberInterests(l.interest_topic || 'Du lịch & Lưu trú Việt Nam');
       await this.pool.query(
         `INSERT INTO community_hub_members
-           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, recommended_topic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1, 'auto_added', $9)
-         ON CONFLICT (workspace_id, external_ref) DO NOTHING`,
+           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1, 'auto_added', $9, $10)
+         ON CONFLICT (workspace_id, external_ref) DO UPDATE SET
+           invite_group_url = EXCLUDED.invite_group_url,
+           updated_at = NOW()`,
         [
           workspaceId,
           ref,
-          l.name || 'Website Playbook Reader',
+          l.name || 'Độc giả Website của bạn',
           l.utm_source || 'website_lead',
-          l.interest_topic || 'Vietnam relocation checklist',
+          l.interest_topic || 'Tư vấn du lịch & lưu trú Việt Nam',
           match.matched_trend,
           JSON.stringify(match.interest_tags),
           match.affinity_score,
+          resolvedSettings.group_url,
           match.recommended_playbook_topic,
         ],
       );
     }
 
-    // 3. Ensure Week 1 Founding Cohort (5/5 target) & Week 2 Expat/Nomad Cohort prospects are populated
+    // 3. Ensure Week 1 Founding Cohort (5/5 target) & Week 2 Cohort prospects for the user's own community
     const curatedMembers = [
       {
         external_ref: 'cohort1:liam-carter',
-        display_name: 'Liam Carter (Digital Nomad • UK → Da Nang)',
-        channel: 'facebook_group_match',
-        matched_signal: 'Asked about 2-week short-term stay in My An vs Son Tra before signing a 6-month apartment lease',
-        matched_trend: 'Long-Term Rentals & Apartment Viewing in Da Nang',
-        interest_tags: ['Expat Housing', 'First 2 Weeks Stay', 'Da Nang Neighborhoods'],
+        display_name: 'Liam Carter (Digital Nomad • Đà Nẵng)',
+        channel: 'fanpage_auto_match',
+        matched_signal: 'Quan tâm chỗ ở ngắn hạn 2 tuần đầu tại Mỹ An vs Sơn Trà trước khi thuê căn hộ dài hạn',
+        matched_trend: 'Tìm chỗ ở & Kinh nghiệm thuê căn hộ tại Đà Nẵng / Việt Nam',
+        interest_tags: ['Thuê căn hộ', 'Chỗ ở 2 tuần đầu', 'Khu vực Đà Nẵng'],
         affinity_score: 98,
         campaign_week: 1,
         status: 'auto_added',
@@ -694,11 +823,11 @@ export class CommunityHubService {
       },
       {
         external_ref: 'cohort1:elena-rostova',
-        display_name: 'Elena Rostova (Remote Product Designer • Estonia → Da Nang)',
-        channel: 'facebook_group_match',
-        matched_signal: 'Looking for fiber Wi-Fi apartments, quiet coworking cafes, and Viettel eSIM backup for video calls',
-        matched_trend: 'Remote Work Setup & Coworking in Vietnam',
-        interest_tags: ['Digital Nomad', 'Remote Work Setup', 'eSIM & Connectivity'],
+        display_name: 'Elena Rostova (Remote Designer • Đà Nẵng)',
+        channel: 'fanpage_auto_match',
+        matched_signal: 'Tìm căn hộ có Wi-Fi cáp quang ổn định, quán cafe làm việc yên tĩnh và eSIM Viettel dự phòng',
+        matched_trend: 'Làm việc từ xa, Coworking & SIM/eSIM tại Việt Nam',
+        interest_tags: ['Làm việc từ xa', 'Coworking Cafe', 'eSIM & Kết nối'],
         affinity_score: 97,
         campaign_week: 1,
         status: 'auto_added',
@@ -706,11 +835,11 @@ export class CommunityHubService {
       },
       {
         external_ref: 'cohort1:marcus-weber',
-        display_name: 'Marcus Weber (Software Engineer • Germany → Vietnam)',
-        channel: 'facebook_page_comment',
-        matched_signal: 'Comparing 45-day visa-free entry vs 90-day multiple-entry Vietnam E-Visa on evisa.gov.vn',
-        matched_trend: 'Official E-Visa & 90-Day Entry Compliance',
-        interest_tags: ['Vietnam E-Visa', '90-Day Stay', 'Airport Entry'],
+        display_name: 'Marcus Weber (Kỹ sư Phần mềm • Du lịch Việt Nam)',
+        channel: 'fanpage_comment',
+        matched_signal: 'So sánh miễn thị thực 45 ngày và E-Visa 90 ngày nhiều lần nhập cảnh trên cổng chính thức',
+        matched_trend: 'Hướng dẫn E-Visa & Thủ tục nhập cảnh Việt Nam',
+        interest_tags: ['Thủ tục E-Visa', 'Lưu trú 90 ngày', 'Sân bay quốc tế'],
         affinity_score: 96,
         campaign_week: 1,
         status: 'auto_added',
@@ -718,11 +847,11 @@ export class CommunityHubService {
       },
       {
         external_ref: 'cohort1:sofia-rossi',
-        display_name: 'Sofia Rossi (Startup Founder • Italy → Ho Chi Minh City & Da Nang)',
-        channel: 'facebook_group_match',
-        matched_signal: 'Needs Temporary Residence Registration (Khai báo tạm trú) and international health insurance comparison',
-        matched_trend: 'Settling In: Residence Registration & Healthcare',
-        interest_tags: ['Temporary Residence', 'Health Insurance', 'Founder Network'],
+        display_name: 'Sofia Rossi (Founder • TP.HCM & Đà Nẵng)',
+        channel: 'fanpage_auto_match',
+        matched_signal: 'Cần hướng dẫn đăng ký tạm trú (Khai báo tạm trú) và so sánh bảo hiểm sức khỏe khi sống tại Việt Nam',
+        matched_trend: 'Đăng ký Tạm trú & Bảo hiểm Y tế tại Việt Nam',
+        interest_tags: ['Đăng ký tạm trú', 'Bảo hiểm y tế', 'Kinh nghiệm sống'],
         affinity_score: 95,
         campaign_week: 1,
         status: 'auto_added',
@@ -730,11 +859,11 @@ export class CommunityHubService {
       },
       {
         external_ref: 'cohort2:noah-vance',
-        display_name: 'Noah Vance (Remote Consultant • Canada → Da Nang)',
+        display_name: 'Noah Vance (Remote Consultant • Đà Nẵng)',
         channel: 'trend_auto_match',
-        matched_signal: 'Searching for how foreigners use VietQR, Timo/Vietcombank, and low-fee ATMs in Vietnam in 2026',
-        matched_trend: 'Expat Banking, VietQR & Daily Budget',
-        interest_tags: ['Banking & VietQR', 'Daily Budget', 'Cost of Living'],
+        matched_signal: 'Tìm hiểu cách thanh toán VietQR, mở tài khoản ngân hàng và rút ATM tiết kiệm phí năm 2026',
+        matched_trend: 'Chi phí du lịch, Thanh toán VietQR & Ngân hàng tại Việt Nam',
+        interest_tags: ['Thanh toán VietQR', 'Ngân hàng', 'Chi phí sinh hoạt'],
         affinity_score: 94,
         campaign_week: 2,
         status: 'auto_added',
@@ -742,11 +871,11 @@ export class CommunityHubService {
       },
       {
         external_ref: 'cohort2:chloe-dubois',
-        display_name: 'Chloe Dubois (Expat Family • France → Hanoi)',
+        display_name: 'Chloe Dubois (Gia đình Du lịch & Cư trú • Hà Nội)',
         channel: 'trend_auto_match',
-        matched_signal: 'Relocating with 2 children: researching separate child E-Visa applications, supermarkets & pediatric clinics',
-        matched_trend: 'Expat Families, E-Visa for Children & Grocery Guide',
-        interest_tags: ['Family Relocation', 'E-Visa for Children', 'Grocery & Supermarkets'],
+        matched_signal: 'Đi cùng 2 con nhỏ: tìm hiểu hồ sơ E-Visa riêng cho trẻ em, siêu thị và phòng khám quốc tế',
+        matched_trend: 'Du lịch Gia đình, Siêu thị & Chăm sóc Y tế',
+        interest_tags: ['Du lịch Gia đình', 'E-Visa cho trẻ em', 'Siêu thị & Mua sắm'],
         affinity_score: 95,
         campaign_week: 2,
         status: 'auto_added',
@@ -754,11 +883,11 @@ export class CommunityHubService {
       },
       {
         external_ref: 'cohort2:david-kim',
-        display_name: 'David Kim (SaaS Founder • Seoul → Da Nang)',
+        display_name: 'David Kim (Khách Du lịch Dài ngày • Đà Nẵng)',
         channel: 'trend_auto_match',
-        matched_signal: 'Interested in Da Nang vs Hanoi vs HCMC flight connections, Grab/Xanh SM apps, and founder meetups',
-        matched_trend: 'Essential Apps, Domestic Flights & Founder Community',
-        interest_tags: ['Essential Apps', 'Airport & Flights', 'Founder Meetup'],
+        matched_signal: 'Quan tâm đường bay Đà Nẵng / Hà Nội / TP.HCM, các ứng dụng Grab/Xanh SM và giao lưu cộng đồng',
+        matched_trend: 'Ứng dụng Thiết yếu, Chuyến bay & Giao lưu Cộng đồng',
+        interest_tags: ['Ứng dụng thiết yếu', 'Sân bay & Chuyến bay', 'Giao lưu Cộng đồng'],
         affinity_score: 93,
         campaign_week: 2,
         status: 'auto_added',
@@ -766,11 +895,11 @@ export class CommunityHubService {
       },
       {
         external_ref: 'cohort2:hannah-miller',
-        display_name: 'Hannah Miller (Slow Traveler & Writer • Australia → Hoi An / Da Nang)',
+        display_name: 'Hannah Miller (Travel Blogger • Hội An & Đà Nẵng)',
         channel: 'trend_auto_match',
-        matched_signal: 'Planning north-to-south train vs domestic flight route and daily comfort travel budget ($60–$100/day)',
-        matched_trend: 'Domestic Train/Flight Transport & Daily Budget',
-        interest_tags: ['Train & Flight Guide', 'Daily Travel Budget', 'Best Time to Visit'],
+        matched_signal: 'Lên kế hoạch đi tàu hỏa xuyên Việt kết hợp máy bay nội địa và ngân sách du lịch thoải mái mỗi ngày',
+        matched_trend: 'Di chuyển Tàu hỏa / Máy bay & Ngân sách Du lịch Mỗi ngày',
+        interest_tags: ['Tàu hỏa & Máy bay', 'Ngân sách mỗi ngày', 'Thời điểm đẹp nhất'],
         affinity_score: 92,
         campaign_week: 2,
         status: 'invited',
@@ -781,9 +910,15 @@ export class CommunityHubService {
     for (const member of curatedMembers) {
       await this.pool.query(
         `INSERT INTO community_hub_members
-           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, recommended_topic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11)
-         ON CONFLICT (workspace_id, external_ref) DO NOTHING`,
+           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12)
+         ON CONFLICT (workspace_id, external_ref) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           matched_signal = EXCLUDED.matched_signal,
+           matched_trend = EXCLUDED.matched_trend,
+           interest_tags = EXCLUDED.interest_tags,
+           invite_group_url = EXCLUDED.invite_group_url,
+           updated_at = NOW()`,
         [
           workspaceId,
           member.external_ref,
@@ -795,6 +930,7 @@ export class CommunityHubService {
           member.affinity_score,
           member.campaign_week,
           member.status,
+          resolvedSettings.group_url,
           member.recommended_topic,
         ],
       );
@@ -804,7 +940,7 @@ export class CommunityHubService {
   }
 
   async getHubData(workspaceId: string) {
-    await this.ensureSchemaAndContext(workspaceId);
+    const settings = await this.ensureSchemaAndContext(workspaceId);
 
     const members = (
       await this.pool.query<{
@@ -856,7 +992,6 @@ export class CommunityHubService {
       )
     ).rows;
 
-    // Fetch all approved first-party Vietnam Playbook sources
     const sources = (
       await this.pool.query<{
         id: string;
@@ -873,7 +1008,6 @@ export class CommunityHubService {
       )
     ).rows;
 
-    // Deduplicate sources by normalized title
     const uniqueSources: typeof sources = [];
     const seenSourceTitles = new Set<string>();
     for (const s of sources) {
@@ -885,7 +1019,6 @@ export class CommunityHubService {
       }
     }
 
-    // Fetch already published blog posts and SEO artifacts to track topic & image freshness
     const publishedArticles = (
       await this.pool.query<{
         id: string;
@@ -908,8 +1041,6 @@ export class CommunityHubService {
     const usedSourceIds = new Set(publishedArticles.map((a) => a.source_id).filter(Boolean) as string[]);
     const allAssets = getPlaybookImageAssets(workspaceId);
 
-    // Order calendar slots so fresh (unpublished) Playbook topics appear prominently alongside published ones,
-    // with 100% unique topic and 100% unique image per day!
     const freshSources = uniqueSources.filter((s) => !usedSourceIds.has(s.id));
     const coveredSources = uniqueSources.filter((s) => usedSourceIds.has(s.id));
     const orderedSources = [...freshSources, ...coveredSources];
@@ -949,7 +1080,7 @@ export class CommunityHubService {
         image_attribution: matchedAsset.attribution,
         target_trend: matchInfo.matched_trend,
         interest_tags: matchInfo.interest_tags,
-        community_discussion_hook: `Thảo luận 2 chiều trong Group Vietnam Playbook: Kinh nghiệm thực tế của bạn về "${source.title}" là gì? Chia sẻ dưới phần bình luận nhé!`,
+        community_discussion_hook: `Thảo luận 2 chiều tại ${settings.community_name}: Kinh nghiệm thực tế của bạn về "${source.title}" là gì? Cùng chia sẻ dưới phần bình luận nhé!`,
         status: publishedMatch ? 'published' : 'ready_to_publish',
         published_slug: publishedMatch?.slug ?? null,
         published_at: publishedMatch?.published_at ?? null,
@@ -965,56 +1096,56 @@ export class CommunityHubService {
     const weeklyCampaigns = [
       {
         week: 1,
-        title: 'Tuần 1: Xây dựng Hạt nhân Cộng đồng (Founding 5 Members)',
+        title: 'Tuần 1: Xây dựng Hạt nhân Cộng đồng của Riêng Bạn (Mục tiêu: 5 Thành viên)',
         target_members: 5,
         current_members: week1Count,
         status: 'completed_target',
-        theme: 'New Arrivals, First 2 Weeks Accommodation & Official E-Visa Playbook',
-        target_trends: ['First 2 Weeks Stay', 'Expat Housing', 'Remote Work Setup', 'Vietnam Travel & Arrival'],
+        theme: 'Đón người mới đến, Kinh nghiệm chọn chỗ ở 2 tuần đầu & Thủ tục nhập cảnh',
+        target_trends: ['Chỗ ở 2 tuần đầu', 'Thuê căn hộ', 'Làm việc từ xa', 'Lịch trình Du lịch'],
         tactics: [
-          'Tự động quét người nhắn tin Fanpage / bình luận hỏi về du lịch, chỗ ở 2 tuần đầu, E-Visa và mời thẳng vào Group Vietnam Playbook',
-          'Đăng 7 bài Playbook nền tảng (mỗi ngày 1 chủ đề mới + 1 hình ảnh riêng biệt, tuyệt đối không trùng lặp)',
-          'Kích hoạt thảo luận 2 chiều bằng chuỗi bài Icebreaker để 5 thành viên hạt nhân tương tác trực tiếp với nhau',
+          `Tự động quét người nhắn tin trên Fanpage "${settings.page_name}" / bình luận hỏi về du lịch, chỗ ở 2 tuần đầu và mời thẳng vào Cộng đồng riêng của bạn`,
+          'Đăng 7 bài cẩm nang nền tảng (mỗi ngày 1 chủ đề mới + 1 hình ảnh riêng biệt, tuyệt đối không trùng lặp)',
+          'Kích hoạt thảo luận 2 chiều bằng bài chào mừng thành viên mới để 5 thành viên hạt nhân tương tác trực tiếp với nhau',
         ],
       },
       {
         week: 2,
-        title: 'Tuần 2: Mở rộng Nhóm Expats & Digital Nomads Cùng Xu hướng (Target: 50 Thành viên)',
+        title: 'Tuần 2: Mở rộng Nhóm Thành viên Cùng Xu hướng vào Cộng đồng của Bạn (Mục tiêu: 50 Thành viên)',
         target_members: 50,
         current_members: totalMatchedCount,
         status: 'active_campaign',
-        theme: 'Apartment Viewing Checklist, Working Remotely Setup, eSIM & Banking/VietQR',
-        target_trends: ['Apartment Checklist', 'Coworking & Fiber Wi-Fi', 'eSIM vs Local SIM', 'Banking & VietQR'],
+        theme: 'Checklist Xem căn hộ, Góc làm việc từ xa, eSIM/SIM & Thanh toán VietQR',
+        target_trends: ['Checklist thuê nhà', 'Coworking & Wi-Fi', 'eSIM vs SIM vật lý', 'Thanh toán VietQR'],
         tactics: [
-          'Auto-Match Engine tự động phân loại khách hàng theo xu hướng (Thuê căn hộ, Remote Work, Ngân hàng/VietQR, Gia đình Expat) và tự động gom vào danh sách mời Group',
-          'Mỗi bài đăng trên Fanpage đều gắn câu hỏi mở 2 chiều + link mời trực tiếp vào Group Vietnam Playbook (https://www.facebook.com/groups/vietnamplaybook/)',
-          'Tổ chức 3 chủ đề thảo luận so sánh thực tế giữa các thành viên (My An vs Son Tra, Viettel vs Vinaphone, Wise vs Local Bank)',
+          `Auto-Match Engine tự động phân loại khách hàng theo xu hướng (Thuê căn hộ, Remote Work, Thanh toán/VietQR, Du lịch gia đình) và tự động gom vào "${settings.community_name}"`,
+          `Mỗi bài đăng trên Fanpage "${settings.page_name}" đều gắn câu hỏi mở 2 chiều + lời mời tham gia trực tiếp vào Cộng đồng riêng của bạn`,
+          'Tổ chức 3 chủ đề thảo luận so sánh thực tế giữa các thành viên (Mỹ An vs Sơn Trà, Viettel vs Vinaphone, Thẻ quốc tế vs VietQR)',
         ],
       },
       {
         week: 3,
-        title: 'Tuần 3: Tăng tốc Tương tác Đời sống Địa phương (Target: 150 Thành viên)',
+        title: 'Tuần 3: Tăng tốc Tương tác Đời sống Địa phương (Mục tiêu: 150 Thành viên)',
         target_members: 150,
         current_members: totalMatchedCount,
         status: 'scheduled',
-        theme: 'Health Insurance, Temporary Residence Registration, Grocery & Scam Prevention',
-        target_trends: ['Temporary Residence (Khai báo tạm trú)', 'Health Insurance', 'Supermarkets & Local Markets', 'Safety & Emergency Contacts'],
+        theme: 'Bảo hiểm Y tế, Đăng ký Tạm trú, Đi chợ/Siêu thị & Phòng tránh Rủi ro',
+        target_trends: ['Khai báo tạm trú', 'Bảo hiểm sức khỏe', 'Siêu thị & Chợ địa phương', 'An toàn & Liên hệ khẩn cấp'],
         tactics: [
-          'Kết nối thành viên đã sống lâu năm tại Đà Nẵng / Hà Nội / TP.HCM giải đáp cho thành viên mới chuyển đến',
-          'Chuỗi bài thực chiến: Cách đọc địa chỉ ngõ/hẻm Việt Nam, đăng ký tạm trú với chủ nhà và chọn bảo hiểm y tế',
+          'Kết nối các thành viên đã có kinh nghiệm tại Đà Nẵng / Hà Nội / TP.HCM giải đáp trực tiếp cho thành viên mới',
+          'Chuỗi bài thực chiến: Cách tìm địa chỉ ngõ/hẻm Việt Nam, đăng ký tạm trú với chủ nhà và chọn bảo hiểm y tế',
         ],
       },
       {
         week: 4,
-        title: 'Tuần 4: Cộng đồng Tự vận hành & Founder/Nomad Meetups (Target: 300 Thành viên)',
+        title: 'Tuần 4: Cộng đồng Tự vận hành & Sự kiện Kết nối Thành viên (Mục tiêu: 300 Thành viên)',
         target_members: 300,
         current_members: totalMatchedCount,
         status: 'scheduled',
-        theme: 'Founders & Long-Term Settlers, Domestic Travel Routes & Monthly Community Poll',
-        target_trends: ['Founder & Remote Worker Meetups', 'North-to-South Train/Flight Routes', 'Daily Budget Optimization'],
+        theme: 'Kết nối Thành viên Dài hạn, Tuyến Du lịch Tàu/Bay & Bình chọn Chủ đề Tháng mới',
+        target_trends: ['Offline/Online Meetup', 'Tuyến Tàu hỏa / Máy bay nội địa', 'Tối ưu Chi phí mỗi ngày'],
         tactics: [
-          'Bình chọn chủ đề (Community Poll) cho tháng tiếp theo do chính các thành viên đề xuất',
-          'Tổng kết Top thành viên đóng góp tích cực và mở rộng vòng kết nối Offline/Online tại Đà Nẵng',
+          'Bình chọn chủ đề (Community Poll) cho tháng tiếp theo do chính các thành viên trong cộng đồng của bạn đề xuất',
+          'Tổng kết Top thành viên đóng góp tích cực và mở rộng mạng lưới kết nối tại Đà Nẵng & Việt Nam',
         ],
       },
     ];
@@ -1023,84 +1154,83 @@ export class CommunityHubService {
       {
         week_number: 1,
         week_label: 'Tuần 1 (Ngày 1 – Ngày 7)',
-        member_target: 'Thu hút 5 thành viên hạt nhân (Founding Members)',
-        pillar_theme: 'Arrival & First 2 Weeks Survival Kit in Vietnam',
+        member_target: 'Thu hút 5 thành viên hạt nhân đầu tiên vào cộng đồng của bạn',
+        pillar_theme: 'Cẩm nang Hạ cánh & 2 Tuần Đầu tiên tại Việt Nam',
         planned_topics: orderedSources.slice(0, 6).map((s) => s.title),
-        interactive_format: 'Icebreaker Thread + Hỏi đáp chọn khu vực ở 2 tuần đầu (My An vs Son Tra vs Tay Ho)',
+        interactive_format: 'Bài Chào mừng Thành viên mới + Thảo luận chọn khu vực lưu trú 2 tuần đầu',
       },
       {
         week_number: 2,
         week_label: 'Tuần 2 (Ngày 8 – Ngày 14)',
-        member_target: 'Mở rộng lên 50 thành viên cùng xu hướng (Expats & Digital Nomads)',
-        pillar_theme: 'Long-Term Apartment Viewing, Remote Work Setup & Connectivity',
+        member_target: 'Mở rộng lên 50 thành viên cùng xu hướng (Du lịch dài ngày & Remote Work)',
+        pillar_theme: 'Checklist Xem Căn hộ, Góc Làm việc Từ xa & Kết nối SIM/eSIM',
         planned_topics: orderedSources.slice(6, 12).map((s) => s.title),
-        interactive_format: 'Checklist chia sẻ kinh nghiệm thuê căn hộ thực tế + Bình chọn nhà mạng eSIM/SIM & Coworking',
+        interactive_format: 'Chia sẻ kinh nghiệm thuê nhà thực tế + Bình chọn nhà mạng eSIM/SIM & Quán cafe làm việc',
       },
       {
         week_number: 3,
         week_label: 'Tuần 3 (Ngày 15 – Ngày 21)',
-        member_target: 'Mở rộng lên 150 thành viên (Settling In & Local Living)',
-        pillar_theme: 'Banking/VietQR, Temporary Residence, Healthcare & Daily Groceries',
+        member_target: 'Mở rộng lên 150 thành viên (Ổn định cuộc sống & Tiện ích địa phương)',
+        pillar_theme: 'Thanh toán VietQR, Đăng ký Tạm trú, Bảo hiểm Y tế & Mua sắm Hàng ngày',
         planned_topics: orderedSources.slice(12, 17).map((s) => s.title),
-        interactive_format: 'AMA (Ask Me Anything) cùng thành viên lâu năm về VietQR, Bảo hiểm & Đăng ký tạm trú',
+        interactive_format: 'Hỏi - Đáp 2 chiều cùng thành viên có kinh nghiệm về VietQR, Bảo hiểm & Tạm trú',
       },
       {
         week_number: 4,
         week_label: 'Tuần 4 (Ngày 22 – Ngày 30)',
-        member_target: 'Đạt mốc 300 thành viên & Kết nối Founders / Slow Travelers',
-        pillar_theme: 'Family Relocation, Domestic Train/Flight Travel & Budget Optimization',
+        member_target: 'Đạt mốc 300 thành viên & Kết nối Cộng đồng Bền vững',
+        pillar_theme: 'Du lịch Gia đình, Phương tiện Tàu hỏa/Máy bay & Tối ưu Ngân sách Mỗi ngày',
         planned_topics: orderedSources.slice(17, 22).map((s) => s.title),
-        interactive_format: 'Monthly Community Meetup Thread + Chia sẻ lịch trình tàu hỏa/máy bay xuyên Việt',
+        interactive_format: 'Bình chọn Cộng đồng hàng tháng + Chia sẻ lịch trình khám phá Bắc – Trung – Nam',
       },
     ];
 
     const monthlyCalendar = [
       {
         month_number: 1,
-        month_label: 'Tháng 1: Khởi tạo Cộng đồng Vietnam Playbook & Chinh phục 22 Chủ đề Cốt lõi',
-        member_goal: 'Tuần 1: 5 người → Tuần 2: 50 người → Cuối Tháng 1: 300 thành viên tương tác thật',
-        content_commitment: '22 bài viết chuyên sâu từ kho tri thức chuẩn (100% thông tin mới, mỗi ngày 1 chủ đề & 1 hình ảnh riêng biệt)',
+        month_label: `Tháng 1: Xây dựng Nền móng cho "${settings.community_name}" & 22 Chủ đề Cốt lõi`,
+        member_goal: 'Tuần 1: 5 người → Tuần 2: 50 người → Cuối Tháng 1: 300 thành viên tương tác thật trong cộng đồng của bạn',
+        content_commitment: '22 bài viết chuyên sâu (100% thông tin mới, mỗi ngày 1 chủ đề & 1 hình ảnh riêng biệt, không trùng lặp)',
         key_pillars: [
-          'Tuần 1: Arrival, Airport, eSIM & First 2 Weeks Accommodation',
-          'Tuần 2: Apartment Viewing Checklist & Remote Work Setup',
-          'Tuần 3: Banking/VietQR, Temporary Residence & Health Insurance',
-          'Tuần 4: Family Relocation, Domestic Transport & Daily Budget',
+          'Tuần 1: Sân bay, SIM/eSIM & Lưu trú 2 tuần đầu tiên',
+          'Tuần 2: Checklist thuê căn hộ & Thiết lập góc làm việc từ xa',
+          'Tuần 3: Ngân hàng/VietQR, Đăng ký tạm trú & Bảo hiểm y tế',
+          'Tuần 4: Du lịch gia đình, Phương tiện di chuyển & Ngân sách mỗi ngày',
         ],
       },
       {
         month_number: 2,
-        month_label: 'Tháng 2: Đào sâu theo Thành phố (Đà Nẵng • Hà Nội • TP.HCM • Hội An • Phú Quốc)',
+        month_label: 'Tháng 2: Đào sâu theo Điểm đến (Đà Nẵng • Hà Nội • TP.HCM • Hội An • Phú Quốc)',
         member_goal: 'Mở rộng từ 300 → 1,000 thành viên (Tự động gom nhóm theo từng thành phố & sở thích)',
-        content_commitment: '30 bài phân tích chuyên sâu theo từng khu phố, chi phí thực tế từng mùa và review từ chính thành viên trong Group',
+        content_commitment: '30 bài phân tích chuyên sâu theo từng khu phố, chi phí thực tế từng mùa và review từ chính thành viên trong cộng đồng của bạn',
         key_pillars: [
-          'So sánh chi phí sống & khu vực thuê nhà: An Thượng / Sơn Trà (Đà Nẵng) vs Thảo Điền (TP.HCM) vs Tây Hồ (Hà Nội)',
-          'Bản đồ Cafe làm việc từ xa & Coworking Space có tốc độ Wi-Fi thực đo bởi thành viên',
-          'Cẩm nang mùa mưa / mùa du lịch & lịch nghỉ lễ Tết tại Việt Nam',
+          'So sánh chi phí sống & khu vực lưu trú: Mỹ An / Sơn Trà (Đà Nẵng) vs Thảo Điền (TP.HCM) vs Tây Hồ (Hà Nội)',
+          'Bản đồ Cafe làm việc từ xa & Không gian làm việc chung do thành viên bình chọn',
+          'Cẩm nang thời tiết từng vùng & lịch trình du lịch mùa lễ hội tại Việt Nam',
         ],
       },
       {
         month_number: 3,
-        month_label: 'Tháng 3: Hệ sinh thái Cộng đồng Tự sinh Nội dung (User-Generated Playbook & Meetups)',
-        member_goal: 'Đạt 2,500+ thành viên — Cộng đồng tự đặt câu hỏi, chia sẻ kinh nghiệm và kết nối hàng ngày',
-        content_commitment: 'Kết hợp bài tổng hợp Playbook hàng ngày + Vinh danh câu trả lời hay nhất của thành viên trong tuần',
+        month_label: 'Tháng 3: Hệ sinh thái Cộng đồng Tự sinh Nội dung (Thành viên Chia sẻ & Kết nối Thực tế)',
+        member_goal: 'Đạt 2,500+ thành viên — Cộng đồng của bạn tự đặt câu hỏi, chia sẻ kinh nghiệm và kết nối hàng ngày',
+        content_commitment: 'Kết hợp bài cẩm nang hàng ngày + Vinh danh câu trả lời & kinh nghiệm hay nhất của thành viên trong tuần',
         key_pillars: [
-          'Chuỗi sự kiện Offline/Online Meetup hàng tháng cho Expats, Digital Nomads & Founders',
-          'Cập nhật chính sách thị thực, ngân hàng, thuế và cư trú mới nhất năm 2026–2027',
-          'Cẩm nang chuyên biệt cho Gia đình Expat (Trường học, Bệnh viện quốc tế, Không gian sống)',
+          'Chuỗi sự kiện Giao lưu Offline/Online hàng tháng dành cho thành viên cộng đồng của bạn',
+          'Cập nhật thông tin mới nhất về thị thực, ngân hàng, di chuyển và tiện ích số năm 2026–2027',
+          'Cẩm nang chuyên biệt cho Gia đình & Nhóm du lịch dài ngày tại Việt Nam',
         ],
       },
     ];
 
     return {
       group: {
-        name: 'Vietnam Playbook – Expats, Digital Nomads & Founders in Vietnam',
-        group_url: 'https://www.facebook.com/groups/vietnamplaybook/',
-        group_share_url: 'https://www.facebook.com/share/g/1Dz8NqZMPk/?mibextid=wwXIfr',
-        page_name: 'TripC.AI - Viet Nam Playbook | Da Nang',
-        page_url: 'https://www.facebook.com/profile.php?id=61573561562677',
-        connected_fanpage_id: '1381196421750749',
-        positioning:
-          'Cộng đồng tương tác 2 chiều (Interactive Help Desk & Community) dành cho Expats, Digital Nomads, Remote Workers và Founders đang sống hoặc chuẩn bị chuyển đến Việt Nam — thay thế hoàn toàn kiểu trang đăng bài 1 chiều.',
+        name: settings.community_name,
+        group_url: settings.group_url,
+        group_share_url: settings.group_url,
+        page_name: settings.page_name,
+        page_url: settings.page_url,
+        connected_fanpage_id: settings.connected_fanpage_id,
+        positioning: settings.positioning,
       },
       stats: {
         total_matched_members: totalMatchedCount,
@@ -1129,14 +1259,14 @@ export class CommunityHubService {
     workspaceId: string,
     input: { display_name: string; channel?: string; signal: string; campaign_week?: number },
   ) {
-    await this.ensureSchemaAndContext(workspaceId);
+    const settings = await this.ensureSchemaAndContext(workspaceId);
     const match = classifyMemberInterests(input.signal);
     const ref = `manual:${slugifySimple(input.display_name)}-${Date.now().toString(36)}`;
     const row = (
       await this.pool.query(
         `INSERT INTO community_hub_members
-           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, recommended_topic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, 'auto_added', $10)
+           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, 'auto_added', $10, $11)
          RETURNING *`,
         [
           workspaceId,
@@ -1148,6 +1278,7 @@ export class CommunityHubService {
           JSON.stringify(match.interest_tags),
           match.affinity_score,
           input.campaign_week ?? 2,
+          settings.group_url,
           match.recommended_playbook_topic,
         ],
       )
@@ -1167,13 +1298,13 @@ export class CommunityHubService {
       source_url?: string;
     },
   ) {
-    await this.ensureSchemaAndContext(workspaceId);
+    const settings = await this.ensureSchemaAndContext(workspaceId);
     const assets = getPlaybookImageAssets(workspaceId);
     const matchedAsset = matchAssetForTopic(`${input.title} ${input.body}`, assets);
     const initialReply = {
-      author: 'Hannah Nguyen (Community Host • TripC Playbook)',
-      role: 'Community Host',
-      text: `Cảm ơn bạn đã mở chủ đề thảo luận! Mời các thành viên trong cộng đồng Vietnam Playbook cùng chia sẻ góc nhìn và kinh nghiệm thực tế về "${input.title}" nhé.`,
+      author: `Ban Quản Trị (${settings.page_name})`,
+      role: 'Quản trị viên Cộng đồng',
+      text: `Cảm ơn bạn đã mở chủ đề thảo luận! Mời các thành viên trong ${settings.community_name} cùng chia sẻ góc nhìn và kinh nghiệm thực tế về "${input.title}" nhé.`,
       created_at: new Date().toISOString(),
     };
     const row = (
@@ -1184,13 +1315,13 @@ export class CommunityHubService {
          RETURNING *`,
         [
           workspaceId,
-          input.category || 'Community Discussion',
+          input.category || 'Thảo luận Cộng đồng',
           input.title,
-          input.author_name || 'TripC.AI Community Host',
-          input.author_role || 'Community Host • Vietnam Playbook',
+          input.author_name || `Ban Quản Trị (${settings.page_name})`,
+          input.author_role || 'Quản trị viên Cộng đồng',
           input.body,
           input.discussion_prompt,
-          input.source_url || 'https://www.facebook.com/groups/vietnamplaybook/',
+          input.source_url || settings.group_url,
           matchedAsset.url,
           JSON.stringify([initialReply]),
         ],
@@ -1200,16 +1331,16 @@ export class CommunityHubService {
   }
 
   /**
-   * Immediately generates and publishes a 100% fresh, non-duplicate Playbook article + Facebook post
-   * grounded in an approved `tripc.ai/blog` source that has not been overused, pairing it with a
-   * unique topic-matched image and an interactive 2-way Community Group discussion prompt.
+   * Immediately generates and publishes a 100% fresh, non-duplicate article + Facebook post
+   * for the user's OWN community and Fanpage (`Dịch vụ hỗ trợ du lịch`), pairing it with a
+   * unique topic-matched image and an interactive 2-way discussion prompt.
    */
   async publishFreshPlaybookPost(
     workspaceId: string,
     actorId: string,
     options: { source_id?: string } = {},
   ) {
-    await this.ensureSchemaAndContext(workspaceId);
+    const settings = await this.ensureSchemaAndContext(workspaceId);
 
     const ctx = (
       await this.pool.query<{ snapshot_id: string }>(
@@ -1219,7 +1350,6 @@ export class CommunityHubService {
     ).rows[0];
     if (!ctx) throw new Error('Workspace has no active knowledge context');
 
-    // Find already used source_ids and image URLs
     const usedSourceRows = (
       await this.pool.query<{ source_id: string | null }>(
         `SELECT DISTINCT evidence->0->>'source_id' AS source_id
@@ -1242,7 +1372,6 @@ export class CommunityHubService {
     ).rows;
     const usedImageUrls = new Set(usedImageRows.map((r) => r.url).filter(Boolean) as string[]);
 
-    // Pick the requested source or the first unused tripc.ai/blog source
     const allSources = (
       await this.pool.query<{
         id: string;
@@ -1268,7 +1397,7 @@ export class CommunityHubService {
       allSources.find((s) => !usedSourceIds.has(s.id)) ??
       allSources[0];
 
-    if (!targetSource) throw new Error('No approved Playbook source found');
+    if (!targetSource) throw new Error('No approved source found');
 
     const chunks = (
       await this.pool.query<{ id: string; text_content: string; citation_locator: string }>(
@@ -1299,14 +1428,13 @@ export class CommunityHubService {
     }));
 
     const sectionHeadings = [
-      'Key Takeaways for Expats & Digital Nomads in Vietnam',
-      'Practical Step-by-Step Playbook & Local Reality',
-      'What Our Vietnam Playbook Community Recommends',
+      'Key Takeaways for Living & Traveling in Vietnam',
+      'Practical Step-by-Step Guide & Local Reality',
+      'Community Discussion & Member Tips',
     ];
 
     const bodyParagraphs = chunks.map((c) => c.text_content.trim());
-    const ctaText =
-      'Join the Vietnam Playbook Community (https://www.facebook.com/groups/vietnamplaybook/) to discuss with expats & nomads in Vietnam';
+    const ctaText = `Tham gia thảo luận cùng ${settings.community_name} (${settings.group_url}) để chia sẻ kinh nghiệm thực tế tại Việt Nam`;
 
     const bodyMarkdown = [
       `# ${cleanTitle}`,
@@ -1321,7 +1449,7 @@ export class CommunityHubService {
       '',
       `## ${sectionHeadings[2]}`,
       bodyParagraphs.slice(3).join('\n\n') ||
-        'Connect with fellow expats, digital nomads, and founders in our Vietnam Playbook community to compare real experiences across Da Nang, Hanoi, and Ho Chi Minh City.',
+        'Connect with fellow travelers, expats, and remote workers in our community to compare real experiences across Da Nang, Hanoi, and Ho Chi Minh City.',
       `[source: ${chunks[chunks.length - 1].id}]`,
       '',
       ctaText,
@@ -1335,7 +1463,7 @@ export class CommunityHubService {
       status: 'draft',
       title: cleanTitle,
       slug: slugifySimple(cleanTitle),
-      meta_description: `${cleanTitle} — Practical Vietnam Playbook guide & community discussion for expats, digital nomads, and remote workers.`,
+      meta_description: `${cleanTitle} — Cẩm nang thực tế & thảo luận 2 chiều tại ${settings.community_name}.`,
       headings: sectionHeadings,
       body_markdown: bodyMarkdown,
       cta: ctaText,
@@ -1361,18 +1489,17 @@ export class CommunityHubService {
       })
       .join('\n');
 
-    const discussionQuestion = `💬 THẢO LUẬN CỘNG ĐỒNG 2 CHIỀU: Bạn đã có trải nghiệm thực tế nào về "${cleanTitle}" khi sống hoặc làm việc tại Việt Nam chưa? Hãy bình luận chia sẻ bên dưới và tham gia thảo luận cùng anh chị em Expats & Digital Nomads tại Group Vietnam Playbook: https://www.facebook.com/groups/vietnamplaybook/`;
+    const discussionQuestion = `💬 THẢO LUẬN CỘNG ĐỒNG 2 CHIỀU: Bạn đã có trải nghiệm thực tế nào về "${cleanTitle}" khi đi du lịch hoặc sinh sống tại Việt Nam chưa? Hãy để lại bình luận chia sẻ bên dưới để cùng giao lưu với các thành viên trong ${settings.community_name} nhé!`;
 
     const facebookText = [
-      `🇻🇳 [VIETNAM PLAYBOOK] ${cleanTitle}`,
+      `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${cleanTitle}`,
       '',
       bulletPoints,
       '',
       discussionQuestion,
       '',
-      `👉 Đọc bản đầy đủ tại: ${targetSource.source_url}`,
-      `🤝 Tham gia Group Cộng đồng Vietnam Playbook: https://www.facebook.com/groups/vietnamplaybook/`,
-      '#VietnamPlaybook #TripCAI #DaNangExpats #DigitalNomadsVietnam',
+      `🤝 Kết nối & Thảo luận tại ${settings.community_name}: ${settings.group_url}`,
+      '#CongDongDuLich #DichVuHoTroDuLich #DaNang #ExploreVietnam',
     ].join('\n');
 
     const contentArtifactId = randomUUID();
@@ -1389,11 +1516,11 @@ export class CommunityHubService {
       cta: ctaText,
       channels: ['facebook'],
       facebook: {
-        hook: `🇻🇳 [VIETNAM PLAYBOOK] ${cleanTitle}`,
+        hook: `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${cleanTitle}`,
         body: bulletPoints,
         discussion_question: discussionQuestion,
         cta: ctaText,
-        hashtags: ['#VietnamPlaybook', '#TripCAI'],
+        hashtags: ['#CongDongDuLich', '#DichVuHoTroDuLich'],
         text: facebookText,
       },
       image_assets: [assetPayload],
@@ -1418,7 +1545,6 @@ export class CommunityHubService {
     try {
       await db.query('BEGIN');
 
-      // 1. Store & approve SEO artifact
       await db.query(
         `INSERT INTO content_artifacts
            (id, workspace_id, version, content_hash, context_snapshot_id, role, operation, artifact_type, title, storage, payload, evidence)
@@ -1437,14 +1563,12 @@ export class CommunityHubService {
       await db.query(
         `INSERT INTO approvals
            (workspace_id, target_type, target_id, target_version, target_hash, status, decision, actor_id, actor_role, review_note)
-         VALUES ($1, 'artifact', $2, 1, $3, 'approved', 'approve', $4, 'owner', 'Approved fresh Vietnam Playbook calendar post')`,
+         VALUES ($1, 'artifact', $2, 1, $3, 'approved', 'approve', $4, 'owner', 'Approved fresh community calendar post')`,
         [workspaceId, seoArtifactId, seoHash, actorId],
       );
 
-      // 2. Publish SEO article to Website (contents table)
       publishedSite = await publishSeoArtifact(db, workspaceId, seoArtifactId, actorId);
 
-      // 3. Store & approve Content (Facebook Social Pack) artifact
       await db.query(
         `INSERT INTO content_artifacts
            (id, workspace_id, version, content_hash, context_snapshot_id, role, operation, artifact_type, title, storage, payload, evidence)
@@ -1464,13 +1588,12 @@ export class CommunityHubService {
         await db.query<{ id: string }>(
           `INSERT INTO approvals
              (workspace_id, target_type, target_id, target_version, target_hash, status, decision, actor_id, actor_role, review_note)
-           VALUES ($1, 'artifact', $2, 1, $3, 'approved', 'approve', $4, 'owner', 'Approved fresh Vietnam Playbook Facebook community post')
+           VALUES ($1, 'artifact', $2, 1, $3, 'approved', 'approve', $4, 'owner', 'Approved fresh Facebook community post')
            RETURNING id`,
           [workspaceId, contentArtifactId, contentHash, actorId],
         )
       ).rows[0];
 
-      // 4. Schedule Facebook publishing job in outbox so worker publishes it live with the unique image
       const fbChannel = (
         await db.query<{ id: string }>(
           "SELECT id FROM channels WHERE workspace_id = $1 AND platform_name = 'facebook' ORDER BY created_at LIMIT 1",
@@ -1506,7 +1629,7 @@ export class CommunityHubService {
               contentApproval.id,
               mode,
               actorId,
-              targetSource.source_url,
+              settings.group_url,
             ],
           )
         ).rows[0];
@@ -1530,23 +1653,23 @@ export class CommunityHubService {
         );
       }
 
-      // 5. Also add as an interactive 2-way discussion thread in the Community Hub
       await db.query(
         `INSERT INTO community_hub_discussions
            (workspace_id, category, title, author_name, author_role, body, discussion_prompt, source_url, image_url, replies, participants_count)
-         VALUES ($1, 'Daily Playbook Discussion', $2, 'TripC.AI - Viet Nam Playbook Host', 'Official Community Host', $3, $4, $5, $6, $7::jsonb, 5)`,
+         VALUES ($1, 'Thảo luận Bài mới Hàng ngày', $2, $3, 'Quản trị viên Cộng đồng', $4, $5, $6, $7, $8::jsonb, 5)`,
         [
           workspaceId,
           cleanTitle,
+          `Ban Quản Trị (${settings.page_name})`,
           bulletPoints,
           discussionQuestion,
-          targetSource.source_url,
+          settings.group_url,
           chosenAsset.url,
           JSON.stringify([
             {
-              author: 'Hannah Nguyen (Community Host • TripC Playbook)',
-              role: 'Community Host',
-              text: `Bài Playbook mới trong ngày đã lên sóng với chủ đề "${cleanTitle}"! Mời các thành viên chia sẻ thêm mẹo thực tế tại Đà Nẵng, Hà Nội và TP.HCM nhé.`,
+              author: `Ban Quản Trị (${settings.page_name})`,
+              role: 'Quản trị viên Cộng đồng',
+              text: `Chủ đề mới trong ngày "${cleanTitle}" đã lên sóng! Mời các thành viên trong ${settings.community_name} cùng bình luận chia sẻ kinh nghiệm thực tế nhé.`,
               created_at: new Date().toISOString(),
             },
           ]),
