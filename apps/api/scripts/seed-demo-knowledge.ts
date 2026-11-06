@@ -131,6 +131,13 @@ async function main() {
       JSON.stringify(metricEvidence),
     ],
   );
+  await pool.query(
+    `INSERT INTO agent_automation
+       (workspace_id, enabled, interval_hours, cta, auto_approve_outputs, auto_publish_website, auto_publish_facebook, actor_id, next_run_at, updated_at)
+     VALUES ($1, TRUE, 24, 'Ask TripC to verify your Vietnam E-Visa checklist before applying', TRUE, TRUE, TRUE, $2, NOW(), NOW())
+     ON CONFLICT (workspace_id) DO NOTHING`,
+    [WORKSPACE_ID, OWNER_ID],
+  );
   console.log(JSON.stringify({
     workspace_id: WORKSPACE_ID,
     source_id: SOURCE_ID,

@@ -48,17 +48,43 @@ foreach ($service in $services) {
 # Keep the API, AI service, and the live worker on the exact same environment variables
 # from apps/api/.env.local (single source of truth across services).
 $apiEnvPath = Join-Path $repoRoot 'apps/api/.env.local'
+$infraEnvPath = Join-Path $repoRoot 'infra/local/.env'
+$localPgPassword = $null
+if (Test-Path -LiteralPath $infraEnvPath) {
+    $pgLine = Get-Content -LiteralPath $infraEnvPath | Where-Object { $_ -match '^POSTGRES_PASSWORD=' } | Select-Object -First 1
+    if ($pgLine) { $localPgPassword = $pgLine.Substring('POSTGRES_PASSWORD='.Length).Trim() }
+}
 if (Test-Path -LiteralPath $apiEnvPath) {
+    $updatedLines = @()
+    $dbUrlUpdated = $false
     foreach ($rawLine in (Get-Content -LiteralPath $apiEnvPath)) {
         $line = $rawLine.Trim()
-        if (-not $line -or $line.StartsWith('#')) { continue }
+        if (-not $line -or $line.StartsWith('#')) {
+            $updatedLines += $rawLine
+            continue
+        }
         $eqIdx = $line.IndexOf('=')
-        if ($eqIdx -le 0) { continue }
+        if ($eqIdx -le 0) {
+            $updatedLines += $rawLine
+            continue
+        }
         $key = $line.Substring(0, $eqIdx).Trim()
         $val = $line.Substring($eqIdx + 1).Trim()
+        if ($key -eq 'DATABASE_URL' -and $localPgPassword -and $val -match ':15432/') {
+            $expectedUrl = 'postgres://ai_growth_dev:' + [Uri]::EscapeDataString($localPgPassword) + '@127.0.0.1:15432/ai_growth_os'
+            if ($val -ne $expectedUrl) {
+                $val = $expectedUrl
+                $rawLine = 'DATABASE_URL=' + $expectedUrl
+                $dbUrlUpdated = $true
+            }
+        }
+        $updatedLines += $rawLine
         if ($val.Length -gt 0) {
             [System.Environment]::SetEnvironmentVariable($key, $val, 'Process')
         }
+    }
+    if ($dbUrlUpdated) {
+        [IO.File]::WriteAllText($apiEnvPath, (($updatedLines -join "`n") + "`n"), (New-Object System.Text.UTF8Encoding($false)))
     }
 }
 

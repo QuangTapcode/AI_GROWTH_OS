@@ -96,6 +96,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $apiRoot 'node_modules/next/dist/bin
 }
 Invoke-Native 'db:migrate' { npm.cmd --prefix $apiRoot run db:migrate }
 Invoke-Native 'db:seed' { npm.cmd --prefix $apiRoot run db:seed }
+Invoke-Native 'db:seed-context' { npm.cmd --prefix $apiRoot run db:seed-context }
 
 Write-Output ''
 Write-Output 'Local setup done. Next: .\infra\staging\start.ps1  then open http://localhost:3000/login'

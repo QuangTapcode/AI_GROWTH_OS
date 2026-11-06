@@ -49,6 +49,31 @@ function loadApiEnvIfNeeded(): void {
     }
   }
 
+  // Sync local Docker Postgres password (:15432) from infra/local/.env if present so copying
+  // apps/api/.env.local to another machine with a different generated Docker password still connects.
+  const infraEnvPath = path.resolve(__dirname, '../../../infra/local/.env');
+  if (
+    process.env.DATABASE_URL &&
+    process.env.DATABASE_URL.includes(':15432/') &&
+    fs.existsSync(infraEnvPath)
+  ) {
+    try {
+      const infraContent = fs.readFileSync(infraEnvPath, 'utf8');
+      const match = infraContent.match(/^POSTGRES_PASSWORD=(.+)$/m);
+      const localPgPassword = match?.[1]?.trim();
+      if (localPgPassword) {
+        const parsed = new URL(process.env.DATABASE_URL);
+        parsed.password = localPgPassword;
+        process.env.DATABASE_URL = parsed.toString();
+        if (!process.env.QUEUE_PASSWORD) {
+          process.env.QUEUE_PASSWORD = localPgPassword;
+        }
+      }
+    } catch {
+      // Ignore URL parse error
+    }
+  }
+
   // Default to AUTOPILOT=1 and local service URLs when running the worker outside of tests
   if (!process.env.AUTOPILOT) {
     process.env.AUTOPILOT = '1';
