@@ -9,6 +9,7 @@
  * Lưu ý: FileJobStore/FileResultStorage sống trong WORKER_STATE_DIR; khi
  * database migrations (W1-BE-01, Thiệu Quang) sẵn sàng, thay bằng store DB.
  */
+import './loadApiEnv';
 import { env } from './config';
 import {
   createQueue,
@@ -25,6 +26,7 @@ import { FileResultStorage } from './adapters/StorageAdapter';
 import { DbWorkflowStore } from './workflow';
 import { Pool } from 'pg';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
+import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
 
@@ -51,7 +53,19 @@ async function main(): Promise<void> {
     password: cfg.QUEUE_PASSWORD, database: cfg.QUEUE_DATABASE });
   const planOutbox = new PlanOutboxRunner(planPool, buildAiAdapter(cfg));
   const publishingOutbox = new PublishingOutboxRunner(planPool);
+  const communityReplies = new CommunityReplyRunner(planPool);
   const sourceIngest = new SourceIngestRunner(planPool, buildAiAdapter(cfg));
+  let replyRunning = false;
+  const runReplies = () => {
+    if (replyRunning) return;
+    replyRunning = true;
+    void communityReplies.runOnce()
+      .then(result => { if (result !== 'idle') console.log(`[community-reply] ${result}`); })
+      .catch(error => console.error('[community-reply]', (error as Error).message))
+      .finally(() => { replyRunning = false; });
+  };
+  const replyTimer = setInterval(runReplies, 2_000);
+  replyTimer.unref();
   let ingestRunning = false;
   const ingestTimer = setInterval(() => {
     // URL ingest needs the HTTP AI service (fetch + robots.txt + embeddings); the echo adapter cannot ingest.

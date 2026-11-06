@@ -10,9 +10,10 @@ from dotenv import load_dotenv
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
-# Load service-local .env, then fallback to project root .env and apps/api/.env
+# Load service-local .env, then fallback to project root .env and apps/api/.env(.local)
 load_dotenv(SERVICE_ROOT / ".env")
 load_dotenv(SERVICE_ROOT.parents[1] / ".env")
+load_dotenv(SERVICE_ROOT.parents[1] / "apps" / "api" / ".env.local")
 load_dotenv(SERVICE_ROOT.parents[1] / "apps" / "api" / ".env")
 
 # Seed domains from docs/coordination/PILOT_DATASET.json; URL ingest is denied elsewhere.

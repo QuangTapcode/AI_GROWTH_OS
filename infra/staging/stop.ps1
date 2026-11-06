@@ -10,11 +10,14 @@ foreach ($record in $records) {
     $process = Get-Process -Id $record.ProcessId -ErrorAction SilentlyContinue
     if (-not $process) { continue }
     $command = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + [int]$record.ProcessId)
+    $isNextService = $record.Name -in @('api', 'pilot', 'web')
     if (
         $process.StartTime.ToUniversalTime().Ticks.ToString() -ne $record.StartedAtTicks -or
         $process.Path -ne $record.Executable -or
-        $command.CommandLine -notlike '*node_modules/next/dist/bin/next*' -or
-        $command.CommandLine -notlike ('*--port ' + $record.Port + '*')
+        ($isNextService -and (
+            $command.CommandLine -notlike '*node_modules/next/dist/bin/next*' -or
+            $command.CommandLine -notlike ('*--port ' + $record.Port + '*')
+        ))
     ) {
         throw ('Process identity changed for ' + $record.Name + '; refusing to stop it.')
     }

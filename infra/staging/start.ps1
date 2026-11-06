@@ -11,6 +11,12 @@ $services = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'services.jso
 $nodeExecutable = (Get-Command node.exe).Source
 $startedServices = @()
 
+# Ensure local Docker containers (Postgres & SearXNG) are running when Docker is available.
+$dockerCmd = Get-Command docker.exe -ErrorAction SilentlyContinue
+if ($dockerCmd) {
+    & $dockerCmd.Source start ai-growth-os-local-postgres-1 ai-growth-os-local-searxng-1 *> $null
+}
+
 $busyPorts = @()
 foreach ($service in $services) {
     $listener = Get-NetTCPConnection -State Listen -LocalPort $service.port -ErrorAction SilentlyContinue
@@ -80,7 +86,68 @@ try {
     } while ((Get-Date) -lt $deadline)
     if ($ready -ne $services.Count) { throw 'Staging did not become healthy. See infra/staging/.runtime/*.log.' }
 
+    # Automatically start Python AI service (:5000) if not already listening
+    $aiListener = Get-NetTCPConnection -State Listen -LocalPort 5000 -ErrorAction SilentlyContinue
+    $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
+    if (-not $aiListener -and $pythonCmd) {
+        $aiProcess = Start-Process -FilePath $pythonCmd.Source `
+            -ArgumentList @('-m', 'uvicorn', 'src.app.main:app', '--app-dir', 'services/ai', '--host', '127.0.0.1', '--port', '5000') `
+            -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput (Join-Path $runtimeRoot 'ai.stdout.log') `
+            -RedirectStandardError (Join-Path $runtimeRoot 'ai.stderr.log')
+        $startedServices += [pscustomobject]@{
+            Name = 'ai'
+            Port = 5000
+            ProcessId = $aiProcess.Id
+            StartedAtTicks = $aiProcess.StartTime.ToUniversalTime().Ticks.ToString()
+            Executable = $pythonCmd.Source
+        }
+        $startedServices | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -LiteralPath $statePath
+    }
+
+    # Automatically start Autopilot Worker (draft-main.ts + CommunityReplyRunner)
+    $workerRoot = Join-Path $repoRoot 'apps/worker'
+    $workerProcess = Start-Process -FilePath $nodeExecutable `
+        -ArgumentList @('--import', 'tsx', 'src/draft-main.ts') `
+        -WorkingDirectory $workerRoot -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput (Join-Path $runtimeRoot 'worker.stdout.log') `
+        -RedirectStandardError (Join-Path $runtimeRoot 'worker.stderr.log')
+    $startedServices += [pscustomobject]@{
+        Name = 'worker'
+        Port = 0
+        ProcessId = $workerProcess.Id
+        StartedAtTicks = $workerProcess.StartTime.ToUniversalTime().Ticks.ToString()
+        Executable = $nodeExecutable
+    }
+    $startedServices | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -LiteralPath $statePath
+
+    # Automatically start ngrok tunnel on port 4000 for Facebook Messenger webhook if ngrok is installed
+    $ngrokListener = Get-NetTCPConnection -State Listen -LocalPort 4040 -ErrorAction SilentlyContinue
+    $ngrokCandidates = @(
+        (Get-Command ngrok.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+        (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\ngrok.exe')
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+    if (-not $ngrokListener -and $ngrokCandidates.Count -gt 0) {
+        $ngrokExecutable = $ngrokCandidates[0]
+        $ngrokProcess = Start-Process -FilePath $ngrokExecutable `
+            -ArgumentList @('http', '4000', '--log=stdout') `
+            -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput (Join-Path $runtimeRoot 'ngrok.stdout.log') `
+            -RedirectStandardError (Join-Path $runtimeRoot 'ngrok.stderr.log')
+        $startedServices += [pscustomobject]@{
+            Name = 'ngrok'
+            Port = 4040
+            ProcessId = $ngrokProcess.Id
+            StartedAtTicks = $ngrokProcess.StartTime.ToUniversalTime().Ticks.ToString()
+            Executable = $ngrokExecutable
+        }
+        $startedServices | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -LiteralPath $statePath
+    }
+
     foreach ($service in $services) { Write-Output ($service.name + ': http://localhost:' + $service.port) }
+    Write-Output 'ai: http://127.0.0.1:5000'
+    Write-Output 'worker: running (AUTOPILOT + CommunityReplyRunner enabled)'
+    Write-Output 'ngrok: http://127.0.0.1:4040 (-> http://localhost:4000)'
 } catch {
     foreach ($record in $startedServices) {
         $process = Get-Process -Id $record.ProcessId -ErrorAction SilentlyContinue
