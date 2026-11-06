@@ -710,244 +710,123 @@ export class CommunityHubService {
     }
   }
 
+  /**
+   * Real people only: a member row exists only for a real Facebook user (PSID) who actually
+   * messaged/commented on the Page. Nothing here adds anyone to the Facebook Page or a Group —
+   * Meta does not allow apps to add followers/members. These rows are "people identified",
+   * not followers. Seeded/test/hard-coded personas are purged so the counter can never be inflated.
+   */
   async syncMembersFromInteractions(workspaceId: string, settings?: CommunitySettings): Promise<number> {
     const resolvedSettings = settings ?? (await this.getCommunitySettings(workspaceId));
-    let addedCount = 0;
 
-    // 1. Scan real community_messages (Messenger / Telegram / Facebook comments)
+    // Purge everything that is not a real Facebook user (old hard-coded cohorts, seeded leads, test comments).
+    await this.pool.query(
+      `DELETE FROM community_hub_members
+        WHERE workspace_id = $1 AND external_ref !~ '^fb:[0-9]{14,}$' AND external_ref NOT LIKE 'manual:%'`,
+      [workspaceId],
+    );
+
     const msgRows = (
-      await this.pool.query<{
-        id: string;
-        platform: string;
-        author_id: string | null;
-        author_name: string | null;
-        content: string;
-        received_at: Date;
-      }>(
-        `SELECT id, platform, author_contact AS author_id, author_name, content, received_at
+      await this.pool.query<{ psid: string; platform: string; content: string; received_at: Date }>(
+        `SELECT author_contact AS psid, platform, content, received_at
            FROM community_messages
           WHERE workspace_id = $1
+            AND platform IN ('facebook_message', 'facebook_comment')
+            AND author_contact ~ '^[0-9]{14,}$'
           ORDER BY received_at DESC
-          LIMIT 50`,
+          LIMIT 500`,
         [workspaceId],
       )
     ).rows;
 
-    const seenAuthors = new Map<string, typeof msgRows[0]>();
+    // One row per real person; use their longest message as the interest signal.
+    const byPerson = new Map<string, { platform: string; signals: string[]; first_seen: Date }>();
     for (const m of msgRows) {
-      const ref = `msg:${m.author_id || m.author_name || m.id}`;
-      if (!seenAuthors.has(ref) || m.content.length > 8) {
-        seenAuthors.set(ref, m);
-      }
+      const entry = byPerson.get(m.psid) ?? { platform: m.platform, signals: [], first_seen: m.received_at };
+      entry.signals.push(m.content);
+      if (m.received_at < entry.first_seen) entry.first_seen = m.received_at;
+      byPerson.set(m.psid, entry);
     }
+    if (byPerson.size === 0) return 0;
 
-    for (const [ref, m] of seenAuthors.entries()) {
-      const match = classifyMemberInterests(m.content);
-      const displayName =
-        m.author_name && !/^user-\d+$/i.test(m.author_name)
-          ? m.author_name
-          : m.author_id
-            ? `Khách tương tác Fanpage #${m.author_id.slice(-4)} (Messenger)`
-            : 'Khách tương tác Fanpage';
+    const names = await this.fetchMessengerParticipantNames(resolvedSettings.connected_fanpage_id);
+
+    let addedCount = 0;
+    for (const [psid, info] of byPerson.entries()) {
+      const signal = [...info.signals].sort((a, b) => b.length - a.length)[0] ?? '';
+      const match = classifyMemberInterests(info.signals.join(' '));
+      const displayName = names.get(psid) ?? `Người dùng Facebook #${psid.slice(-4)}`;
       const res = await this.pool.query(
         `INSERT INTO community_hub_members
            (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1, 'auto_added', $9, $10)
-         ON CONFLICT (workspace_id, external_ref) DO UPDATE SET
-           matched_signal = EXCLUDED.matched_signal,
-           matched_trend = EXCLUDED.matched_trend,
-           interest_tags = EXCLUDED.interest_tags,
-           invite_group_url = EXCLUDED.invite_group_url,
-           affinity_score = GREATEST(community_hub_members.affinity_score, EXCLUDED.affinity_score),
-           updated_at = NOW()`,
-        [
-          workspaceId,
-          ref,
-          displayName,
-          m.platform || 'facebook_messenger',
-          m.content.slice(0, 200),
-          match.matched_trend,
-          JSON.stringify(match.interest_tags),
-          match.affinity_score,
-          resolvedSettings.group_url,
-          match.recommended_playbook_topic,
-        ],
-      );
-      if (res.rowCount) addedCount++;
-    }
-
-    // 2. Scan real leads captured on the website / community
-    const leadRows = (
-      await this.pool.query<{
-        id: string;
-        name: string | null;
-        interest_topic: string | null;
-        utm_source: string | null;
-      }>(
-        `SELECT lead_id AS id, contact_name AS name, interest_topic, utm_source
-           FROM leads
-          WHERE workspace_id = $1 AND COALESCE(context->>'synthetic', 'false') <> 'true'
-          ORDER BY captured_at DESC
-          LIMIT 30`,
-        [workspaceId],
-      )
-    ).rows;
-
-    for (const l of leadRows) {
-      const ref = `lead:${l.id}`;
-      const match = classifyMemberInterests(l.interest_topic || 'Du lịch & Lưu trú Việt Nam');
-      await this.pool.query(
-        `INSERT INTO community_hub_members
-           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1, 'auto_added', $9, $10)
-         ON CONFLICT (workspace_id, external_ref) DO UPDATE SET
-           invite_group_url = EXCLUDED.invite_group_url,
-           updated_at = NOW()`,
-        [
-          workspaceId,
-          ref,
-          l.name || 'Độc giả Website của bạn',
-          l.utm_source || 'website_lead',
-          l.interest_topic || 'Tư vấn du lịch & lưu trú Việt Nam',
-          match.matched_trend,
-          JSON.stringify(match.interest_tags),
-          match.affinity_score,
-          resolvedSettings.group_url,
-          match.recommended_playbook_topic,
-        ],
-      );
-    }
-
-    // 3. Ensure Week 1 Founding Cohort (5/5 target) & Week 2 Cohort prospects for the user's own community
-    const curatedMembers = [
-      {
-        external_ref: 'cohort1:liam-carter',
-        display_name: 'Liam Carter (Digital Nomad • Đà Nẵng)',
-        channel: 'fanpage_auto_match',
-        matched_signal: 'Quan tâm chỗ ở ngắn hạn 2 tuần đầu tại Mỹ An vs Sơn Trà trước khi thuê căn hộ dài hạn',
-        matched_trend: 'Tìm chỗ ở & Kinh nghiệm thuê căn hộ tại Đà Nẵng / Việt Nam',
-        interest_tags: ['Thuê căn hộ', 'Chỗ ở 2 tuần đầu', 'Khu vực Đà Nẵng'],
-        affinity_score: 98,
-        campaign_week: 1,
-        status: 'auto_added',
-        recommended_topic: 'Apartment Viewing Checklist in Vietnam: What to Check Before You Sign',
-      },
-      {
-        external_ref: 'cohort1:elena-rostova',
-        display_name: 'Elena Rostova (Remote Designer • Đà Nẵng)',
-        channel: 'fanpage_auto_match',
-        matched_signal: 'Tìm căn hộ có Wi-Fi cáp quang ổn định, quán cafe làm việc yên tĩnh và eSIM Viettel dự phòng',
-        matched_trend: 'Làm việc từ xa, Coworking & SIM/eSIM tại Việt Nam',
-        interest_tags: ['Làm việc từ xa', 'Coworking Cafe', 'eSIM & Kết nối'],
-        affinity_score: 97,
-        campaign_week: 1,
-        status: 'auto_added',
-        recommended_topic: 'Working Remotely from Vietnam: How to Build a Reliable Work Setup',
-      },
-      {
-        external_ref: 'cohort1:marcus-weber',
-        display_name: 'Marcus Weber (Kỹ sư Phần mềm • Du lịch Việt Nam)',
-        channel: 'fanpage_comment',
-        matched_signal: 'So sánh miễn thị thực 45 ngày và E-Visa 90 ngày nhiều lần nhập cảnh trên cổng chính thức',
-        matched_trend: 'Hướng dẫn E-Visa & Thủ tục nhập cảnh Việt Nam',
-        interest_tags: ['Thủ tục E-Visa', 'Lưu trú 90 ngày', 'Sân bay quốc tế'],
-        affinity_score: 96,
-        campaign_week: 1,
-        status: 'auto_added',
-        recommended_topic: 'Vietnam E-Visa or Visa-Free Entry: Which Should You Choose?',
-      },
-      {
-        external_ref: 'cohort1:sofia-rossi',
-        display_name: 'Sofia Rossi (Founder • TP.HCM & Đà Nẵng)',
-        channel: 'fanpage_auto_match',
-        matched_signal: 'Cần hướng dẫn đăng ký tạm trú (Khai báo tạm trú) và so sánh bảo hiểm sức khỏe khi sống tại Việt Nam',
-        matched_trend: 'Đăng ký Tạm trú & Bảo hiểm Y tế tại Việt Nam',
-        interest_tags: ['Đăng ký tạm trú', 'Bảo hiểm y tế', 'Kinh nghiệm sống'],
-        affinity_score: 95,
-        campaign_week: 1,
-        status: 'auto_added',
-        recommended_topic: 'Temporary Residence Registration in Vietnam: What Foreigners Should Know',
-      },
-      {
-        external_ref: 'cohort2:noah-vance',
-        display_name: 'Noah Vance (Remote Consultant • Đà Nẵng)',
-        channel: 'trend_auto_match',
-        matched_signal: 'Tìm hiểu cách thanh toán VietQR, mở tài khoản ngân hàng và rút ATM tiết kiệm phí năm 2026',
-        matched_trend: 'Chi phí du lịch, Thanh toán VietQR & Ngân hàng tại Việt Nam',
-        interest_tags: ['Thanh toán VietQR', 'Ngân hàng', 'Chi phí sinh hoạt'],
-        affinity_score: 94,
-        campaign_week: 2,
-        status: 'auto_added',
-        recommended_topic: 'Opening a Bank Account in Vietnam as a Foreigner: The 2026 Reality',
-      },
-      {
-        external_ref: 'cohort2:chloe-dubois',
-        display_name: 'Chloe Dubois (Gia đình Du lịch & Cư trú • Hà Nội)',
-        channel: 'trend_auto_match',
-        matched_signal: 'Đi cùng 2 con nhỏ: tìm hiểu hồ sơ E-Visa riêng cho trẻ em, siêu thị và phòng khám quốc tế',
-        matched_trend: 'Du lịch Gia đình, Siêu thị & Chăm sóc Y tế',
-        interest_tags: ['Du lịch Gia đình', 'E-Visa cho trẻ em', 'Siêu thị & Mua sắm'],
-        affinity_score: 95,
-        campaign_week: 2,
-        status: 'auto_added',
-        recommended_topic: 'Vietnam E-Visa for Families and Children: What Parents Should Prepare',
-      },
-      {
-        external_ref: 'cohort2:david-kim',
-        display_name: 'David Kim (Khách Du lịch Dài ngày • Đà Nẵng)',
-        channel: 'trend_auto_match',
-        matched_signal: 'Quan tâm đường bay Đà Nẵng / Hà Nội / TP.HCM, các ứng dụng Grab/Xanh SM và giao lưu cộng đồng',
-        matched_trend: 'Ứng dụng Thiết yếu, Chuyến bay & Giao lưu Cộng đồng',
-        interest_tags: ['Ứng dụng thiết yếu', 'Sân bay & Chuyến bay', 'Giao lưu Cộng đồng'],
-        affinity_score: 93,
-        campaign_week: 2,
-        status: 'auto_added',
-        recommended_topic: 'Essential Apps for Living in Vietnam: A Complete Guide',
-      },
-      {
-        external_ref: 'cohort2:hannah-miller',
-        display_name: 'Hannah Miller (Travel Blogger • Hội An & Đà Nẵng)',
-        channel: 'trend_auto_match',
-        matched_signal: 'Lên kế hoạch đi tàu hỏa xuyên Việt kết hợp máy bay nội địa và ngân sách du lịch thoải mái mỗi ngày',
-        matched_trend: 'Di chuyển Tàu hỏa / Máy bay & Ngân sách Du lịch Mỗi ngày',
-        interest_tags: ['Tàu hỏa & Máy bay', 'Ngân sách mỗi ngày', 'Thời điểm đẹp nhất'],
-        affinity_score: 92,
-        campaign_week: 2,
-        status: 'invited',
-        recommended_topic: 'Plane, Train, Bus or Private Car? Choosing How to Travel Around Vietnam',
-      },
-    ];
-
-    for (const member of curatedMembers) {
-      await this.pool.query(
-        `INSERT INTO community_hub_members
-           (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 1, 'identified', $9, $10)
          ON CONFLICT (workspace_id, external_ref) DO UPDATE SET
            display_name = EXCLUDED.display_name,
            matched_signal = EXCLUDED.matched_signal,
            matched_trend = EXCLUDED.matched_trend,
            interest_tags = EXCLUDED.interest_tags,
            invite_group_url = EXCLUDED.invite_group_url,
-           updated_at = NOW()`,
+           recommended_topic = EXCLUDED.recommended_topic,
+           updated_at = NOW()
+         RETURNING (xmax = 0) AS inserted`,
         [
           workspaceId,
-          member.external_ref,
-          member.display_name,
-          member.channel,
-          member.matched_signal,
-          member.matched_trend,
-          JSON.stringify(member.interest_tags),
-          member.affinity_score,
-          member.campaign_week,
-          member.status,
+          `fb:${psid}`,
+          displayName,
+          info.platform === 'facebook_comment' ? 'facebook_comment' : 'facebook_messenger',
+          signal.slice(0, 200),
+          match.matched_trend,
+          JSON.stringify(match.interest_tags),
+          match.affinity_score,
           resolvedSettings.group_url,
-          member.recommended_topic,
+          match.recommended_playbook_topic,
         ],
       );
+      if (res.rows[0]?.inserted) addedCount++;
     }
-
     return addedCount;
+  }
+
+  /** PSID -> real display name, from the Page's own Messenger conversations. */
+  private async fetchMessengerParticipantNames(pageId: string): Promise<Map<string, string>> {
+    const names = new Map<string, string>();
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    if (!token) return names;
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v20.0/me/conversations?fields=participants&limit=100&access_token=${encodeURIComponent(token)}`,
+        { signal: AbortSignal.timeout(8000) },
+      );
+      if (!res.ok) return names;
+      const json = (await res.json()) as {
+        data?: { participants?: { data?: { id: string; name?: string }[] } }[];
+      };
+      for (const conv of json.data ?? []) {
+        for (const p of conv.participants?.data ?? []) {
+          if (p.id !== pageId && p.name) names.set(p.id, p.name);
+        }
+      }
+    } catch {
+      // Names are cosmetic; fall back to the PSID suffix.
+    }
+    return names;
+  }
+
+  /** Real numbers straight from Facebook — the only numbers that count as growth. */
+  async fetchRealPageStats(): Promise<{ followers_count: number | null; fan_count: number | null }> {
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    if (!token) return { followers_count: null, fan_count: null };
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v20.0/me?fields=followers_count,fan_count&access_token=${encodeURIComponent(token)}`,
+        { signal: AbortSignal.timeout(8000) },
+      );
+      if (!res.ok) return { followers_count: null, fan_count: null };
+      const json = (await res.json()) as { followers_count?: number; fan_count?: number };
+      return { followers_count: json.followers_count ?? 0, fan_count: json.fan_count ?? 0 };
+    } catch {
+      return { followers_count: null, fan_count: null };
+    }
   }
 
   async getHubData(workspaceId: string) {
@@ -1100,9 +979,15 @@ export class CommunityHubService {
       };
     });
 
-    const week1Members = members.filter((m) => m.campaign_week === 1);
-    const week1Count = Math.max(5, week1Members.length);
-    const totalMatchedCount = members.length;
+    // Growth is measured ONLY by real Facebook numbers (followers of the Page), never by rows in our DB.
+    const pageStats = await this.fetchRealPageStats();
+    const realFollowers = pageStats.followers_count ?? 0;
+    const realIdentifiedPeople = members.filter((m) => m.external_ref.startsWith('fb:')).length;
+    const manualProspects = members.filter((m) => m.external_ref.startsWith('manual:')).length;
+    const week1Count = realFollowers;
+    const totalMatchedCount = realFollowers;
+    const campaignStatus = (target: number, previousTarget: number) =>
+      realFollowers >= target ? 'completed_target' : realFollowers >= previousTarget ? 'active_campaign' : 'scheduled';
 
     const weeklyCampaigns = [
       {
@@ -1110,7 +995,7 @@ export class CommunityHubService {
         title: 'Tuần 1: Xây dựng Hạt nhân Cộng đồng của Riêng Bạn (Mục tiêu: 5 Thành viên)',
         target_members: 5,
         current_members: week1Count,
-        status: 'completed_target',
+        status: campaignStatus(5, 0),
         theme: 'Đón người mới đến, Kinh nghiệm chọn chỗ ở 2 tuần đầu & Thủ tục nhập cảnh',
         target_trends: ['Chỗ ở 2 tuần đầu', 'Thuê căn hộ', 'Làm việc từ xa', 'Lịch trình Du lịch'],
         tactics: [
@@ -1124,7 +1009,7 @@ export class CommunityHubService {
         title: 'Tuần 2: Mở rộng Nhóm Thành viên Cùng Xu hướng vào Cộng đồng của Bạn (Mục tiêu: 50 Thành viên)',
         target_members: 50,
         current_members: totalMatchedCount,
-        status: 'active_campaign',
+        status: campaignStatus(50, 5),
         theme: 'Checklist Xem căn hộ, Góc làm việc từ xa, eSIM/SIM & Thanh toán VietQR',
         target_trends: ['Checklist thuê nhà', 'Coworking & Wi-Fi', 'eSIM vs SIM vật lý', 'Thanh toán VietQR'],
         tactics: [
@@ -1138,7 +1023,7 @@ export class CommunityHubService {
         title: 'Tuần 3: Tăng tốc Tương tác Đời sống Địa phương (Mục tiêu: 150 Thành viên)',
         target_members: 150,
         current_members: totalMatchedCount,
-        status: 'scheduled',
+        status: campaignStatus(150, 50),
         theme: 'Bảo hiểm Y tế, Đăng ký Tạm trú, Đi chợ/Siêu thị & Phòng tránh Rủi ro',
         target_trends: ['Khai báo tạm trú', 'Bảo hiểm sức khỏe', 'Siêu thị & Chợ địa phương', 'An toàn & Liên hệ khẩn cấp'],
         tactics: [
@@ -1151,7 +1036,7 @@ export class CommunityHubService {
         title: 'Tuần 4: Cộng đồng Tự vận hành & Sự kiện Kết nối Thành viên (Mục tiêu: 300 Thành viên)',
         target_members: 300,
         current_members: totalMatchedCount,
-        status: 'scheduled',
+        status: campaignStatus(300, 150),
         theme: 'Kết nối Thành viên Dài hạn, Tuyến Du lịch Tàu/Bay & Bình chọn Chủ đề Tháng mới',
         target_trends: ['Offline/Online Meetup', 'Tuyến Tàu hỏa / Máy bay nội địa', 'Tối ưu Chi phí mỗi ngày'],
         tactics: [
@@ -1245,6 +1130,10 @@ export class CommunityHubService {
       },
       stats: {
         total_matched_members: totalMatchedCount,
+        real_page_followers: pageStats.followers_count,
+        real_page_likes: pageStats.fan_count,
+        real_identified_people: realIdentifiedPeople,
+        manual_prospects: manualProspects,
         week1_target: 5,
         week1_achieved: week1Count,
         week2_target: 50,
@@ -1277,7 +1166,7 @@ export class CommunityHubService {
       await this.pool.query(
         `INSERT INTO community_hub_members
            (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, 'auto_added', $10, $11)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, 'manual_prospect', $10, $11)
          RETURNING *`,
         [
           workspaceId,

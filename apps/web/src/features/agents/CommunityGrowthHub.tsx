@@ -101,6 +101,10 @@ type HubResponse = {
   };
   stats: {
     total_matched_members: number;
+    real_page_followers: number | null;
+    real_page_likes: number | null;
+    real_identified_people: number;
+    manual_prospects: number;
     week1_target: number;
     week1_achieved: number;
     week2_target: number;
@@ -384,21 +388,35 @@ export default function CommunityGrowthHub({
           )}
         </div>
 
-        {/* KPI Summary Cards */}
+        {/* KPI Summary Cards — growth is measured only by real Facebook numbers */}
+        <div className="rounded-xl border border-slate-300 bg-slate-50 p-3 text-xs text-slate-700">
+          <p className="font-bold text-slate-900">
+            Số liệu thật từ Facebook (Graph API): {hub.stats.real_page_followers ?? "—"} người theo dõi ·{" "}
+            {hub.stats.real_page_likes ?? "—"} lượt thích Page
+          </p>
+          <p className="mt-1">
+            Tiến độ các mốc 5 → 50 → 150 → 300 chỉ tính theo <b>người theo dõi thật</b> của Fanpage. Hệ thống không thể tự
+            thêm ai vào Page/Group (Facebook không cho phép) — người dùng phải tự bấm Theo dõi / Tham gia.
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
-            <p className="text-xs font-semibold text-emerald-800">Tuần 1 (Mục tiêu 5 người)</p>
+            <p className="text-xs font-semibold text-emerald-800">Tuần 1 (Mục tiêu 5 người theo dõi)</p>
             <p className="mt-1 text-2xl font-bold text-emerald-900">
               {hub.stats.week1_achieved}/{hub.stats.week1_target}
             </p>
-            <p className="text-[11px] font-medium text-emerald-700">✓ Đạt chỉ tiêu Tuần 1</p>
+            <p className="text-[11px] font-medium text-emerald-700">
+              {hub.stats.week1_achieved >= hub.stats.week1_target ? "✓ Đạt chỉ tiêu Tuần 1" : "Chưa đạt — số follower thật"}
+            </p>
           </div>
           <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
-            <p className="text-xs font-semibold text-blue-800">Tuần 2 (Mục tiêu 50 người)</p>
+            <p className="text-xs font-semibold text-blue-800">Tuần 2 (Mục tiêu 50 người theo dõi)</p>
             <p className="mt-1 text-2xl font-bold text-blue-900">
               {hub.stats.week2_progress}/{hub.stats.week2_target}
             </p>
-            <p className="text-[11px] font-medium text-blue-700">Tự động gom vào Group của bạn</p>
+            <p className="text-[11px] font-medium text-blue-700">
+              {hub.stats.real_identified_people} người thật đã nhắn tin/bình luận
+            </p>
           </div>
           <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3">
             <p className="text-xs font-semibold text-purple-800">Thảo luận 2 chiều</p>
@@ -535,10 +553,11 @@ export default function CommunityGrowthHub({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Radar Tự động Nhận diện & Thêm Người có cùng Xu hướng vào Cộng đồng của Bạn ({hub.matched_members.length} thành viên)
+                  Người thật đã tương tác với Fanpage ({hub.stats.real_identified_people} người)
                 </h3>
                 <p className="mt-1 text-xs text-slate-600">
-                  Agent tự động phân tích nội dung tin nhắn Messenger trên Fanpage &ldquo;{hub.group.page_name}&rdquo;, bình luận và hành vi tìm kiếm để gắn thẻ xu hướng (Trend/Interest Tags), chấm điểm phù hợp (Affinity Score) và tự động thêm vào danh sách thành viên cộng đồng của bạn.
+                  Chỉ liệt kê tài khoản Facebook thật đã nhắn tin / bình luận trên Fanpage &ldquo;{hub.group.page_name}&rdquo;, kèm nhãn sở thích để gợi ý bài phù hợp.
+                  Đây là danh sách <b>khách tiềm năng để chăm sóc</b>, <b>không phải</b> người theo dõi Page — họ chỉ thành follower khi tự bấm Theo dõi.
                 </p>
               </div>
               <button
@@ -547,9 +566,7 @@ export default function CommunityGrowthHub({
                 onClick={handleScanMembers}
                 className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
               >
-                {busyAction === "scan"
-                  ? "Đang quét xu hướng…"
-                  : "🔍 Quét & Tự động thêm người cùng xu hướng vào Cộng đồng của tôi"}
+                {busyAction === "scan" ? "Đang quét…" : "🔍 Quét lại tin nhắn & bình luận thật trên Fanpage"}
               </button>
             </div>
 
@@ -575,7 +592,7 @@ export default function CommunityGrowthHub({
                 onClick={handleScanMembers}
                 className="rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
               >
-                + Phân tích Xu hướng & Thêm vào Cộng đồng của tôi
+                + Ghi chú khách tiềm năng (nhập tay)
               </button>
             </div>
 
@@ -588,7 +605,7 @@ export default function CommunityGrowthHub({
                     <th className="px-3 py-2.5">Xu hướng & Nhãn sở thích (Auto-Matched)</th>
                     <th className="px-3 py-2.5">Độ khớp</th>
                     <th className="px-3 py-2.5">Chiến dịch</th>
-                    <th className="px-3 py-2.5">Trạng thái trong Cộng đồng của bạn</th>
+                    <th className="px-3 py-2.5">Trạng thái thật</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -626,8 +643,14 @@ export default function CommunityGrowthHub({
                       </td>
                       <td className="px-3 py-3 font-semibold text-slate-700">Tuần {m.campaign_week}</td>
                       <td className="px-3 py-3">
-                        <span className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white">
-                          {m.status === "auto_added" ? "✓ Đã thêm vào Cộng đồng của bạn" : "Đã gửi lời mời tham gia"}
+                        <span
+                          className={`rounded-md px-2 py-1 text-[11px] font-bold ${
+                            m.status === "manual_prospect" ? "bg-slate-200 text-slate-700" : "bg-amber-100 text-amber-900"
+                          }`}
+                        >
+                          {m.status === "manual_prospect"
+                            ? "Nhập tay — chưa xác minh"
+                            : "Đã tương tác — chưa phải follower"}
                         </span>
                       </td>
                     </tr>
