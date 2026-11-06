@@ -32,8 +32,13 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
     if (action === 'update_settings') {
       await service.updateCommunitySettings(params.workspace_id, {
         community_name: body.community_name ? String(body.community_name) : undefined,
-        group_url: body.group_url ? String(body.group_url) : undefined,
+        group_url: body.group_url ? String(body.group_url) : body.target_group_url ? String(body.target_group_url) : undefined,
         positioning: body.positioning ? String(body.positioning) : undefined,
+        group_member_count: body.group_member_count !== undefined ? Number(body.group_member_count) : undefined,
+        week1_target: body.week1_target !== undefined ? Number(body.week1_target) : undefined,
+        week2_target: body.week2_target !== undefined ? Number(body.week2_target) : undefined,
+        week3_target: body.week3_target !== undefined ? Number(body.week3_target) : undefined,
+        week4_target: body.week4_target !== undefined ? Number(body.week4_target) : undefined,
       });
       const data = await service.getHubData(params.workspace_id);
       return NextResponse.json({ status: 'updated', data });

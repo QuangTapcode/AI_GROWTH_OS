@@ -110,6 +110,8 @@ type HubResponse = {
     week1_achieved: number;
     week2_target: number;
     week2_progress: number;
+    week3_target?: number;
+    week4_target?: number;
     active_discussions: number;
     total_approved_playbook_topics: number;
     fresh_unposted_topics: number;
@@ -143,9 +145,14 @@ export default function CommunityGrowthHub({
   const [bannerMessage, setBannerMessage] = useState<string>("");
   const [editingSettings, setEditingSettings] = useState(false);
 
-  // Settings form state
+  // Settings & Custom Target form state
   const [customCommunityName, setCustomCommunityName] = useState("");
   const [customGroupUrl, setCustomGroupUrl] = useState("");
+  const [customGroupMemberCount, setCustomGroupMemberCount] = useState<number>(2);
+  const [customWeek1Target, setCustomWeek1Target] = useState<number>(5);
+  const [customWeek2Target, setCustomWeek2Target] = useState<number>(50);
+  const [customWeek3Target, setCustomWeek3Target] = useState<number>(150);
+  const [customWeek4Target, setCustomWeek4Target] = useState<number>(300);
 
   // Form states for adding prospect & creating discussion
   const [prospectName, setProspectName] = useState("");
@@ -154,13 +161,22 @@ export default function CommunityGrowthHub({
   const [discussionBody, setDiscussionBody] = useState("");
   const [discussionPrompt, setDiscussionPrompt] = useState("");
 
+  function syncFormFromHub(res: HubResponse) {
+    setCustomCommunityName(res.group.name);
+    setCustomGroupUrl(res.group.group_url);
+    setCustomGroupMemberCount(res.stats.real_group_members ?? res.stats.week1_achieved ?? 2);
+    setCustomWeek1Target(res.stats.week1_target || 5);
+    setCustomWeek2Target(res.stats.week2_target || 50);
+    setCustomWeek3Target(res.stats.week3_target || res.weekly_campaigns?.[2]?.target_members || 150);
+    setCustomWeek4Target(res.stats.week4_target || res.weekly_campaigns?.[3]?.target_members || 300);
+  }
+
   async function fetchHub() {
     setLoading(true);
     try {
       const res = await apiRequest<HubResponse>(`/workspaces/${workspaceId}/community/hub`);
       setHub(res);
-      setCustomCommunityName(res.group.name);
-      setCustomGroupUrl(res.group.group_url);
+      syncFormFromHub(res);
     } catch (err) {
       setBannerMessage((err as Error).message);
     } finally {
@@ -183,11 +199,19 @@ export default function CommunityGrowthHub({
           action: "update_settings",
           community_name: customCommunityName.trim(),
           group_url: customGroupUrl.trim(),
+          group_member_count: Number(customGroupMemberCount),
+          week1_target: Number(customWeek1Target),
+          week2_target: Number(customWeek2Target),
+          week3_target: Number(customWeek3Target),
+          week4_target: Number(customWeek4Target),
         },
       });
       setHub(res.data);
+      syncFormFromHub(res.data);
       setEditingSettings(false);
-      setBannerMessage("Đã lưu cấu hình Cộng đồng & Link Group của riêng bạn!");
+      setBannerMessage(
+        `Đã cập nhật Mục tiêu các Tuần (${res.data.stats.week1_target} → ${res.data.stats.week2_target} → ${res.data.stats.week3_target ?? customWeek3Target} → ${res.data.stats.week4_target ?? customWeek4Target}) & số thành viên Group (${res.data.stats.real_group_members} thành viên)!`
+      );
     } catch (err) {
       setBannerMessage((err as Error).message);
     } finally {
@@ -354,9 +378,9 @@ export default function CommunityGrowthHub({
             <button
               type="button"
               onClick={() => setEditingSettings((v) => !v)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-blue-600 bg-blue-50 px-3 py-1.5 text-blue-800 hover:bg-blue-100"
             >
-              ⚙️ Tùy chỉnh Tên Cộng đồng & Link Group của bạn
+              🎯 Đặt Mục tiêu Thành viên theo Tuần & Cấu hình Group
             </button>
             <button
               type="button"
@@ -371,40 +395,109 @@ export default function CommunityGrowthHub({
           </div>
 
           {editingSettings && (
-            <form onSubmit={handleSaveSettings} className="mt-4 space-y-3 rounded-xl border border-blue-200 bg-white p-4">
-              <p className="text-xs font-bold text-slate-900">
-                Cấu hình Tên Cộng đồng & Link Group Facebook của Riêng Bạn (Mọi bài đăng và lời mời thành viên sẽ dẫn về đây)
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Tên Cộng đồng của bạn
-                  <input
-                    type="text"
-                    required
-                    value={customCommunityName}
-                    onChange={(e) => setCustomCommunityName(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
-                  />
-                </label>
-                <label className="block text-xs font-semibold text-slate-700">
-                  Link Group / Cộng đồng Facebook của bạn
-                  <input
-                    type="url"
-                    required
-                    value={customGroupUrl}
-                    onChange={(e) => setCustomGroupUrl(e.target.value)}
-                    placeholder="https://www.facebook.com/groups/ten-group-cua-ban"
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
-                  />
-                </label>
+            <form onSubmit={handleSaveSettings} className="mt-4 space-y-4 rounded-xl border-2 border-blue-300 bg-white p-4 shadow-sm">
+              <div>
+                <p className="text-xs font-bold text-slate-900">
+                  1. Cấu hình Tên Cộng đồng & Link Group Facebook của Riêng Bạn
+                </p>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Tên Cộng đồng của bạn
+                    <input
+                      type="text"
+                      required
+                      value={customCommunityName}
+                      onChange={(e) => setCustomCommunityName(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Link Group / Cộng đồng Facebook của bạn
+                    <input
+                      type="url"
+                      required
+                      value={customGroupUrl}
+                      onChange={(e) => setCustomGroupUrl(e.target.value)}
+                      placeholder="https://www.facebook.com/groups/ten-group-cua-ban"
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
+                    />
+                  </label>
+                </div>
               </div>
+
+              <div className="border-t border-slate-200 pt-3">
+                <p className="text-xs font-bold text-slate-900">
+                  2. Tùy chỉnh Mục tiêu Thành viên các Tuần & Số Thành viên hiện tại trong Group (Không fix cứng)
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  Bạn có thể tự đặt mục tiêu KPI thành viên cho từng tuần và cập nhật số lượng thành viên hiện tại của Group Facebook.
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                  <label className="block text-xs font-semibold text-emerald-800">
+                    Hiện có trong Group
+                    <input
+                      type="number"
+                      min={0}
+                      required
+                      value={customGroupMemberCount}
+                      onChange={(e) => setCustomGroupMemberCount(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-emerald-400 bg-emerald-50/40 px-3 py-1.5 text-xs font-bold text-emerald-950"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Mục tiêu Tuần 1
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={customWeek1Target}
+                      onChange={(e) => setCustomWeek1Target(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Mục tiêu Tuần 2
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={customWeek2Target}
+                      onChange={(e) => setCustomWeek2Target(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Mục tiêu Tuần 3
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={customWeek3Target}
+                      onChange={(e) => setCustomWeek3Target(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Mục tiêu Tuần 4
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={customWeek4Target}
+                      onChange={(e) => setCustomWeek4Target(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <button
                   type="submit"
                   disabled={!canEdit || busyAction === "save_settings"}
-                  className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
+                  className="rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
                 >
-                  {busyAction === "save_settings" ? "Đang lưu…" : "Lưu cấu hình Cộng đồng của tôi"}
+                  {busyAction === "save_settings" ? "Đang lưu…" : "Lưu Mục tiêu & Cấu hình Cộng đồng"}
                 </button>
                 <button
                   type="button"
@@ -420,17 +513,29 @@ export default function CommunityGrowthHub({
 
         {/* KPI Summary Cards — growth is measured only by real Facebook numbers */}
         <div className="rounded-xl border border-slate-300 bg-slate-50 p-3 text-xs text-slate-700">
-          <p className="font-bold text-slate-900">
-            Số liệu thật từ Facebook: {hub.stats.real_group_members ?? "—"} thành viên trong Nhóm (Group) ·{" "}
-            {hub.stats.real_page_followers ?? "—"} người theo dõi Page · {hub.stats.real_page_likes ?? "—"} lượt thích Page
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-bold text-slate-900">
+              Số liệu thật từ Facebook: {hub.stats.real_group_members ?? hub.stats.week1_achieved} thành viên trong Nhóm (Group) ·{" "}
+              {hub.stats.real_page_followers ?? 0} người theo dõi Page · {hub.stats.real_page_likes ?? 0} lượt thích Page
+            </p>
+            <button
+              type="button"
+              onClick={() => setEditingSettings(true)}
+              className="rounded-md border border-blue-300 bg-white px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-50"
+            >
+              ✏️ Đổi mục tiêu ({hub.stats.week1_target} → {hub.stats.week2_target} → {hub.stats.week3_target ?? 150} → {hub.stats.week4_target ?? 300})
+            </button>
+          </div>
           <p className="mt-1">
-            Tiến độ các mốc 5 → 50 → 150 → 300 được đồng bộ trực tiếp theo <b>số thành viên thật trong Group Facebook</b> của bạn ({hub.group.group_url}).
+            Tiến độ các mốc mục tiêu ({hub.stats.week1_target} → {hub.stats.week2_target} → {hub.stats.week3_target ?? 150} → {hub.stats.week4_target ?? 300}) được tính theo{" "}
+            <b>số thành viên thật trong Group Facebook</b> của bạn ({hub.group.group_url}).
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
-            <p className="text-xs font-semibold text-emerald-800">Tuần 1 (Mục tiêu 5 thành viên)</p>
+            <p className="text-xs font-semibold text-emerald-800">
+              Tuần 1 (Mục tiêu {hub.stats.week1_target} thành viên)
+            </p>
             <p className="mt-1 text-2xl font-bold text-emerald-900">
               {hub.stats.week1_achieved}/{hub.stats.week1_target}
             </p>
@@ -441,7 +546,9 @@ export default function CommunityGrowthHub({
             </p>
           </div>
           <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
-            <p className="text-xs font-semibold text-blue-800">Tuần 2 (Mục tiêu 50 thành viên)</p>
+            <p className="text-xs font-semibold text-blue-800">
+              Tuần 2 (Mục tiêu {hub.stats.week2_target} thành viên)
+            </p>
             <p className="mt-1 text-2xl font-bold text-blue-900">
               {hub.stats.week2_progress}/{hub.stats.week2_target}
             </p>
@@ -481,7 +588,7 @@ export default function CommunityGrowthHub({
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }`}
         >
-          1. Chiến dịch Thu hút Thành viên (Tuần 1: 5 → Tuần 2: 50) & Tự động Gom người cùng xu hướng
+          1. Chiến dịch Thu hút Thành viên (Tuần 1: {hub.stats.week1_target} → Tuần 2: {hub.stats.week2_target}) & Tự động Gom người cùng xu hướng
         </button>
         <button
           type="button"
@@ -511,11 +618,20 @@ export default function CommunityGrowthHub({
       {activeTab === "campaigns" && (
         <div className="space-y-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">
-              Lộ trình Chiến dịch Thu hút Thành viên vào Cộng đồng của Riêng Bạn theo từng Tuần
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-lg font-bold text-slate-900">
+                Lộ trình Chiến dịch Thu hút Thành viên vào Cộng đồng của Riêng Bạn theo từng Tuần
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingSettings(true)}
+                className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
+              >
+                🎯 Tùy chỉnh Mục tiêu các Tuần
+              </button>
+            </div>
             <p className="mt-1 text-sm text-slate-600">
-              Mục tiêu rõ ràng theo tuần (Tuần 1: thu hút 5 thành viên hạt nhân → Tuần 2: 50 thành viên → Tuần 3: 150 → Tuần 4: 300) kèm chiến thuật tự động nhận diện người có cùng mối quan tâm để mời vào cộng đồng của bạn.
+              Mục tiêu tùy chỉnh theo tuần (Tuần 1: thu hút {hub.stats.week1_target} thành viên hạt nhân → Tuần 2: {hub.stats.week2_target} thành viên → Tuần 3: {hub.stats.week3_target ?? 150} → Tuần 4: {hub.stats.week4_target ?? 300}) kèm chiến thuật tự động nhận diện người có cùng mối quan tâm để mời vào cộng đồng của bạn.
             </p>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {hub.weekly_campaigns.map((c) => {

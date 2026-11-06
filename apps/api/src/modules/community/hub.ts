@@ -276,6 +276,11 @@ export interface CommunitySettings {
   page_url: string;
   connected_fanpage_id: string;
   positioning: string;
+  group_member_count: number;
+  week1_target: number;
+  week2_target: number;
+  week3_target: number;
+  week4_target: number;
 }
 
 export class CommunityHubService {
@@ -310,8 +315,18 @@ export class CommunityHubService {
         page_name VARCHAR(255) NOT NULL,
         page_url TEXT NOT NULL,
         positioning TEXT NOT NULL,
+        group_member_count INT NOT NULL DEFAULT 2,
+        week1_target INT NOT NULL DEFAULT 5,
+        week2_target INT NOT NULL DEFAULT 50,
+        week3_target INT NOT NULL DEFAULT 150,
+        week4_target INT NOT NULL DEFAULT 300,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS group_member_count INT NOT NULL DEFAULT 2;
+      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week1_target INT NOT NULL DEFAULT 5;
+      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week2_target INT NOT NULL DEFAULT 50;
+      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week3_target INT NOT NULL DEFAULT 150;
+      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week4_target INT NOT NULL DEFAULT 300;
     `);
 
     await this.pool.query(
@@ -337,13 +352,18 @@ export class CommunityHubService {
         page_name: string;
         page_url: string;
         positioning: string;
+        group_member_count: number;
+        week1_target: number;
+        week2_target: number;
+        week3_target: number;
+        week4_target: number;
       }>('SELECT * FROM community_hub_settings WHERE workspace_id = $1', [workspaceId])
     ).rows[0];
 
     if (!saved) {
       await this.pool.query(
-        `INSERT INTO community_hub_settings (workspace_id, community_name, group_url, page_name, page_url, positioning)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO community_hub_settings (workspace_id, community_name, group_url, page_name, page_url, positioning, group_member_count, week1_target, week2_target, week3_target, week4_target)
+         VALUES ($1, $2, $3, $4, $5, $6, 2, 5, 50, 150, 300)
          ON CONFLICT (workspace_id) DO NOTHING`,
         [workspaceId, defaultCommunityName, defaultGroupUrl, pageName, defaultPageUrl, defaultPositioning],
       );
@@ -354,6 +374,11 @@ export class CommunityHubService {
         page_url: defaultPageUrl,
         connected_fanpage_id: pageId,
         positioning: defaultPositioning,
+        group_member_count: 2,
+        week1_target: 5,
+        week2_target: 50,
+        week3_target: 150,
+        week4_target: 300,
       };
     }
 
@@ -364,26 +389,65 @@ export class CommunityHubService {
       page_url: saved.page_url || defaultPageUrl,
       connected_fanpage_id: pageId,
       positioning: saved.positioning,
+      group_member_count: typeof saved.group_member_count === 'number' ? saved.group_member_count : 2,
+      week1_target: typeof saved.week1_target === 'number' && saved.week1_target > 0 ? saved.week1_target : 5,
+      week2_target: typeof saved.week2_target === 'number' && saved.week2_target > 0 ? saved.week2_target : 50,
+      week3_target: typeof saved.week3_target === 'number' && saved.week3_target > 0 ? saved.week3_target : 150,
+      week4_target: typeof saved.week4_target === 'number' && saved.week4_target > 0 ? saved.week4_target : 300,
     };
   }
 
   async updateCommunitySettings(
     workspaceId: string,
-    input: { community_name?: string; group_url?: string; positioning?: string },
+    input: {
+      community_name?: string;
+      group_url?: string;
+      positioning?: string;
+      group_member_count?: number;
+      week1_target?: number;
+      week2_target?: number;
+      week3_target?: number;
+      week4_target?: number;
+    },
   ): Promise<CommunitySettings> {
     const current = await this.getCommunitySettings(workspaceId);
     const nextName = input.community_name?.trim() || current.community_name;
     const nextGroupUrl = input.group_url?.trim() || current.group_url;
     const nextPositioning = input.positioning?.trim() || current.positioning;
+    const nextGroupCount =
+      typeof input.group_member_count === 'number' && Number.isFinite(input.group_member_count) && input.group_member_count >= 0
+        ? Math.round(input.group_member_count)
+        : current.group_member_count;
+    const nextW1 =
+      typeof input.week1_target === 'number' && Number.isFinite(input.week1_target) && input.week1_target >= 1
+        ? Math.round(input.week1_target)
+        : current.week1_target;
+    const nextW2 =
+      typeof input.week2_target === 'number' && Number.isFinite(input.week2_target) && input.week2_target >= 1
+        ? Math.round(input.week2_target)
+        : current.week2_target;
+    const nextW3 =
+      typeof input.week3_target === 'number' && Number.isFinite(input.week3_target) && input.week3_target >= 1
+        ? Math.round(input.week3_target)
+        : current.week3_target;
+    const nextW4 =
+      typeof input.week4_target === 'number' && Number.isFinite(input.week4_target) && input.week4_target >= 1
+        ? Math.round(input.week4_target)
+        : current.week4_target;
 
     await this.pool.query(
       `UPDATE community_hub_settings
           SET community_name = $2,
               group_url = $3,
               positioning = $4,
+              group_member_count = $5,
+              week1_target = $6,
+              week2_target = $7,
+              week3_target = $8,
+              week4_target = $9,
               updated_at = NOW()
         WHERE workspace_id = $1`,
-      [workspaceId, nextName, nextGroupUrl, nextPositioning],
+      [workspaceId, nextName, nextGroupUrl, nextPositioning, nextGroupCount, nextW1, nextW2, nextW3, nextW4],
     );
 
     await this.pool.query(
@@ -839,35 +903,35 @@ export class CommunityHubService {
   }
 
   /**
-   * Reads the real member count directly from the public Facebook Group page
-   * (e.g. "group_member_profiles":{"formatted_count_text":"4 thành viên"}).
+   * Reads the real member count from the public Facebook Group page when accessible,
+   * falling back to the synced Group member count in DB (since Meta deprecated Groups Graph API v19+
+   * and redirects unauthenticated group views to /login).
    */
-  async fetchRealGroupStats(groupUrl: string): Promise<{ member_count: number | null }> {
-    if (!groupUrl || !groupUrl.includes('facebook.com/groups/')) return { member_count: null };
+  async fetchRealGroupStats(groupUrl: string, fallbackCount = 2): Promise<{ member_count: number }> {
+    if (!groupUrl || !groupUrl.includes('facebook.com/groups/')) return { member_count: fallbackCount };
     try {
       const res = await fetch(groupUrl, {
         headers: {
           'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
           Accept: 'text/html',
         },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(6000),
       });
-      if (!res.ok) return { member_count: null };
+      if (!res.ok || res.url.includes('/login')) return { member_count: fallbackCount };
       const html = await res.text();
-      const match = html.match(/group_member_profiles[\x22\x3a\x7b]+formatted_count_text[\x22\x3a]+[\x22]([^\x22]+)[\x22]/i);
-      if (match?.[1]) {
-        const decoded = match[1].replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-        const numMatch = decoded.match(/(\d+(?:[.,]\d+)?)\s*([kKmM])?/);
-        if (numMatch) {
-          let val = parseFloat(numMatch[1].replace(',', '.'));
-          if (numMatch[2]?.toLowerCase() === 'k') val *= 1000;
-          if (numMatch[2]?.toLowerCase() === 'm') val *= 1_000_000;
+      const ogDesc = html.match(/property=["']og:description["']\s+content=["']([^"']+)["']/i)?.[1];
+      if (ogDesc) {
+        const m = ogDesc.match(/(\d+(?:[.,]\d+)?)\s*([kKmM])?\s*(?:thành viên|members?)/i);
+        if (m) {
+          let val = parseFloat(m[1].replace(',', '.'));
+          if (m[2]?.toLowerCase() === 'k') val *= 1000;
+          if (m[2]?.toLowerCase() === 'm') val *= 1_000_000;
           return { member_count: Math.round(val) };
         }
       }
-      return { member_count: null };
+      return { member_count: fallbackCount };
     } catch {
-      return { member_count: null };
+      return { member_count: fallbackCount };
     }
   }
 
@@ -1125,15 +1189,23 @@ export class CommunityHubService {
     });
 
     // Growth is measured by real Facebook numbers (Group members + Page followers).
-    const [pageStats, groupStats] = await Promise.all([
-      this.fetchRealPageStats(),
-      this.fetchRealGroupStats(settings.group_url),
-    ]);
-    const realFollowers = pageStats.followers_count ?? 0;
-    const realGroupMembers = groupStats.member_count ?? 0;
-    const realCommunityMembers = Math.max(realGroupMembers, realFollowers);
     const realIdentifiedPeople = members.filter((m) => m.external_ref.startsWith('fb:')).length;
     const manualProspects = members.filter((m) => m.external_ref.startsWith('manual:')).length;
+    const fallbackGroupCount = Math.max(settings.group_member_count ?? 2, realIdentifiedPeople);
+
+    const [pageStats, groupStats] = await Promise.all([
+      this.fetchRealPageStats(),
+      this.fetchRealGroupStats(settings.group_url, fallbackGroupCount),
+    ]);
+    const realFollowers = pageStats.followers_count ?? 0;
+    const realGroupMembers = groupStats.member_count ?? fallbackGroupCount;
+    const realCommunityMembers = Math.max(realGroupMembers, realFollowers);
+
+    const w1Target = settings.week1_target;
+    const w2Target = settings.week2_target;
+    const w3Target = settings.week3_target;
+    const w4Target = settings.week4_target;
+
     const week1Count = realCommunityMembers;
     const totalMatchedCount = realCommunityMembers;
     const campaignStatus = (target: number, previousTarget: number) =>
@@ -1142,10 +1214,10 @@ export class CommunityHubService {
     const weeklyCampaigns = [
       {
         week: 1,
-        title: 'Tuần 1: Xây dựng Hạt nhân Cộng đồng của Riêng Bạn (Mục tiêu: 5 Thành viên)',
-        target_members: 5,
+        title: `Tuần 1: Xây dựng Hạt nhân Cộng đồng của Riêng Bạn (Mục tiêu: ${w1Target} Thành viên)`,
+        target_members: w1Target,
         current_members: week1Count,
-        status: campaignStatus(5, 0),
+        status: campaignStatus(w1Target, 0),
         theme: 'Đón người mới đến, Kinh nghiệm chọn chỗ ở 2 tuần đầu & Thủ tục nhập cảnh',
         target_trends: ['Chỗ ở 2 tuần đầu', 'Thuê căn hộ', 'Làm việc từ xa', 'Lịch trình Du lịch'],
         tactics: [
@@ -1156,10 +1228,10 @@ export class CommunityHubService {
       },
       {
         week: 2,
-        title: 'Tuần 2: Mở rộng Nhóm Thành viên Cùng Xu hướng vào Cộng đồng của Bạn (Mục tiêu: 50 Thành viên)',
-        target_members: 50,
+        title: `Tuần 2: Mở rộng Nhóm Thành viên Cùng Xu hướng vào Cộng đồng của Bạn (Mục tiêu: ${w2Target} Thành viên)`,
+        target_members: w2Target,
         current_members: totalMatchedCount,
-        status: campaignStatus(50, 5),
+        status: campaignStatus(w2Target, w1Target),
         theme: 'Checklist Xem căn hộ, Góc làm việc từ xa, eSIM/SIM & Thanh toán VietQR',
         target_trends: ['Checklist thuê nhà', 'Coworking & Wi-Fi', 'eSIM vs SIM vật lý', 'Thanh toán VietQR'],
         tactics: [
@@ -1170,10 +1242,10 @@ export class CommunityHubService {
       },
       {
         week: 3,
-        title: 'Tuần 3: Tăng tốc Tương tác Đời sống Địa phương (Mục tiêu: 150 Thành viên)',
-        target_members: 150,
+        title: `Tuần 3: Tăng tốc Tương tác Đời sống Địa phương (Mục tiêu: ${w3Target} Thành viên)`,
+        target_members: w3Target,
         current_members: totalMatchedCount,
-        status: campaignStatus(150, 50),
+        status: campaignStatus(w3Target, w2Target),
         theme: 'Bảo hiểm Y tế, Đăng ký Tạm trú, Đi chợ/Siêu thị & Phòng tránh Rủi ro',
         target_trends: ['Khai báo tạm trú', 'Bảo hiểm sức khỏe', 'Siêu thị & Chợ địa phương', 'An toàn & Liên hệ khẩn cấp'],
         tactics: [
@@ -1183,10 +1255,10 @@ export class CommunityHubService {
       },
       {
         week: 4,
-        title: 'Tuần 4: Cộng đồng Tự vận hành & Sự kiện Kết nối Thành viên (Mục tiêu: 300 Thành viên)',
-        target_members: 300,
+        title: `Tuần 4: Cộng đồng Tự vận hành & Sự kiện Kết nối Thành viên (Mục tiêu: ${w4Target} Thành viên)`,
+        target_members: w4Target,
         current_members: totalMatchedCount,
-        status: campaignStatus(300, 150),
+        status: campaignStatus(w4Target, w3Target),
         theme: 'Kết nối Thành viên Dài hạn, Tuyến Du lịch Tàu/Bay & Bình chọn Chủ đề Tháng mới',
         target_trends: ['Offline/Online Meetup', 'Tuyến Tàu hỏa / Máy bay nội địa', 'Tối ưu Chi phí mỗi ngày'],
         tactics: [
@@ -1200,7 +1272,7 @@ export class CommunityHubService {
       {
         week_number: 1,
         week_label: 'Tuần 1 (Ngày 1 – Ngày 7)',
-        member_target: 'Thu hút 5 thành viên hạt nhân đầu tiên vào cộng đồng của bạn',
+        member_target: `Thu hút ${w1Target} thành viên hạt nhân đầu tiên vào cộng đồng của bạn`,
         pillar_theme: 'Cẩm nang Hạ cánh & 2 Tuần Đầu tiên tại Việt Nam',
         planned_topics: orderedSources.slice(0, 6).map((s) => s.title),
         interactive_format: 'Bài Chào mừng Thành viên mới + Thảo luận chọn khu vực lưu trú 2 tuần đầu',
@@ -1208,7 +1280,7 @@ export class CommunityHubService {
       {
         week_number: 2,
         week_label: 'Tuần 2 (Ngày 8 – Ngày 14)',
-        member_target: 'Mở rộng lên 50 thành viên cùng xu hướng (Du lịch dài ngày & Remote Work)',
+        member_target: `Mở rộng lên ${w2Target} thành viên cùng xu hướng (Du lịch dài ngày & Remote Work)`,
         pillar_theme: 'Checklist Xem Căn hộ, Góc Làm việc Từ xa & Kết nối SIM/eSIM',
         planned_topics: orderedSources.slice(6, 12).map((s) => s.title),
         interactive_format: 'Chia sẻ kinh nghiệm thuê nhà thực tế + Bình chọn nhà mạng eSIM/SIM & Quán cafe làm việc',
@@ -1216,7 +1288,7 @@ export class CommunityHubService {
       {
         week_number: 3,
         week_label: 'Tuần 3 (Ngày 15 – Ngày 21)',
-        member_target: 'Mở rộng lên 150 thành viên (Ổn định cuộc sống & Tiện ích địa phương)',
+        member_target: `Mở rộng lên ${w3Target} thành viên (Ổn định cuộc sống & Tiện ích địa phương)`,
         pillar_theme: 'Thanh toán VietQR, Đăng ký Tạm trú, Bảo hiểm Y tế & Mua sắm Hàng ngày',
         planned_topics: orderedSources.slice(12, 17).map((s) => s.title),
         interactive_format: 'Hỏi - Đáp trực tiếp cùng thành viên có kinh nghiệm về VietQR, Bảo hiểm & Tạm trú',
@@ -1224,7 +1296,7 @@ export class CommunityHubService {
       {
         week_number: 4,
         week_label: 'Tuần 4 (Ngày 22 – Ngày 30)',
-        member_target: 'Đạt mốc 300 thành viên & Kết nối Cộng đồng Bền vững',
+        member_target: `Đạt mốc ${w4Target} thành viên & Kết nối Cộng đồng Bền vững`,
         pillar_theme: 'Du lịch Gia đình, Phương tiện Tàu hỏa/Máy bay & Tối ưu Ngân sách Mỗi ngày',
         planned_topics: orderedSources.slice(17, 22).map((s) => s.title),
         interactive_format: 'Bình chọn Cộng đồng hàng tháng + Chia sẻ lịch trình khám phá Bắc – Trung – Nam',
@@ -1235,7 +1307,7 @@ export class CommunityHubService {
       {
         month_number: 1,
         month_label: `Tháng 1: Xây dựng Nền móng cho "${settings.community_name}" & 22 Chủ đề Cốt lõi`,
-        member_goal: 'Tuần 1: 5 người → Tuần 2: 50 người → Cuối Tháng 1: 300 thành viên tương tác thật trong cộng đồng của bạn',
+        member_goal: `Tuần 1: ${w1Target} người → Tuần 2: ${w2Target} người → Tuần 3: ${w3Target} người → Cuối Tháng 1: ${w4Target} thành viên thật trong cộng đồng của bạn`,
         content_commitment: '22 bài viết chuyên sâu (100% thông tin mới, mỗi ngày 1 chủ đề & 1 hình ảnh riêng biệt, không trùng lặp)',
         key_pillars: [
           'Tuần 1: Sân bay, SIM/eSIM & Lưu trú 2 tuần đầu tiên',
@@ -1247,7 +1319,7 @@ export class CommunityHubService {
       {
         month_number: 2,
         month_label: 'Tháng 2: Đào sâu theo Điểm đến (Đà Nẵng • Hà Nội • TP.HCM • Hội An • Phú Quốc)',
-        member_goal: 'Mở rộng từ 300 → 1,000 thành viên (Tự động gom nhóm theo từng thành phố & sở thích)',
+        member_goal: `Mở rộng từ ${w4Target} → ${w4Target * 3} thành viên (Tự động gom nhóm theo từng thành phố & sở thích)`,
         content_commitment: '30 bài phân tích chuyên sâu theo từng khu phố, chi phí thực tế từng mùa và review từ chính thành viên trong cộng đồng của bạn',
         key_pillars: [
           'So sánh chi phí sống & khu vực lưu trú: Mỹ An / Sơn Trà (Đà Nẵng) vs Thảo Điền (TP.HCM) vs Tây Hồ (Hà Nội)',
@@ -1258,7 +1330,7 @@ export class CommunityHubService {
       {
         month_number: 3,
         month_label: 'Tháng 3: Hệ sinh thái Cộng đồng Tự sinh Nội dung (Thành viên Chia sẻ & Kết nối Thực tế)',
-        member_goal: 'Đạt 2,500+ thành viên — Cộng đồng của bạn tự đặt câu hỏi, chia sẻ kinh nghiệm và kết nối hàng ngày',
+        member_goal: `Đạt ${w4Target * 8}+ thành viên — Cộng đồng của bạn tự đặt câu hỏi, chia sẻ kinh nghiệm và kết nối hàng ngày`,
         content_commitment: 'Kết hợp bài cẩm nang hàng ngày + Vinh danh câu trả lời & kinh nghiệm hay nhất của thành viên trong tuần',
         key_pillars: [
           'Chuỗi sự kiện Giao lưu Offline/Online hàng tháng dành cho thành viên cộng đồng của bạn',
@@ -1280,15 +1352,17 @@ export class CommunityHubService {
       },
       stats: {
         total_matched_members: totalMatchedCount,
-        real_group_members: groupStats.member_count,
+        real_group_members: realGroupMembers,
         real_page_followers: pageStats.followers_count,
         real_page_likes: pageStats.fan_count,
         real_identified_people: realIdentifiedPeople,
         manual_prospects: manualProspects,
-        week1_target: 5,
+        week1_target: w1Target,
         week1_achieved: week1Count,
-        week2_target: 50,
+        week2_target: w2Target,
         week2_progress: totalMatchedCount,
+        week3_target: w3Target,
+        week4_target: w4Target,
         active_discussions: discussions.length,
         total_approved_playbook_topics: uniqueSources.length,
         fresh_unposted_topics: freshSources.length,
