@@ -299,8 +299,8 @@ export class CommunityHubService {
         ? 'https://www.facebook.com/profile.php?id=61596152213281'
         : `https://www.facebook.com/profile.php?id=${pageId}`;
     const defaultGroupUrl = 'https://www.facebook.com/groups/1134282109069209';
-    const defaultCommunityName = `Cộng đồng ${pageName} – Giao lưu & Chia sẻ Kinh nghiệm Du lịch Việt Nam`;
-    const defaultPositioning = `Cộng đồng tương tác 2 chiều của riêng bạn ( vận hành trên Fanpage "${pageName}" & Group Facebook chính thức: ${defaultGroupUrl} ) — nơi các thành viên cùng sở thích du lịch, lưu trú, làm việc từ xa và khám phá Việt Nam trực tiếp hỏi đáp, chia sẻ kinh nghiệm thực tế với nhau.`;
+    const defaultCommunityName = 'Cộng đồng Du lịch & Sống tại Việt Nam';
+    const defaultPositioning = `Cộng đồng chính thức vận hành trên Fanpage "${pageName}" và Nhóm Facebook "${defaultCommunityName}" (${defaultGroupUrl}) — nơi các thành viên cùng sở thích du lịch, lưu trú, làm việc từ xa và khám phá Việt Nam trực tiếp hỏi đáp, chia sẻ kinh nghiệm thực tế với nhau.`;
 
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS community_hub_settings (
@@ -317,13 +317,17 @@ export class CommunityHubService {
     await this.pool.query(
       `UPDATE community_hub_settings
           SET page_url = $2,
+              community_name = CASE
+                WHEN community_name LIKE '%Cộng đồng Dịch vụ hỗ trợ du lịch%' THEN $5
+                ELSE community_name
+              END,
               group_url = CASE
                 WHEN group_url LIKE '%profile.php%' OR group_url LIKE '%1381196421750749%' OR group_url LIKE '%vietnamplaybook%' THEN $3
                 ELSE group_url
               END,
               positioning = $4
         WHERE workspace_id = $1`,
-      [workspaceId, defaultPageUrl, defaultGroupUrl, defaultPositioning],
+      [workspaceId, defaultPageUrl, defaultGroupUrl, defaultPositioning, defaultCommunityName],
     );
 
     const saved = (
@@ -445,7 +449,7 @@ export class CommunityHubService {
     const legacyDiscussions = (
       await this.pool.query<{ n: number }>(
         `SELECT count(*)::int AS n FROM community_hub_discussions
-          WHERE workspace_id = $1 AND (title LIKE '%Vietnam Playbook%' OR author_name LIKE '%Playbook%' OR discussion_prompt LIKE '%vietnamplaybook%')`,
+          WHERE workspace_id = $1 AND (title LIKE '%Vietnam Playbook%' OR author_name LIKE '%Playbook%' OR discussion_prompt LIKE '%vietnamplaybook%' OR body LIKE '%2 chiều%')`,
         [workspaceId],
       )
     ).rows[0]?.n ?? 0;
@@ -488,10 +492,10 @@ export class CommunityHubService {
         [workspaceId],
       )
     ).rows[0];
-    if (goalRow && (/\be-?visa\b/i.test(goalRow.title) || /Playbook/i.test(goalRow.title))) {
+    if (goalRow && (/\be-?visa\b/i.test(goalRow.title) || /Playbook|2 chiều/i.test(goalRow.title))) {
       await this.pool.query(
         `UPDATE growth_goals
-            SET title = 'Phát triển Cộng đồng Dịch vụ Hỗ trợ Du lịch tương tác 2 chiều và chuỗi bài cẩm nang du lịch, lưu trú tại Việt Nam'
+            SET title = 'Phát triển Cộng đồng Du lịch & Sống tại Việt Nam và chuỗi bài cẩm nang du lịch, lưu trú thực tế'
           WHERE id = $1`,
         [goalRow.id],
       );
@@ -521,7 +525,7 @@ export class CommunityHubService {
           ? {
               ...currentCtx.goal,
               objective:
-                'Phát triển Cộng đồng Dịch vụ Hỗ trợ Du lịch tương tác 2 chiều và chuỗi bài cẩm nang du lịch, lưu trú tại Việt Nam',
+                'Phát triển Cộng đồng Du lịch & Sống tại Việt Nam và chuỗi bài cẩm nang du lịch, lưu trú thực tế',
               focus_offers: [],
             }
           : null;
@@ -671,7 +675,7 @@ export class CommunityHubService {
         title: `[Chủ đề Gắn kết Tuần] Chào mừng thành viên mới của ${settings.community_name}! Hãy giới thiệu bản thân & điểm đến của bạn nhé!`,
         author_name: `Ban Quản Trị (${settings.page_name})`,
         author_role: 'Quản trị viên Cộng đồng',
-        body: `Chào mừng bạn đến với ${settings.community_name} — không gian thảo luận 2 chiều dành cho những người yêu thích du lịch, khám phá và sinh sống tại Việt Nam! Hãy để lại bình luận bên dưới để kết nối với các thành viên có cùng mối quan tâm nhé.`,
+        body: `Chào mừng bạn đến với ${settings.community_name} — không gian kết nối dành cho những người yêu thích du lịch, khám phá và sinh sống tại Việt Nam! Hãy để lại bình luận bên dưới để giao lưu với các thành viên có cùng mối quan tâm nhé.`,
         discussion_prompt: '1) Bạn đang ở thành phố nào (hoặc sắp đi du lịch ở đâu)? 2) Mối quan tâm lớn nhất của bạn tuần này là gì (Lịch trình, Chỗ ở, Ẩm thực, Di chuyển hay Thủ tục)?',
         source_url: settings.group_url,
         image_url: assets[11].url,
@@ -835,6 +839,39 @@ export class CommunityHubService {
   }
 
   /**
+   * Reads the real member count directly from the public Facebook Group page
+   * (e.g. "group_member_profiles":{"formatted_count_text":"4 thành viên"}).
+   */
+  async fetchRealGroupStats(groupUrl: string): Promise<{ member_count: number | null }> {
+    if (!groupUrl || !groupUrl.includes('facebook.com/groups/')) return { member_count: null };
+    try {
+      const res = await fetch(groupUrl, {
+        headers: {
+          'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+          Accept: 'text/html',
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return { member_count: null };
+      const html = await res.text();
+      const match = html.match(/group_member_profiles[\x22\x3a\x7b]+formatted_count_text[\x22\x3a]+[\x22]([^\x22]+)[\x22]/i);
+      if (match?.[1]) {
+        const decoded = match[1].replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+        const numMatch = decoded.match(/(\d+(?:[.,]\d+)?)\s*([kKmM])?/);
+        if (numMatch) {
+          let val = parseFloat(numMatch[1].replace(',', '.'));
+          if (numMatch[2]?.toLowerCase() === 'k') val *= 1000;
+          if (numMatch[2]?.toLowerCase() === 'm') val *= 1_000_000;
+          return { member_count: Math.round(val) };
+        }
+      }
+      return { member_count: null };
+    } catch {
+      return { member_count: null };
+    }
+  }
+
+  /**
    * Sends a REAL Messenger message via Meta Graph API (/v20.0/me/messages) inviting a real
    * Facebook user (who previously messaged the Page) to join the user's Facebook Group.
    */
@@ -875,7 +912,7 @@ export class CommunityHubService {
       const text = [
         `Chào ${member.display_name}! Cảm ơn bạn đã nhắn tin cho Fanpage ${settings.page_name} về nhu cầu: "${member.matched_signal}".`,
         member.recommended_topic ? `📚 Cẩm nang gợi ý cho bạn: ${member.recommended_topic}` : '',
-        `👉 Mời bạn bấm THAM GIA NHÓM (Join Group) "${settings.community_name}" tại đây để cùng giao lưu, hỏi đáp 2 chiều với các thành viên có cùng sở thích du lịch Việt Nam nhé:\n${settings.group_url}`,
+        `👉 Mời bạn bấm THAM GIA NHÓM (Join Group) "${settings.community_name}" tại đây để cùng giao lưu, hỏi đáp và chia sẻ kinh nghiệm thực tế với các thành viên trong nhóm nhé:\n${settings.group_url}`,
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -1078,7 +1115,7 @@ export class CommunityHubService {
         image_attribution: matchedAsset.attribution,
         target_trend: matchInfo.matched_trend,
         interest_tags: matchInfo.interest_tags,
-        community_discussion_hook: `Thảo luận 2 chiều tại ${settings.community_name}: Kinh nghiệm thực tế của bạn về "${source.title}" là gì? Cùng chia sẻ dưới phần bình luận nhé!`,
+        community_discussion_hook: `Thảo luận tại ${settings.community_name}: Kinh nghiệm thực tế của bạn về "${source.title}" là gì? Cùng chia sẻ dưới phần bình luận nhé!`,
         status: publishedMatch ? 'published' : 'ready_to_publish',
         published_slug: publishedMatch?.slug ?? null,
         published_at: publishedMatch?.published_at ?? null,
@@ -1087,15 +1124,20 @@ export class CommunityHubService {
       };
     });
 
-    // Growth is measured ONLY by real Facebook numbers (followers of the Page), never by rows in our DB.
-    const pageStats = await this.fetchRealPageStats();
+    // Growth is measured by real Facebook numbers (Group members + Page followers).
+    const [pageStats, groupStats] = await Promise.all([
+      this.fetchRealPageStats(),
+      this.fetchRealGroupStats(settings.group_url),
+    ]);
     const realFollowers = pageStats.followers_count ?? 0;
+    const realGroupMembers = groupStats.member_count ?? 0;
+    const realCommunityMembers = Math.max(realGroupMembers, realFollowers);
     const realIdentifiedPeople = members.filter((m) => m.external_ref.startsWith('fb:')).length;
     const manualProspects = members.filter((m) => m.external_ref.startsWith('manual:')).length;
-    const week1Count = realFollowers;
-    const totalMatchedCount = realFollowers;
+    const week1Count = realCommunityMembers;
+    const totalMatchedCount = realCommunityMembers;
     const campaignStatus = (target: number, previousTarget: number) =>
-      realFollowers >= target ? 'completed_target' : realFollowers >= previousTarget ? 'active_campaign' : 'scheduled';
+      realCommunityMembers >= target ? 'completed_target' : realCommunityMembers >= previousTarget ? 'active_campaign' : 'scheduled';
 
     const weeklyCampaigns = [
       {
@@ -1107,9 +1149,9 @@ export class CommunityHubService {
         theme: 'Đón người mới đến, Kinh nghiệm chọn chỗ ở 2 tuần đầu & Thủ tục nhập cảnh',
         target_trends: ['Chỗ ở 2 tuần đầu', 'Thuê căn hộ', 'Làm việc từ xa', 'Lịch trình Du lịch'],
         tactics: [
-          `Tự động quét người nhắn tin trên Fanpage "${settings.page_name}" / bình luận hỏi về du lịch, chỗ ở 2 tuần đầu và mời thẳng vào Cộng đồng riêng của bạn`,
+          `Tự động quét người nhắn tin trên Fanpage "${settings.page_name}" / bình luận hỏi về du lịch, chỗ ở 2 tuần đầu và mời thẳng vào Nhóm Cộng đồng của bạn`,
           'Đăng 7 bài cẩm nang nền tảng (mỗi ngày 1 chủ đề mới + 1 hình ảnh riêng biệt, tuyệt đối không trùng lặp)',
-          'Kích hoạt thảo luận 2 chiều bằng bài chào mừng thành viên mới để 5 thành viên hạt nhân tương tác trực tiếp với nhau',
+          'Kích hoạt thảo luận bằng bài chào mừng thành viên mới để các thành viên đầu tiên tương tác trực tiếp với nhau',
         ],
       },
       {
@@ -1121,8 +1163,8 @@ export class CommunityHubService {
         theme: 'Checklist Xem căn hộ, Góc làm việc từ xa, eSIM/SIM & Thanh toán VietQR',
         target_trends: ['Checklist thuê nhà', 'Coworking & Wi-Fi', 'eSIM vs SIM vật lý', 'Thanh toán VietQR'],
         tactics: [
-          `Auto-Match Engine tự động phân loại khách hàng theo xu hướng (Thuê căn hộ, Remote Work, Thanh toán/VietQR, Du lịch gia đình) và tự động gom vào "${settings.community_name}"`,
-          `Mỗi bài đăng trên Fanpage "${settings.page_name}" đều gắn câu hỏi mở 2 chiều + lời mời tham gia trực tiếp vào Cộng đồng riêng của bạn`,
+          `Auto-Match Engine tự động phân loại khách hàng theo xu hướng (Thuê căn hộ, Remote Work, Thanh toán/VietQR, Du lịch gia đình) và gửi lời mời vào "${settings.community_name}"`,
+          `Mỗi bài đăng trên Fanpage "${settings.page_name}" đều gắn câu hỏi thảo luận mở + lời mời tham gia trực tiếp vào Nhóm Cộng đồng của bạn`,
           'Tổ chức 3 chủ đề thảo luận so sánh thực tế giữa các thành viên (Mỹ An vs Sơn Trà, Viettel vs Vinaphone, Thẻ quốc tế vs VietQR)',
         ],
       },
@@ -1177,7 +1219,7 @@ export class CommunityHubService {
         member_target: 'Mở rộng lên 150 thành viên (Ổn định cuộc sống & Tiện ích địa phương)',
         pillar_theme: 'Thanh toán VietQR, Đăng ký Tạm trú, Bảo hiểm Y tế & Mua sắm Hàng ngày',
         planned_topics: orderedSources.slice(12, 17).map((s) => s.title),
-        interactive_format: 'Hỏi - Đáp 2 chiều cùng thành viên có kinh nghiệm về VietQR, Bảo hiểm & Tạm trú',
+        interactive_format: 'Hỏi - Đáp trực tiếp cùng thành viên có kinh nghiệm về VietQR, Bảo hiểm & Tạm trú',
       },
       {
         week_number: 4,
@@ -1238,6 +1280,7 @@ export class CommunityHubService {
       },
       stats: {
         total_matched_members: totalMatchedCount,
+        real_group_members: groupStats.member_count,
         real_page_followers: pageStats.followers_count,
         real_page_likes: pageStats.fan_count,
         real_identified_people: realIdentifiedPeople,
@@ -1471,7 +1514,7 @@ export class CommunityHubService {
       status: 'draft',
       title: cleanTitle,
       slug: slugifySimple(cleanTitle),
-      meta_description: `${cleanTitle} — Cẩm nang thực tế & thảo luận 2 chiều tại ${settings.community_name}.`,
+      meta_description: `${cleanTitle} — Cẩm nang thực tế & thảo luận tại ${settings.community_name}.`,
       headings: sectionHeadings,
       body_markdown: bodyMarkdown,
       cta: ctaText,
@@ -1497,7 +1540,7 @@ export class CommunityHubService {
       })
       .join('\n');
 
-    const discussionQuestion = `💬 THẢO LUẬN CỘNG ĐỒNG 2 CHIỀU: Bạn đã có trải nghiệm thực tế nào về "${cleanTitle}" khi đi du lịch hoặc sinh sống tại Việt Nam chưa? Hãy để lại bình luận chia sẻ bên dưới để cùng giao lưu với các thành viên trong ${settings.community_name} nhé!`;
+    const discussionQuestion = `💬 CÙNG THẢO LUẬN: Bạn đã có trải nghiệm thực tế nào về "${cleanTitle}" khi đi du lịch hoặc sinh sống tại Việt Nam chưa? Hãy để lại bình luận chia sẻ bên dưới để cùng giao lưu với các thành viên trong ${settings.community_name} nhé!`;
 
     const facebookText = [
       `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${cleanTitle}`,

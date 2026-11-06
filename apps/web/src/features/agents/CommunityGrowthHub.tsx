@@ -101,6 +101,7 @@ type HubResponse = {
   };
   stats: {
     total_matched_members: number;
+    real_group_members?: number | null;
     real_page_followers: number | null;
     real_page_likes: number | null;
     real_identified_people: number;
@@ -272,7 +273,7 @@ export default function CommunityGrowthHub({
       setDiscussionTitle("");
       setDiscussionBody("");
       setDiscussionPrompt("");
-      setBannerMessage(`Đã tạo chủ đề thảo luận 2 chiều mới trong "${res.data.group.name}"!`);
+      setBannerMessage(`Đã tạo chủ đề thảo luận mới trong "${res.data.group.name}"!`);
     } catch (err) {
       setBannerMessage((err as Error).message);
     } finally {
@@ -310,7 +311,7 @@ export default function CommunityGrowthHub({
     return (
       <section className="rounded-2xl border border-blue-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold text-blue-800">
-          Đang tải hệ thống Cộng đồng Tương tác 2 Chiều & Kế hoạch Nội dung của bạn…
+          Đang tải hệ thống Quản trị Cộng đồng & Kế hoạch Nội dung của bạn…
         </p>
       </section>
     );
@@ -325,7 +326,7 @@ export default function CommunityGrowthHub({
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-blue-700 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
-              Cộng đồng Tương tác 2 Chiều của Riêng Bạn
+              Cộng đồng Facebook Chính thức của Bạn
             </span>
             <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
               Chống trùng lặp Hình ảnh & Nội dung: 100% Unique
@@ -420,26 +421,27 @@ export default function CommunityGrowthHub({
         {/* KPI Summary Cards — growth is measured only by real Facebook numbers */}
         <div className="rounded-xl border border-slate-300 bg-slate-50 p-3 text-xs text-slate-700">
           <p className="font-bold text-slate-900">
-            Số liệu thật từ Facebook (Graph API): {hub.stats.real_page_followers ?? "—"} người theo dõi ·{" "}
-            {hub.stats.real_page_likes ?? "—"} lượt thích Page
+            Số liệu thật từ Facebook: {hub.stats.real_group_members ?? "—"} thành viên trong Nhóm (Group) ·{" "}
+            {hub.stats.real_page_followers ?? "—"} người theo dõi Page · {hub.stats.real_page_likes ?? "—"} lượt thích Page
           </p>
           <p className="mt-1">
-            Tiến độ các mốc 5 → 50 → 150 → 300 chỉ tính theo <b>người theo dõi thật</b> của Fanpage. Hệ thống không thể tự
-            thêm ai vào Page/Group (Facebook không cho phép) — người dùng phải tự bấm Theo dõi / Tham gia.
+            Tiến độ các mốc 5 → 50 → 150 → 300 được đồng bộ trực tiếp theo <b>số thành viên thật trong Group Facebook</b> của bạn ({hub.group.group_url}).
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
-            <p className="text-xs font-semibold text-emerald-800">Tuần 1 (Mục tiêu 5 người theo dõi)</p>
+            <p className="text-xs font-semibold text-emerald-800">Tuần 1 (Mục tiêu 5 thành viên)</p>
             <p className="mt-1 text-2xl font-bold text-emerald-900">
               {hub.stats.week1_achieved}/{hub.stats.week1_target}
             </p>
             <p className="text-[11px] font-medium text-emerald-700">
-              {hub.stats.week1_achieved >= hub.stats.week1_target ? "✓ Đạt chỉ tiêu Tuần 1" : "Chưa đạt — số follower thật"}
+              {hub.stats.week1_achieved >= hub.stats.week1_target
+                ? "✓ Đạt chỉ tiêu Tuần 1"
+                : `Đang có ${hub.stats.week1_achieved} thành viên thật trong Group`}
             </p>
           </div>
           <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
-            <p className="text-xs font-semibold text-blue-800">Tuần 2 (Mục tiêu 50 người theo dõi)</p>
+            <p className="text-xs font-semibold text-blue-800">Tuần 2 (Mục tiêu 50 thành viên)</p>
             <p className="mt-1 text-2xl font-bold text-blue-900">
               {hub.stats.week2_progress}/{hub.stats.week2_target}
             </p>
@@ -448,9 +450,9 @@ export default function CommunityGrowthHub({
             </p>
           </div>
           <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3">
-            <p className="text-xs font-semibold text-purple-800">Thảo luận 2 chiều</p>
+            <p className="text-xs font-semibold text-purple-800">Chủ đề Thảo luận</p>
             <p className="mt-1 text-2xl font-bold text-purple-900">{hub.stats.active_discussions} chủ đề</p>
-            <p className="text-[11px] font-medium text-purple-700">Thành viên tương tác chéo</p>
+            <p className="text-[11px] font-medium text-purple-700">Giao lưu & chia sẻ kinh nghiệm</p>
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
             <p className="text-xs font-semibold text-amber-900">Kho Chủ đề & Ảnh chuẩn</p>
@@ -490,7 +492,7 @@ export default function CommunityGrowthHub({
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }`}
         >
-          2. Cộng đồng Tương tác 2 Chiều của Bạn ({hub.discussions.length} Chủ đề Thảo luận)
+          2. Thảo luận Cộng đồng ({hub.discussions.length} Chủ đề)
         </button>
         <button
           type="button"
@@ -731,7 +733,7 @@ export default function CommunityGrowthHub({
           <div className="grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-slate-900">
-                Bảng Thảo luận Cộng đồng 2 Chiều của Bạn (Thành viên hỏi đáp & chia sẻ kinh nghiệm thực tế)
+                Bảng Thảo luận Cộng đồng (Thành viên hỏi đáp & chia sẻ kinh nghiệm thực tế)
               </h3>
               {hub.discussions.map((d) => (
                 <article key={d.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -749,7 +751,7 @@ export default function CommunityGrowthHub({
                   </p>
                   <p className="mt-3 text-sm text-slate-700">{d.body}</p>
                   <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs font-semibold text-amber-900">
-                    💬 Câu hỏi mở kích hoạt thảo luận 2 chiều: {d.discussion_prompt}
+                    💬 Câu hỏi thảo luận mở: {d.discussion_prompt}
                   </div>
                   <div className="mt-4 space-y-2.5 border-t border-slate-100 pt-3">
                     <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -774,10 +776,10 @@ export default function CommunityGrowthHub({
             {/* Create New Interactive Thread */}
             <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h3 className="text-base font-bold text-slate-900">
-                Tạo Chủ đề Thảo luận 2 Chiều mới cho Cộng đồng của Bạn
+                Tạo Chủ đề Thảo luận mới cho Cộng đồng của Bạn
               </h3>
               <p className="mt-1 text-xs text-slate-600">
-                Khác với bài thông báo 1 chiều, mỗi bài đăng trong &ldquo;{hub.group.name}&rdquo; đều có tình huống thực tế và câu hỏi mở để các thành viên bình luận chia sẻ kinh nghiệm cho nhau.
+                Mỗi bài đăng trong &ldquo;{hub.group.name}&rdquo; đều có tình huống thực tế và câu hỏi mở để các thành viên bình luận chia sẻ kinh nghiệm cho nhau.
               </p>
               <form onSubmit={handleCreateDiscussion} className="mt-4 space-y-3">
                 <label className="block text-xs font-bold text-slate-800">
@@ -819,7 +821,7 @@ export default function CommunityGrowthHub({
                 >
                   {busyAction === "discussion"
                     ? "Đang đăng chủ đề thảo luận…"
-                    : "💬 Đăng Chủ đề Thảo luận 2 Chiều vào Cộng đồng của Tôi"}
+                    : "💬 Đăng Chủ đề Thảo luận vào Cộng đồng"}
                 </button>
               </form>
             </div>
