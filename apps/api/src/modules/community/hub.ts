@@ -294,7 +294,10 @@ export class CommunityHubService {
 
     const pageId = fbConn?.account_ref || '1381196421750749';
     const pageName = fbConn?.display_name || 'Dịch vụ hỗ trợ du lịch';
-    const defaultPageUrl = `https://www.facebook.com/profile.php?id=${pageId}`;
+    const defaultPageUrl =
+      pageId === '1381196421750749'
+        ? 'https://www.facebook.com/profile.php?id=61596152213281'
+        : `https://www.facebook.com/profile.php?id=${pageId}`;
     const defaultCommunityName = `Cộng đồng ${pageName} – Giao lưu & Chia sẻ Kinh nghiệm Du lịch Việt Nam`;
     const defaultPositioning = `Cộng đồng tương tác 2 chiều của riêng bạn ( vận hành trên Fanpage "${pageName}" & Group Cộng đồng riêng ) — nơi các thành viên cùng sở thích du lịch, lưu trú, làm việc từ xa và khám phá Việt Nam trực tiếp hỏi đáp, chia sẻ kinh nghiệm thực tế với nhau.`;
 
@@ -309,6 +312,14 @@ export class CommunityHubService {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+
+    await this.pool.query(
+      `UPDATE community_hub_settings
+          SET page_url = $2,
+              group_url = CASE WHEN group_url LIKE '%1381196421750749%' THEN $2 ELSE group_url END
+        WHERE workspace_id = $1 AND page_url LIKE '%1381196421750749%'`,
+      [workspaceId, defaultPageUrl],
+    );
 
     const saved = (
       await this.pool.query<{

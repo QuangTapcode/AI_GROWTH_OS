@@ -56,8 +56,8 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
 
     if (action === 'create_discussion') {
       const discussion = await service.createDiscussion(params.workspace_id, {
-        category: body.category ? String(body.category) : 'Community Discussion',
-        title: String(body.title || 'Thảo luận cộng đồng Vietnam Playbook'),
+        category: body.category ? String(body.category) : 'Thảo luận Cộng đồng',
+        title: String(body.title || 'Thảo luận Cộng đồng Dịch vụ hỗ trợ du lịch'),
         author_name: body.author_name ? String(body.author_name) : undefined,
         author_role: body.author_role ? String(body.author_role) : undefined,
         body: String(body.body || ''),
