@@ -1,0 +1,1108 @@
+{
+ "note": "Throwaway copy of the real database, code 637e5a2, model qwen3:4b-instruct, no channel credentials. Readers and leads in cycle 2 were simulated.",
+ "latency_seconds": [
+  {
+   "operation": "analytics.report",
+   "n": 10,
+   "p50": 1,
+   "max": 1
+  },
+  {
+   "operation": "community.response",
+   "n": 26,
+   "p50": 8,
+   "max": 18
+  },
+  {
+   "operation": "content.repurpose",
+   "n": 2,
+   "p50": 73,
+   "max": 86
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "n": 10,
+   "p50": 1,
+   "max": 1
+  },
+  {
+   "operation": "learning.analyze",
+   "n": 8,
+   "p50": 1,
+   "max": 2
+  },
+  {
+   "operation": "research.run",
+   "n": 10,
+   "p50": 40,
+   "max": 77
+  },
+  {
+   "operation": "seo.local_draft",
+   "n": 2,
+   "p50": 69,
+   "max": 97
+  },
+  {
+   "operation": "strategy.generate",
+   "n": 10,
+   "p50": 1,
+   "max": 5
+  }
+ ],
+ "timeline": [
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T15:46:14.531Z",
+   "updated_at": "2026-11-04T15:47:31.756Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T15:47:31.725Z",
+   "updated_at": "2026-11-04T15:47:37.170Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T15:47:31.745Z",
+   "updated_at": "2026-11-04T15:47:39.570Z"
+  },
+  {
+   "operation": "content.repurpose",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T15:47:37.068Z",
+   "updated_at": "2026-11-04T15:59:41.474Z"
+  },
+  {
+   "operation": "seo.local_draft",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T15:47:37.068Z",
+   "updated_at": "2026-11-04T15:51:25.541Z"
+  },
+  {
+   "operation": "learning.analyze",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T15:47:39.540Z",
+   "updated_at": "2026-11-04T15:59:45.907Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T15:47:39.555Z",
+   "updated_at": "2026-11-04T15:59:45.767Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T15:59:46.214Z",
+   "updated_at": "2026-11-04T16:00:34.588Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "failed",
+   "code": "PLAN_BLOCKED",
+   "created_at": "2026-11-04T16:00:34.564Z",
+   "updated_at": "2026-11-04T16:00:36.648Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:00:34.580Z",
+   "updated_at": "2026-11-04T16:00:38.643Z"
+  },
+  {
+   "operation": "learning.analyze",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:00:38.629Z",
+   "updated_at": "2026-11-04T16:00:40.616Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:00:38.636Z",
+   "updated_at": "2026-11-04T16:00:42.616Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:00:40.616Z",
+   "updated_at": "2026-11-04T16:01:34.472Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "failed",
+   "code": "PLAN_BLOCKED",
+   "created_at": "2026-11-04T16:01:34.423Z",
+   "updated_at": "2026-11-04T16:01:35.684Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:01:34.463Z",
+   "updated_at": "2026-11-04T16:01:37.916Z"
+  },
+  {
+   "operation": "learning.analyze",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:01:37.835Z",
+   "updated_at": "2026-11-04T16:01:39.657Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:01:37.871Z",
+   "updated_at": "2026-11-04T16:01:43.782Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:01:39.657Z",
+   "updated_at": "2026-11-04T16:02:25.891Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "failed",
+   "code": "PLAN_BLOCKED",
+   "created_at": "2026-11-04T16:02:25.863Z",
+   "updated_at": "2026-11-04T16:02:28.011Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:02:25.884Z",
+   "updated_at": "2026-11-04T16:02:30.009Z"
+  },
+  {
+   "operation": "learning.analyze",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:02:29.992Z",
+   "updated_at": "2026-11-04T16:02:31.888Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:02:30.001Z",
+   "updated_at": "2026-11-04T16:02:33.899Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:02:31.888Z",
+   "updated_at": "2026-11-04T16:03:10.871Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "failed",
+   "code": "PLAN_BLOCKED",
+   "created_at": "2026-11-04T16:03:10.848Z",
+   "updated_at": "2026-11-04T16:03:12.150Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:03:10.863Z",
+   "updated_at": "2026-11-04T16:03:14.183Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:03:14.176Z",
+   "updated_at": "2026-11-04T16:03:16.168Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:03:56.343Z",
+   "updated_at": "2026-11-04T16:04:42.414Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "failed",
+   "code": "PLAN_BLOCKED",
+   "created_at": "2026-11-04T16:04:42.389Z",
+   "updated_at": "2026-11-04T16:04:43.669Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:04:42.406Z",
+   "updated_at": "2026-11-04T16:04:45.647Z"
+  },
+  {
+   "operation": "learning.analyze",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:04:45.633Z",
+   "updated_at": "2026-11-04T16:04:47.621Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:04:45.640Z",
+   "updated_at": "2026-11-04T16:04:49.640Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:04:47.621Z",
+   "updated_at": "2026-11-04T16:05:26.619Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "failed",
+   "code": "PLAN_BLOCKED",
+   "created_at": "2026-11-04T16:05:26.597Z",
+   "updated_at": "2026-11-04T16:05:27.852Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:05:26.611Z",
+   "updated_at": "2026-11-04T16:05:29.827Z"
+  },
+  {
+   "operation": "learning.analyze",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:05:29.815Z",
+   "updated_at": "2026-11-04T16:05:31.812Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:05:29.822Z",
+   "updated_at": "2026-11-04T16:05:33.844Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:05:31.812Z",
+   "updated_at": "2026-11-04T16:06:11.849Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "failed",
+   "code": "PLAN_BLOCKED",
+   "created_at": "2026-11-04T16:06:11.823Z",
+   "updated_at": "2026-11-04T16:06:13.167Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:06:11.840Z",
+   "updated_at": "2026-11-04T16:06:15.102Z"
+  },
+  {
+   "operation": "learning.analyze",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:06:15.088Z",
+   "updated_at": "2026-11-04T16:06:17.065Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:06:15.095Z",
+   "updated_at": "2026-11-04T16:06:19.100Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:06:17.065Z",
+   "updated_at": "2026-11-04T16:07:01.203Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "failed",
+   "code": "PLAN_BLOCKED",
+   "created_at": "2026-11-04T16:07:01.177Z",
+   "updated_at": "2026-11-04T16:07:03.334Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:07:01.194Z",
+   "updated_at": "2026-11-04T16:07:05.352Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:07:05.345Z",
+   "updated_at": "2026-11-04T16:07:07.357Z"
+  },
+  {
+   "operation": "research.run",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:07:50.049Z",
+   "updated_at": "2026-11-04T16:08:28.719Z"
+  },
+  {
+   "operation": "strategy.generate",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:08:28.686Z",
+   "updated_at": "2026-11-04T16:08:30.027Z"
+  },
+  {
+   "operation": "analytics.report",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:08:28.698Z",
+   "updated_at": "2026-11-04T16:08:32.410Z"
+  },
+  {
+   "operation": "seo.local_draft",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:08:29.984Z",
+   "updated_at": "2026-11-04T16:09:13.116Z"
+  },
+  {
+   "operation": "content.repurpose",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:08:29.984Z",
+   "updated_at": "2026-11-04T16:10:17.524Z"
+  },
+  {
+   "operation": "learning.analyze",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:08:32.206Z",
+   "updated_at": "2026-11-04T16:09:15.288Z"
+  },
+  {
+   "operation": "experiment.hypothesis",
+   "status": "completed",
+   "code": null,
+   "created_at": "2026-11-04T16:08:32.399Z",
+   "updated_at": "2026-11-04T16:09:17.398Z"
+  }
+ ],
+ "research": [
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [],
+   "findings": [
+    {
+     "topic": "Mì Quảng",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Night food markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Fresh food at Hàn and Cồn Markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee near living areas in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee access near coworking spaces in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Fresh food at Hàn and Cồn Markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee near living areas in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Fresh food at Hàn and Cồn Markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee near living areas in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Fresh food at Hàn and Cồn Markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee near living areas in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Fresh food at Hàn and Cồn Markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee near living areas in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Fresh food at Hàn and Cồn Markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee near living areas in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Fresh food at Hàn and Cồn Markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee near living areas in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  },
+  {
+   "status": "ready_for_handoff",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "findings": [
+    {
+     "topic": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     "evidence_updated": 2023,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Fresh food at Hàn and Cồn Markets in Da Nang",
+     "evidence_updated": null,
+     "source_url": "https://en.wikipedia.org/wiki/Da_Nang"
+    },
+    {
+     "topic": "Street food and coffee near living areas in Da Nang",
+     "evidence_updated": 2018,
+     "source_url": "https://en.wikivoyage.org/wiki/Da_Nang"
+    }
+   ]
+  }
+ ],
+ "plans": [
+  {
+   "status": "proposed",
+   "missing_facts": [],
+   "selected": "Mì Quảng",
+   "priority": {
+    "mode": "reach",
+    "reason": "No traffic is measured yet, so this plan goes for the topic people can find."
+   },
+   "ranked": [
+    [
+     "Mì Quảng",
+     576
+    ],
+    [
+     "Night food markets in Da Nang",
+     576
+    ]
+   ]
+  },
+  {
+   "status": "blocked",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Street food and coffee near living areas in Da Nang",
+   "priority": {
+    "mode": "conversion",
+    "reason": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer."
+   },
+   "ranked": [
+    [
+     "Street food and coffee near living areas in Da Nang",
+     192
+    ],
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ],
+    [
+     "Fresh food at Hàn and Cồn Markets in Da Nang",
+     576
+    ]
+   ]
+  },
+  {
+   "status": "blocked",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Street food and coffee access near coworking spaces in Da Nang",
+   "priority": {
+    "mode": "conversion",
+    "reason": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer."
+   },
+   "ranked": [
+    [
+     "Street food and coffee access near coworking spaces in Da Nang",
+     192
+    ],
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ]
+   ]
+  },
+  {
+   "status": "blocked",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Street food and coffee near living areas in Da Nang",
+   "priority": {
+    "mode": "conversion",
+    "reason": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer."
+   },
+   "ranked": [
+    [
+     "Street food and coffee near living areas in Da Nang",
+     192
+    ],
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ],
+    [
+     "Fresh food at Hàn and Cồn Markets in Da Nang",
+     576
+    ]
+   ]
+  },
+  {
+   "status": "blocked",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Street food and coffee near living areas in Da Nang",
+   "priority": {
+    "mode": "conversion",
+    "reason": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer."
+   },
+   "ranked": [
+    [
+     "Street food and coffee near living areas in Da Nang",
+     192
+    ],
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ],
+    [
+     "Fresh food at Hàn and Cồn Markets in Da Nang",
+     576
+    ]
+   ]
+  },
+  {
+   "status": "blocked",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Street food and coffee near living areas in Da Nang",
+   "priority": {
+    "mode": "conversion",
+    "reason": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer."
+   },
+   "ranked": [
+    [
+     "Street food and coffee near living areas in Da Nang",
+     192
+    ],
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ],
+    [
+     "Fresh food at Hàn and Cồn Markets in Da Nang",
+     576
+    ]
+   ]
+  },
+  {
+   "status": "blocked",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Street food and coffee near living areas in Da Nang",
+   "priority": {
+    "mode": "conversion",
+    "reason": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer."
+   },
+   "ranked": [
+    [
+     "Street food and coffee near living areas in Da Nang",
+     192
+    ],
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ],
+    [
+     "Fresh food at Hàn and Cồn Markets in Da Nang",
+     576
+    ]
+   ]
+  },
+  {
+   "status": "blocked",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Street food and coffee near living areas in Da Nang",
+   "priority": {
+    "mode": "conversion",
+    "reason": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer."
+   },
+   "ranked": [
+    [
+     "Street food and coffee near living areas in Da Nang",
+     192
+    ],
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ],
+    [
+     "Fresh food at Hàn and Cồn Markets in Da Nang",
+     576
+    ]
+   ]
+  },
+  {
+   "status": "blocked",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Street food and coffee near living areas in Da Nang",
+   "priority": {
+    "mode": "conversion",
+    "reason": "Traffic is measured but the target is not reached, so this plan goes for the topic closest to the offer."
+   },
+   "ranked": [
+    [
+     "Street food and coffee near living areas in Da Nang",
+     192
+    ],
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ],
+    [
+     "Fresh food at Hàn and Cồn Markets in Da Nang",
+     576
+    ]
+   ]
+  },
+  {
+   "status": "proposed",
+   "missing_facts": [
+    "stale_evidence:2018"
+   ],
+   "selected": "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+   "priority": {
+    "mode": "reach",
+    "reason": "No traffic is measured yet, so this plan goes for the topic people can find."
+   },
+   "ranked": [
+    [
+     "Traditional Vietnamese street food at Thìa Gỗ Restaurant",
+     1152
+    ],
+    [
+     "Fresh food at Hàn and Cồn Markets in Da Nang",
+     576
+    ],
+    [
+     "Street food and coffee near living areas in Da Nang",
+     192
+    ]
+   ]
+  }
+ ],
+ "seo": [
+  {
+   "title": "Mì Quảng in Da Nang: The Authentic Local Dish to Try First",
+   "meta_description": "Discover authentic local food in Da Nang, including mì Quảng with pork and egg, bún mắm, and grilled rice paper rolls.",
+   "primary_keyword": "mì Quảng",
+   "status": "draft",
+   "seo_checks": {
+    "meta": true,
+    "title": true,
+    "headings": true,
+    "citations": true,
+    "internal_link": true
+   },
+   "body_markdown": "## Mì Quảng: The Signature Dish of Da Nang\n\nMì Quảng is the defining dish of the Quảng Nam–Đà Nẵng region. It features rice noodles served with shrimp, pork, a hard-boiled egg, roasted peanuts, and fresh herbs. A small amount of rich, turmeric-spiced broth tops the bowl. This dish is widely recognized as a local staple and is deeply rooted in Central Vietnamese tradition.\n\nThe flavor profile is bold, spicy, and savory—characteristic of Central Vietnam. The chili peppers (ớt) used are strong even when small, so visitors should prepare for a fiery experience. Mì Quảng is best enjoyed in local eateries, especially those serving the traditional Quang Nam-style version with chicken, quail eggs, and snakehead fish.\n\n## Bánh Tráng Cuốn Thị Heo – A Street Food Staple\n\nBánh tráng cuốn thịt heo (grilled rice paper with pork) is a staple of Da Nang’s street food culture. Thin, grilled rice paper rolls are filled with boiled pork, fresh vegetables, green mango, and a local dipping sauce. This dish is widely available and popular among locals and tourists alike.\n\nIt is often found in night markets and small roadside stalls.\n\n## Bê Thui Cầu Mống – A Regional Delicacy\n\nBê thui Cầu Mống originates from Cầu Mống village in Điện Bàn district. This slow-roasted veal dish has golden skin and is typically served with fresh rice paper, herbs, and mắm nem (fermented anchovy sauce). It is a regional delicacy that reflects Da Nang’s rural culinary roots.\n\nThis dish is best experienced in local eateries that serve traditional Central Vietnamese fare. It pairs well with a side of rice and is ideal for those who enjoy rich, savory flavors with a strong umami depth.\n\n## Bún Mắm – A Bold, Local Favorite\n\nBún mắm Bé Hà at 130 Bùi Hữu Nghĩa offers a strong fish sauce rice vermicelli dish. The aroma of fish sauce is noticeable from afar. The rice crackers are highly recommended. This dish is not for the weak of palate and is a great choice for foreign tourists seeking authentic local flavors.\n\nIt is served in a casual setting and is widely appreciated for its bold taste and traditional preparation.\n\n[source:7a53903a-827d-4092-88d2-9653482d4a25](https://en.wikivoyage.org/wiki/Da_Nang)\n[source:781917ef-d6c5-4b31-9457-dbe42aedc59a](https://en.wikipedia.org/wiki/Da_Nang)\n\n[Request information](/contact) — Contact TripC on Facebook",
+   "sources": [
+    "https://en.wikipedia.org/wiki/Da_Nang",
+    "https://en.wikivoyage.org/wiki/Da_Nang",
+    "https://en.wikivoyage.org/wiki/Da_Nang",
+    "https://en.wikipedia.org/wiki/Da_Nang"
+   ]
+  },
+  {
+   "title": "Authentic Pho at Thìa Gỗ Restaurant in Da Nang",
+   "meta_description": "Discover authentic pho at Thìa Gỗ Restaurant in Da Nang, a comfortable setting for traditional Vietnamese street food without relying on street vendors.",
+   "primary_keyword": "pho",
+   "status": "draft",
+   "seo_checks": {
+    "meta": true,
+    "title": true,
+    "headings": true,
+    "citations": true,
+    "internal_link": true
+   },
+   "body_markdown": "## Authentic Pho at Thìa Gỗ Restaurant\n\nThìa Gỗ Restaurant in Da Nang offers real Vietnamese cuisine with a focus on authentic pho. Located at 53 Phan Thúc Duyện, the restaurant serves many traditional street food dishes in a more comfortable, indoor setting. This makes it ideal for visitors seeking authentic Vietnamese food without the hassle of street vendors.\n\nThe staff are very friendly and the experience is welcoming. While the service may take a bit longer, the quality of the food remains true to homemade styles. It’s a reliable option for those who want to enjoy traditional Vietnamese dishes in a clean, accessible environment.\n\n## Complete North Vietnamese Meal at Cơm Nhà Linh\n\nCơm Nhà Linh at 35 An Thượng 26 offers a full set menu with meat, fish, soup, vegetables, peanuts, and eggs. This North Vietnamese-style meal is perfect for those who want a complete, local experience. The option to grill meat at the table adds a hands-on touch, making it feel like a home-cooked meal.\n\nWhile the service can be slow, the food quality and authenticity are unmatched. It’s a great choice for anyone seeking genuine Vietnamese flavors in a familiar, home-style setting.\n\n## Traditional and Modern Desserts in Da Nang\n\nDa Nang’s dessert culture blends Vietnamese tradition with French influence. Traditional chè (sweet soups and puddings) are still widely available, often sold at local markets. Modern options like Nutella-stuffed brioche reflect the city’s francophone roots.\n\nThese desserts are available at market stalls and roadside vendors, offering a taste of local culture. For those who enjoy sweet endings to meals, Da Nang provides a rich variety of traditional and modern treats.\n\n[source:09251b83-ee46-494f-adf2-cf930ac62763](https://en.wikipedia.org/wiki/Da_Nang)\n[source:a1a4026e-09b1-4c67-b695-c0aeb4d27701](https://tripc.ai/blog/grocery-shopping-in-vietnam-expat-guide)\n[source:a6f73894-5c10-4c32-a66e-468cc2c827f2](https://en.wikivoyage.org/wiki/Da_Nang)\n\n[Request information](/contact) — Contact TripC on Facebook",
+   "sources": [
+    "https://en.wikivoyage.org/wiki/Da_Nang",
+    "https://en.wikipedia.org/wiki/Da_Nang",
+    "https://tripc.ai/blog/grocery-shopping-in-vietnam-expat-guide",
+    "https://en.wikivoyage.org/wiki/Da_Nang"
+   ]
+  }
+ ],
+ "packs": [
+  {
+   "status": "needs_assets",
+   "channels": [
+    "facebook",
+    "tiktok"
+   ],
+   "missing_facts": [
+    "approved_image_asset"
+   ],
+   "facebook_text": "Da Nang’s real food starts with Mì Quảng — a spicy, local noodle dish.\n\n• Try the Quang Nam-style version with chicken and quail eggs.\n• The chili peppers are strong — even small ones pack a punch.\n• Best found at local spots like Quán Dung Mỳ Quảng.\n\nWhat’s your favorite local dish in Da Nang?\n\nContact TripC on Facebook",
+   "caption": "Da Nang’s true taste starts with Mì Quảng — a bold, spicy noodle dish rooted in Central Vietnamese tradition.\n\n• Try the Quang Nam-style version with chicken, quail eggs, and snakehead fish for a local favorite.\n• The dish uses strong chili peppers (ớt), so be ready for a fiery experience.\n• Best enjoyed at local eateries, like Quán Dung Mỳ Quảng, where the broth is rich and the flavors are authentic.\n\nContact TripC on Facebook",
+   "tiktok": {
+    "cta": "Contact TripC on Facebook",
+    "hook": "If you're in Da Nang and want to taste real Central Vietnamese food, start with Mì Quảng — it’s the local dish that defines the region.",
+    "scenes": [
+     {
+      "visual": "A close-up of a bowl of Mì Quảng in a Da Nang street food shop, with shrimp, pork, hard-boiled egg, roasted peanuts, and fresh herbs.",
+      "voiceover": "Mì Quảng is a bold, spicy rice noodle dish from the Quảng Nam–Đà Nẵng region. It features shrimp, pork, quail eggs, and roasted peanuts in a rich, turmeric-spiced broth. It’s best eaten in local eateries like Quán Dung Mỳ Quảng."
+     },
+     {
+      "visual": "A thin grilled rice paper roll filled with boiled pork, green mango, and fresh vegetables, served with a local dipping sauce at a night market stall.",
+      "voiceover": "Bánh tráng cuốn thịt heo is a popular street food roll with grilled rice paper, pork, and green mango. It’s found in night markets and roadside stalls, and is a favorite among locals and tourists."
+     },
+     {
+      "visual": "A slow-roasted veal dish with golden skin, served with fresh rice paper, herbs, and mắm nem sauce on a wooden table in a rural village setting.",
+      "voiceover": "Bê thui Cầu Mống comes from Cầu Mống village in Điện Bàn. This slow-roasted veal has golden skin and is served with herbs and fermented anchovy sauce. It’s a deep, savory dish from Da Nang’s rural roots."
+     },
+     {
+      "visual": "A bowl of bún mắm at 15 Bún mắm Bé Hà, with fish sauce aroma visible, rice crackers on the side, and a tourist looking at it from afar.",
+      "voiceover": "Bún mắm at Bé Hà is a strong fish sauce rice vermicelli dish. The smell is strong from afar, and the rice crackers are highly recommended. It’s not for the weak of palate — perfect for foreign tourists seeking bold local flavors."
+     }
+    ],
+    "word_count": 184,
+    "within_length": false
+   },
+   "image_suggestion": {
+    "prompt": "scenic coastal cityscape of Da Nang with iconic ocean landscape, artistic cinematic travel vibe, minimalist vector art, clean architectural lines, sophisticated corporate color palette, octane render, 8k resolution, elegant composition, peaceful atmosphere, empty of people, no text",
+    "reason": null,
+    "status": "draft",
+    "aspect_ratio": "1:1",
+    "negative_prompt": "no text, no logo, no real face, no price, text, watermark, typography, letters, words, brand logo, insignia, label, real human face, photorealistic human face, portrait, recognizable people, price tag, discount number, currency sign, dollar sign, vnd, percentage, blurry, distorted, low quality, oversaturated, deformed anatomy, bad geometry, artifacts"
+   },
+   "sentence_fact_map": [
+    {
+     "text": "Da Nang’s real food starts with Mì Quảng — a spicy, local noodle dish.",
+     "fact_id": "NONE",
+     "is_factual": null,
+     "sentence_type": "hook",
+     "sentence_index": 0,
+     "entailment_status": "supported"
+    },
+    {
+     "text": "Try the Quang Nam-style version with chicken and quail eggs.",
+     "fact_id": [
+      "f01",
+      "f02",
+      "f03",
+      "f04"
+     ],
+     "is_factual": null,
+     "sentence_type": "factual",
+     "sentence_index": 1,
+     "entailment_status": "supported"
+    },
+    {
+     "text": "The chili peppers are strong — even small ones pack a punch.",
+     "fact_id": [
+      "f02",
+      "f10"
+     ],
+     "is_factual": null,
+     "sentence_type": "factual",
+     "sentence_index": 2,
+     "entailment_status": "supported"
+    },
+    {
+     "text": "Best found at local spots like Quán Dung Mỳ Quảng.",
+     "fact_id": [
+      "f03"
+     ],
+     "is_factual": null,
+     "sentence_type": "factual",
+     "sentence_index": 3,
+     "entailment_status": "supported"
+    },
+    {
+     "text": "Contact TripC on Facebook",
+     "fact_id": "SYSTEM_CTA",
+     "is_factual": null,
+     "sentence_type": "cta",
+     "sentence_index": 4,
+     "entailment_status": "supported"
+    }
+   ]
+  },
+  {
+   "status": "draft",
+   "channels": [
+    "facebook"
+   ],
+   "missing_facts": [],
+   "facebook_text": "Want real Vietnamese pho without the street vendor hassle?\n\nLooking for real Vietnamese food in Da Nang? Try Thìa Gỗ — a cozy spot serving authentic pho and traditional dishes indoors.\n\n\n✅ A trusted local option for genuine Vietnamese flavors\n\nWhat’s your favorite traditional Vietnamese dish to try in Da Nang?\n\nContact TripC on Facebook",
+   "caption": "Want real Vietnamese pho without the street vendor hassle? Try Thìa Gỗ in Da Nang.\n\n✅ Serves authentic pho and traditional dishes in a clean, indoor setting\n✅ Friendly staff and homemade quality, just like street food but more comfortable\n✅ A reliable spot for true Vietnamese flavors, no fakes or shortcuts\n\nContact TripC on Facebook",
+   "tiktok": {
+    "cta": "Contact TripC on Facebook",
+    "hook": "Tired of fake pho? Try real Vietnamese pho at Thìa Gỗ in Da Nang.",
+    "scenes": [
+     {
+      "visual": "A close-up of steaming pho broth in a white ceramic bowl at Thìa Gỗ Restaurant, 53 Phan Thúc Duyện, Da Nang.",
+      "voiceover": "At Thìa Gỗ, real Vietnamese pho is served in a clean, indoor setting. It’s perfect for visitors who want authentic taste without street vendor chaos."
+     },
+     {
+      "visual": "A full North Vietnamese meal at Cơm Nhà Linh, 35 An Thượng 26, with meat, fish, soup, and grilled eggs on a wooden table.",
+      "voiceover": "Cơm Nhà Linh offers a full traditional meal with meat, fish, soup, and peanuts. You can grill meat at the table, making it feel like a home-cooked meal. It’s ideal for anyone wanting a complete, local Vietnamese experience."
+     },
+     {
+      "visual": "A market stall in Da Nang selling chè, with a bowl of sweet, green chè pudding and a Nutella-stuffed brioche on a plate.",
+      "voiceover": "Da Nang’s desserts mix tradition and French flair. Chè is a sweet soup, and Nutella-stuffed brioche shows local fusion. These treats are found at market stalls and roadside vendors, offering real local flavor."
+     },
+     {
+      "visual": "A group of tourists smiling at a table outside Thìa Gỗ, with the sign 'Thìa Gỗ Restaurant' visible in the background.",
+      "voiceover": "Thìa Gỗ, with friendly staff and real pho, is a trusted spot in Da Nang. It’s clean, welcoming, and offers authentic Vietnamese food in a relaxed indoor space for visitors and locals alike."
+     }
+    ],
+    "word_count": 147,
+    "within_length": true
+   },
+   "image_suggestion": {
+    "prompt": "serene tropical coastline, gentle morning waves, warm natural ambient sunlight, scenic coastal cityscape of Da Nang with iconic ocean landscape, artistic cinematic travel vibe, minimalist vector art, clean architectural lines, sophisticated corporate color palette, octane render, 8k resolution, elegant composition, peaceful atmosphere, empty of people, no text",
+    "reason": null,
+    "status": "draft",
+    "aspect_ratio": "1:1",
+    "negative_prompt": "no text, no logo, no real face, no price, text, watermark, typography, letters, words, brand logo, insignia, label, real human face, photorealistic human face, portrait, recognizable people, price tag, discount number, currency sign, dollar sign, vnd, percentage, blurry, distorted, low quality, oversaturated, deformed anatomy, bad geometry, artifacts"
+   },
+   "sentence_fact_map": [
+    {
+     "text": "Want real Vietnamese pho without the street vendor hassle?",
+     "fact_id": "NONE",
+     "is_factual": null,
+     "sentence_type": "hook",
+     "sentence_index": 0,
+     "entailment_status": "supported"
+    },
+    {
+     "text": "Looking for real Vietnamese food in Da Nang?",
+     "fact_id": [
+      "f33"
+     ],
+     "is_factual": null,
+     "sentence_type": "factual",
+     "sentence_index": 1,
+     "entailment_status": "supported"
+    },
+    {
+     "text": "Try Thìa Gỗ — a cozy spot serving authentic pho and traditional dishes indoors.",
+     "fact_id": [
+      "f_unmapped"
+     ],
+     "is_factual": null,
+     "sentence_type": "factual",
+     "sentence_index": 2,
+     "entailment_status": "unsupported"
+    },
+    {
+     "text": "A trusted local option for genuine Vietnamese flavors",
+     "fact_id": [
+      "f_unmapped"
+     ],
+     "is_factual": null,
+     "sentence_type": "factual",
+     "sentence_index": 3,
+     "entailment_status": "unsupported"
+    },
+    {
+     "text": "Contact TripC on Facebook",
+     "fact_id": "SYSTEM_CTA",
+     "is_factual": null,
+     "sentence_type": "cta",
+     "sentence_index": 4,
+     "entailment_status": "supported"
+    }
+   ]
+  }
+ ]
+}
