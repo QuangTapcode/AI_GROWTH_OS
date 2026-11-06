@@ -331,6 +331,28 @@ export default function CommunityGrowthHub({
     }
   }
 
+  async function handleCopyAndOpenGroup(title: string, bodyText: string, promptText: string) {
+    if (!hub) return;
+    const postContent = [
+      `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${title}`,
+      "",
+      bodyText,
+      "",
+      `💬 ${promptText}`,
+      "",
+      `#CongDongDuLich #DichVuHoTroDuLich #DaNang #ExploreVietnam`,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(postContent);
+      setBannerMessage(
+        `Đã copy sẵn toàn bộ nội dung bài "${title}" vào bộ nhớ tạm! Cửa sổ Group "${hub.group.name}" đã mở — bạn chỉ cần bấm vào ô "Bạn viết gì đi..." và nhấn Ctrl + V để đăng vào Nhóm.`
+      );
+    } catch {
+      // Fallback if clipboard blocked
+    }
+    window.open(hub.group.group_url, "_blank", "noopener,noreferrer");
+  }
+
   if (loading && !hub) {
     return (
       <section className="rounded-2xl border border-blue-200 bg-white p-6 shadow-sm">
@@ -868,6 +890,15 @@ export default function CommunityGrowthHub({
                   <p className="mt-3 text-sm text-slate-700">{d.body}</p>
                   <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs font-semibold text-amber-900">
                     💬 Câu hỏi thảo luận mở: {d.discussion_prompt}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyAndOpenGroup(d.title, d.body, d.discussion_prompt)}
+                      className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800"
+                    >
+                      📋 Copy nội dung & Mở Group Facebook để dán đăng ngay ↗
+                    </button>
                   </div>
                   <div className="mt-4 space-y-2.5 border-t border-slate-100 pt-3">
                     <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
