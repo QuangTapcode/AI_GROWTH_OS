@@ -54,6 +54,15 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
       return NextResponse.json({ status: 'synced', data });
     }
 
+    if (action === 'send_messenger_invite') {
+      const inviteResult = await service.sendMessengerGroupInvite(
+        params.workspace_id,
+        body.external_ref ? String(body.external_ref) : undefined,
+      );
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: 'invited', invite_result: inviteResult, data });
+    }
+
     if (action === 'create_discussion') {
       const discussion = await service.createDiscussion(params.workspace_id, {
         category: body.category ? String(body.category) : 'Thảo luận Cộng đồng',

@@ -211,7 +211,36 @@ export default function CommunityGrowthHub({
       setProspectName("");
       setProspectSignal("");
       setBannerMessage(
-        `Đã tự động quét tin nhắn Fanpage "${res.data.group.page_name}", bình luận và tín hiệu xu hướng — tự động phân loại sở thích và thêm thành viên phù hợp vào "${res.data.group.name}" của bạn!`
+        `Đã quét hộp thư Messenger & bình luận thật trên Fanpage "${res.data.group.page_name}".`
+      );
+      onUpdated?.();
+    } catch (err) {
+      setBannerMessage((err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSendMessengerInvite(externalRef?: string) {
+    setBusyAction(externalRef || "invite_all");
+    setBannerMessage("");
+    try {
+      const res = await apiRequest<{
+        invite_result: { sent_count: number; results: { name: string; status: string; detail: string }[] };
+        data: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: {
+          action: "send_messenger_invite",
+          ...(externalRef ? { external_ref: externalRef } : {}),
+        },
+      });
+      setHub(res.data);
+      const summary = res.invite_result.results
+        .map((r) => `${r.name}: ${r.detail}`)
+        .join(" | ");
+      setBannerMessage(
+        `Kết quả gửi lời mời tham gia Group (${res.data.group.group_url}) qua Messenger thật: ${summary}`
       );
       onUpdated?.();
     } catch (err) {
@@ -560,14 +589,26 @@ export default function CommunityGrowthHub({
                   Đây là danh sách <b>khách tiềm năng để chăm sóc</b>, <b>không phải</b> người theo dõi Page — họ chỉ thành follower khi tự bấm Theo dõi.
                 </p>
               </div>
-              <button
-                type="button"
-                disabled={!canEdit || busyAction === "scan"}
-                onClick={handleScanMembers}
-                className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
-              >
-                {busyAction === "scan" ? "Đang quét…" : "🔍 Quét lại tin nhắn & bình luận thật trên Fanpage"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!canEdit || busyAction === "invite_all"}
+                  onClick={() => handleSendMessengerInvite()}
+                  className="rounded-lg bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {busyAction === "invite_all"
+                    ? "Đang gửi Messenger…"
+                    : "💌 Gửi link mời vào Group qua Messenger thật"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!canEdit || busyAction === "scan"}
+                  onClick={handleScanMembers}
+                  className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
+                >
+                  {busyAction === "scan" ? "Đang quét…" : "🔍 Quét lại tin nhắn & bình luận thật trên Fanpage"}
+                </button>
+              </div>
             </div>
 
             {/* Quick Add / Simulate Trend Prospect */}
@@ -643,15 +684,37 @@ export default function CommunityGrowthHub({
                       </td>
                       <td className="px-3 py-3 font-semibold text-slate-700">Tuần {m.campaign_week}</td>
                       <td className="px-3 py-3">
-                        <span
-                          className={`rounded-md px-2 py-1 text-[11px] font-bold ${
-                            m.status === "manual_prospect" ? "bg-slate-200 text-slate-700" : "bg-amber-100 text-amber-900"
-                          }`}
-                        >
-                          {m.status === "manual_prospect"
-                            ? "Nhập tay — chưa xác minh"
-                            : "Đã tương tác — chưa phải follower"}
-                        </span>
+                        <div className="flex flex-col items-start gap-1.5">
+                          <span
+                            className={`rounded-md px-2 py-1 text-[11px] font-bold ${
+                              m.status === "invited_via_messenger"
+                                ? "bg-emerald-600 text-white"
+                                : m.status === "outside_24h_window"
+                                  ? "bg-slate-200 text-slate-700"
+                                  : m.status === "manual_prospect"
+                                    ? "bg-slate-200 text-slate-700"
+                                    : "bg-amber-100 text-amber-900"
+                            }`}
+                          >
+                            {m.status === "invited_via_messenger"
+                              ? "✓ Đã gửi link Group qua Messenger"
+                              : m.status === "outside_24h_window"
+                                ? "Quá 24h (Chờ khách nhắn mới)"
+                                : m.status === "manual_prospect"
+                                  ? "Nhập tay — chưa xác minh"
+                                  : "Đã tương tác — chưa mời vào Group"}
+                          </span>
+                          {m.external_ref.startsWith("fb:") && (
+                            <button
+                              type="button"
+                              disabled={!canEdit || busyAction === m.external_ref}
+                              onClick={() => handleSendMessengerInvite(m.external_ref)}
+                              className="rounded border border-emerald-700 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                            >
+                              {busyAction === m.external_ref ? "Đang gửi…" : "💌 Gửi link Group qua Messenger"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

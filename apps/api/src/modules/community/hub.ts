@@ -298,8 +298,9 @@ export class CommunityHubService {
       pageId === '1381196421750749'
         ? 'https://www.facebook.com/profile.php?id=61596152213281'
         : `https://www.facebook.com/profile.php?id=${pageId}`;
+    const defaultGroupUrl = 'https://www.facebook.com/groups/1134282109069209';
     const defaultCommunityName = `Cộng đồng ${pageName} – Giao lưu & Chia sẻ Kinh nghiệm Du lịch Việt Nam`;
-    const defaultPositioning = `Cộng đồng tương tác 2 chiều của riêng bạn ( vận hành trên Fanpage "${pageName}" & Group Cộng đồng riêng ) — nơi các thành viên cùng sở thích du lịch, lưu trú, làm việc từ xa và khám phá Việt Nam trực tiếp hỏi đáp, chia sẻ kinh nghiệm thực tế với nhau.`;
+    const defaultPositioning = `Cộng đồng tương tác 2 chiều của riêng bạn ( vận hành trên Fanpage "${pageName}" & Group Facebook chính thức: ${defaultGroupUrl} ) — nơi các thành viên cùng sở thích du lịch, lưu trú, làm việc từ xa và khám phá Việt Nam trực tiếp hỏi đáp, chia sẻ kinh nghiệm thực tế với nhau.`;
 
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS community_hub_settings (
@@ -316,9 +317,13 @@ export class CommunityHubService {
     await this.pool.query(
       `UPDATE community_hub_settings
           SET page_url = $2,
-              group_url = CASE WHEN group_url LIKE '%1381196421750749%' THEN $2 ELSE group_url END
-        WHERE workspace_id = $1 AND page_url LIKE '%1381196421750749%'`,
-      [workspaceId, defaultPageUrl],
+              group_url = CASE
+                WHEN group_url LIKE '%profile.php%' OR group_url LIKE '%1381196421750749%' OR group_url LIKE '%vietnamplaybook%' THEN $3
+                ELSE group_url
+              END,
+              positioning = $4
+        WHERE workspace_id = $1`,
+      [workspaceId, defaultPageUrl, defaultGroupUrl, defaultPositioning],
     );
 
     const saved = (
@@ -336,11 +341,11 @@ export class CommunityHubService {
         `INSERT INTO community_hub_settings (workspace_id, community_name, group_url, page_name, page_url, positioning)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (workspace_id) DO NOTHING`,
-        [workspaceId, defaultCommunityName, defaultPageUrl, pageName, defaultPageUrl, defaultPositioning],
+        [workspaceId, defaultCommunityName, defaultGroupUrl, pageName, defaultPageUrl, defaultPositioning],
       );
       return {
         community_name: defaultCommunityName,
-        group_url: defaultPageUrl,
+        group_url: defaultGroupUrl,
         page_name: pageName,
         page_url: defaultPageUrl,
         connected_fanpage_id: pageId,
@@ -827,6 +832,109 @@ export class CommunityHubService {
     } catch {
       return { followers_count: null, fan_count: null };
     }
+  }
+
+  /**
+   * Sends a REAL Messenger message via Meta Graph API (/v20.0/me/messages) inviting a real
+   * Facebook user (who previously messaged the Page) to join the user's Facebook Group.
+   */
+  async sendMessengerGroupInvite(
+    workspaceId: string,
+    externalRef?: string,
+  ): Promise<{ sent_count: number; results: { name: string; status: string; detail: string }[] }> {
+    const settings = await this.getCommunitySettings(workspaceId);
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    if (!token) {
+      return { sent_count: 0, results: [{ name: 'System', status: 'error', detail: 'Thiếu FACEBOOK_PAGE_ACCESS_TOKEN' }] };
+    }
+
+    const rows = (
+      await this.pool.query<{
+        id: string;
+        external_ref: string;
+        display_name: string;
+        matched_signal: string;
+        recommended_topic: string | null;
+      }>(
+        externalRef
+          ? `SELECT id, external_ref, display_name, matched_signal, recommended_topic
+               FROM community_hub_members
+              WHERE workspace_id = $1 AND external_ref = $2`
+          : `SELECT id, external_ref, display_name, matched_signal, recommended_topic
+               FROM community_hub_members
+              WHERE workspace_id = $1 AND external_ref ~ '^fb:[0-9]{14,}$'`,
+        externalRef ? [workspaceId, externalRef] : [workspaceId],
+      )
+    ).rows;
+
+    let sentCount = 0;
+    const results: { name: string; status: string; detail: string }[] = [];
+
+    for (const member of rows) {
+      const psid = member.external_ref.replace(/^fb:/, '');
+      const text = [
+        `Chào ${member.display_name}! Cảm ơn bạn đã nhắn tin cho Fanpage ${settings.page_name} về nhu cầu: "${member.matched_signal}".`,
+        member.recommended_topic ? `📚 Cẩm nang gợi ý cho bạn: ${member.recommended_topic}` : '',
+        `👉 Mời bạn bấm THAM GIA NHÓM (Join Group) "${settings.community_name}" tại đây để cùng giao lưu, hỏi đáp 2 chiều với các thành viên có cùng sở thích du lịch Việt Nam nhé:\n${settings.group_url}`,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
+      try {
+        const res = await fetch(
+          `https://graph.facebook.com/v20.0/me/messages?access_token=${encodeURIComponent(token)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipient: { id: psid },
+              messaging_type: 'RESPONSE',
+              message: { text },
+            }),
+            signal: AbortSignal.timeout(10000),
+          },
+        );
+        const json = (await res.json()) as { message_id?: string; error?: { message?: string; code?: number } };
+        if (res.ok && json.message_id) {
+          sentCount++;
+          await this.pool.query(
+            `UPDATE community_hub_members
+                SET status = 'invited_via_messenger',
+                    invite_group_url = $3,
+                    updated_at = NOW()
+              WHERE workspace_id = $1 AND id = $2`,
+            [workspaceId, member.id, settings.group_url],
+          );
+          results.push({
+            name: member.display_name,
+            status: 'sent',
+            detail: `Đã gửi tin nhắn mời vào Group thật qua Messenger (id: ${json.message_id.slice(0, 18)}...)`,
+          });
+        } else {
+          const is24hError = json.error?.code === 10 || /24 hour|outside of allowed window/i.test(json.error?.message || '');
+          const statusValue = is24hError ? 'outside_24h_window' : 'identified';
+          await this.pool.query(
+            `UPDATE community_hub_members SET status = $3, updated_at = NOW() WHERE workspace_id = $1 AND id = $2`,
+            [workspaceId, member.id, statusValue],
+          );
+          results.push({
+            name: member.display_name,
+            status: statusValue,
+            detail: is24hError
+              ? 'Quá 24h kể từ tin nhắn cuối của khách (Chính sách Meta chỉ cho gửi tin nhắn trực tiếp trong vòng 24h sau khi khách nhắn)'
+              : json.error?.message || 'Không gửi được qua Messenger',
+          });
+        }
+      } catch (err) {
+        results.push({
+          name: member.display_name,
+          status: 'error',
+          detail: (err as Error).message,
+        });
+      }
+    }
+
+    return { sent_count: sentCount, results };
   }
 
   async getHubData(workspaceId: string) {
