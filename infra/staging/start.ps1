@@ -139,6 +139,14 @@ try {
         $startedServices | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -LiteralPath $statePath
     }
 
+    # The worker checks the AI service once at startup and exits if it is not up yet; wait for it.
+    $aiDeadline = (Get-Date).AddSeconds(90)
+    do {
+        $aiReady = $false
+        try { $aiReady = (Invoke-RestMethod -Uri 'http://127.0.0.1:5000/readyz' -TimeoutSec 3).status -eq 'ok' } catch { Start-Sleep -Seconds 2 }
+    } while (-not $aiReady -and (Get-Date) -lt $aiDeadline)
+    if (-not $aiReady) { Write-Warning 'AI service is not ready after 90s; the worker may fail to start. See infra/staging/.runtime/ai.stderr.log.' }
+
     # Automatically start Autopilot Worker (draft-main.ts + CommunityReplyRunner)
     $workerRoot = Join-Path $repoRoot 'apps/worker'
     $workerProcess = Start-Process -FilePath $nodeExecutable `

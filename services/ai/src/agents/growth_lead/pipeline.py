@@ -126,9 +126,14 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
         focus = [offer.replace("_", " ") for offer in (p.goal_context.focus_offers if p.goal_context else [])]
         def off_goal(finding):
             return bool(focus) and not names_focus(" ".join([finding.topic, *finding.keywords, finding.user_need or ""]), focus)
-        # What the owner asked for comes first, then what the measurements call for; the score ranks within them.
+        def stale(finding):
+            # Stale evidence blocks the plan, so it only wins when every finding is stale.
+            return finding.evidence_updated is not None and finding.evidence_updated < datetime.now(timezone.utc).year - STALE_AFTER_YEARS
+        # What the owner asked for comes first, then usable evidence, then what the measurements call for;
+        # the score ranks within them.
         first_factors = PRIORITY_FACTORS[priority["mode"]] if priority else ()
-        scored.sort(key=lambda row: (off_goal(research.findings[row[1]]), priority_order(alignment_of(research.findings[row[1]])),
+        scored.sort(key=lambda row: (off_goal(research.findings[row[1]]), stale(research.findings[row[1]]),
+                                     priority_order(alignment_of(research.findings[row[1]])),
                                      *(-row[2][name] for name in first_factors), -row[0], row[1]))
         ranking = [{"finding_index": index, "topic": research.findings[index].topic, "score": score,
                     "strategy_alignment": alignment_of(research.findings[index])}

@@ -63,6 +63,21 @@ async function checkRobots(url: string): Promise<void> {
   }
 }
 
+type Page = { goto: Function; waitForLoadState: Function; waitForFunction: Function };
+
+/**
+ * Open a client-rendered page and wait until it has rendered text. Ad and affiliate scripts (e.g.
+ * TravelPayouts on tripc.ai since early November) keep the network busy, so `networkidle` alone never
+ * fires and every render timed out; it is now a bounded best effort.
+ */
+async function gotoRendered(page: Page, url: string) {
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+  await page.waitForFunction(() => (document.body?.innerText ?? '').trim().length > 300, undefined, { timeout: 20_000 })
+    .catch(() => undefined);
+  return response;
+}
+
 /** Links of a client-rendered index page (robots-checked); a link's heading, else its first line, is its title. */
 export async function listLinksWithBrowser(url: string): Promise<{ url: string; title: string }[]> {
   await checkRobots(url);
@@ -70,7 +85,7 @@ export async function listLinksWithBrowser(url: string): Promise<{ url: string; 
   const browser = await chromium.launch({ channel: process.env.INGEST_BROWSER_CHANNEL || 'msedge' });
   try {
     const page = await browser.newPage({ userAgent: INGEST_USER_AGENT });
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 45_000 });
+    await gotoRendered(page, url);
     // Index pages load more articles while scrolling.
     for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, 4000); await page.waitForTimeout(500); }
     return await page.evaluate(() => Array.from(document.querySelectorAll('a')).map((a) => ({
@@ -89,7 +104,7 @@ export const renderWithBrowser: RenderPage = async (url) => {
   const browser = await chromium.launch({ channel: process.env.INGEST_BROWSER_CHANNEL || 'msedge' });
   try {
     const page = await browser.newPage({ userAgent: INGEST_USER_AGENT });
-    const response = await page.goto(url, { waitUntil: 'networkidle', timeout: 45_000 });
+    const response = await gotoRendered(page, url);
     if (!response || response.status() >= 400) {
       throw new RenderError('URL_FETCH_FAILED', `Page returned HTTP ${response?.status() ?? 'none'}`, (response?.status() ?? 500) < 500);
     }

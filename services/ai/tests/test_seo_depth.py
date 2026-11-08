@@ -192,3 +192,21 @@ def test_a_too_short_article_holds_the_social_pack_written_from_it(client, make_
     pack = run_job(client, request(job, "content.repurpose", {"source_article": artifact_input(seo), "cta": "Request the guide",
                                                               "target_channels": ["facebook"]}))["result"]["result"]
     assert pack["status"] == "insufficient_data" and pack["missing_facts"] == ["article_too_short"]
+
+
+class RecordingLimit(ScriptedDrafts):
+    def __init__(self, *bodies):
+        super().__init__(*bodies)
+        self.limits = []
+
+    async def chat_json(self, *, max_output_tokens, **kwargs):
+        self.limits.append(max_output_tokens)
+        return await super().chat_json(max_output_tokens=max_output_tokens, **kwargs)
+
+
+def test_the_model_has_room_for_a_cited_article_of_good_length(client, make_client):
+    # Real 05-06/11 runs: a cited article of this length came back cut at 1024 tokens as invalid JSON, twice.
+    provider = RecordingLimit(sentences(280))
+    article(client, make_client, provider)
+    assert provider.limits == [2048]
+

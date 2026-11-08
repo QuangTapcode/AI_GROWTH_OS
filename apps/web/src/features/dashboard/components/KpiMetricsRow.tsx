@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import type { MetricItem, WorkspaceReport } from "@/lib/apiTypes";
 import { formatNumber, humanize } from "@/lib/format";
 
@@ -40,13 +41,63 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-const METRICS: Array<{ key: string; label: string }> = [
-  { key: "sessions", label: "Sessions" },
-  { key: "search_clicks", label: "Organic Clicks" },
-  { key: "search_impressions", label: "Search Impressions" },
+const FACEBOOK_ICON = (
+  <svg className="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12z" />
+  </svg>
+);
+ICONS.fb_followers = FACEBOOK_ICON;
+ICONS.fb_posts = (
+  <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v8a2 2 0 01-2 2zM7 9h5M7 13h10M7 17h10" />
+  </svg>
+);
+ICONS.fb_engagements = (
+  <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+  </svg>
+);
+ICONS.fb_conversations = (
+  <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+  </svg>
+);
+
+/** Channels the workspace owns (Facebook Page) and internal leads always come first. */
+const PRIMARY_METRICS: Array<{ key: string; label: string }> = [
+  { key: "fb_followers", label: "Page Followers" },
+  { key: "fb_posts", label: "Posts Published" },
+  { key: "fb_engagements", label: "Post Engagement" },
+  { key: "fb_conversations", label: "Messenger Chats" },
   { key: "leads_generated", label: "Qualified Leads" },
-  { key: "ad_spend", label: "Ad Spend" },
 ];
+
+/** External sources: shown as a tile only once their connector returns data. */
+const EXTERNAL_METRICS: Array<{ key: string; label: string; source: string }> = [
+  { key: "sessions", label: "Sessions", source: "Google Analytics 4" },
+  { key: "search_clicks", label: "Organic Clicks", source: "Search Console" },
+  { key: "search_impressions", label: "Search Impressions", source: "Search Console" },
+  { key: "ad_spend", label: "Ad Spend", source: "Meta Ads" },
+];
+
+const NOT_CONFIGURED = new Set(["GOOGLE_CREDENTIALS_NOT_CONFIGURED", "PROPERTY_NOT_VERIFIED", "META_ADS_ACCESS_MISSING"]);
+
+function isUnconfigured(item: MetricItem | undefined): boolean {
+  return !item || (item.availability === "missing" && NOT_CONFIGURED.has(item.missing_reason ?? ""));
+}
+
+function missingLabel(item: MetricItem): string {
+  switch (item.missing_reason) {
+    case "NO_DATA_IN_RANGE":
+      return "No data in range";
+    case "CURRENT_SNAPSHOT_ONLY":
+      return "Current count only";
+    case "FACEBOOK_API_ERROR":
+      return "Facebook API error";
+    default:
+      return `Not connected · ${humanize((item.missing_reason ?? item.availability).toLowerCase())}`;
+  }
+}
 
 function formatValue(item: MetricItem): string {
   if (item.value === null) return "—";
@@ -62,10 +113,17 @@ function changeText(current: MetricItem, previous: MetricItem | undefined): { te
 }
 
 export default function KpiMetricsRow({ report, previous }: KpiMetricsRowProps) {
+  const metrics = [
+    ...PRIMARY_METRICS.filter(({ key }) => report.kpis[key]),
+    ...EXTERNAL_METRICS.filter(({ key }) => !isUnconfigured(report.kpis[key])),
+  ];
+  const pendingSources = [
+    ...new Set(EXTERNAL_METRICS.filter(({ key }) => isUnconfigured(report.kpis[key])).map(({ source }) => source)),
+  ];
   return (
     <div className="space-y-1.5">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5">
-        {METRICS.map(({ key, label }) => {
+        {metrics.map(({ key, label }) => {
           const item = report.kpis[key];
           if (!item) return null;
           const prev = previous?.kpis[key];
@@ -110,9 +168,7 @@ export default function KpiMetricsRow({ report, previous }: KpiMetricsRowProps) 
                       className="inline-flex items-center font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-md"
                       title={item.missing_reason ?? undefined}
                     >
-                      {item.missing_reason === "NO_DATA_IN_RANGE"
-                        ? "No data in range"
-                        : `Not connected · ${humanize((item.missing_reason ?? item.availability).toLowerCase())}`}
+                      {missingLabel(item)}
                     </span>
                   )}
                 </div>
@@ -121,7 +177,17 @@ export default function KpiMetricsRow({ report, previous }: KpiMetricsRowProps) 
           );
         })}
       </div>
-      <div className="text-right pr-1">
+      <div className="flex items-center justify-between gap-3 flex-wrap px-1">
+        {pendingSources.length > 0 ? (
+          <span className="text-[11px] text-slate-500">
+            Not connected yet: {pendingSources.join(" · ")} —{" "}
+            <Link href="/workspace-integrations" className="font-semibold text-blue-600 hover:underline">
+              connect in Workspace &amp; Integrations
+            </Link>
+          </span>
+        ) : (
+          <span />
+        )}
         <span className="text-[10px] text-slate-400 italic">
           Report {report.period.from} → {report.period.to} · {report.period.timezone}
         </span>

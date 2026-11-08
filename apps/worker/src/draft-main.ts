@@ -44,6 +44,14 @@ async function main() {
       .catch(error => console.error('[draft-ingest]', error.message)).finally(() => { ingestBusy = false; });
   }, 5000)];
 
+  // New first-party articles become Research sources in draft mode too: importing a source publishes nothing.
+  const blogSync = new FirstPartyBlogSync(pool, listLinksWithBrowser);
+  const syncBlog = () => void blogSync.runOnce()
+    .then((result) => { if (result.imported) console.log('[blog-sync] imported', result.imported); })
+    .catch((error) => console.error('[blog-sync]', (error as Error).message));
+  syncBlog();
+  timers.push(setInterval(syncBlog, Number(process.env.BLOG_SYNC_HOURS ?? 6) * 3_600_000));
+
   const autopilot = process.env.AUTOPILOT !== '0';
   if (autopilot) {
     const apiBase = (process.env.API_BASE_URL || 'http://127.0.0.1:4000').replace(/\/v1\/?$/, '').replace(/\/$/, '');
@@ -59,12 +67,6 @@ async function main() {
         .catch((error) => console.error('[community-reply]', (error as Error).message)).finally(() => { replyBusy = false; });
     };
     timers.push(setInterval(runReplies, 2000));
-    const blogSync = new FirstPartyBlogSync(pool, listLinksWithBrowser);
-    const syncBlog = () => void blogSync.runOnce()
-      .then((result) => { if (result.imported) console.log('[blog-sync] imported', result.imported); })
-      .catch((error) => console.error('[blog-sync]', (error as Error).message));
-    syncBlog();
-    timers.push(setInterval(syncBlog, Number(process.env.BLOG_SYNC_HOURS ?? 6) * 3_600_000));
     let tickBusy = false, publishBusy = false;
     triggerTick = () => {
       if (tickBusy) return;

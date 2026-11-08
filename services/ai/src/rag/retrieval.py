@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass
 
 from ..app.schemas import JobRequest, KnowledgeSnapshot, SnapshotChunk, SnapshotSource
@@ -78,6 +79,32 @@ def lexical_overlap(question_terms: set[str], text: str) -> float:
     if not question_terms:
         return 0.0
     return len(question_terms & terms(text)) / len(question_terms)
+
+
+def bm25_scores(query: dict[str, float], texts: list[str], *, k1: float = 1.2, b: float = 0.75) -> list[float]:
+    """BM25 of each text for weighted query terms, with IDF over these texts.
+
+    Plain term overlap ranks a long page that names many common words ("Vietnam", "travel") above a
+    short passage about the rare word asked for ("eSIM"); BM25 weighs rare words up and long texts down.
+    """
+    docs = [[word for word in _WORD.findall(text.lower()) if word not in _STOPWORDS] for text in texts]
+    if not docs or not query:
+        return [0.0] * len(docs)
+    average = sum(len(doc) for doc in docs) / len(docs) or 1.0
+    frequency = Counter(word for doc in docs for word in set(doc))
+    scores = []
+    for doc in docs:
+        counts = Counter(doc)
+        length = len(doc) or 1
+        score = 0.0
+        for word, weight in query.items():
+            hits = counts.get(word)
+            if not hits:
+                continue
+            idf = math.log(1 + (len(docs) - frequency[word] + 0.5) / (frequency[word] + 0.5))
+            score += weight * idf * hits * (k1 + 1) / (hits + k1 * (1 - b + b * length / average))
+        scores.append(score)
+    return scores
 
 
 def cosine(left: list[float], right: list[float]) -> float:

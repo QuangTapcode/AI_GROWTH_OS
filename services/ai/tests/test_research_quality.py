@@ -1,4 +1,5 @@
 import json
+import re
 import logging
 from copy import deepcopy
 from uuid import uuid4
@@ -185,6 +186,26 @@ def test_fallback_prefers_the_offer_the_owner_asked_for(make_client):
     assert finding['topic'] == 'food' and finding['evidence']['chunk_id'] == 'food'
 
 
+def test_fallback_keeps_looking_when_the_first_excerpt_only_mentions_the_topic(make_client):
+    # Real TripC data, 08/11: the only "gym" excerpt failed the checks and the run ended with no finding,
+    # although an unused food excerpt was available.
+    job = long_source_job()
+    job['payload']['business_profile']['products'] = ['coworking', 'gym', 'food']
+    chunks = job['payload']['snapshot']['sources'][0]['chunks']
+    chunks.append({'chunk_id': 'gyms', 'locator': 'paragraph:100',
+                   'text': 'Hotels list gyms, pools and parking among the amenities expats ask about when they arrive.'})
+    chunks.append({'chunk_id': 'food', 'locator': 'paragraph:101',
+                   'text': 'Street food markets in Da Nang serve expats fresh local dishes every evening near the river.'})
+    job['payload']['trend_signals'] = [signal('Coworking spaces in Da Nang for expats')]
+    job['payload']['content_inventory'] = [{'content_id': str(uuid4()), 'workspace_id': job['workspace_id'], 'version': 1,
+                                            'title': 'Coworking spaces for remote-working expats in Da Nang'}]
+    out = run_job(make_client(provider=IncompleteExplanationProvider(), provider_mode='live'), job)
+    result = out['result']['result']
+    assert result['status'] == 'ready_for_handoff', result['missing_facts']
+    assert [f['topic'] for f in result['findings']] == ['food']
+    assert result['findings'][0]['evidence']['chunk_id'] == 'food'
+
+
 def test_an_excerpt_from_a_source_chunk_existing_content_is_built_on_is_not_reproposed(make_client):
     job = community_events_job(['events'])
     # Few enough chunks that the model still sees the cited one (cited chunks are read last).
@@ -333,3 +354,60 @@ def test_large_inventory_is_bounded_in_prompt_but_all_items_are_deduplicated(mak
     assert len(provider.user['inventory']) <= 12
     assert body['result']['result']['findings'] == []
     assert 'DUPLICATE_TOPIC_DROPPED' in body['result']['warnings']
+
+
+# --- One price in a section no longer hides the whole section from Research
+
+PRICED_WORK = ("Coworking spaces in Da Nang serve expats who work remotely near the beach and stay open late. "
+               "A hot desk costs 2,000,000 VND per month. "
+               "Most spaces offer quiet call rooms, community events and fast internet for remote teams.")
+
+
+class SentenceProvider(LandscapeProvider):
+    """Cites one sentence (first or last) of the excerpt it was shown, as a model would."""
+
+    def __init__(self, which="first", quote=None):
+        super().__init__(); self.which = which; self.quote = quote
+
+    async def chat_json(self, *, user, **kwargs):
+        content, usage = await super().chat_json(user=user, **kwargs)
+        draft = json.loads(content)
+        text = next(x for x in self.user["excerpts"] if x["chunk_id"] == "work")["text"]
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+", text) if s]
+        draft["ideas"][0]["quote"] = self.quote or (sentences[0] if self.which == "first" else sentences[-1])
+        return json.dumps(draft), usage
+
+
+def priced_job():
+    job = long_source_job()
+    next(c for c in job['payload']['snapshot']['sources'][0]['chunks'] if c['chunk_id'] == 'work')['text'] = PRICED_WORK
+    return job
+
+
+def test_an_excerpt_with_one_price_is_shown_without_the_price_and_can_be_cited(make_client):
+    provider = SentenceProvider("last")
+    out = run_job(make_client(provider=provider, provider_mode='live'), priced_job())
+    shown = next(x for x in provider.user["excerpts"] if x["chunk_id"] == "work")["text"]
+    assert "VND" not in shown and "2,000,000" not in shown
+    result = out['result']['result']
+    assert result['status'] == 'ready_for_handoff', out['result']['warnings']
+    assert result['findings'][0]['evidence']['quote'].startswith("Most spaces offer quiet call rooms")
+    assert "SENSITIVE_SENTENCES_REMOVED" in out['result']['warnings']
+
+
+def test_a_quote_joined_across_the_removed_price_is_not_evidence(make_client):
+    joined = ("Coworking spaces in Da Nang serve expats who work remotely near the beach and stay open late. "
+              "Most spaces offer quiet call rooms, community events and fast internet for remote teams.")
+    out = run_job(make_client(provider=SentenceProvider(quote=joined), provider_mode='live'), priced_job())
+    assert out['result']['result']['findings'] == []
+    assert "UNGROUNDED_IDEA_DROPPED" in out['result']['warnings']
+
+
+def test_an_excerpt_that_is_mostly_prices_is_still_excluded(make_client):
+    job = long_source_job()
+    next(c for c in job['payload']['snapshot']['sources'][0]['chunks'] if c['chunk_id'] == 'work')['text'] = (
+        "Coworking in Da Nang: hot desk 2,000,000 VND per month. Fixed desk 3,000,000 VND per month.")
+    out = run_job(make_client(), job)
+    assert out['status'] == 'completed', out
+    assert "SENSITIVE_EXCERPT_EXCLUDED" in out['result']['warnings']
+    assert 'work' not in {f['evidence']['chunk_id'] for f in out['result']['result']['findings']}

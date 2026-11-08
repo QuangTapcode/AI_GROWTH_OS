@@ -82,6 +82,8 @@ export async function runDiscovery(pool: Pool, workspaceId: string, search: Sear
   for (const query of queries) {
     (await search(query)).forEach((result, index) => results.push({ query, rank: index + 1, result }));
   }
+  // Every engine blocked or empty: say so, since Research would otherwise reason on an old landscape.
+  if (!results.length) throw new DiscoveryError('SEARCH_EMPTY', `Search returned no results for ${queries.length} queries`, 502);
 
   const runId = randomUUID();
   const candidates = new Map<string, string>();

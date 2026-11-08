@@ -16,6 +16,13 @@ from .config import Settings
 from .schemas import Usage
 
 
+def estimate_tokens(text: str) -> int:
+    # rag.chunking imports app.runtime, which imports this module: import when called.
+    from ..rag.chunking import estimate_tokens as estimate
+
+    return estimate(text)
+
+
 class ProviderError(RuntimeError):
     def __init__(self, code: str, message: str, *, retryable: bool = False) -> None:
         super().__init__(message)
@@ -123,6 +130,8 @@ class OllamaProvider:
                         "model": self.settings.llm_model,
                         "stream": False,
                         "format": schema,
+                        # Thinking models (qwen3) otherwise spend num_predict on hidden reasoning and return no JSON.
+                        "think": False,
                         "messages": [
                             {"role": "system", "content": system},
                             {"role": "user", "content": user},
@@ -177,8 +186,10 @@ class OllamaProvider:
 class GeminiProvider:
     """Official Google Gemini API provider supporting fast hybrid inference and 768-dim embeddings."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, fake_on_exhaustion: bool = True) -> None:
         self.settings = settings
+        # Hybrid mode hands an exhausted quota to the local model instead of returning fake output.
+        self.fake_on_exhaustion = fake_on_exhaustion
         self.model_version = f"gemini/{settings.gemini_model}"
         self.embedding_model_version = f"gemini/{settings.gemini_embedding_model}"
         from google import genai
@@ -240,7 +251,10 @@ class GeminiProvider:
 
         if content is None:
             err_text = str(last_exc or "")
-            if "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "503" in err_text or "UNAVAILABLE" in err_text or "404" in err_text or "NOT_FOUND" in err_text:
+            exhausted = "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "503" in err_text or "UNAVAILABLE" in err_text or "404" in err_text or "NOT_FOUND" in err_text
+            if exhausted and not self.fake_on_exhaustion:
+                raise ProviderError("PROVIDER_QUOTA_EXHAUSTED", "Every Gemini model is rate-limited or unavailable", retryable=True) from last_exc
+            if exhausted:
                 content = json.dumps(fake(), ensure_ascii=False)
                 input_tokens = estimate_tokens(system) + estimate_tokens(user)
                 output_tokens = estimate_tokens(content)
@@ -288,7 +302,98 @@ class GeminiProvider:
         )
 
 
+class RoutedProvider:
+    """The hybrid provider as seen by one operation: an ordered chain of chat providers."""
+
+    def __init__(self, chain: list[Provider], embedder: Provider, *, quality: bool,
+                 budget: tuple[int, int] | None = None, local_input_tokens: int | None = None) -> None:
+        self.chain = chain
+        # (input tokens, retrieved chunks) the first model in the chain can read.
+        self.budget = budget
+        self.local_input_tokens = local_input_tokens
+        self.embedder = embedder
+        self.quality = quality
+        self.model_version = chain[0].model_version
+        self.embedding_model_version = embedder.embedding_model_version
+        # What actually answered, so the run records the real model and any downgrade.
+        self.models_used: list[str] = []
+        self.fell_back = False
+
+    async def chat_json(
+        self,
+        *,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        max_output_tokens: int,
+        fake: Callable[[], dict[str, Any]],
+    ) -> tuple[str, Usage]:
+        last_exc: ProviderError | None = None
+        for index, provider in enumerate(self.chain):
+            if index > 0 and self.local_input_tokens and estimate_tokens(system) + estimate_tokens(user) > self.local_input_tokens:
+                # A prompt sized for the cloud model would be truncated by the local context window and
+                # answered without its instructions; report the cloud failure instead.
+                break
+            try:
+                content, usage = await provider.chat_json(
+                    system=system, user=user, schema=schema, max_output_tokens=max_output_tokens, fake=fake
+                )
+            except ProviderError as exc:
+                if not exc.retryable:
+                    raise
+                last_exc = exc
+                continue
+            self.models_used.append(provider.model_version)
+            self.fell_back = self.fell_back or index > 0
+            return content, usage
+        assert last_exc is not None
+        raise last_exc
+
+    async def embed(self, texts: list[str]) -> tuple[list[list[float]], Usage]:
+        return await self.embedder.embed(texts)
+
+
+class HybridProvider:
+    """Local model (Ollama) for routine work and all embeddings; Gemini for customer-facing writing.
+
+    Quality operations fall back to the local model when every Gemini model is exhausted. Routine
+    operations never touch the API key, so a busy day of research and scoring costs no quota.
+    """
+
+    def __init__(self, settings: Settings, *, local: Provider | None = None, cloud: Provider | None = None) -> None:
+        self.settings = settings
+        self.local = local or OllamaProvider(settings)
+        if cloud is None and settings.gemini_api_key:
+            cloud = GeminiProvider(settings, fake_on_exhaustion=False)
+        self.cloud = cloud
+        self.quality_operations = frozenset(settings.quality_operations)
+        self.model_version = self.local.model_version
+        self.embedding_model_version = self.local.embedding_model_version
+
+    def is_quality(self, operation: str) -> bool:
+        return self.cloud is not None and operation.lower() in self.quality_operations
+
+    def for_operation(self, operation: str) -> RoutedProvider:
+        quality = self.is_quality(operation)
+        chain = [self.cloud, self.local] if quality else [self.local]
+        budget = ((self.settings.cloud_max_input_tokens, self.settings.cloud_max_retrieved_chunks) if quality
+                  else (self.settings.max_input_tokens, self.settings.max_retrieved_chunks))
+        return RoutedProvider(chain, self.local, quality=quality, budget=budget,
+                              local_input_tokens=self.settings.max_input_tokens)
+
+    def model_version_for(self, operation: str) -> str:
+        return self.cloud.model_version if self.is_quality(operation) else self.local.model_version
+
+    async def chat_json(self, **kwargs: Any) -> tuple[str, Usage]:
+        return await self.local.chat_json(**kwargs)
+
+    async def embed(self, texts: list[str]) -> tuple[list[list[float]], Usage]:
+        return await self.local.embed(texts)
+
+
 def build_provider(settings: Settings) -> Provider:
+    if settings.provider_mode == "hybrid":
+        return HybridProvider(settings)
     if settings.provider_mode == "gemini":
         return GeminiProvider(settings)
     if settings.provider_mode == "live":
