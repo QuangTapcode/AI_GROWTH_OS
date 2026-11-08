@@ -1,8 +1,39 @@
+import fs from "node:fs";
+import path from "node:path";
 import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgres://postgres:postgres@localhost:15432/ai_growth_os";
+function resolveConnectionString(): string {
+  const raw =
+    process.env.DATABASE_URL ||
+    "postgres://postgres:postgres@localhost:15432/ai_growth_os";
+  // When running against the local Docker Postgres (:15432), automatically sync the password
+  // from infra/local/.env if present so copying apps/api/.env.local across machines never fails auth.
+  if (raw.includes(":15432/")) {
+    const candidates = [
+      path.resolve(process.cwd(), "infra/local/.env"),
+      path.resolve(process.cwd(), "../../infra/local/.env"),
+      path.resolve(__dirname, "../../../../infra/local/.env"),
+    ];
+    for (const candidate of candidates) {
+      if (!fs.existsSync(candidate)) continue;
+      try {
+        const content = fs.readFileSync(candidate, "utf8");
+        const match = content.match(/^POSTGRES_PASSWORD=(.+)$/m);
+        const password = match?.[1]?.trim();
+        if (password) {
+          const parsed = new URL(raw);
+          parsed.password = password;
+          return parsed.toString();
+        }
+      } catch {
+        // Fall back to raw DATABASE_URL
+      }
+    }
+  }
+  return raw;
+}
+
+const connectionString = resolveConnectionString();
 
 const pool = new Pool({
   connectionString,

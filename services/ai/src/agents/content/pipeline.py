@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 import re
+from uuid import NAMESPACE_URL, uuid5
 from ...app.providers import ProviderError
 from ...app.runtime import OperationError, OperationOutcome
 from ...guardrails.support import source_entries, strip_unfaithful, strip_unsupported
@@ -202,6 +203,17 @@ async def run_content(ctx):
     if not article.get("article_id") or not article.get("body_markdown") or not p.source_article.evidence:
         raise OperationError("MISSING_PARENT_CONTENT", "Content requires a cited SEO artifact")
     assets = [a for a in p.assets if a.status == "approved" and a.license.strip() and a.attribution.strip()]
+    if len(assets) > 1:
+        title_terms = terms(article["title"])
+        body_terms = terms(article["body_markdown"][:600])
+        def _asset_rank(item):
+            idx, asset = item
+            attr_terms = terms(asset.attribution)
+            title_hits = len(title_terms & attr_terms)
+            body_hits = len(body_terms & attr_terms)
+            tie_breaker = int(uuid5(NAMESPACE_URL, f"{article['title']}:{asset.asset_id}")) % 997
+            return (-title_hits * 10 - body_hits * 2, tie_breaker, idx)
+        assets = [asset for _, asset in sorted(enumerate(assets), key=_asset_rank)]
     # Deterministic demo remains grounded in the supplied article, with the same
     # hook -> useful points -> CTA structure requested from a live model.
     title = article["title"].strip()

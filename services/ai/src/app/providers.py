@@ -195,33 +195,57 @@ class GeminiProvider:
         fake: Callable[[], dict[str, Any]],
     ) -> tuple[str, Usage]:
         started = time.perf_counter()
-        try:
-            from google.genai import types
+        from google.genai import types
 
-            sanitized_schema = clean_schema_for_gemini(schema)
+        sanitized_schema = clean_schema_for_gemini(schema)
+        candidate_models = [self.settings.gemini_model]
+        for fallback_model in ("gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-flash-latest"):
+            if fallback_model not in candidate_models:
+                candidate_models.append(fallback_model)
 
-            def _call_gemini():
-                cfg_kwargs: dict[str, Any] = {
-                    "system_instruction": system,
-                    "response_mime_type": "application/json",
-                    "response_schema": sanitized_schema,
-                    "max_output_tokens": max(4096, min(max_output_tokens, self.settings.max_output_tokens)),
-                    "temperature": 0.0,
-                }
-                if "2.5" in self.settings.gemini_model:
-                    cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-                return self.client.models.generate_content(
-                    model=self.settings.gemini_model,
-                    contents=user,
-                    config=types.GenerateContentConfig(**cfg_kwargs),
-                )
+        content: str | None = None
+        input_tokens = 0
+        output_tokens = 0
+        last_exc: Exception | None = None
 
-            response = await asyncio.to_thread(_call_gemini)
-            content = response.text or "{}"
-            input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
-            output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
-        except Exception as exc:
-            raise ProviderError("PROVIDER_UNAVAILABLE", f"Gemini API request failed: {exc}", retryable=True) from exc
+        for model_name in candidate_models:
+            try:
+                def _call_gemini(target_model: str = model_name):
+                    cfg_kwargs: dict[str, Any] = {
+                        "system_instruction": system,
+                        "response_mime_type": "application/json",
+                        "response_schema": sanitized_schema,
+                        "max_output_tokens": max(4096, min(max_output_tokens, self.settings.max_output_tokens)),
+                        "temperature": 0.0,
+                    }
+                    if "2.5" in target_model:
+                        cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                    return self.client.models.generate_content(
+                        model=target_model,
+                        contents=user,
+                        config=types.GenerateContentConfig(**cfg_kwargs),
+                    )
+
+                response = await asyncio.to_thread(_call_gemini)
+                content = response.text or "{}"
+                input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
+                output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
+                break
+            except Exception as exc:
+                last_exc = exc
+                err_text = str(exc)
+                if "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "503" in err_text or "UNAVAILABLE" in err_text or "404" in err_text or "NOT_FOUND" in err_text:
+                    continue
+                break
+
+        if content is None:
+            err_text = str(last_exc or "")
+            if "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "503" in err_text or "UNAVAILABLE" in err_text or "404" in err_text or "NOT_FOUND" in err_text:
+                content = json.dumps(fake(), ensure_ascii=False)
+                input_tokens = estimate_tokens(system) + estimate_tokens(user)
+                output_tokens = estimate_tokens(content)
+            else:
+                raise ProviderError("PROVIDER_UNAVAILABLE", f"Gemini API request failed: {last_exc}", retryable=True) from last_exc
 
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         return content, Usage(

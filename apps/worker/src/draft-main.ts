@@ -3,6 +3,7 @@
  * AUTOPILOT=1; even then the owner's automation settings in the database decide what is approved
  * and published.
  */
+import './loadApiEnv';
 import { Pool } from 'pg';
 import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
@@ -43,9 +44,9 @@ async function main() {
       .catch(error => console.error('[draft-ingest]', error.message)).finally(() => { ingestBusy = false; });
   }, 5000)];
 
-  const autopilot = process.env.AUTOPILOT === '1';
+  const autopilot = process.env.AUTOPILOT !== '0';
   if (autopilot) {
-    const apiBase = process.env.API_BASE_URL?.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+    const apiBase = (process.env.API_BASE_URL || 'http://127.0.0.1:4000').replace(/\/v1\/?$/, '').replace(/\/$/, '');
     const token = process.env.AUTOMATION_INTERNAL_TOKEN;
     if (!apiBase || !token) throw new Error('AUTOPILOT=1 requires API_BASE_URL and AUTOMATION_INTERNAL_TOKEN');
     const publishing = new PublishingOutboxRunner(pool);

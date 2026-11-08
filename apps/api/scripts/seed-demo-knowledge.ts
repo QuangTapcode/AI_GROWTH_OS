@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import pool from "../src/lib/db";
 import { PgPlanRepository } from "../src/modules/campaignPlans/pgRepository";
+import { getPlaybookImageAssets } from "../src/modules/community/hub";
 
 const WORKSPACE_ID = "10000000-0000-4000-8000-000000000001"; // TripC
 const OWNER_ID = "a0000000-0000-4000-8000-000000000001";
@@ -90,7 +91,8 @@ async function main() {
     client.release();
   }
 
-  const issued = await new PgPlanRepository(pool).issueContext(WORKSPACE_ID);
+  const assets = getPlaybookImageAssets(WORKSPACE_ID).map(({ topic_tags, ...rest }) => rest);
+  const issued = await new PgPlanRepository(pool).issueContext(WORKSPACE_ID, { assets });
   const metricResult = {
     workspace_id: WORKSPACE_ID,
     snapshot_id: METRICS_SNAPSHOT_ID,
@@ -130,6 +132,13 @@ async function main() {
       JSON.stringify({ artifact: metricArtifact, result: metricResult }),
       JSON.stringify(metricEvidence),
     ],
+  );
+  await pool.query(
+    `INSERT INTO agent_automation
+       (workspace_id, enabled, interval_hours, cta, auto_approve_outputs, auto_publish_website, auto_publish_facebook, actor_id, next_run_at, updated_at)
+     VALUES ($1, TRUE, 24, 'Ask TripC to verify your Vietnam E-Visa checklist before applying', TRUE, TRUE, TRUE, $2, NOW(), NOW())
+     ON CONFLICT (workspace_id) DO NOTHING`,
+    [WORKSPACE_ID, OWNER_ID],
   );
   console.log(JSON.stringify({
     workspace_id: WORKSPACE_ID,

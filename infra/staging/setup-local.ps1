@@ -82,6 +82,12 @@ $secret = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Repla
 if (Set-EnvLine 'AUTH_SECRET' $secret { param($current) $current.Length -lt 32 -or $current -like 'change_me*' }) {
     Write-Output 'Generated a new AUTH_SECRET in apps/api/.env.local.'
 }
+$autoTokenBytes = New-Object byte[] 24
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($autoTokenBytes)
+$autoToken = 'auto_' + [Convert]::ToBase64String($autoTokenBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+if (Set-EnvLine 'AUTOMATION_INTERNAL_TOKEN' $autoToken { param($current) [string]::IsNullOrWhiteSpace($current) -or $current -like 'change_me*' }) {
+    Write-Output 'Generated a new AUTOMATION_INTERNAL_TOKEN in apps/api/.env.local.'
+}
 [IO.File]::WriteAllText($apiEnv, (($lines -join "`n") + "`n"), $utf8)
 
 # 3. Dependencies + schema + dữ liệu demo
@@ -90,6 +96,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $apiRoot 'node_modules/next/dist/bin
 }
 Invoke-Native 'db:migrate' { npm.cmd --prefix $apiRoot run db:migrate }
 Invoke-Native 'db:seed' { npm.cmd --prefix $apiRoot run db:seed }
+Invoke-Native 'db:seed-context' { npm.cmd --prefix $apiRoot run db:seed-context }
 
 Write-Output ''
 Write-Output 'Local setup done. Next: .\infra\staging\start.ps1  then open http://localhost:3000/login'

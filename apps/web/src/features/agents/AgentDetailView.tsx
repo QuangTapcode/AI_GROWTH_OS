@@ -17,6 +17,7 @@ import type {
 import { useApiData } from "@/lib/useApiData";
 import ArtifactReviewContent from "@/features/review-queue/components/ArtifactReviewContent";
 import ResearchDiscoveryPanel from "./ResearchDiscoveryPanel";
+import CommunityGrowthHub from "./CommunityGrowthHub";
 
 type RoleId = "research" | "growth_lead" | "seo" | "content" | "community" | "performance";
 
@@ -521,7 +522,9 @@ function AgentPage({ role }: { role: RoleId }) {
         </ol>
         {loopNotice && <p role="status" className="mt-4 text-sm text-blue-800">{loopNotice}</p>}
       </section>}
-      {role === "community" && data && <section className="rounded-2xl border border-slate-200 bg-white p-6">
+      {role === "community" && data && <>
+        <CommunityGrowthHub workspaceId={workspace.id} canEdit={canEdit} onUpdated={reload} />
+        <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <SectionTitle title="Soạn phản hồi Community" subtitle="Nhập câu hỏi hoặc comment. Agent sử dụng nguồn đã duyệt để soạn nháp; không tự gửi phản hồi lên mạng xã hội." />
         <form onSubmit={submitCommunity} className="mt-5 space-y-3">
           <label htmlFor="community-question" className="block text-sm font-semibold">Câu hỏi cần phản hồi</label>
@@ -545,7 +548,8 @@ function AgentPage({ role }: { role: RoleId }) {
           {communityResult?.lead_proposal != null ? <div className="text-sm text-amber-800"><p>Có đề xuất lead. Cần người phụ trách xác minh sự đồng ý của khách trước khi lưu hoặc liên hệ.</p><p>Ý định: {valueText((communityResult.lead_proposal as Record<string, unknown>).intent)} · Trạng thái: đề xuất, chưa lưu lead.</p></div> : <p className="text-sm text-slate-600">Chưa có đề xuất lead từ câu hỏi này.</p>}
           <Link href="/review-queue" className="inline-block text-sm font-semibold text-blue-700 hover:underline">Xem và duyệt phản hồi →</Link>
         </div>}
-      </section>}
+      </section>
+      </>}
       {!data && loading && <LoadingBlock label="Đang tải dữ liệu vận hành của agent…" />}
       {data && <>
         {data.warnings.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Một số nguồn phụ chưa tải được: {data.warnings.join(", ")}. Các phần còn lại vẫn hiển thị theo dữ liệu thực có.</div>}

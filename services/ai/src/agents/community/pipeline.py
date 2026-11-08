@@ -40,10 +40,11 @@ NO_ANSWER = re.compile(
 )
 
 _UNICODE_WORD = re.compile(r"[\w\u00C0-\u1EF9]+", re.UNICODE)
-_GREETING_WORDS = {"hi", "hello", "hey", "chao", "morning", "afternoon", "evening"}
+_GREETING_WORDS = {"hi", "hello", "hey", "chao", "morning", "afternoon", "evening", "alo"}
 # Who is greeted, or the words around a greeting. Any other word makes the message a question.
-_AROUND_A_GREETING = {"xin", "good", "there", "shop", "ad", "admin", "ban", "oi", "team", "tripc", "anh", "chi", "em"}
-_VIETNAMESE_GREETING = {"chao", "xin", "ban", "oi", "anh", "chi", "em"}
+_AROUND_A_GREETING = {"xin", "good", "there", "shop", "ad", "admin", "ban", "baj", "banj", "oi", "team", "tripc", "anh", "chi", "em", "minh"}
+_VIETNAMESE_GREETING = {"chao", "xin", "ban", "baj", "banj", "oi", "anh", "chi", "em", "alo", "minh", "toi", "du", "lich"}
+_VIETNAMESE_INQUIRY_WORDS = {"toi", "minh", "muon", "di", "du", "lich", "tu", "van", "ho", "tro", "cho", "hoi", "da", "nang", "phu", "quoc", "hoi", "an", "visa", "evisa"}
 _VIETNAMESE_LETTER = re.compile(r"[\u00C0-\u1EF9]")
 # Whole words: "possible" is not "ib", "different" is not "rent", and a restaurant or a review asks for no home or price.
 LEAD_INTENT = re.compile(
@@ -70,7 +71,16 @@ def plain_words(text: str) -> set[str]:
 
 def is_greeting(text: str) -> bool:
     words = plain_words(text)
-    return bool(words & _GREETING_WORDS) and words <= _GREETING_WORDS | _AROUND_A_GREETING
+    if bool(words & _GREETING_WORDS) and words <= _GREETING_WORDS | _AROUND_A_GREETING:
+        return True
+    # Open-ended Vietnamese travel/greeting opener (e.g. "tôi muốn đi du lịch", "mình muốn đi du lịch")
+    if {"du", "lich"} <= words and words <= _VIETNAMESE_INQUIRY_WORDS | _GREETING_WORDS | _AROUND_A_GREETING:
+        return True
+    return False
+
+
+def is_vietnamese_question(text: str) -> bool:
+    return bool(_VIETNAMESE_LETTER.search(text)) or bool(plain_words(text) & (_VIETNAMESE_GREETING | _VIETNAMESE_INQUIRY_WORDS))
 
 
 def welcome(greeting: str) -> str:
@@ -104,7 +114,10 @@ def finished_reply(reply: str, question: str, grounding: list[str], company: str
     if NO_ANSWER.search(reply) or denies_for_the_business(reply, company or "we"):
         return ""
     clean, _ = drop_broken_sentences(reply, keep_cjk=has_cjk(question), grounding=grounding)
-    clean, _ = strip_unsupported(clean, grounding)
+    # Lexical English stem overlap only applies when question and grounding share the same language;
+    # stripping Vietnamese sentences against English grounding would erase valid Vietnamese translations.
+    if not is_vietnamese_question(question):
+        clean, _ = strip_unsupported(clean, grounding)
     return clean
 
 
@@ -171,8 +184,8 @@ async def run_community(ctx):
     if (ctx.settings.provider_mode != "fake" and len(similarity) == len(chunks)
             and all(meaning < MIN_RELATED_SIMILARITY for meaning, *_ in scored)):
         selected = []
-    # A greeting asks nothing a source must answer: the model greets back and says what it can help with.
-    if not selected and is_greeting(p.question):
+    # A greeting or Vietnamese travel inquiry asks nothing an English keyword filter must block.
+    if not selected and (is_greeting(p.question) or is_vietnamese_question(p.question)):
         selected = [(s, c) for _, _, s, c in scored[:3]]
     missing = [f"verified_fact:{fact.key}" for fact in sensitive]
     evidence = []

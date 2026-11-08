@@ -109,7 +109,30 @@ export class PlanOutboxRunner {
         }
         if (!parentId) throw new Error('DEPENDENCY_NOT_APPROVED');
         payload.source_article = await load(parentId);
-        payload.assets = taskInput.assets ?? context.assets;
+        let rawAssets = taskInput.assets ?? context.assets;
+        if (Array.isArray(rawAssets) && rawAssets.length > 1) {
+          const recentImages = (await this.pool.query<{ url: string }>(`
+            SELECT payload->'result'->'image_assets'->0->>'url' AS url
+              FROM content_artifacts
+             WHERE workspace_id = $1 AND role = 'content'
+               AND payload->'result'->'image_assets'->0->>'url' IS NOT NULL
+             ORDER BY created_at DESC LIMIT 12`, [claimed.workspace_id])).rows.map(r => r.url);
+          const usedOrder = new Map<string, number>();
+          recentImages.forEach((url, idx) => {
+            if (url && !usedOrder.has(url)) usedOrder.set(url, idx);
+          });
+          const freshAssets = rawAssets.filter((a: any) => !usedOrder.has(a?.url));
+          if (freshAssets.length > 0) {
+            rawAssets = freshAssets;
+          } else {
+            rawAssets = [...rawAssets].sort((a: any, b: any) => {
+              const rankA = usedOrder.has(a?.url) ? (1000 - (usedOrder.get(a?.url) ?? 0)) : 0;
+              const rankB = usedOrder.has(b?.url) ? (1000 - (usedOrder.get(b?.url) ?? 0)) : 0;
+              return rankA - rankB;
+            });
+          }
+        }
+        payload.assets = rawAssets;
         if (Array.isArray(taskInput.target_channels)) payload.target_channels = taskInput.target_channels;
         const automation = (await this.pool.query(
           'SELECT auto_publish_facebook,auto_approve_outputs FROM agent_automation WHERE workspace_id=$1',

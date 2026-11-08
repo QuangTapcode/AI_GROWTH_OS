@@ -10,10 +10,31 @@ from dotenv import load_dotenv
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
-# Load service-local .env, then fallback to project root .env and apps/api/.env
-load_dotenv(SERVICE_ROOT / ".env")
-load_dotenv(SERVICE_ROOT.parents[1] / ".env")
-load_dotenv(SERVICE_ROOT.parents[1] / "apps" / "api" / ".env")
+REPO_ROOT = SERVICE_ROOT.parents[1]
+
+
+def _load_env_files() -> None:
+    """Load apps/api/.env.local as primary source of truth, then fallback .env files without allowing empty values to shadow real tokens."""
+    from dotenv import dotenv_values
+
+    candidates = [
+        REPO_ROOT / "apps" / "api" / ".env.local",
+        REPO_ROOT / "apps" / "api" / ".env",
+        REPO_ROOT / ".env",
+        SERVICE_ROOT / ".env",
+    ]
+    for path in candidates:
+        if not path.is_file():
+            continue
+        for key, value in dotenv_values(path).items():
+            if value is None or value.strip() == "":
+                continue
+            current = os.environ.get(key)
+            if current is None or current.strip() == "":
+                os.environ[key] = value.strip()
+
+
+_load_env_files()
 
 # Seed domains from docs/coordination/PILOT_DATASET.json; URL ingest is denied elsewhere.
 DEFAULT_URL_ALLOWLIST = (
