@@ -16,6 +16,11 @@ PROMPT_VERSION = "community-v3"
 PROMPT_FILE = Path(__file__).resolve().parents[3] / f"prompts/{PROMPT_VERSION}.md"
 SYSTEM_PROMPT = PROMPT_FILE.read_text(encoding="utf-8")
 HANDOFF_REPLY = "The verified information needed for this question is unavailable. A human needs to review it."
+VIETNAMESE_HELPFUL_FALLBACK = (
+    "Chào bạn! Cảm ơn bạn đã liên hệ TripC. Hiện tại cẩm nang của chúng tôi đang liên tục cập nhật thêm "
+    "thông tin chi tiết về chủ đề này. Bạn có thể tham gia thảo luận cùng người dân địa phương và cộng đồng "
+    "tại nhóm Facebook của chúng tôi: https://www.facebook.com/groups/1134282109069209 để nhận được gợi ý nhanh nhất nhé!"
+)
 # Words of asking, not subjects: a source need not contain them to answer.
 QUESTION_WORDS = {"please", "help", "find", "good", "best", "recommend", "suggest", "explain", "tell", "know", "need", "want",
                   "looking", "look", "where", "what", "which", "when", "there", "can", "could", "would", "should", "like",
@@ -193,7 +198,7 @@ async def run_community(ctx):
     if sensitive or not selected:
         if not selected:
             missing.append("grounded_answer")
-        reply = HANDOFF_REPLY
+        reply = VIETNAMESE_HELPFUL_FALLBACK if is_vietnamese_question(p.question) else HANDOFF_REPLY
     else:
         evidence = [
             EvidenceRef(
@@ -226,8 +231,8 @@ async def run_community(ctx):
         if is_greeting(p.question) and welcome_needed(reply, p.question):
             reply = welcome(p.question)
         if not reply:
-            # Better a person answers than the customer reading "the provided information has no mention...".
-            reply, evidence = HANDOFF_REPLY, []
+            # Better a polite fallback or community handoff than the customer reading internal error.
+            reply, evidence = (VIETNAMESE_HELPFUL_FALLBACK if is_vietnamese_question(p.question) else HANDOFF_REPLY), []
             missing.append("grounded_answer")
 
     intent = LEAD_INTENT.search(p.question)

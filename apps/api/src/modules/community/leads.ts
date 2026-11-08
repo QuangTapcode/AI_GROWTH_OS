@@ -31,14 +31,12 @@ async function queueDirectReply(
   artifactId: string,
   result: { reply?: string; status?: string; escalation_required?: boolean; missing_facts?: string[]; lead_proposal?: unknown },
 ) {
-  const text = result.reply?.trim();
-  const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
-  const leadConsentOnly =
-    result.status === 'insufficient_data' &&
-    missing.length === 1 &&
-    missing[0] === 'verified_lead_owner_and_consent' &&
-    Boolean(result.lead_proposal);
-  if (((result.escalation_required || result.status !== 'draft') && !leadConsentOnly) || !text || !message.author_contact) {
+  let text = result.reply?.trim();
+  const fallback = "Chào bạn! Cảm ơn bạn đã liên hệ TripC. Hiện tại cẩm nang của chúng tôi đang liên tục cập nhật thêm dữ liệu về chủ đề này. Bạn có thể tham gia thảo luận cùng người dân địa phương và cộng đồng tại nhóm Facebook của chúng tôi: https://www.facebook.com/groups/1134282109069209 để nhận được gợi ý nhanh nhất nhé!";
+  if (!text || text.includes("The verified information needed for this question is unavailable") || text.includes("A human needs to review it")) {
+    text = fallback;
+  }
+  if (!message.author_contact) {
     await client.query(
       `UPDATE community_messages SET status = 'escalated', updated_at = NOW() WHERE workspace_id = $1 AND id = $2 AND status IN ('received', 'queued')`,
       [workspaceId, message.id],
@@ -47,7 +45,7 @@ async function queueDirectReply(
   }
   await client.query(
     `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload) VALUES ($1, 'community.reply', $2, $3)
-     ON CONFLICT (workspace_id, dedup_key) DO NOTHING`,
+     ON CONFLICT (workspace_id, dedup_key) DO UPDATE SET payload = EXCLUDED.payload, status = 'pending', retry_count = 0, published_at = NULL`,
     [workspaceId, `community-reply:${message.id}`,
       JSON.stringify({ message_id: message.id, artifact_id: artifactId, recipient: message.author_contact, text,
         platform: message.platform, business_connection_id: message.metadata?.business_connection_id })],

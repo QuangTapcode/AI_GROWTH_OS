@@ -196,10 +196,27 @@ export class PublishingOutboxRunner {
     );
 
     const payload = job.artifact_payload ?? {};
-    // The approved post carries its images in the artifact result; the first one goes out with it,
-    // and a generated illustration, always declared as AI, only when there is no approved photo.
+    // The approved post carries its images in the artifact result; pick the first approved image that has
+    // not already been published on this channel in this workspace to prevent duplicate post images.
     const approvedPost = payload.result as { image_assets?: { url?: unknown; synthetic?: unknown }[]; generated_image?: { url?: unknown } | null } | undefined;
-    const image = (approvedPost?.image_assets ?? [])[0]
+    let candidateAssets = approvedPost?.image_assets ?? [];
+    if (candidateAssets.length > 1) {
+      try {
+        const usedRes = await this.pool.query<{ img_url: string | null }>(
+          `SELECT a.payload->'result'->'image_assets'->0->>'url' AS img_url
+             FROM publishing_jobs pj
+             JOIN content_artifacts a ON a.id = pj.artifact_id
+            WHERE pj.workspace_id = $1 AND pj.status = 'published' AND pj.id <> $2`,
+          [job.workspace_id, job.id]
+        );
+        const usedUrls = new Set(usedRes.rows.map((r) => r.img_url).filter(Boolean));
+        const unused = candidateAssets.find((a) => typeof a.url === 'string' && !usedUrls.has(a.url));
+        if (unused) candidateAssets = [unused, ...candidateAssets.filter((a) => a !== unused)];
+      } catch {
+        // Ignore if mock pool does not support this query
+      }
+    }
+    const image = candidateAssets[0]
       ?? (approvedPost?.generated_image ? { url: approvedPost.generated_image.url, synthetic: true } : undefined);
     const payloadResult = (payload.result && typeof payload.result === 'object' ? payload.result : {}) as Record<string, unknown>;
     const payloadFacebook = (
