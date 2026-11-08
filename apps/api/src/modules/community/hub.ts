@@ -1,8 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
+import dns from 'node:dns';
 import type { Pool } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { getWorkspaceConnectionStatus } from '../integrations/stubs';
 import { publishSeoArtifact } from '../site/publish';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // Ignore if unsupported
+}
 
 export interface PlaybookAsset {
   asset_id: string;
@@ -305,7 +312,7 @@ export class CommunityHubService {
         : `https://www.facebook.com/profile.php?id=${pageId}`;
     const defaultGroupUrl = 'https://www.facebook.com/groups/1134282109069209';
     const defaultCommunityName = 'Cộng đồng Du lịch & Sống tại Việt Nam';
-    const defaultPositioning = `Cộng đồng chính thức vận hành trên Fanpage "${pageName}" và Nhóm Facebook "${defaultCommunityName}" (${defaultGroupUrl}) — nơi các thành viên cùng sở thích du lịch, lưu trú, làm việc từ xa và khám phá Việt Nam trực tiếp hỏi đáp, chia sẻ kinh nghiệm thực tế với nhau.`;
+    const defaultPositioning = `Chào mừng bạn đến với ${defaultCommunityName}! 🌿🇻🇳 Không gian dành cho những ai yêu thích khám phá vẻ đẹp mảnh đất hình chữ S và chia sẻ trải nghiệm thực tế về lịch trình du lịch, địa điểm check-in, ẩm thực địa phương, nơi ở, chi phí sinh hoạt, thủ tục và kết nối bạn đồng hành trên Fanpage "${pageName}" & Nhóm Facebook (${defaultGroupUrl}).`;
 
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS community_hub_settings (
@@ -820,9 +827,18 @@ export class CommunityHubService {
       if (m.received_at < entry.first_seen) entry.first_seen = m.received_at;
       byPerson.set(m.psid, entry);
     }
-    if (byPerson.size === 0) return 0;
 
-    const names = await this.fetchMessengerParticipantNames(resolvedSettings.connected_fanpage_id);
+    const { names, liveMessages } = await this.fetchMessengerParticipantNames(resolvedSettings.connected_fanpage_id);
+    for (const [psid, msgs] of liveMessages.entries()) {
+      const entry = byPerson.get(psid) ?? { platform: 'facebook_message', signals: [], first_seen: new Date() };
+      for (const msg of msgs) {
+        if (msg && !entry.signals.includes(msg)) entry.signals.push(msg);
+      }
+      if (entry.signals.length === 0) entry.signals.push('Quan tâm tư vấn du lịch & cộng đồng tại Việt Nam');
+      byPerson.set(psid, entry);
+    }
+
+    if (byPerson.size === 0) return 0;
 
     let addedCount = 0;
     for (const [psid, info] of byPerson.entries()) {
@@ -860,29 +876,48 @@ export class CommunityHubService {
     return addedCount;
   }
 
-  /** PSID -> real display name, from the Page's own Messenger conversations. */
-  private async fetchMessengerParticipantNames(pageId: string): Promise<Map<string, string>> {
+  /** PSID -> real display name + messages, directly from the Page's own Messenger conversations. */
+  private async fetchMessengerParticipantNames(
+    pageId: string,
+  ): Promise<{ names: Map<string, string>; liveMessages: Map<string, string[]> }> {
     const names = new Map<string, string>();
+    const liveMessages = new Map<string, string[]>();
     const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-    if (!token) return names;
+    if (!token) return { names, liveMessages };
     try {
       const res = await fetch(
-        `https://graph.facebook.com/v20.0/me/conversations?fields=participants&limit=100&access_token=${encodeURIComponent(token)}`,
+        `https://graph.facebook.com/v20.0/me/conversations?fields=participants,messages.limit(10){message,from}&limit=100&access_token=${encodeURIComponent(token)}`,
         { signal: AbortSignal.timeout(8000) },
       );
-      if (!res.ok) return names;
+      if (!res.ok) return { names, liveMessages };
       const json = (await res.json()) as {
-        data?: { participants?: { data?: { id: string; name?: string }[] } }[];
+        data?: {
+          participants?: { data?: { id: string; name?: string }[] };
+          messages?: { data?: { message?: string; from?: { id?: string; name?: string } }[] };
+        }[];
       };
       for (const conv of json.data ?? []) {
+        let userPsid: string | null = null;
         for (const p of conv.participants?.data ?? []) {
-          if (p.id !== pageId && p.name) names.set(p.id, p.name);
+          if (p.id !== pageId && /^\d{14,}$/.test(p.id)) {
+            userPsid = p.id;
+            if (p.name) names.set(p.id, p.name);
+          }
+        }
+        if (userPsid) {
+          const userMsgs: string[] = [];
+          for (const m of conv.messages?.data ?? []) {
+            if (m.from?.id === userPsid && m.message?.trim()) {
+              userMsgs.push(m.message.trim());
+            }
+          }
+          liveMessages.set(userPsid, userMsgs);
         }
       }
     } catch {
       // Names are cosmetic; fall back to the PSID suffix.
     }
-    return names;
+    return { names, liveMessages };
   }
 
   /** Real numbers straight from Facebook — the only numbers that count as growth. */
@@ -904,10 +939,14 @@ export class CommunityHubService {
 
   /**
    * Reads the real member count from the public Facebook Group page when accessible,
-   * falling back to the synced Group member count in DB (since Meta deprecated Groups Graph API v19+
-   * and redirects unauthenticated group views to /login).
+   * persisting the latest value into community_hub_settings and falling back to the synced DB count
+   * if Facebook redirects unauthenticated group views to /login.
    */
-  async fetchRealGroupStats(groupUrl: string, fallbackCount = 2): Promise<{ member_count: number }> {
+  async fetchRealGroupStats(
+    groupUrl: string,
+    fallbackCount = 2,
+    workspaceId?: string,
+  ): Promise<{ member_count: number }> {
     if (!groupUrl || !groupUrl.includes('facebook.com/groups/')) return { member_count: fallbackCount };
     try {
       const res = await fetch(groupUrl, {
@@ -915,20 +954,56 @@ export class CommunityHubService {
           'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
           Accept: 'text/html',
         },
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(8000),
       });
       if (!res.ok || res.url.includes('/login')) return { member_count: fallbackCount };
       const html = await res.text();
-      const ogDesc = html.match(/property=["']og:description["']\s+content=["']([^"']+)["']/i)?.[1];
-      if (ogDesc) {
-        const m = ogDesc.match(/(\d+(?:[.,]\d+)?)\s*([kKmM])?\s*(?:thành viên|members?)/i);
-        if (m) {
-          let val = parseFloat(m[1].replace(',', '.'));
-          if (m[2]?.toLowerCase() === 'k') val *= 1000;
-          if (m[2]?.toLowerCase() === 'm') val *= 1_000_000;
-          return { member_count: Math.round(val) };
+
+      const headerMatch =
+        html.match(
+          /XFBGroupsCometTabsNavigationHeaderRenderer[\s\S]{0,1200}?group_member_profiles[\x22\x3a\x7b]+formatted_count_text[\x22\x3a]+[\x22]([^\x22]+)[\x22]/i,
+        ) ??
+        html.match(/group_member_profiles[\x22\x3a\x7b]+formatted_count_text[\x22\x3a]+[\x22]([^\x22]+)[\x22]/i);
+
+      let parsedCount: number | null = null;
+      if (headerMatch?.[1]) {
+        const decoded = headerMatch[1].replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
+          String.fromCharCode(parseInt(hex, 16)),
+        );
+        const numMatch = decoded.match(/(\d+(?:[.,]\d+)?)\s*([kKmM])?/);
+        if (numMatch) {
+          let val = parseFloat(numMatch[1].replace(',', '.'));
+          if (numMatch[2]?.toLowerCase() === 'k') val *= 1000;
+          if (numMatch[2]?.toLowerCase() === 'm') val *= 1_000_000;
+          parsedCount = Math.round(val);
         }
       }
+
+      if (parsedCount === null) {
+        const ogDesc = html.match(/property=["']og:description["']\s+content=["']([^"']+)["']/i)?.[1];
+        if (ogDesc) {
+          const m = ogDesc.match(/(\d+(?:[.,]\d+)?)\s*([kKmM])?\s*(?:thành viên|members?)/i);
+          if (m) {
+            let val = parseFloat(m[1].replace(',', '.'));
+            if (m[2]?.toLowerCase() === 'k') val *= 1000;
+            if (m[2]?.toLowerCase() === 'm') val *= 1_000_000;
+            parsedCount = Math.round(val);
+          }
+        }
+      }
+
+      if (parsedCount !== null && parsedCount > 0) {
+        if (workspaceId && parsedCount !== fallbackCount) {
+          await this.pool
+            .query('UPDATE community_hub_settings SET group_member_count = $2, updated_at = NOW() WHERE workspace_id = $1', [
+              workspaceId,
+              parsedCount,
+            ])
+            .catch(() => {});
+        }
+        return { member_count: parsedCount };
+      }
+
       return { member_count: fallbackCount };
     } catch {
       return { member_count: fallbackCount };
@@ -1195,7 +1270,7 @@ export class CommunityHubService {
 
     const [pageStats, groupStats] = await Promise.all([
       this.fetchRealPageStats(),
-      this.fetchRealGroupStats(settings.group_url, fallbackGroupCount),
+      this.fetchRealGroupStats(settings.group_url, fallbackGroupCount, workspaceId),
     ]);
     const realFollowers = pageStats.followers_count ?? 0;
     const realGroupMembers = groupStats.member_count ?? fallbackGroupCount;
