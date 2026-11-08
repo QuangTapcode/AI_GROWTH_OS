@@ -65,6 +65,12 @@ describe('research discovery', () => {
     expect(release).toHaveBeenCalledOnce();
   });
 
+  it('reports a search that returned nothing instead of keeping the old landscape silently', async () => {
+    const { pool, statements } = fakePool();
+    await expect(runDiscovery(pool, 'ws-1', async () => [])).rejects.toMatchObject({ code: 'SEARCH_EMPTY' });
+    expect(statements.some((s) => s.sql.includes('INSERT INTO trend_signals'))).toBe(false);
+  });
+
   it('rolls back and releases when persisting fails', async () => {
     const { pool, statements, release } = fakePool();
     const query = (pool as unknown as { query: ReturnType<typeof vi.fn> }).query;
@@ -74,7 +80,8 @@ describe('research discovery', () => {
       if (sql.includes('INSERT INTO sources')) throw new Error('db down');
       return { rows: [] };
     });
-    await expect(runDiscovery(pool, 'ws-1', async () => [])).rejects.toThrow('db down');
+    const found: SearchResult[] = [{ url: 'https://danangfantasticity.com/en/about-da-nang-city', title: 'About Da Nang City', engine: 'bing' }];
+    await expect(runDiscovery(pool, 'ws-1', async () => found)).rejects.toThrow('db down');
     expect(statements.some((s) => s.sql === 'ROLLBACK')).toBe(true);
     expect(release).toHaveBeenCalledOnce();
   });
@@ -90,7 +97,7 @@ describe('research discovery', () => {
   });
 
   it('refreshes discovery only when the newest signals are stale', async () => {
-    const search = vi.fn(async () => [] as SearchResult[]);
+    const search = vi.fn(async (): Promise<SearchResult[]> => [{ url: 'https://example.org/da-nang', title: 'Da Nang', engine: 'bing' }]);
     const fresh = { query: vi.fn(async () => ({ rows: [{ at: new Date() }] })) } as unknown as Pool;
     expect(await refreshDiscoveryIfStale(fresh, 'ws-1', search, 24)).toBeNull();
     expect(search).not.toHaveBeenCalled();

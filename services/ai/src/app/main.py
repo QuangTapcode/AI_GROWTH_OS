@@ -66,7 +66,15 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             raise APIError(401, "UNAUTHORIZED", "Invalid internal auth")
 
     def model_version_for(operation: Operation) -> str:
-        return provider.embedding_model_version if operation.deadline_kind == "embedding" else provider.model_version
+        if operation.deadline_kind == "embedding":
+            return provider.embedding_model_version
+        routed = getattr(provider, "model_version_for", None)
+        return routed(operation.name) if routed else provider.model_version
+
+    def provider_for(job: JobRequest) -> Provider:
+        # Hybrid mode picks the model per operation; other modes use one provider for everything.
+        routed = getattr(provider, "for_operation", None)
+        return routed(job.operation) if routed else provider
 
     def call_cap(job: JobRequest) -> int:
         requested = job.constraints.max_provider_calls
@@ -118,7 +126,8 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                     log_event(logger, "ai_run_failed", **fields, error_code="DEADLINE_EXCEEDED")
                     return
                 store.mark_running(run_id)
-                ctx = RunContext(job, payload, settings, provider, CallBudget(store, budget_key(job.job_id, job.input_version), call_cap(job)), logger, deadline_at=datetime.fromisoformat(row["deadline_at"]))
+                run_provider = provider_for(job)
+                ctx = RunContext(job, payload, settings, run_provider, CallBudget(store, budget_key(job.job_id, job.input_version), call_cap(job)), logger, deadline_at=datetime.fromisoformat(row["deadline_at"]))
                 log_event(
                     logger,
                     "ai_run_started",
@@ -152,14 +161,18 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                         except Exception as metric_err:
                             logger.warning("Failed to record metric for %s: %s", run_id, metric_err)
                     return
+                models_used = getattr(run_provider, "models_used", None) or []
+                warnings = list(outcome.warnings)
+                if getattr(run_provider, "fell_back", False):
+                    warnings.append("QUALITY_MODEL_UNAVAILABLE_LOCAL_MODEL_USED")
                 result = AIResult(
                     run_id=run_id,
                     operation=job.operation,
                     result=outcome.result,
                     evidence=outcome.evidence,
-                    warnings=outcome.warnings,
+                    warnings=warnings,
                     usage=ctx.usage,
-                    model_version=model_version_for(operation),
+                    model_version=models_used[-1] if models_used else model_version_for(operation),
                     prompt_version=operation.prompt_version,
                     input_version=job.input_version,
                     trace_id=job.trace_id,
@@ -250,7 +263,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
 
     @app.get("/readyz", response_model=HealthResponse)
     async def readyz() -> HealthResponse:
-        if settings.provider_mode == "live":
+        if settings.provider_mode in {"live", "hybrid"}:
             # Bounded local check; never triggers a model download or a generation.
             try:
                 async with httpx.AsyncClient(timeout=3) as client:

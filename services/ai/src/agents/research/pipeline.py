@@ -15,7 +15,7 @@ from ...app.runtime import OperationError, OperationOutcome, RunContext
 from ...app.schemas import EvidenceRef, JobRequest
 from ...guardrails.facts import has_price_claim, sensitive_keys_in, unsupported_numbers, without_contact_details
 from ...rag.chunking import estimate_tokens
-from ...rag.retrieval import eligible_sources, lexical_overlap, terms
+from ...rag.retrieval import bm25_scores, eligible_sources, lexical_overlap, terms
 from ..context import context_problems
 from ..copy_quality import ends_mid_sentence, strip_listing_artifacts
 from ..contracts import artifact_problems
@@ -27,11 +27,16 @@ PROMPT_VERSION = "research-v9"
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[3] / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 # Search landscape rows shown to the model; the rest stay available for deterministic matching.
 MAX_LANDSCAPE_IN_PROMPT = 12
+MAX_INVENTORY_IN_PROMPT = 25
+MAX_EXCERPTS_PER_SOURCE = 3
 MIN_QUOTE_WORDS = 6
 MAX_EXCERPT_CHARS = 450
 # Prompt tokens kept for excerpts ahead of search titles and old article titles.
 EVIDENCE_TOKENS = 900
 SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
+# Sentences or list lines, keeping the separator so kept text reads as the source wrote it.
+PIECE_BREAK = re.compile(r"((?<=[.!?])[ \t]+|\s*\n\s*)")
+MIN_REDACTED_WORDS = 25
 DEMAND_CLAIM = re.compile(
     # Any mention of demand is a claim the brief cannot support, except stating it is not measured.
     r"\bdemand\b(?!\s+(?:is\s+)?not\s+measured)|\bsearch volume\b|\bmost[- ]searched\b",
@@ -137,6 +142,21 @@ def exact_quote(quote: str, text: str) -> str | None:
     if start < 0:
         return None
     return text[origin[start]:origin[start + len(needle) - 1] + 1]
+
+
+def without_sensitive_sentences(text: str) -> str:
+    """The text minus every sentence or list line that states a price or another sensitive fact."""
+    parts = PIECE_BREAK.split(text)
+    kept: list[str] = []
+    for index in range(0, len(parts), 2):
+        piece = parts[index]
+        if not piece.strip() or has_price_claim(piece) or sensitive_keys_in(piece):
+            continue
+        if kept:
+            # The separator that followed the previous kept piece in the source.
+            kept.append(parts[index - 1] if "\n" in parts[index - 1] else " ")
+        kept.append(piece.strip())
+    return "".join(kept).strip()
 
 
 def cited_by_inventory(quote: str, inventory) -> bool:
@@ -283,6 +303,12 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     sources, excluded = eligible_sources(ctx.job, payload.snapshot)
     warnings = [f"EXCLUDED_SOURCES:{excluded}"] if excluded else []
     candidates = {}
+    # Full text of excerpts shown with sentences removed: a quote must still be in the source as written.
+    originals: dict[str, str] = {}
+
+    def in_source(key: str, quote: str) -> bool:
+        return key not in originals or " ".join(quote.split()) in " ".join(originals[key].split())
+
     now = datetime.now(timezone.utc)
     missing = []
     search_metrics = SearchMetricsSnapshot.model_validate(payload.search_metrics.result) if payload.search_metrics else None
@@ -304,9 +330,17 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                 raise OperationError("DUPLICATE_CHUNK_ID", "Research chunk IDs must be unique")
             # Sensitive facts belong to verified structured facts, not research excerpts.
             if has_price_claim(chunk.text) or sensitive_keys_in(chunk.text):
-                # A filtered excerpt is a warning, not a missing business fact.
-                warnings.append("SENSITIVE_EXCERPT_EXCLUDED")
-                continue
+                # One price in a long section (a restaurant list, a transport guide) used to hide the whole
+                # section. Keep the sentences that state no price or sensitive fact; drop the excerpt only
+                # when too little is left.
+                clean = without_sensitive_sentences(chunk.text)
+                if len(clean.split()) < MIN_REDACTED_WORDS:
+                    # A filtered excerpt is a warning, not a missing business fact.
+                    warnings.append("SENSITIVE_EXCERPT_EXCLUDED")
+                    continue
+                warnings.append("SENSITIVE_SENTENCES_REMOVED")
+                originals[chunk.chunk_id] = chunk.text
+                chunk = chunk.model_copy(update={"text": clean})
             if KEYWORD_LIST.search(chunk.text):
                 # Page metadata lists every SEO keyword, so it out-ranks real articles
                 # while saying nothing about any topic.
@@ -322,7 +356,8 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             # What guides the ideas; ids and KPI detail would take budget from the evidence.
             "goal": payload.goal_context.model_dump(mode="json", include={"objective", "focus_offers"}) if payload.goal_context else None,
             # Model avoidance is a hint; deterministic dedup below still checks all 100 items.
-            "inventory": [x.title for x in payload.content_inventory[:12]],
+            # Distinct titles: the inventory lists an article once per table it is stored in.
+            "inventory": list(dict.fromkeys(x.title.strip() for x in payload.content_inventory))[:MAX_INVENTORY_IN_PROMPT],
             "search_landscape": [{"query": s.query, "rank": s.rank, "title": s.title, "domain": s.domain,
                                   "movement": movement(s)}
                                  for s in sorted(landscape, key=lambda s: s.rank)[:MAX_LANDSCAPE_IN_PROMPT]],
@@ -343,11 +378,13 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     customer_signals = [signal for signal in map(without_contact_details, payload.customer_signals) if signal]
     if customer_signals:
         base["customer_inquiries"] = customer_signals[:10]
+    max_input_tokens, max_chunks = ctx.input_budget()
+
     def prompt_overhead():
         return estimate_tokens(SYSTEM_PROMPT + json.dumps(ResearchDraft.model_json_schema()) + json.dumps(base))
     # Keep room for source evidence. Search metadata and title hints are optional;
     # the complete inventory/signals remain available to the deterministic checks.
-    while prompt_overhead() > ctx.settings.max_input_tokens - EVIDENCE_TOKENS and (base['inventory'] or base['search_landscape'] or base.get('customer_inquiries')):
+    while prompt_overhead() > max_input_tokens - EVIDENCE_TOKENS and (base['inventory'] or base['search_landscape'] or base.get('customer_inquiries')):
         if base['inventory']:
             base['inventory'].pop()
         elif base['search_landscape']:
@@ -355,7 +392,7 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
         elif base.get('customer_inquiries'):
             base['customer_inquiries'].pop()
     overhead = prompt_overhead()
-    if overhead > ctx.settings.max_input_tokens:
+    if overhead > max_input_tokens:
         raise OperationError("CONTEXT_BUDGET_EXCEEDED", "Profile/goal/inventory exceeds the research input budget")
     selected = {}
     used = overhead
@@ -368,9 +405,20 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     if customer_signals:
         trend |= terms(" ".join(customer_signals)) - place
     order = {key: index for index, key in enumerate(candidates)}
+    # BM25 over the candidate excerpts: offers weigh most, then the rest of the profile, then search titles.
+    offer_words = {word: words for word in (
+        offer.replace("_", " ") for offer in [*payload.business_profile.products, *payload.business_profile.services])
+        for words in [(concepts(word) - place - GENERIC)] if words}
+    query: dict[str, float] = {}
+    for words, weight in ((trend, 0.5), (focus, 1.0), (set().union(*offer_words.values()) if offer_words else set(), 2.0)):
+        for word in words:
+            for form in {word, word + "s", word[:-1] if word.endswith("s") and len(word) > 3 else word}:
+                query[form] = max(query.get(form, 0.0), weight)
+    keys = list(candidates)
+    score = dict(zip(keys, bm25_scores(query, [candidates[key][1].text for key in keys])))
     by_relevance = sorted(candidates, key=lambda key: (
         priority_order(topic_alignment(candidates[key][1].text, payload.business_profile)),
-        -relevance(candidates[key][1].text, focus, trend), order[key]))
+        -score[key], order[key]))
     # Each trend topic first gets its best covering excerpt, so budget follows what people search for.
     coverage, priority = [], []
     for query, topic, words, count in trend_topics(payload.trend_signals, payload.business_profile.locations):
@@ -382,6 +430,12 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
             priority.append(covering[0])
         else:
             missing.append(f"source_gap:{topic}")
+    # Then every offer gets its best excerpt, so a narrow offer (eSIM, banking) is not crowded out by
+    # long pages about the city.
+    for offer, words in offer_words.items():
+        covering = next((key for key in by_relevance if concepts(candidates[key][1].text) & words), None)
+        if covering is not None:
+            priority.append(covering)
     # The owner's request decides what the model reads first; the goal text may not share the sources' language.
     on_goal = [key for key in by_relevance if names_focus(candidates[key][1].text, goal_focus)]
     ranked = list(dict.fromkeys(on_goal + priority + by_relevance))
@@ -403,12 +457,21 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     base["topics"] = [t for t in covered_topics if names_focus(t, goal_focus)] or covered_topics
     used += estimate_tokens(json.dumps(base["topics"]))
     wanted = {word for offer in goal_focus for word in concepts(offer)} or focus | trend
+    # At most MAX_EXCERPTS_PER_SOURCE from one page on the first pass, so one long guide cannot fill
+    # the prompt; the rest are read only if room is left.
+    per_source: dict = {}
+    first_pass = []
+    deferred = []
     for key in ranked:
+        source_id = candidates[key][0].source_id
+        per_source[source_id] = per_source.get(source_id, 0) + 1
+        (first_pass if per_source[source_id] <= MAX_EXCERPTS_PER_SOURCE else deferred).append(key)
+    for key in first_pass + deferred:
         chunk = candidates[key][1]
         # Without list numbers and date stamps, which the model would copy into topics and titles.
         excerpt = {"chunk_id": key, "text": narrowed_excerpt(strip_listing_artifacts(chunk.text), wanted)}
         cost = estimate_tokens(json.dumps(excerpt)) + 10
-        if used + cost > ctx.settings.max_input_tokens or len(selected) >= ctx.settings.max_retrieved_chunks:
+        if used + cost > max_input_tokens or len(selected) >= max_chunks:
             warnings.append("EXCERPT_BUDGET_EXCLUDED")
             continue
         base["excerpts"].append(excerpt)
@@ -437,9 +500,9 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                                         model=ResearchDraft, fake=fake)
         except ProviderError as error:
             # The recovery below needs no model output; without it the run still fails honestly.
-            if error.code != "INVALID_STRUCTURED_OUTPUT" or not (payload.trend_signals and candidates):
+            if error.code not in {"INVALID_STRUCTURED_OUTPUT", "PROVIDER_QUOTA_EXHAUSTED"} or not (payload.trend_signals and candidates):
                 raise
-            warnings.append("MODEL_OUTPUT_INVALID")
+            warnings.append("MODEL_OUTPUT_INVALID" if error.code == "INVALID_STRUCTURED_OUTPUT" else "QUALITY_MODEL_UNAVAILABLE")
             draft = ResearchDraft(ideas=[])
 
     findings = []
@@ -447,6 +510,9 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     for idea in draft.ideas:
         ref = selected.get(idea.chunk_id)
         quote = grounded_quote(idea.quote, ref[1].text) if ref is not None else None
+        if quote is not None and not in_source(idea.chunk_id, quote):
+            # Joined across a removed sentence: not something the source says.
+            quote = None
         if quote is None:
             warnings.append("UNGROUNDED_IDEA_DROPPED")
             continue
@@ -539,7 +605,58 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
     if (not findings and payload.trend_signals and candidates and
             not any(warning in warnings for warning in
                     ("DEMAND_CLAIM_DROPPED", "UNSUPPORTED_CLAIM_DROPPED"))):
-        fallback = None
+        def fallback_finding(topic, words, offer, key):
+            """One conservative hypothesis from an approved excerpt, or None when it fails a check."""
+            source, chunk, url, fetched = candidates[key]
+            audience = payload.business_profile.audiences[0] if payload.business_profile.audiences else "the target audience"
+            location = payload.business_profile.locations[0] if payload.business_profile.locations else "the target market"
+            try:
+                idea = ResearchIdea(
+                    topic=topic,
+                    audience_fit=complete_sentence(f"{audience} may use a practical guide to {topic} in {location}"),
+                    offer_fit=complete_sentence(f"{payload.business_profile.company} can relate this topic to its {offer} offering"),
+                    rationale=complete_sentence("The approved excerpt supports this content hypothesis; demand is not measured"),
+                    chunk_id=key,
+                    quote=fallback_quote(chunk.text, words, payload.business_profile.locations),
+                    keywords=words[:5] or [topic],
+                    user_need=complete_sentence(f"{audience} need a practical way to evaluate {topic} before deciding what to do"),
+                )
+            except ValidationError:
+                # A long profile audience or topic can exceed the brief limits; the recovery
+                # path must report that, not fail the whole run.
+                warnings.append("FALLBACK_INVALID_DRAFT")
+                return None
+            quote = exact_quote(idea.quote, chunk.text)
+            if not quote or len(quote.split()) < MIN_QUOTE_WORDS or not in_source(key, quote):
+                return None
+            checks = quality_checks(idea, quote, payload.business_profile)
+            if not (checks["topic_supported_by_quote"] and checks["offer_matches_profile"]
+                    and checks["specific_user_need"] and checks["audience_matches_profile"]):
+                return None
+            updated = evidence_year(chunk.text)
+            evidence = EvidenceRef(source_id=source.source_id, source_version=source.version,
+                                   chunk_id=chunk.chunk_id, locator=chunk.locator, quote=quote,
+                                   source_url=url, license=source.provenance.license,
+                                   attribution=source.provenance.attribution)
+            missing_data = ["market_search_volume_not_measured", "semantic_review_required"]
+            missing_data += strategy_missing_data(idea, payload.business_profile, url)
+            missing_data.append("website_query_metrics_not_available_for_topic")
+            if (now - fetched).days > 90 or (updated is not None and updated < now.year - STALE_AFTER_YEARS):
+                missing_data.append("source_freshness_requires_reverification")
+            return ResearchFinding(
+                topic=idea.topic, audience_fit=idea.audience_fit, offer_fit=idea.offer_fit,
+                rationale=idea.rationale, evidence=evidence, url=url, fetched_at=fetched,
+                keywords=idea.keywords, user_need=idea.user_need, evidence_updated=updated,
+                source_facts=[quote], hypotheses=[idea.audience_fit, idea.offer_fit, idea.rationale, idea.user_need],
+                missing_data=missing_data, strategy_alignment=topic_alignment(
+                    " ".join([idea.topic, *idea.keywords, idea.user_need]), payload.business_profile),
+                quality_checks={**checks, "traceable_source": True, "not_duplicate": True},
+                website_search_metrics=[], trend_signals=matching_signals(
+                    payload.trend_signals, idea.topic, idea.keywords,
+                    payload.business_profile.locations, quote),
+            )
+
+        recovered = None
         # Topics about what the owner asked for (e.g. food) come before other search topics.
         focus = {o.replace("_", " ") for o in (payload.goal_context.focus_offers if payload.goal_context else [])}
         searched = trend_topics(payload.trend_signals, payload.business_profile.locations)
@@ -567,67 +684,25 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                 # The model prompt is budgeted, but a deterministic recovery
                 # may cite any approved, guardrail-clean chunk. It does not
                 # rely on a claim produced by the model.
-                source, chunk, url, fetched = candidates[key]
-                if all(has_term(word, terms(chunk.text)) for word in words):
-                    if chunk_has_content(key, payload.content_inventory) or cited_by_inventory(
-                            fallback_quote(chunk.text, words, payload.business_profile.locations), payload.content_inventory):
-                        # Learning rounds reuse the same search topics; never rebuild an article on the same excerpt.
-                        warnings.append("DUPLICATE_TOPIC_DROPPED")
-                        continue
-                    fallback = (topic, words, offer, key, source, chunk, url, fetched)
+                chunk = candidates[key][1]
+                if not all(has_term(word, terms(chunk.text)) for word in words):
+                    continue
+                if chunk_has_content(key, payload.content_inventory) or cited_by_inventory(
+                        fallback_quote(chunk.text, words, payload.business_profile.locations), payload.content_inventory):
+                    # Learning rounds reuse the same search topics; never rebuild an article on the same excerpt.
+                    warnings.append("DUPLICATE_TOPIC_DROPPED")
+                    continue
+                # An excerpt that only mentions the topic fails the checks; try the next one, then the next topic.
+                recovered = fallback_finding(topic, words, offer, key)
+                if recovered:
                     break
-            if fallback:
+            if recovered:
                 break
-        if not fallback:
+        if recovered:
+            findings.append(recovered)
+            warnings.append("GROUNDED_FALLBACK_USED")
+        else:
             missing += [f"goal_focus_sources_exhausted:{offer}" for offer in sorted(focus)]
-        if fallback:
-            topic, words, offer, key, source, chunk, url, fetched = fallback
-            quote = fallback_quote(chunk.text, words, payload.business_profile.locations)
-            audience = payload.business_profile.audiences[0] if payload.business_profile.audiences else "the target audience"
-            location = payload.business_profile.locations[0] if payload.business_profile.locations else "the target market"
-            try:
-                idea = ResearchIdea(
-                    topic=topic,
-                    audience_fit=complete_sentence(f"{audience} may use a practical guide to {topic} in {location}"),
-                    offer_fit=complete_sentence(f"{payload.business_profile.company} can relate this topic to its {offer} offering"),
-                    rationale=complete_sentence("The approved excerpt supports this content hypothesis; demand is not measured"),
-                    chunk_id=key,
-                    quote=quote,
-                    keywords=words[:5] or [topic],
-                    user_need=complete_sentence(f"{audience} need a practical way to evaluate {topic} before deciding what to do"),
-                )
-            except ValidationError:
-                # A long profile audience or topic can exceed the brief limits; the recovery
-                # path must report that, not fail the whole run.
-                warnings.append("FALLBACK_INVALID_DRAFT")
-                idea = None
-            quote = exact_quote(idea.quote, chunk.text) if idea else None
-            if quote and len(quote.split()) >= MIN_QUOTE_WORDS:
-                checks = quality_checks(idea, quote, payload.business_profile)
-                if checks["topic_supported_by_quote"] and checks["offer_matches_profile"] and checks["specific_user_need"] and checks["audience_matches_profile"]:
-                    updated = evidence_year(chunk.text)
-                    evidence = EvidenceRef(source_id=source.source_id, source_version=source.version,
-                                           chunk_id=chunk.chunk_id, locator=chunk.locator, quote=quote,
-                                           source_url=url, license=source.provenance.license,
-                                           attribution=source.provenance.attribution)
-                    missing_data = ["market_search_volume_not_measured", "semantic_review_required"]
-                    missing_data += strategy_missing_data(idea, payload.business_profile, url)
-                    missing_data.append("website_query_metrics_not_available_for_topic")
-                    if (now - fetched).days > 90 or (updated is not None and updated < now.year - STALE_AFTER_YEARS):
-                        missing_data.append("source_freshness_requires_reverification")
-                    findings.append(ResearchFinding(
-                        topic=idea.topic, audience_fit=idea.audience_fit, offer_fit=idea.offer_fit,
-                        rationale=idea.rationale, evidence=evidence, url=url, fetched_at=fetched,
-                        keywords=idea.keywords, user_need=idea.user_need, evidence_updated=updated,
-                        source_facts=[quote], hypotheses=[idea.audience_fit, idea.offer_fit, idea.rationale, idea.user_need],
-                        missing_data=missing_data, strategy_alignment=topic_alignment(
-                            " ".join([idea.topic, *idea.keywords, idea.user_need]), payload.business_profile),
-                        quality_checks={**checks, "traceable_source": True, "not_duplicate": True},
-                        website_search_metrics=[], trend_signals=matching_signals(
-                            payload.trend_signals, idea.topic, idea.keywords,
-                            payload.business_profile.locations, quote),
-                    ))
-                    warnings.append("GROUNDED_FALLBACK_USED")
 
     if not findings:
         missing.append("grounded_opportunities")

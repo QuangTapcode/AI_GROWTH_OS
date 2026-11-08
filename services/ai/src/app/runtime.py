@@ -84,6 +84,15 @@ class RunContext:
     def seconds_left(self) -> float:
         return (self.deadline_at - datetime.now(timezone.utc)).total_seconds() if self.deadline_at else float("inf")
 
+    def input_budget(self) -> tuple[int, int]:
+        """(input tokens, retrieved chunks) the model answering this run can read."""
+        routed = getattr(self.provider, "budget", None)
+        if routed:
+            return routed
+        if self.settings.provider_mode == "gemini":
+            return self.settings.cloud_max_input_tokens, self.settings.cloud_max_retrieved_chunks
+        return self.settings.max_input_tokens, self.settings.max_retrieved_chunks
+
     def optional_call_blocker(self) -> str | None:
         """Why a call the job can do without must not run: at the deadline the whole run fails, main output included."""
         if self.budget.remaining() == 0:

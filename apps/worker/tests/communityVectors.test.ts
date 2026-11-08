@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { expect, it, vi } from 'vitest';
 import type { AiAdapter } from '../src/adapters/AiAdapter';
-import { PlanOutboxRunner } from '../src/workflow/PlanOutboxRunner';
+import { PlanOutboxRunner, packEmbedding } from '../src/workflow/PlanOutboxRunner';
 
 const ws = randomUUID(), ctx = randomUUID(), taskId = randomUUID(), sourceId = randomUUID();
 
@@ -28,7 +28,8 @@ async function dispatched(chunkIds: string[], stored: { id: string; model: strin
 it('sends a customer question with the vectors stored at ingest, so the corpus is not embedded again', async () => {
   const { input, query } = await dispatched(['c1', 'c2'], [{ id: 'c1', model: 'ollama/embeddinggemma:latest', embedding: '[0.123456,-0.5]' }]);
   const [first, second] = input.snapshot.sources[0].chunks;
-  expect(first).toMatchObject({ chunk_id: 'c1', model: 'ollama/embeddinggemma:latest', embedding: [0.1235, -0.5] });
+  // Packed as float16 (AI decodes "f16:"), so a large corpus fits the request limit.
+  expect(first).toMatchObject({ chunk_id: 'c1', model: 'ollama/embeddinggemma:latest', embedding: packEmbedding([0.123456, -0.5]) });
   expect(second.embedding).toBeUndefined();
   const [sql, params] = query.mock.calls.find(([text]) => String(text).includes('FROM source_chunks')) as unknown as [string, unknown[]];
   expect(sql).toContain('workspace_id=$1');
@@ -40,8 +41,14 @@ it('keeps the pinned context free of vectors', async () => {
   expect(snapshot.sources[0].chunks[0]).not.toHaveProperty('embedding');
 });
 
+it('sends vectors for a corpus of 1,300 chunks, the size TripC reached on 08/11', async () => {
+  const ids = Array.from({ length: 1301 }, (_, i) => `c${i}`);
+  const { input } = await dispatched(ids, [{ id: 'c1300', model: 'm', embedding: '[0.25]' }]);
+  expect(input.snapshot.sources[0].chunks[1300].embedding).toBe(packEmbedding([0.25]));
+});
+
 it('sends no vectors for a corpus that would exceed the AI request limit', async () => {
-  const ids = Array.from({ length: 801 }, (_, i) => `c${i}`);
+  const ids = Array.from({ length: 3001 }, (_, i) => `c${i}`);
   const { input, query } = await dispatched(ids, []);
   expect(input.snapshot.sources[0].chunks[0].embedding).toBeUndefined();
   expect(query.mock.calls.some(([text]) => String(text).includes('FROM source_chunks'))).toBe(false);

@@ -10,9 +10,42 @@ function sort(value: unknown): unknown {
 }
 
 // 768 numbers at four decimals are about 6.5 KB per chunk; stay well below the AI service's 8 MB request limit.
-const MAX_CHUNKS_WITH_VECTORS = 800;
+// Above this the question is matched by keywords only (an English source rarely shares words with a
+// Vietnamese question). 800 was passed on 08/11 when the corpus grew to 1,301 chunks; packed vectors
+// make 3,000 chunks a request of roughly 12 MB, inside AI_MAX_REQUEST_BYTES.
+const MAX_CHUNKS_WITH_VECTORS = 3000;
 
 type SnapshotChunks = { sources: { chunks: { chunk_id: string }[] }[] };
+
+/**
+ * "f16:" + base64 of little-endian float16 (AI SnapshotChunk accepts it). About 2 KB per 768-d vector
+ * instead of ~5.4 KB of JSON numbers; float16 keeps about 3 significant digits, enough for cosine ranking.
+ */
+export function packEmbedding(vector: number[]): string {
+  const out = Buffer.alloc(vector.length * 2);
+  vector.forEach((value, index) => out.writeUInt16LE(toFloat16Bits(value), index * 2));
+  return `f16:${out.toString('base64')}`;
+}
+
+const f32 = new Float32Array(1);
+const u32 = new Uint32Array(f32.buffer);
+
+/** IEEE 754 half-precision bits, round half up (Float16Array is not available on every supported Node). */
+function toFloat16Bits(value: number): number {
+  f32[0] = value;
+  const bits = u32[0];
+  const sign = (bits >>> 16) & 0x8000;
+  const exponent = ((bits >>> 23) & 0xff) - 127 + 15;
+  const mantissa = bits & 0x7fffff;
+  if (((bits >>> 23) & 0xff) === 0xff) return sign | 0x7c00 | (mantissa ? 0x200 : 0);
+  if (exponent >= 31) return sign | 0x7c00;
+  if (exponent <= 0) {
+    if (exponent < -10) return sign;
+    return sign | (((mantissa | 0x800000) >> (1 - exponent)) + 0x1000 >> 13);
+  }
+  // Adding (not OR-ing) lets a rounding carry move into the exponent.
+  return sign | ((exponent << 10) + ((mantissa + 0x1000) >> 13));
+}
 
 /** Vectors stored at ingest, so a question is compared with the corpus without embedding it again. Never kept in the pinned context. */
 async function withStoredVectors(pool: Pool, workspaceId: string, snapshot: SnapshotChunks) {
@@ -25,7 +58,7 @@ async function withStoredVectors(pool: Pool, workspaceId: string, snapshot: Snap
   const withVector = (chunk: { chunk_id: string }) => {
     const row = stored.get(chunk.chunk_id);
     if (!row) return chunk;
-    return { ...chunk, model: row.model, embedding: (JSON.parse(row.embedding) as number[]).map((value) => Math.round(value * 1e4) / 1e4) };
+    return { ...chunk, model: row.model, embedding: packEmbedding(JSON.parse(row.embedding) as number[]) };
   };
   return { ...snapshot, sources: snapshot.sources.map((source) => ({ ...source, chunks: source.chunks.map(withVector) })) };
 }

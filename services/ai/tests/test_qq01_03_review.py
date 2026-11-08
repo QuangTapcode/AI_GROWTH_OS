@@ -89,7 +89,7 @@ def test_QQ01_A05_seven_owners_and_declared_caps_match_runtime():
     assert limits["max_llm_calls_per_job"] == settings.max_provider_calls == 3
     assert limits["max_attempts"] == settings.max_run_attempts == 2
     assert limits["input_token_estimate"] == settings.max_input_tokens == 2800
-    assert limits["output_tokens"] == settings.max_output_tokens == 1024
+    assert limits["output_tokens"] == settings.max_output_tokens == 2048
     assert limits["paid_provider_budget_usd"] == JobRequest.model_validate(fresh_request()).constraints.max_cost_usd == 0
     assert limits["automatic_external_actions"] is False
 

@@ -87,7 +87,6 @@ def test_ac_cam_02_the_plan_gives_seo_and_content_an_audience_a_cta_and_a_deadli
     assert plan["requires_human_approval"] is True and plan["applied"] is False
 
 
-@pytest.mark.xfail(strict=True, reason="GAP-GL-1: the top finding is taken even when its evidence is stale, which blocks the plan while a usable finding is next to it")
 def test_a_plan_does_not_block_on_a_stale_finding_when_a_fresh_one_is_available(client):
     # Seen on a copy of the real data: once traffic was measured, three rounds in a row chose a 2018 excerpt and ended PLAN_BLOCKED, with no article.
     base, research = research_of(client)

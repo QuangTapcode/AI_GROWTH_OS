@@ -53,6 +53,18 @@ DEFAULT_URL_ALLOWLIST = (
 # Wikimedia and other publishers reject anonymous bots; identify the crawler and a contact URL.
 DEFAULT_INGEST_USER_AGENT = "AI-Growth-OS-ingest/0.1 (+https://tripc.vn; research source ingest)"
 
+# Hybrid mode: these operations write text that is published or shown to customers, or (research.run,
+# one call per cycle) choose what everything downstream writes about, so they use the cloud model
+# (Gemini) for quality. Every other operation, and all embeddings, stay on the local model.
+DEFAULT_QUALITY_OPERATIONS = (
+    "research.run",
+    "content.generate",
+    "content.repurpose",
+    "content.refresh",
+    "seo.local_draft",
+    "community.response",
+)
+
 
 def _int_env(name: str, default: int) -> int:
     value = os.getenv(name)
@@ -84,11 +96,12 @@ class Settings:
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
+    quality_operations: tuple[str, ...] = DEFAULT_QUALITY_OPERATIONS
     embedding_dim: int = 768
     internal_ai_auth_token: str = ""
-    max_context_tokens: int = 4096
+    max_context_tokens: int = 5120
     max_input_tokens: int = 2800
-    max_output_tokens: int = 1024
+    max_output_tokens: int = 2048
     max_provider_calls: int = 3
     # Paid and public, so off until a deployment turns it on and configures Replicate, R2 and Tesseract.
     ai_image_generation: bool = False
@@ -101,8 +114,12 @@ class Settings:
     max_chunk_tokens: int = 512
     max_chunks_per_source: int = 200
     max_source_bytes: int = 5 * 1024 * 1024
-    max_request_bytes: int = 8 * 1024 * 1024
+    max_request_bytes: int = 32 * 1024 * 1024
     max_retrieved_chunks: int = 6
+    # Input budget when an operation runs on the cloud model (hybrid/gemini). The local limits above
+    # exist because an 8B model on an 8 GB GPU has a 5k context; Gemini reads far more evidence.
+    cloud_max_input_tokens: int = 16000
+    cloud_max_retrieved_chunks: int = 24
     url_fetch_timeout_seconds: int = 30
     ingest_url_allowlist: tuple[str, ...] = DEFAULT_URL_ALLOWLIST
     ingest_user_agent: str = DEFAULT_INGEST_USER_AGENT
@@ -120,11 +137,12 @@ class Settings:
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
             gemini_embedding_model=os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"),
+            quality_operations=_list_env("LLM_QUALITY_OPERATIONS", DEFAULT_QUALITY_OPERATIONS),
             embedding_dim=_int_env("EMBEDDING_DIM", 768),
             internal_ai_auth_token=os.getenv("INTERNAL_AI_AUTH_TOKEN", ""),
-            max_context_tokens=_int_env("AI_CONTEXT_TOKENS", 4096),
+            max_context_tokens=_int_env("AI_CONTEXT_TOKENS", 5120),
             max_input_tokens=_int_env("AI_MAX_INPUT_TOKENS", 2800),
-            max_output_tokens=_int_env("AI_MAX_OUTPUT_TOKENS", 1024),
+            max_output_tokens=_int_env("AI_MAX_OUTPUT_TOKENS", 2048),
             max_provider_calls=_int_env("AI_MAX_PROVIDER_CALLS", 3),
             ai_image_generation=os.getenv("AI_IMAGE_GENERATION", "off").strip().lower() in {"1", "true", "on"},
             max_run_attempts=_int_env("AI_MAX_RUN_ATTEMPTS", 2),
@@ -136,8 +154,10 @@ class Settings:
             max_chunk_tokens=_int_env("AI_MAX_CHUNK_TOKENS", 512),
             max_chunks_per_source=_int_env("AI_MAX_CHUNKS_PER_SOURCE", 200),
             max_source_bytes=_int_env("AI_MAX_SOURCE_BYTES", 5 * 1024 * 1024),
-            max_request_bytes=_int_env("AI_MAX_REQUEST_BYTES", 8 * 1024 * 1024),
+            max_request_bytes=_int_env("AI_MAX_REQUEST_BYTES", 32 * 1024 * 1024),
             max_retrieved_chunks=_int_env("AI_MAX_RETRIEVED_CHUNKS", 6),
+            cloud_max_input_tokens=_int_env("AI_CLOUD_MAX_INPUT_TOKENS", 16000),
+            cloud_max_retrieved_chunks=_int_env("AI_CLOUD_MAX_RETRIEVED_CHUNKS", 24),
             url_fetch_timeout_seconds=_int_env("AI_URL_FETCH_TIMEOUT_SECONDS", 30),
             ingest_url_allowlist=_list_env("AI_INGEST_URL_ALLOWLIST", DEFAULT_URL_ALLOWLIST),
             ingest_user_agent=os.getenv("AI_INGEST_USER_AGENT", DEFAULT_INGEST_USER_AGENT).strip() or DEFAULT_INGEST_USER_AGENT,
@@ -147,8 +167,8 @@ class Settings:
         return settings
 
     def validate(self) -> None:
-        if self.provider_mode not in {"fake", "live", "gemini"}:
-            raise ValueError("LLM_PROVIDER_MODE must be fake, live or gemini")
+        if self.provider_mode not in {"fake", "live", "gemini", "hybrid"}:
+            raise ValueError("LLM_PROVIDER_MODE must be fake, live, gemini or hybrid")
         if self.provider_mode == "gemini" and not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY is required when LLM_PROVIDER_MODE=gemini")
         if self.max_input_tokens > self.max_context_tokens:
