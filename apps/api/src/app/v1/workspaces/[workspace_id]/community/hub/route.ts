@@ -3,7 +3,7 @@ import { authenticateUser } from '@/lib/auth';
 import { resolveTenantContext, requireRole } from '@/lib/tenant';
 import { handleApiError } from '@/lib/errors';
 import pool from '@/lib/db';
-import { CommunityHubService } from '@/modules/community/hub';
+import { CommunityHubService, normalizePublishTarget } from '@/modules/community/hub';
 
 export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
@@ -33,6 +33,8 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
       await service.updateCommunitySettings(params.workspace_id, {
         community_name: body.community_name ? String(body.community_name) : undefined,
         group_url: body.group_url ? String(body.group_url) : body.target_group_url ? String(body.target_group_url) : undefined,
+        publish_target:
+          body.publish_target !== undefined ? normalizePublishTarget(body.publish_target) : undefined,
         positioning: body.positioning ? String(body.positioning) : undefined,
         group_member_count: body.group_member_count !== undefined ? Number(body.group_member_count) : undefined,
         week1_target: body.week1_target !== undefined ? Number(body.week1_target) : undefined,
@@ -89,7 +91,59 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
         source_id: body.source_id ? String(body.source_id) : undefined,
       });
       const data = await service.getHubData(params.workspace_id);
-      return NextResponse.json({ status: 'published', published, data }, { status: 201 });
+      const httpStatus = published.status === 'published' ? 201 : 200;
+      return NextResponse.json({ status: published.status ?? 'published', published, data }, { status: httpStatus });
+    }
+
+    if (action === 'schedule_all_posts') {
+      const result = await service.scheduleAllPlaybookPosts(params.workspace_id, actor.id, {
+        start_date_iso: body.start_date_iso ? String(body.start_date_iso) : undefined,
+        interval_hours: body.interval_hours !== undefined ? Number(body.interval_hours) : undefined,
+      });
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: 'scheduled_all', result, data });
+    }
+
+    if (action === 'reschedule_post') {
+      if (!body.source_id || !body.scheduled_for) {
+        return NextResponse.json({ error: 'source_id and scheduled_for are required' }, { status: 400 });
+      }
+      const result = await service.reschedulePlaybookPost(params.workspace_id, actor.id, {
+        source_id: String(body.source_id),
+        scheduled_for: String(body.scheduled_for),
+      });
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: 'rescheduled', result, data });
+    }
+
+    if (action === 'check_group_bot') {
+      const status = await service.getGroupBotSessionStatus();
+      return NextResponse.json({ status: 'bot_status', ...status });
+    }
+
+    if (action === 'verify_group_bot') {
+      const botStatus = await service.verifyGroupBotSession();
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: 'bot_verified', ...botStatus, data });
+    }
+
+    if (action === 'login_group_bot') {
+      const login = await service.launchGroupBotLogin(params.workspace_id);
+      return NextResponse.json({ status: login.started ? 'login_started' : 'login_error', ...login });
+    }
+
+    if (action === 'post_group_bot') {
+      const botResult = await service.postToGroupViaBot(params.workspace_id, {
+        title: String(body.title || 'Cẩm nang du lịch và cuộc sống Việt Nam'),
+        body: String(body.body || ''),
+        discussion_prompt: body.discussion_prompt ? String(body.discussion_prompt) : undefined,
+        image_url: body.image_url ? String(body.image_url) : undefined,
+        source_id: body.source_id ? String(body.source_id) : undefined,
+        article_id: body.article_id ? String(body.article_id) : undefined,
+        publishing_job_id: body.publishing_job_id ? String(body.publishing_job_id) : undefined,
+      });
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: botResult.success ? 'posted' : 'error', botResult, data });
     }
 
     const data = await service.getHubData(params.workspace_id);

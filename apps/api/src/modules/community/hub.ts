@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import dns from 'node:dns';
-import type { Pool } from 'pg';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn, type ChildProcess } from 'node:child_process';
+import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { getWorkspaceConnectionStatus } from '../integrations/stubs';
 import { publishSeoArtifact } from '../site/publish';
@@ -448,9 +452,18 @@ export function classifyMemberInterests(text: string): {
   };
 }
 
+export type CommunityPublishTarget = 'group' | 'fanpage' | 'both';
+
+export interface GroupBotSessionStatus {
+  isLoggedIn: boolean;
+  sessionSource: 'file' | 'cookie' | 'none';
+  detail?: string;
+}
+
 export interface CommunitySettings {
   community_name: string;
   group_url: string;
+  publish_target: CommunityPublishTarget;
   page_name: string;
   page_url: string;
   connected_fanpage_id: string;
@@ -462,6 +475,75 @@ export interface CommunitySettings {
   week4_target: number;
   updated_at?: string;
 }
+
+export function normalizePublishTarget(value: unknown): CommunityPublishTarget {
+  if (value === 'fanpage' || value === 'both' || value === 'group') return value;
+  return 'group';
+}
+
+function resolveWorkerDir(): string {
+  const candidates = [
+    process.env.WORKER_DIR?.trim(),
+    path.resolve(process.cwd(), '../worker'),
+    path.resolve(process.cwd(), 'apps/worker'),
+    path.resolve(__dirname, '../../../../worker'),
+  ].filter(Boolean) as string[];
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
+  }
+  return path.resolve(process.cwd(), '../worker');
+}
+
+function resolveGroupBotSessionFile(workerDir: string): { exists: boolean; filePath: string } {
+  const candidates = [
+    process.env.FB_SESSION_FILE?.trim(),
+    path.resolve(workerDir, '.fb-session.json'),
+    path.resolve(process.cwd(), 'apps/worker/.fb-session.json'),
+    path.resolve(__dirname, '../../../../worker/.fb-session.json'),
+  ].filter(Boolean) as string[];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return { exists: true, filePath: p };
+  }
+  return { exists: false, filePath: path.resolve(workerDir, '.fb-session.json') };
+}
+
+function resolveGroupBotRunner(workerDir: string): { command: string; prefixArgs: string[] } {
+  const srcRunner = path.join(workerDir, 'src', 'publish', 'runFacebookGroupBot.ts');
+  const distRunner = path.join(workerDir, 'dist', 'publish', 'runFacebookGroupBot.js');
+  const localTsx = path.join(workerDir, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  const rootTsx = path.resolve(workerDir, '../../node_modules/tsx/dist/cli.mjs');
+
+  if (fs.existsSync(srcRunner) && fs.existsSync(localTsx)) {
+    return { command: process.execPath, prefixArgs: [localTsx, srcRunner] };
+  }
+  if (fs.existsSync(srcRunner) && fs.existsSync(rootTsx)) {
+    return { command: process.execPath, prefixArgs: [rootTsx, srcRunner] };
+  }
+  if (fs.existsSync(distRunner)) {
+    return { command: process.execPath, prefixArgs: [distRunner] };
+  }
+  return {
+    command: process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    prefixArgs: ['tsx', srcRunner],
+  };
+}
+
+function parseGroupBotResultLine(stdout: string): Record<string, any> | null {
+  const lines = stdout.split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]?.trim();
+    if (line?.startsWith('GROUP_BOT_RESULT:')) {
+      try {
+        return JSON.parse(line.slice('GROUP_BOT_RESULT:'.length)) as Record<string, any>;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+let activeLoginChild: ChildProcess | null = null;
 
 const VN_WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 
@@ -507,13 +589,14 @@ export class CommunityHubService {
         : `https://www.facebook.com/profile.php?id=${pageId}`;
     const defaultGroupUrl = 'https://www.facebook.com/groups/1134282109069209';
     const defaultCommunityName = 'Cộng đồng Du lịch & Sống tại Việt Nam';
-    const defaultPositioning = `Chào mừng bạn đến với ${defaultCommunityName}! 🌿🇻🇳 Không gian dành cho những ai yêu thích khám phá vẻ đẹp mảnh đất hình chữ S và chia sẻ trải nghiệm thực tế về lịch trình du lịch, địa điểm check-in, ẩm thực địa phương, nơi ở, chi phí sinh hoạt, thủ tục và kết nối bạn đồng hành trên Fanpage "${pageName}" & Nhóm Facebook (${defaultGroupUrl}).`;
+    const defaultPositioning = `Chào mừng bạn đến với ${defaultCommunityName}! 🌿🇻🇳 Không gian dành cho những ai yêu thích khám phá vẻ đẹp mảnh đất hình chữ S và chia sẻ trải nghiệm thực tế về lịch trình du lịch, địa điểm check-in, ẩm thực địa phương, nơi ở, chi phí sinh hoạt, thủ tục và kết nối bạn đồng hành tại Nhóm Facebook Cộng đồng (${defaultGroupUrl}).`;
 
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS community_hub_settings (
         workspace_id UUID PRIMARY KEY,
         community_name VARCHAR(255) NOT NULL,
         group_url TEXT NOT NULL,
+        publish_target VARCHAR(32) NOT NULL DEFAULT 'group',
         page_name VARCHAR(255) NOT NULL,
         page_url TEXT NOT NULL,
         positioning TEXT NOT NULL,
@@ -524,6 +607,7 @@ export class CommunityHubService {
         week4_target INT NOT NULL DEFAULT 300,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS publish_target VARCHAR(32) NOT NULL DEFAULT 'group';
       ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS group_member_count INT NOT NULL DEFAULT 5;
       ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week1_target INT NOT NULL DEFAULT 5;
       ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week2_target INT NOT NULL DEFAULT 50;
@@ -555,6 +639,7 @@ export class CommunityHubService {
       await this.pool.query<{
         community_name: string;
         group_url: string;
+        publish_target?: string | null;
         page_name: string;
         page_url: string;
         positioning: string;
@@ -569,14 +654,15 @@ export class CommunityHubService {
 
     if (!saved) {
       await this.pool.query(
-        `INSERT INTO community_hub_settings (workspace_id, community_name, group_url, page_name, page_url, positioning, group_member_count, week1_target, week2_target, week3_target, week4_target)
-         VALUES ($1, $2, $3, $4, $5, $6, 5, 5, 50, 150, 300)
+        `INSERT INTO community_hub_settings (workspace_id, community_name, group_url, publish_target, page_name, page_url, positioning, group_member_count, week1_target, week2_target, week3_target, week4_target)
+         VALUES ($1, $2, $3, 'group', $4, $5, $6, 5, 5, 50, 150, 300)
          ON CONFLICT (workspace_id) DO NOTHING`,
         [workspaceId, defaultCommunityName, defaultGroupUrl, pageName, defaultPageUrl, defaultPositioning],
       );
       return {
         community_name: defaultCommunityName,
         group_url: defaultGroupUrl,
+        publish_target: 'group',
         page_name: pageName,
         page_url: defaultPageUrl,
         connected_fanpage_id: pageId,
@@ -593,6 +679,7 @@ export class CommunityHubService {
     return {
       community_name: saved.community_name,
       group_url: saved.group_url,
+      publish_target: normalizePublishTarget(saved.publish_target),
       page_name: saved.page_name || pageName,
       page_url: saved.page_url || defaultPageUrl,
       connected_fanpage_id: pageId,
@@ -606,11 +693,129 @@ export class CommunityHubService {
     };
   }
 
+  async ensureGroupChannel(
+    workspaceId: string,
+    groupUrl: string,
+    communityName: string,
+    db: Pool | PoolClient = this.pool,
+  ): Promise<string | null> {
+    const existing = (
+      await db.query<{ id: string; channel_identifier: string | null; display_name: string | null }>(
+        "SELECT id, channel_identifier, display_name FROM channels WHERE workspace_id = $1 AND platform_name = 'facebook_group' ORDER BY created_at LIMIT 1",
+        [workspaceId],
+      )
+    ).rows[0];
+    if (existing) {
+      if (existing.channel_identifier !== groupUrl || existing.display_name !== communityName) {
+        await db.query(
+          'UPDATE channels SET display_name = $2, channel_identifier = $3 WHERE id = $1 AND workspace_id = $4',
+          [existing.id, communityName, groupUrl, workspaceId],
+        );
+      }
+      return existing.id;
+    }
+    const created = (
+      await db.query<{ id: string }>(
+        `INSERT INTO channels (workspace_id, platform_name, display_name, channel_identifier)
+         VALUES ($1, 'facebook_group', $2, $3)
+         RETURNING id`,
+        [workspaceId, communityName, groupUrl],
+      )
+    ).rows[0];
+    return created?.id ?? null;
+  }
+
+  async migrateScheduledJobsToGroupChannel(
+    workspaceId: string,
+    groupUrl: string,
+    communityName: string,
+  ): Promise<number> {
+    const groupChannelId = await this.ensureGroupChannel(workspaceId, groupUrl, communityName);
+    if (!groupChannelId) return 0;
+
+    // Move active scheduled jobs from Fanpage ('facebook') onto Community Group ('facebook_group')
+    // respecting uq_publishing_jobs_active (channel_id, artifact_id) WHERE status IN ('scheduled', 'publishing').
+    const moved = (
+      await this.pool.query<{ id: string }>(
+        `UPDATE publishing_jobs j
+            SET channel_id = $2,
+                mode = 'live',
+                utm_url = $3
+           FROM channels ch
+          WHERE j.workspace_id = $1
+            AND j.channel_id = ch.id
+            AND ch.platform_name = 'facebook'
+            AND j.status = 'scheduled'
+            AND NOT EXISTS (
+              SELECT 1
+                FROM publishing_jobs pj2
+               WHERE pj2.workspace_id = $1
+                 AND pj2.channel_id = $2
+                 AND pj2.artifact_id = j.artifact_id
+                 AND pj2.status IN ('scheduled', 'publishing')
+            )
+         RETURNING j.id`,
+        [workspaceId, groupChannelId, groupUrl],
+      )
+    ).rows;
+
+    for (const row of moved) {
+      await this.pool.query(
+        `UPDATE outbox_events
+            SET payload = jsonb_set(
+                  jsonb_set(payload, '{channel_id}', to_jsonb($2::text)),
+                  '{mode}',
+                  '"live"'::jsonb
+                )
+          WHERE workspace_id = $1
+            AND event_type = 'publishing.scheduled'
+            AND dedup_key = $3`,
+        [workspaceId, groupChannelId, `publish:${row.id}`],
+      );
+    }
+
+    // Cancel any duplicate scheduled Fanpage jobs that already have an active Group job
+    await this.pool.query(
+      `UPDATE publishing_jobs j
+          SET status = 'cancelled',
+              error_message = 'Migrated to Facebook Group target (publish_target=group)'
+         FROM channels ch
+        WHERE j.workspace_id = $1
+          AND j.channel_id = ch.id
+          AND ch.platform_name = 'facebook'
+          AND j.status = 'scheduled'
+          AND EXISTS (
+            SELECT 1
+              FROM publishing_jobs pj2
+             WHERE pj2.workspace_id = $1
+               AND pj2.channel_id = $2
+               AND pj2.artifact_id = j.artifact_id
+               AND pj2.status IN ('scheduled', 'publishing')
+          )`,
+      [workspaceId, groupChannelId],
+    );
+
+    // Keep Group scheduled jobs pointing at the latest groupUrl
+    await this.pool.query(
+      `UPDATE publishing_jobs
+          SET utm_url = $3,
+              mode = 'live'
+        WHERE workspace_id = $1
+          AND channel_id = $2
+          AND status = 'scheduled'
+          AND (utm_url IS DISTINCT FROM $3 OR mode <> 'live')`,
+      [workspaceId, groupChannelId, groupUrl],
+    );
+
+    return moved.length;
+  }
+
   async updateCommunitySettings(
     workspaceId: string,
     input: {
       community_name?: string;
       group_url?: string;
+      publish_target?: CommunityPublishTarget;
       positioning?: string;
       group_member_count?: number;
       week1_target?: number;
@@ -622,6 +827,8 @@ export class CommunityHubService {
     const current = await this.getCommunitySettings(workspaceId);
     const nextName = input.community_name?.trim() || current.community_name;
     const nextGroupUrl = input.group_url?.trim() || current.group_url;
+    const nextPublishTarget =
+      input.publish_target !== undefined ? normalizePublishTarget(input.publish_target) : current.publish_target;
     const nextPositioning = input.positioning?.trim() || current.positioning;
     const nextGroupCount =
       typeof input.group_member_count === 'number' && Number.isFinite(input.group_member_count) && input.group_member_count >= 0
@@ -648,15 +855,27 @@ export class CommunityHubService {
       `UPDATE community_hub_settings
           SET community_name = $2,
               group_url = $3,
-              positioning = $4,
-              group_member_count = $5,
-              week1_target = $6,
-              week2_target = $7,
-              week3_target = $8,
-              week4_target = $9,
+              publish_target = $4,
+              positioning = $5,
+              group_member_count = $6,
+              week1_target = $7,
+              week2_target = $8,
+              week3_target = $9,
+              week4_target = $10,
               updated_at = NOW()
         WHERE workspace_id = $1`,
-      [workspaceId, nextName, nextGroupUrl, nextPositioning, nextGroupCount, nextW1, nextW2, nextW3, nextW4],
+      [
+        workspaceId,
+        nextName,
+        nextGroupUrl,
+        nextPublishTarget,
+        nextPositioning,
+        nextGroupCount,
+        nextW1,
+        nextW2,
+        nextW3,
+        nextW4,
+      ],
     );
 
     await this.pool.query(
@@ -666,6 +885,12 @@ export class CommunityHubService {
         WHERE workspace_id = $1`,
       [workspaceId, nextGroupUrl],
     );
+
+    if (nextPublishTarget === 'group') {
+      await this.migrateScheduledJobsToGroupChannel(workspaceId, nextGroupUrl, nextName);
+    } else if (nextPublishTarget === 'both') {
+      await this.ensureGroupChannel(workspaceId, nextGroupUrl, nextName);
+    }
 
     return this.getCommunitySettings(workspaceId);
   }
@@ -709,7 +934,36 @@ export class CommunityHubService {
         facebook_post_id VARCHAR(255),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS community_group_posts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        workspace_id UUID NOT NULL,
+        source_id UUID,
+        article_id UUID,
+        publishing_job_id UUID,
+        post_title VARCHAR(500) NOT NULL,
+        group_url TEXT NOT NULL,
+        facebook_post_url TEXT,
+        body_text TEXT NOT NULL DEFAULT '',
+        image_url TEXT,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        error_message TEXT,
+        published_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(workspace_id, post_title)
+      );
+      ALTER TABLE community_group_posts ADD COLUMN IF NOT EXISTS source_id UUID;
+      ALTER TABLE community_group_posts ADD COLUMN IF NOT EXISTS publishing_job_id UUID;
+      ALTER TABLE community_group_posts ADD COLUMN IF NOT EXISTS error_message TEXT;
+      ALTER TABLE community_group_posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     `);
+
+    if (settings.publish_target === 'group') {
+      await this.migrateScheduledJobsToGroupChannel(workspaceId, settings.group_url, settings.community_name);
+    } else if (settings.publish_target === 'both') {
+      await this.ensureGroupChannel(workspaceId, settings.group_url, settings.community_name);
+    }
 
     await this.pool.query(
       `UPDATE community_hub_members
@@ -1501,7 +1755,11 @@ export class CommunityHubService {
       }
     }
 
-    // Query both published website articles AND published Facebook jobs so every published topic has real date & URL
+    // Ensure all unposted Playbook topics are automatically scheduled by the Agents in publishing_jobs & outbox_events
+    await this.ensurePlaybookTopicsScheduled(workspaceId, uniqueSources, '11111111-1111-4000-8000-000000000001', settings);
+
+    // Query Website articles, publishing_jobs per channel (facebook_group vs legacy facebook Fanpage),
+    // and live community_group_posts executions so Group vs Fanpage state is 100% honest and never conflated.
     const publishedArticles = (
       await this.pool.query<{
         id: string;
@@ -1521,32 +1779,195 @@ export class CommunityHubService {
       )
     ).rows;
 
-    const publishedFbJobs = (
+    const publishedChannelJobs = (
       await this.pool.query<{
+        job_id: string;
         external_post_id: string | null;
         published_at: Date | null;
+        platform_name: string;
+        utm_url: string | null;
         source_id: string | null;
         img_url: string | null;
       }>(
-        `SELECT j.external_post_id, j.published_at,
+        `SELECT j.id AS job_id, j.external_post_id, j.published_at,
+                ch.platform_name, j.utm_url,
                 a.evidence->0->>'source_id' AS source_id,
                 a.payload->'result'->'image_assets'->0->>'url' AS img_url
            FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id
            JOIN content_artifacts a ON a.id = j.artifact_id
-          WHERE j.workspace_id = $1 AND j.status = 'published' AND j.external_post_id IS NOT NULL
+          WHERE j.workspace_id = $1
+            AND j.status = 'published'
+            AND ch.platform_name IN ('facebook_group', 'facebook')
+            AND COALESCE(j.external_post_id, '') NOT LIKE 'newsletter_%'
           ORDER BY j.published_at DESC NULLS LAST`,
         [workspaceId],
       )
     ).rows;
 
-    const fbPublishedBySource = new Map<string, { external_post_id: string; published_at: Date | null; img_url: string | null }>();
-    for (const job of publishedFbJobs) {
-      if (job.source_id && !fbPublishedBySource.has(job.source_id) && !job.external_post_id?.startsWith('newsletter_')) {
-        fbPublishedBySource.set(job.source_id, {
-          external_post_id: job.external_post_id!,
-          published_at: job.published_at,
-          img_url: job.img_url,
-        });
+    const activeChannelJobs = (
+      await this.pool.query<{
+        job_id: string;
+        scheduled_for: Date;
+        status: string;
+        error_message: string | null;
+        platform_name: string;
+        utm_url: string | null;
+        source_id: string | null;
+        img_url: string | null;
+      }>(
+        `SELECT j.id AS job_id, j.scheduled_for, j.status, j.error_message,
+                ch.platform_name, j.utm_url,
+                a.evidence->0->>'source_id' AS source_id,
+                a.payload->'result'->'image_assets'->0->>'url' AS img_url
+           FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id
+           JOIN content_artifacts a ON a.id = j.artifact_id
+          WHERE j.workspace_id = $1
+            AND j.status IN ('scheduled', 'publishing', 'failed')
+            AND ch.platform_name IN ('facebook_group', 'facebook')
+          ORDER BY j.scheduled_for ASC`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const communityGroupPostRows = (
+      await this.pool.query<{
+        id: string;
+        source_id: string | null;
+        publishing_job_id: string | null;
+        post_title: string;
+        group_url: string;
+        facebook_post_url: string | null;
+        status: string;
+        error_message: string | null;
+        published_at: Date | null;
+        updated_at: Date;
+      }>(
+        `SELECT id, source_id, publishing_job_id, post_title, group_url, facebook_post_url,
+                status, error_message, published_at, updated_at
+           FROM community_group_posts
+          WHERE workspace_id = $1
+          ORDER BY published_at DESC NULLS LAST, updated_at DESC`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const normalizeGroupPostKey = (title: string): string =>
+      title
+        .replace(/^[\p{Emoji}\s]*\[CẨM NANG CỘNG ĐỒNG\]\s*/iu, '')
+        .trim()
+        .toLowerCase();
+
+    const fanpagePublishedBySource = new Map<
+      string,
+      { external_post_id: string; published_at: Date | null; img_url: string | null }
+    >();
+    const groupPublishedBySource = new Map<
+      string,
+      { job_id: string | null; post_url: string; published_at: Date | null; img_url: string | null }
+    >();
+
+    for (const job of publishedChannelJobs) {
+      if (!job.source_id) continue;
+      if (job.platform_name === 'facebook_group') {
+        if (!groupPublishedBySource.has(job.source_id)) {
+          const postUrl =
+            job.external_post_id && /^https?:\/\//i.test(job.external_post_id)
+              ? job.external_post_id
+              : job.utm_url || settings.group_url;
+          groupPublishedBySource.set(job.source_id, {
+            job_id: job.job_id,
+            post_url: postUrl,
+            published_at: job.published_at,
+            img_url: job.img_url,
+          });
+        }
+      } else if (job.platform_name === 'facebook' && job.external_post_id) {
+        if (!fanpagePublishedBySource.has(job.source_id)) {
+          fanpagePublishedBySource.set(job.source_id, {
+            external_post_id: job.external_post_id,
+            published_at: job.published_at,
+            img_url: job.img_url,
+          });
+        }
+      }
+    }
+
+    const groupPublishedByTitle = new Map<string, { post_url: string; published_at: Date | null; job_id: string | null }>();
+    const groupFailedBySource = new Map<string, { error: string; job_id: string | null }>();
+    const groupFailedByTitle = new Map<string, { error: string; job_id: string | null }>();
+
+    for (const gp of communityGroupPostRows) {
+      const titleKey = normalizeGroupPostKey(gp.post_title);
+      if (gp.status === 'published') {
+        const postUrl = gp.facebook_post_url || gp.group_url || settings.group_url;
+        if (gp.source_id && !groupPublishedBySource.has(gp.source_id)) {
+          groupPublishedBySource.set(gp.source_id, {
+            job_id: gp.publishing_job_id,
+            post_url: postUrl,
+            published_at: gp.published_at,
+            img_url: null,
+          });
+        }
+        if (titleKey && !groupPublishedByTitle.has(titleKey)) {
+          groupPublishedByTitle.set(titleKey, {
+            post_url: postUrl,
+            published_at: gp.published_at,
+            job_id: gp.publishing_job_id,
+          });
+        }
+      } else if (gp.status === 'failed') {
+        const errText = gp.error_message || 'Bot Group gặp sự cố khi đăng bài';
+        if (gp.source_id && !groupPublishedBySource.has(gp.source_id) && !groupFailedBySource.has(gp.source_id)) {
+          groupFailedBySource.set(gp.source_id, { error: errText, job_id: gp.publishing_job_id });
+        }
+        if (titleKey && !groupPublishedByTitle.has(titleKey) && !groupFailedByTitle.has(titleKey)) {
+          groupFailedByTitle.set(titleKey, { error: errText, job_id: gp.publishing_job_id });
+        }
+      }
+    }
+
+    const groupScheduledBySource = new Map<
+      string,
+      { job_id: string; scheduled_for: Date; status: string; img_url: string | null }
+    >();
+    const fanpageScheduledBySource = new Map<
+      string,
+      { job_id: string; scheduled_for: Date; status: string; img_url: string | null }
+    >();
+
+    for (const job of activeChannelJobs) {
+      if (!job.source_id) continue;
+      if (job.platform_name === 'facebook_group') {
+        if (job.status === 'failed') {
+          if (!groupPublishedBySource.has(job.source_id) && !groupFailedBySource.has(job.source_id)) {
+            groupFailedBySource.set(job.source_id, {
+              error: job.error_message || 'Đăng vào Group thất bại',
+              job_id: job.job_id,
+            });
+          }
+        } else if (!groupPublishedBySource.has(job.source_id) && !groupScheduledBySource.has(job.source_id)) {
+          groupScheduledBySource.set(job.source_id, {
+            job_id: job.job_id,
+            scheduled_for: new Date(job.scheduled_for),
+            status: job.status,
+            img_url: job.img_url,
+          });
+        }
+      } else if (job.platform_name === 'facebook') {
+        if (
+          (job.status === 'scheduled' || job.status === 'publishing') &&
+          !fanpagePublishedBySource.has(job.source_id) &&
+          !fanpageScheduledBySource.has(job.source_id)
+        ) {
+          fanpageScheduledBySource.set(job.source_id, {
+            job_id: job.job_id,
+            scheduled_for: new Date(job.scheduled_for),
+            status: job.status,
+            img_url: job.img_url,
+          });
+        }
       }
     }
 
@@ -1557,23 +1978,62 @@ export class CommunityHubService {
       }
     }
 
-    // Separate topics that have ACTUALLY been published to the Fanpage (`fbPublishedBySource`)
-    // vs topics that are scheduled next for the Fanpage & Community Group
     const topicAssets = getTopicImageAssets(workspaceId);
     const all30Assets = getPlaybookImageAssets(workspaceId);
+    const targetMode = settings.publish_target;
 
-    const fbPublishedSources = uniqueSources
-      .filter((s) => fbPublishedBySource.has(s.id))
+    const getGroupPub = (s: { id: string; title: string }) => {
+      const bySrc = groupPublishedBySource.get(s.id);
+      if (bySrc) return bySrc;
+      const byTitle = groupPublishedByTitle.get(s.title.toLowerCase());
+      return byTitle
+        ? { job_id: byTitle.job_id, post_url: byTitle.post_url, published_at: byTitle.published_at, img_url: null }
+        : undefined;
+    };
+    const getGroupFail = (s: { id: string; title: string }) =>
+      groupFailedBySource.get(s.id) ?? groupFailedByTitle.get(s.title.toLowerCase());
+
+    const isPrimaryPublishedSource = (s: { id: string; title: string }): boolean => {
+      const inGroup = Boolean(getGroupPub(s));
+      const inPage = Boolean(fanpagePublishedBySource.has(s.id));
+      if (targetMode === 'fanpage') return inPage;
+      if (targetMode === 'both') return inGroup && inPage;
+      return inGroup;
+    };
+
+    const getPrimaryPublishedAtMs = (s: { id: string; title: string }): number => {
+      if (targetMode === 'fanpage') {
+        return fanpagePublishedBySource.get(s.id)?.published_at?.getTime() ?? 0;
+      }
+      return (
+        getGroupPub(s)?.published_at?.getTime() ??
+        fanpagePublishedBySource.get(s.id)?.published_at?.getTime() ??
+        0
+      );
+    };
+
+    const primaryPublishedSources = uniqueSources
+      .filter((s) => isPrimaryPublishedSource(s))
+      .sort((a, b) => getPrimaryPublishedAtMs(a) - getPrimaryPublishedAtMs(b));
+    const upcomingSources = uniqueSources
+      .filter((s) => !isPrimaryPublishedSource(s))
       .sort((a, b) => {
-        const ta = fbPublishedBySource.get(a.id)?.published_at?.getTime() ?? 0;
-        const tb = fbPublishedBySource.get(b.id)?.published_at?.getTime() ?? 0;
-        return ta - tb;
+        const ta =
+          (targetMode === 'fanpage'
+            ? fanpageScheduledBySource.get(a.id)?.scheduled_for?.getTime()
+            : groupScheduledBySource.get(a.id)?.scheduled_for?.getTime()) ??
+          fanpagePublishedBySource.get(a.id)?.published_at?.getTime() ??
+          Number.MAX_SAFE_INTEGER;
+        const tb =
+          (targetMode === 'fanpage'
+            ? fanpageScheduledBySource.get(b.id)?.scheduled_for?.getTime()
+            : groupScheduledBySource.get(b.id)?.scheduled_for?.getTime()) ??
+          fanpagePublishedBySource.get(b.id)?.published_at?.getTime() ??
+          Number.MAX_SAFE_INTEGER;
+        return ta !== tb ? ta - tb : a.title.localeCompare(b.title);
       });
-    const upcomingSources = uniqueSources.filter((s) => !fbPublishedBySource.has(s.id));
-    const orderedSources = [...fbPublishedSources, ...upcomingSources];
+    const orderedSources = [...primaryPublishedSources, ...upcomingSources];
 
-    // Anchor upcoming post schedule to concrete real calendar dates starting from 08/11/2026 20:00 (VN time)
-    // and then 1 post per day at 09:00 AM VN time (09/11/2026 -> 25/11/2026)
     const nowUtc = new Date();
     const baseYear = nowUtc.getUTCFullYear();
     const baseMonth = nowUtc.getUTCMonth();
@@ -1582,62 +2042,164 @@ export class CommunityHubService {
     const calendarUsedImages = new Set<string>();
     let upcomingIdx = 0;
 
+    let publishedGroupCount = 0;
+    let publishedFanpageCount = 0;
+    let failedGroupCount = 0;
+
     const dailyCalendar = orderedSources.map((source, index) => {
       const matchedAsset = matchAssetForTopic(source.title, topicAssets, calendarUsedImages, source.source_url);
       calendarUsedImages.add(matchedAsset.url);
 
-      const fbPub = fbPublishedBySource.get(source.id);
+      const groupPub = getGroupPub(source);
+      const groupSched = groupScheduledBySource.get(source.id);
+      const groupFail = !groupPub && !groupSched ? getGroupFail(source) : undefined;
+      const fanpagePub = fanpagePublishedBySource.get(source.id);
+      const fanpageSched = fanpageScheduledBySource.get(source.id);
       const webPub = webPublishedBySource.get(source.id);
-      const isPublishedOnPage = Boolean(fbPub);
+
+      const isPublishedGroup = Boolean(groupPub);
+      const isPublishedFanpage = Boolean(fanpagePub);
+      if (isPublishedGroup) publishedGroupCount++;
+      if (isPublishedFanpage) publishedFanpageCount++;
+      if (groupFail) failedGroupCount++;
+
+      const groupStatus: 'published' | 'scheduled' | 'failed' | 'not_published' = isPublishedGroup
+        ? 'published'
+        : groupSched
+          ? 'scheduled'
+          : groupFail
+            ? 'failed'
+            : 'not_published';
+
+      const isPrimaryPublished =
+        targetMode === 'fanpage'
+          ? isPublishedFanpage
+          : targetMode === 'both'
+            ? isPublishedGroup && isPublishedFanpage
+            : isPublishedGroup;
+
       const matchInfo = classifyMemberInterests(source.title);
 
       let targetDateUtc: Date;
-      if (isPublishedOnPage && fbPub?.published_at) {
-        targetDateUtc = new Date(fbPub.published_at);
-      } else {
-        // Upcoming slot 0 -> Today at 20:00 VN time (13:00 UTC); Slot k >= 1 -> Day + k at 09:00 VN time (02:00 UTC)
-        if (upcomingIdx === 0) {
-          targetDateUtc = new Date(Date.UTC(baseYear, baseMonth, baseDay, 13, 0, 0));
-          if (targetDateUtc.getTime() <= nowUtc.getTime()) {
-            targetDateUtc = new Date(Date.UTC(baseYear, baseMonth, baseDay, 14, 30, 0));
-          }
+      if (targetMode === 'fanpage') {
+        if (isPublishedFanpage && fanpagePub?.published_at) {
+          targetDateUtc = new Date(fanpagePub.published_at);
+        } else if (fanpageSched?.scheduled_for) {
+          targetDateUtc = new Date(fanpageSched.scheduled_for);
+          upcomingIdx++;
         } else {
-          targetDateUtc = new Date(Date.UTC(baseYear, baseMonth, baseDay + upcomingIdx, 2, 0, 0));
+          targetDateUtc = new Date(Date.UTC(baseYear, baseMonth, baseDay + upcomingIdx + 1, 2, 0, 0));
+          upcomingIdx++;
         }
-        upcomingIdx++;
+      } else {
+        if (isPublishedGroup && groupPub?.published_at) {
+          targetDateUtc = new Date(groupPub.published_at);
+        } else if (groupSched?.scheduled_for) {
+          targetDateUtc = new Date(groupSched.scheduled_for);
+          upcomingIdx++;
+        } else if (fanpagePub?.published_at) {
+          targetDateUtc = new Date(fanpagePub.published_at);
+        } else if (webPub?.published_at) {
+          targetDateUtc = new Date(webPub.published_at);
+        } else {
+          targetDateUtc = new Date(Date.UTC(baseYear, baseMonth, baseDay + upcomingIdx + 1, 2, 0, 0));
+          upcomingIdx++;
+        }
       }
 
       const formatted = formatVnDateTime(targetDateUtc, true);
-      // Determine real campaign week by date:
-      // Week 1: 02/11/2026 - 08/11/2026
-      // Week 2: 09/11/2026 - 15/11/2026
-      // Week 3: 16/11/2026 - 22/11/2026
-      // Week 4: 23/11/2026 - 30/11/2026
       const vnDate = new Date(targetDateUtc.getTime() + 7 * 3600_000);
       const dayOfMonth = vnDate.getUTCDate();
+      const monthVn = vnDate.getUTCMonth() + 1;
+      const yearVn = vnDate.getUTCFullYear();
+      const dateIsoVn = `${yearVn}-${String(monthVn).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
+      const timeHmVn = `${String(vnDate.getUTCHours()).padStart(2, '0')}:${String(vnDate.getUTCMinutes()).padStart(2, '0')}`;
       const weekNum = dayOfMonth <= 8 ? 1 : dayOfMonth <= 15 ? 2 : dayOfMonth <= 22 ? 3 : 4;
       const weekRangeLabel =
         weekNum === 1
-          ? 'Tuần 1 (02/11/2026 – 08/11/2026)'
+          ? 'Tuần 1 (02/11/2026 00:00 – 08/11/2026 23:59)'
           : weekNum === 2
-            ? 'Tuần 2 (09/11/2026 – 15/11/2026)'
+            ? 'Tuần 2 (09/11/2026 00:00 – 15/11/2026 23:59)'
             : weekNum === 3
-              ? 'Tuần 3 (16/11/2026 – 22/11/2026)'
-              : 'Tuần 4 (23/11/2026 – 30/11/2026)';
+              ? 'Tuần 3 (16/11/2026 00:00 – 22/11/2026 23:59)'
+              : 'Tuần 4 (23/11/2026 00:00 – 30/11/2026 23:59)';
 
-      const fbPostUrl = fbPub?.external_post_id
-        ? fbPub.external_post_id.includes('_')
-          ? `https://www.facebook.com/${fbPub.external_post_id}`
-          : `https://www.facebook.com/${settings.connected_fanpage_id}/posts/${fbPub.external_post_id}`
+      const fanpagePostUrl = fanpagePub?.external_post_id
+        ? fanpagePub.external_post_id.includes('_')
+          ? `https://www.facebook.com/${fanpagePub.external_post_id}`
+          : `https://www.facebook.com/${settings.connected_fanpage_id}/posts/${fanpagePub.external_post_id}`
         : null;
+      const groupPostUrl = groupPub?.post_url ?? null;
+
+      const activeJobId =
+        targetMode === 'fanpage'
+          ? (fanpageSched?.job_id ?? null)
+          : (groupSched?.job_id ?? groupFail?.job_id ?? groupPub?.job_id ?? null);
+
+      const jobStatus: 'published' | 'scheduled' | 'failed' | 'ready_to_publish' = isPrimaryPublished
+        ? 'published'
+        : targetMode !== 'fanpage' && groupSched
+          ? 'scheduled'
+          : targetMode !== 'fanpage' && groupFail
+            ? 'failed'
+            : targetMode === 'fanpage' && fanpageSched
+              ? 'scheduled'
+              : 'ready_to_publish';
+
+      let concreteAction: string;
+      if (targetMode === 'fanpage') {
+        concreteAction = isPublishedFanpage
+          ? `Đã xuất bản lên Fanpage "${settings.page_name}" lúc ${formatted.short}`
+          : `Đã lên lịch trong publishing_jobs (${fanpageSched?.job_id?.slice(0, 8) ?? 'auto'}): Tự động xuất bản lúc ${formatted.short} lên Fanpage "${settings.page_name}"`;
+      } else if (isPublishedGroup) {
+        concreteAction = `Đã đăng thật vào Group "${settings.community_name}" lúc ${formatted.short}${
+          targetMode === 'both' ? (isPublishedFanpage ? ` (và Fanpage "${settings.page_name}")` : ' (đang chờ Fanpage)') : ''
+        }`;
+      } else if (groupSched) {
+        concreteAction = `Đã lên lịch trong publishing_jobs (${groupSched.job_id.slice(0, 8)}): Bot tự động đăng lúc ${formatted.short} vào Group "${settings.community_name}"${
+          targetMode === 'both' ? ` & Fanpage "${settings.page_name}"` : ''
+        }`;
+      } else if (groupFail) {
+        concreteAction = `Đăng tự động vào Group thất bại: ${groupFail.error}. Bấm "🤖 Đăng bài này vào Group" sau khi đăng nhập Group Bot hoặc dùng "📋 Copy & Mở Group".`;
+      } else if (isPublishedFanpage) {
+        concreteAction = `Trước đó mới đăng lên Fanpage cũ ("${settings.page_name}"), chưa đăng vào Group "${settings.community_name}". Bấm "🤖 Đăng bài này vào Group" để đăng ngay lên cộng đồng của bạn.`;
+      } else {
+        concreteAction = `Sẵn sàng đăng vào Group "${settings.community_name}" (kèm ảnh độc nhất #${index + 1} & câu hỏi thảo luận).`;
+      }
+
+      const dayLabel = isPrimaryPublished
+        ? `Đã đăng Group: ${formatted.full}`
+        : groupSched
+          ? `Đã hẹn giờ đăng Group: ${formatted.full}`
+          : groupFail
+            ? `Lỗi đăng Group (${formatted.short})`
+            : isPublishedFanpage
+              ? `Chưa đăng Group (mới đăng Fanpage cũ ${formatted.short})`
+              : `Sẵn sàng đăng Group`;
 
       return {
         day_index: index + 1,
-        day_label: isPublishedOnPage ? `Đã đăng: ${formatted.full}` : `Dự kiến: ${formatted.full}`,
+        day_label: dayLabel,
         scheduled_date_vn: formatted.full,
         scheduled_date_short: formatted.short,
         scheduled_date_only: formatted.dateOnly,
         scheduled_iso: targetDateUtc.toISOString(),
+        date_iso_vn: dateIsoVn,
+        day_vn: dayOfMonth,
+        month_vn: monthVn,
+        year_vn: yearVn,
+        time_hm_vn: timeHmVn,
+        publishing_job_id: activeJobId,
+        target_channel: targetMode,
+        is_published_group: isPublishedGroup,
+        is_published_fanpage: isPublishedFanpage,
+        group_status: groupStatus,
+        group_post_url: groupPostUrl,
+        group_published_at: groupPub?.published_at?.toISOString() ?? null,
+        group_error: groupFail?.error ?? null,
+        fanpage_post_url: fanpagePostUrl,
+        fanpage_published_at: fanpagePub?.published_at?.toISOString() ?? null,
+        job_status: jobStatus,
         week_number: weekNum,
         week_range_label: weekRangeLabel,
         source_id: source.id,
@@ -1652,19 +2214,21 @@ export class CommunityHubService {
           planning: 'Growth Lead Agent (strategy.generate)',
           seo_draft: 'SEO Worker Agent (seo.local_draft)',
           social_pack: 'Content Marketing Agent (content.generate)',
-          community_engagement: 'Community Agent (Gắn câu hỏi thảo luận & mời vào Group)',
+          community_engagement: 'Community Agent (Đăng vào Group & gắn câu hỏi thảo luận)',
         },
-        concrete_action: isPublishedOnPage
-          ? `Đã xuất bản lên Fanpage "${settings.page_name}" lúc ${formatted.short} kèm ảnh riêng biệt & link mời vào Group`
-          : `Lịch xuất bản tự động lúc ${formatted.short} lên Fanpage "${settings.page_name}" & mở chủ đề thảo luận trên Group "${settings.community_name}"`,
-        status: isPublishedOnPage ? ('published' as const) : ('ready_to_publish' as const),
+        concrete_action: concreteAction,
+        status: isPrimaryPublished ? ('published' as const) : ('ready_to_publish' as const),
         published_slug: webPub?.slug ?? null,
-        published_at: fbPub?.published_at?.toISOString() ?? webPub?.published_at?.toISOString() ?? null,
-        facebook_post_url: fbPostUrl,
+        published_at:
+          (targetMode === 'fanpage' ? fanpagePub?.published_at : groupPub?.published_at ?? webPub?.published_at)?.toISOString() ??
+          null,
+        facebook_post_url: targetMode === 'fanpage' ? fanpagePostUrl : groupPostUrl ?? fanpagePostUrl,
         unique_topic_verified: true,
         unique_image_verified: true,
       };
     });
+
+    const groupBotSession = await this.getGroupBotSessionStatus();
 
     // Growth is measured by real Facebook numbers (Group members + Page followers).
     const realIdentifiedPeople = members.filter((m) => m.external_ref.startsWith('fb:')).length;
@@ -1721,10 +2285,10 @@ export class CommunityHubService {
         status: campaignStatus(w1Target, 0),
         theme: 'Đón thành viên đầu tiên, Chỗ ở ngắn hạn, Sim/eSIM, Ứng dụng thiết yếu & Thủ tục Tạm trú',
         target_trends: ['Thuê căn hộ & Chỗ ở', 'eSIM & Ứng dụng thiết yếu', 'Khai báo tạm trú', 'Bảo hiểm & An toàn'],
-        responsible_agents: 'Growth Lead (Lập kế hoạch) • SEO & Content Agent (Xuất bản 9 bài đầu tiên) • Community Agent (Trả lời RAG & Mời 3 khách từ Messenger vào Group)',
+        responsible_agents: 'Growth Lead (Lập kế hoạch) • SEO & Content Agent (Bài viết cẩm nang) • Community Agent (Đăng Group & Mời khách từ Messenger)',
         tactics: [
           `[02/11 – 08/11/2026] Đã đạt ${week1Count}/${w1Target} thành viên thật trong Group "${settings.community_name}" và ghi nhận ${realIdentifiedPeople} khách hàng thật nhắn tin trên Fanpage "${settings.page_name}"`,
-          `[06/11 – 08/11/2026] Content Agent đã xuất bản ${fbPublishedSources.length} bài cẩm nang lên Fanpage (mỗi bài 1 ảnh độc nhất) và 1 bài dự kiến lúc 20:00 tối 08/11/2026`,
+          `[Đích đăng chính: Group Facebook] Đã đăng ${publishedGroupCount} bài trực tiếp vào Group "${settings.community_name}" (và ${publishedFanpageCount} bài lịch sử trên Fanpage cũ)`,
           `[Hàng ngày] Community Agent tự động trả lời tin nhắn khách hàng bằng bộ RAG (${ragStats.rows[0]?.total_chunks ?? 430} đoạn trích dẫn đã duyệt) và gửi link mời vào Group`,
         ],
       },
@@ -1737,9 +2301,9 @@ export class CommunityHubService {
         status: campaignStatus(w2Target, w1Target),
         theme: 'Sân bay nhập cảnh, Thời hạn Hộ chiếu, Vé khứ hồi, Rút tiền mặt/ATM & Chi phí mỗi ngày',
         target_trends: ['Sân bay Hà Nội/Đà Nẵng/TP.HCM', 'Hộ chiếu & Vé khứ hồi', 'Ngân hàng & VietQR', 'Ngân sách mỗi ngày'],
-        responsible_agents: 'Growth Lead (Lịch 09/11–15/11) • SEO & Content Agent (7 bài lúc 09:00 sáng mỗi ngày) • Community Agent (Auto-Match & Mời Group)',
+        responsible_agents: 'Growth Lead (Lịch 09/11–15/11) • SEO & Content Agent (7 bài lúc 09:00 sáng mỗi ngày) • Community Bot (Đăng thẳng Group)',
         tactics: [
-          '[09/11 – 15/11/2026 lúc 09:00 sáng] Đăng đều đặn 1 bài mới/ngày theo đúng lịch ngày tháng cụ thể (7 chủ đề mới + 7 hình ảnh riêng biệt)',
+          '[09/11 – 15/11/2026 lúc 09:00 sáng] Đăng đều đặn 1 bài mới/ngày vào Group Cộng đồng theo đúng lịch ngày tháng cụ thể (7 chủ đề mới + 7 hình ảnh riêng biệt)',
           `[09/11 – 15/11/2026] Community Agent tự động phân loại khách nhắn tin theo 4 nhóm nhu cầu (Nhập cảnh, Lưu trú, Ngân hàng/VietQR, Chi phí) và mời vào "${settings.community_name}"`,
           '[Thứ Tư 11/11 & Thứ Bảy 14/11/2026] Mở 2 chủ đề thảo luận thực tế trong Group về so sánh chi phí sống và cách thanh toán VietQR/ATM cho người mới',
         ],
@@ -1755,7 +2319,7 @@ export class CommunityHubService {
         target_trends: ['Phương tiện di chuyển', 'Thời tiết & Mùa du lịch', 'Địa chỉ ngõ/hẻm Việt Nam', 'Hướng dẫn E-Visa 2026'],
         responsible_agents: 'Growth Lead (Lịch 16/11–22/11) • SEO & Content Agent (7 bài lúc 09:00 sáng) • Community Agent (Kết nối thành viên cũ giải đáp thành viên mới)',
         tactics: [
-          '[16/11 – 22/11/2026 lúc 09:00 sáng] Xuất bản 7 bài chuyên sâu về di chuyển nội địa, mùa đẹp nhất đi Đà Nẵng/Hà Nội/Phú Quốc và thủ tục E-Visa chuẩn 2026',
+          '[16/11 – 22/11/2026 lúc 09:00 sáng] Xuất bản 7 bài chuyên sâu vào Group về di chuyển nội địa, mùa đẹp nhất đi Đà Nẵng/Hà Nội/Phú Quốc và thủ tục E-Visa chuẩn 2026',
           '[Thứ Năm 19/11/2026] Tổ chức phiên Hỏi - Đáp (Q&A) trực tiếp trên Group giữa các thành viên đã có kinh nghiệm sống tại Đà Nẵng với thành viên mới',
           '[Chủ Nhật 22/11/2026] Tổng hợp các câu hỏi thực tế từ Messenger trong tuần để bổ sung vào chủ đề thảo luận chung của Group',
         ],
@@ -1771,7 +2335,7 @@ export class CommunityHubService {
         target_trends: ['Hành lý chuyển đến VN', 'Chỗ ở 2 tuần đầu', 'Góc làm việc Remote Work', 'Offline/Online Meetup'],
         responsible_agents: 'Growth Lead & Performance Agent (Đo lường & Mở vòng học mới) • Content & Community Agent (Hoàn tất 25/25 chủ đề Tháng 11)',
         tactics: [
-          '[23/11 – 26/11/2026 lúc 09:00 sáng] Hoàn tất xuất bản các chủ đề còn lại trong bộ 25 bài cẩm nang cốt lõi (đạt 100% độ phủ 25 chủ đề, 0% trùng ảnh)',
+          '[23/11 – 26/11/2026 lúc 09:00 sáng] Hoàn tất xuất bản các chủ đề còn lại vào Group Facebook (đạt 100% độ phủ 25 chủ đề, 0% trùng ảnh)',
           '[Thứ Sáu 27/11/2026] Mở cuộc bình chọn (Community Poll) trên Group để thành viên chọn chủ đề ưu tiên cho Tháng 12/2026 (Lễ hội cuối năm & Giáng sinh)',
           '[Chủ Nhật 29/11/2026] Performance Agent & Growth Lead tổng kết chỉ số tăng trưởng Tháng 11/2026 và kích hoạt kế hoạch Tháng 12/2026',
         ],
@@ -1781,66 +2345,74 @@ export class CommunityHubService {
     const weeklyCalendar = [
       {
         week_number: 1,
-        week_label: 'Tuần 1 (02/11/2026 – 08/11/2026)',
-        date_range: '02/11/2026 – 08/11/2026',
+        week_label: 'Tuần 1 (02/11/2026 00:00 – 08/11/2026 23:59)',
+        date_range: '02/11/2026 00:00 – 08/11/2026 23:59',
         member_target: `Mục tiêu: ${w1Target} thành viên (Thực tế đạt: ${week1Count}/${w1Target} — ✓ Đạt chỉ tiêu)`,
         pillar_theme: 'Khởi chạy Cộng đồng, Cẩm nang Thiết yếu, Thuê nhà, eSIM, Đi chợ, Bảo hiểm & Tạm trú',
-        responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Agent',
+        responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Group Bot',
         planned_topics: weekItems(1).map(
-          (item) => `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? '✓ Đã đăng' : '📅 Dự kiến tối nay'})`,
+          (item) =>
+            `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? `✓ Đã đăng Group lúc ${item.scheduled_date_short}` : item.group_status === 'scheduled' ? `⏰ Hẹn Group lúc ${item.scheduled_date_short}` : '⚠ Chưa đăng Group'})`,
         ),
-        interactive_format: 'Chào mừng 5 thành viên đầu tiên + Trả lời tự động 3 khách hàng thật trên Messenger bằng RAG',
+        interactive_format: 'Chào mừng thành viên đầu tiên + Trả lời tự động khách hàng qua Messenger RAG và mời vào Group',
       },
       {
         week_number: 2,
-        week_label: 'Tuần 2 (09/11/2026 – 15/11/2026)',
-        date_range: '09/11/2026 – 15/11/2026',
+        week_label: 'Tuần 2 (09/11/2026 00:00 – 15/11/2026 23:59)',
+        date_range: '09/11/2026 00:00 – 15/11/2026 23:59',
         member_target: `Mục tiêu: ${w2Target} thành viên (Hiện tại: ${totalMatchedCount}/${w2Target} — Đang chạy chiến dịch)`,
         pillar_theme: 'Sân bay Nhập cảnh, Thời hạn Hộ chiếu, Vé khứ hồi, Tiền mặt/ATM, Chi phí Mỗi ngày & Mở Tài khoản Ngân hàng',
-        responsible_agents: 'Growth Lead (Phân lịch 09/11–15/11) → SEO Agent → Content Agent (Đăng 09:00 sáng) → Community Agent',
+        responsible_agents: 'Growth Lead (Phân lịch 09/11–15/11) → SEO Agent → Content Agent (Đăng Group 09:00 sáng) → Community Agent',
         planned_topics: weekItems(2).map(
-          (item) => `[${item.scheduled_date_short}] ${item.topic_title} (📅 Dự kiến đăng lúc 09:00)`,
+          (item) =>
+            `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? `✓ Đã đăng Group lúc ${item.scheduled_date_short}` : `⏰ Đã hẹn giờ lúc ${item.scheduled_date_short}`})`,
         ),
-        interactive_format: 'Mỗi bài đăng lúc 09:00 sáng đều kèm câu hỏi thảo luận mở + Gửi lời mời vào Group cho khách nhắn tin trong vòng 24h',
+        interactive_format: 'Mỗi bài đăng thẳng Group lúc 09:00 sáng kèm câu hỏi thảo luận mở + Gửi lời mời vào Group cho khách nhắn tin',
       },
       {
         week_number: 3,
-        week_label: 'Tuần 3 (16/11/2026 – 22/11/2026)',
-        date_range: '16/11/2026 – 22/11/2026',
+        week_label: 'Tuần 3 (16/11/2026 00:00 – 22/11/2026 23:59)',
+        date_range: '16/11/2026 00:00 – 22/11/2026 23:59',
         member_target: `Mục tiêu: ${w3Target} thành viên (Mở rộng tương tác đời sống địa phương)`,
         pillar_theme: 'Thời điểm Đẹp nhất đến VN, Cách Tìm Địa chỉ Ngõ/Hẻm & Trọn bộ Thủ tục E-Visa Chính thức 2026',
-        responsible_agents: 'Growth Lead (Phân lịch 16/11–22/11) → SEO Agent → Content Agent (Đăng 09:00 sáng) → Community Agent',
+        responsible_agents: 'Growth Lead (Phân lịch 16/11–22/11) → SEO Agent → Content Agent (Đăng Group 09:00 sáng) → Community Agent',
         planned_topics: weekItems(3).map(
-          (item) => `[${item.scheduled_date_short}] ${item.topic_title} (📅 Dự kiến đăng lúc 09:00)`,
+          (item) =>
+            `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? `✓ Đã đăng Group lúc ${item.scheduled_date_short}` : `⏰ Đã hẹn giờ lúc ${item.scheduled_date_short}`})`,
         ),
-        interactive_format: 'Thảo luận tình huống thực tế về tìm địa chỉ ngõ/hẻm, kinh nghiệm đi tàu hỏa/máy bay nội địa và kiểm tra trang E-Visa chính thức',
+        interactive_format: 'Thảo luận tình huống thực tế trên Group về tìm địa chỉ ngõ/hẻm, đi tàu hỏa/máy bay nội địa và kiểm tra trang E-Visa chính thức',
       },
       {
         week_number: 4,
-        week_label: 'Tuần 4 (23/11/2026 – 30/11/2026)',
-        date_range: '23/11/2026 – 30/11/2026',
+        week_label: 'Tuần 4 (23/11/2026 00:00 – 30/11/2026 23:59)',
+        date_range: '23/11/2026 00:00 – 30/11/2026 23:59',
         member_target: `Mục tiêu: ${w4Target} thành viên (Cộng đồng tự vận hành & Kết nối bền vững)`,
         pillar_theme: 'Chuẩn bị Hành lý Chuyển đến VN, Chọn Khu vực Ở 2 Tuần Đầu & Thiết lập Góc Làm việc Từ xa (Remote Work)',
-        responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Agent → Performance Agent (Đánh giá KPI cuối tháng)',
+        responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Group Bot → Performance Agent (Đánh giá KPI cuối tháng)',
         planned_topics: weekItems(4).map(
-          (item) => `[${item.scheduled_date_short}] ${item.topic_title} (📅 Dự kiến đăng lúc 09:00)`,
+          (item) =>
+            `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? `✓ Đã đăng Group lúc ${item.scheduled_date_short}` : `⏰ Đã hẹn giờ lúc ${item.scheduled_date_short}`})`,
         ),
-        interactive_format: 'Bình chọn chủ đề Tháng 12/2026 + Vinh danh thành viên chia sẻ kinh nghiệm hữu ích nhất trong tháng',
+        interactive_format: 'Bình chọn chủ đề Tháng 12/2026 + Vinh danh thành viên chia sẻ kinh nghiệm hữu ích nhất trong Group',
       },
     ];
+
+    const scheduledTopicsCount =
+      targetMode === 'fanpage' ? fanpageScheduledBySource.size : groupScheduledBySource.size;
+    const publishedTopicsCount = primaryPublishedSources.length;
 
     const monthlyCalendar = [
       {
         month_number: 1,
-        month_label: `Tháng 11/2026 (01/11/2026 – 30/11/2026): Xây dựng "${settings.community_name}" & Xuất bản 25 Bài Cẩm nang Cốt lõi`,
+        month_label: `Tháng 11/2026 (01/11/2026 – 30/11/2026): Xây dựng "${settings.community_name}" & Xuất bản ${dailyCalendar.length} Bài Cẩm nang Cốt lõi`,
         date_range: '01/11/2026 – 30/11/2026',
         member_goal: `Tuần 1 (02/11–08/11): ${w1Target} người [Đã đạt ${week1Count}/${w1Target} ✓] → Tuần 2 (09/11–15/11): ${w2Target} người → Tuần 3 (16/11–22/11): ${w3Target} người → Cuối Tháng 11 (30/11/2026): ${w4Target} thành viên thật`,
-        content_commitment: `25 bài cẩm nang chuyên sâu (Đã đăng ${fbPublishedSources.length}/25 bài tính đến 08/11/2026; ${upcomingSources.length} bài còn lại lên lịch cụ thể từng ngày từ 08/11/2026 đến 24/11/2026 lúc 09:00 sáng — 100% ảnh riêng biệt từ kho 30 ảnh)`,
+        content_commitment: `${dailyCalendar.length} bài cẩm nang chuyên sâu (Đã đăng vào Group ${publishedGroupCount}/${dailyCalendar.length} bài; ${scheduledTopicsCount} bài đã hẹn giờ vào Group lúc 09:00 sáng — 100% ảnh riêng biệt từ kho 30 ảnh)`,
         key_pillars: [
-          `02/11/2026 – 08/11/2026 (Tuần 1): Đã hoàn thành mục tiêu ${week1Count}/${w1Target} thành viên hạt nhân + Xuất bản ${fbPublishedSources.length} bài (Thuê căn hộ, Phòng tránh lừa đảo, Số khẩn cấp, eSIM, Ứng dụng, Đi chợ, Tạm trú, Bảo hiểm, E-Visa gia đình)`,
-          '09/11/2026 – 15/11/2026 (Tuần 2): Xuất bản 7 bài lúc 09:00 sáng (Vé khứ hồi, Chọn sân bay, Thời hạn hộ chiếu, Tiền mặt/ATM, Chi phí mỗi ngày, Mở tài khoản ngân hàng, Phương tiện di chuyển)',
-          '16/11/2026 – 22/11/2026 (Tuần 3): Xuất bản 7 bài lúc 09:00 sáng (Thời điểm đẹp nhất đến VN, Địa chỉ ngõ/hẻm, Hướng dẫn E-Visa 2026, So sánh E-Visa vs Miễn thị thực, Thời gian xét duyệt E-Visa, Chuẩn bị hành lý)',
-          '23/11/2026 – 30/11/2026 (Tuần 4): Xuất bản các bài còn lại (Chỗ ở 2 tuần đầu, Nhận diện web E-Visa chính thức, Góc làm việc từ xa) + Bình chọn chủ đề Tháng 12/2026 vào ngày 27/11/2026',
+          `02/11/2026 – 08/11/2026 (Tuần 1): Đã hoàn thành mục tiêu ${week1Count}/${w1Target} thành viên hạt nhân + Khởi chạy chuỗi bài cẩm nang Thiết yếu`,
+          '09/11/2026 – 15/11/2026 (Tuần 2): Xuất bản 7 bài lúc 09:00 sáng vào Group (Vé khứ hồi, Chọn sân bay, Thời hạn hộ chiếu, Tiền mặt/ATM, Chi phí mỗi ngày, Ngân hàng, Di chuyển)',
+          '16/11/2026 – 22/11/2026 (Tuần 3): Xuất bản 7 bài lúc 09:00 sáng vào Group (Thời điểm đẹp nhất đến VN, Địa chỉ ngõ/hẻm, Hướng dẫn E-Visa 2026, So sánh E-Visa, Hành lý)',
+          '23/11/2026 – 30/11/2026 (Tuần 4): Xuất bản các bài còn lại vào Group + Bình chọn chủ đề Tháng 12/2026 vào ngày 27/11/2026',
         ],
       },
       {
@@ -1885,6 +2457,8 @@ export class CommunityHubService {
         name: settings.community_name,
         group_url: settings.group_url,
         group_share_url: settings.group_url,
+        publish_target: settings.publish_target,
+        group_bot_session: groupBotSession,
         page_name: settings.page_name,
         page_url: settings.page_url,
         connected_fanpage_id: settings.connected_fanpage_id,
@@ -1905,8 +2479,13 @@ export class CommunityHubService {
         week4_target: w4Target,
         active_discussions: discussions.length,
         total_approved_playbook_topics: uniqueSources.length,
-        published_topics_count: fbPublishedSources.length,
-        fresh_unposted_topics: upcomingSources.length,
+        published_topics_count: publishedTopicsCount,
+        published_group_count: publishedGroupCount,
+        published_fanpage_count: publishedFanpageCount,
+        scheduled_topics_count: scheduledTopicsCount,
+        scheduled_group_count: groupScheduledBySource.size,
+        failed_group_count: failedGroupCount,
+        fresh_unposted_topics: dailyCalendar.filter((d) => d.status !== 'published').length,
         approved_unique_images: all30Assets.length,
         duplication_rate_pct: 0,
       },
@@ -1931,14 +2510,14 @@ export class CommunityHubService {
             agent_name: '3. Content Marketing Agent',
             operations: ['content.generate', 'content.repurpose'],
             responsibility:
-              'Chịu trách nhiệm CHUYỂN HÓA BÀI VIẾT THÀNH BÀI ĐĂNG FANPAGE (Hook, Body, Hashtag, CTA), chọn 1 hình ảnh minh họa độc nhất không trùng lặp từ kho 30 ảnh và đẩy sang PublishingOutboxRunner để đăng lên Facebook.',
+              'Chịu trách nhiệm CHUYỂN HÓA BÀI VIẾT THÀNH BÀI ĐĂNG CỘNG ĐỒNG (Hook, Body, Câu hỏi thảo luận, Hashtag), chọn 1 hình ảnh minh họa độc nhất không trùng lặp từ kho 30 ảnh và đẩy sang PublishingOutboxRunner / FacebookGroupBot để đăng trực tiếp lên Group Facebook Cộng đồng (chỉ đăng Fanpage nếu bạn bật).',
           },
           {
             agent_id: 'community',
             agent_name: '4. Community Manager Agent',
             operations: ['community.response', 'community.hub'],
             responsibility:
-              'Chịu trách nhiệm TƯƠNG TÁC & PHÁT TRIỂN THÀNH VIÊN CỘNG ĐỒNG: tự động trả lời tin nhắn/bình luận của khách hàng bằng bộ RAG có sẵn, gắn câu hỏi thảo luận mở vào bài đăng, nhận diện khách hàng cùng mối quan tâm từ Messenger và gửi lời mời tham gia Group Facebook.',
+              'Chịu trách nhiệm TƯƠNG TÁC & PHÁT TRIỂN THÀNH VIÊN CỘNG ĐỒNG: tự động trả lời tin nhắn/bình luận của khách hàng bằng bộ RAG có sẵn, gắn câu hỏi thảo luận mở vào bài đăng Group, nhận diện khách hàng cùng mối quan tâm từ Messenger Fanpage và gửi lời mời tham gia Group Facebook.',
           },
         ],
         rag_reply_mechanism: {
@@ -1952,7 +2531,7 @@ export class CommunityHubService {
             `Bước 1 — Thu nhận tin nhắn thật (Webhook & Live Sync): Khi user nhắn tin vào Fanpage "${settings.page_name}", hệ thống lưu vào bảng community_messages và tự động tạo task "community.response".`,
             `Bước 2 — Truy xuất bộ RAG có sẵn (services/ai/src/rag/retrieval.py): Hệ thống đối chiếu câu hỏi của user với ${ragRow.total_chunks} đoạn văn bản (source_chunks) đã tích hợp trong bộ RAG bằng Vector Embedding (Cosine Similarity ≥ 0.5) kết hợp khớp từ khóa tiếng Việt/Anh để lấy ra Top 3 đoạn dẫn chứng chuẩn xác nhất.`,
             'Bước 3 — Sinh câu trả lời bám sát RAG & Kiểm duyệt chống bịa đặt (services/ai/src/agents/community/pipeline.py): Mô hình Gemini tổng hợp câu trả lời tự động NHƯNG bắt buộc chỉ dùng thông tin có trong các đoạn trích dẫn RAG vừa tìm được (kèm mã trích dẫn source_id & chunk_id). Nếu câu hỏi nằm ngoài dữ liệu RAG có sẵn, hệ thống tự động chặn lại (escalation_required = true) để chuyển cho người thật duyệt chứ tuyệt đối không tự bịa.',
-            'Bước 4 — Tự động gửi phản hồi qua Messenger (CommunityReplyRunner.ts): Ngay khi câu trả lời vượt qua kiểm tra trích dẫn RAG (isAutoApprovable), hệ thống tự động gửi phản hồi trực tiếp tới Messenger của khách hàng.',
+            'Bước 4 — Tự động gửi phản hồi qua Messenger (CommunityReplyRunner.ts): Ngay khi câu trả lời vượt qua kiểm tra trích dẫn RAG (isAutoApprovable), hệ thống tự động gửi phản hồi trực tiếp tới Messenger của khách hàng kèm link mời vào Group.',
           ],
         },
       },
@@ -2053,16 +2632,261 @@ export class CommunityHubService {
   }
 
   /**
-   * Immediately generates and publishes a 100% fresh, non-duplicate article + Facebook post
-   * for the user's OWN community and Fanpage (`Dịch vụ hỗ trợ du lịch`), pairing it with a
-   * unique topic-matched image and an interactive discussion prompt.
+   * Automatically ensures every approved Playbook topic is scheduled in `publishing_jobs` & `outbox_events`
+   * by the 4 Agents (Growth Lead -> SEO -> Content -> Community) with concrete daily 09:00 AM VN timestamps.
+   */
+  async ensurePlaybookTopicsScheduled(
+    workspaceId: string,
+    uniqueSources?: { id: string; title: string; source_url: string; version: number }[],
+    actorId = '11111111-1111-4000-8000-000000000001',
+    existingSettings?: CommunitySettings,
+  ): Promise<number> {
+    const settings = existingSettings ?? (await this.ensureSchemaAndContext(workspaceId));
+    const targetMode = settings.publish_target;
+
+    const channelFilter =
+      targetMode === 'fanpage'
+        ? "ch.platform_name = 'facebook'"
+        : targetMode === 'both'
+          ? "ch.platform_name = 'facebook_group'"
+          : "(ch.platform_name = 'facebook_group' OR (ch.platform_name = 'facebook' AND j.status = 'published'))";
+
+    const existingRows = (
+      await this.pool.query<{
+        source_id: string | null;
+        status: string;
+        scheduled_for: Date | null;
+        platform_name: string;
+      }>(
+        `SELECT DISTINCT a.evidence->0->>'source_id' AS source_id, j.status, j.scheduled_for, ch.platform_name
+           FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id
+           JOIN content_artifacts a ON a.id = j.artifact_id
+          WHERE j.workspace_id = $1 AND j.status IN ('published', 'scheduled', 'publishing')
+            AND ${channelFilter}
+            AND COALESCE(j.external_post_id, '') NOT LIKE 'newsletter_%'
+            AND a.evidence->0->>'source_id' IS NOT NULL`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const coveredSourceIds = new Set(existingRows.map((r) => r.source_id).filter(Boolean) as string[]);
+
+    if (targetMode !== 'fanpage') {
+      const postedInGroupRows = (
+        await this.pool.query<{ source_id: string | null }>(
+          `SELECT DISTINCT source_id
+             FROM community_group_posts
+            WHERE workspace_id = $1 AND status = 'published' AND source_id IS NOT NULL`,
+          [workspaceId],
+        )
+      ).rows;
+      for (const r of postedInGroupRows) {
+        if (r.source_id) coveredSourceIds.add(r.source_id);
+      }
+    }
+
+    const sources =
+      uniqueSources ??
+      (
+        await this.pool.query<{ id: string; title: string; source_url: string; version: number }>(
+          `SELECT id, title, COALESCE(source_url, url_or_blob) AS source_url, version
+             FROM sources
+            WHERE workspace_id = $1 AND status = 'approved' AND deleted_at IS NULL
+              AND COALESCE(source_url, url_or_blob) LIKE 'https://tripc.ai/blog/%'
+            ORDER BY title ASC`,
+          [workspaceId],
+        )
+      ).rows;
+
+    const unscheduled = sources.filter((s) => !coveredSourceIds.has(s.id));
+    if (unscheduled.length === 0) return 0;
+
+    // Find the latest scheduled_for among active jobs on the target channel so new topics append day-by-day at 09:00 VN (02:00 UTC)
+    const nowUtc = new Date();
+    const expectedPlatform = targetMode === 'fanpage' ? 'facebook' : 'facebook_group';
+    const existingScheduledDates = existingRows
+      .filter((r) => r.status !== 'published' && r.scheduled_for && r.platform_name === expectedPlatform)
+      .map((r) => new Date(r.scheduled_for!).getTime());
+
+    let nextBaseUtc: Date;
+    if (existingScheduledDates.length > 0) {
+      const maxScheduledMs = Math.max(...existingScheduledDates);
+      const maxDate = new Date(maxScheduledMs);
+      nextBaseUtc = new Date(Date.UTC(maxDate.getUTCFullYear(), maxDate.getUTCMonth(), maxDate.getUTCDate() + 1, 2, 0, 0));
+    } else {
+      const todayNineAmVn = new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate(), 2, 0, 0));
+      nextBaseUtc =
+        todayNineAmVn.getTime() > nowUtc.getTime()
+          ? todayNineAmVn
+          : new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate() + 1, 2, 0, 0));
+    }
+
+    let createdCount = 0;
+    for (let i = 0; i < unscheduled.length; i++) {
+      const slotUtc = new Date(nextBaseUtc.getTime() + i * 24 * 3600_000);
+      try {
+        await this.publishFreshPlaybookPost(workspaceId, actorId, {
+          source_id: unscheduled[i].id,
+          scheduled_for: slotUtc,
+          create_discussion: false,
+        });
+        createdCount++;
+      } catch {
+        // Ignore single source failure
+      }
+    }
+    return createdCount;
+  }
+
+  /**
+   * Bulk schedule or re-schedule all unposted Playbook topics on the configured destination
+   * (`facebook_group` by default) spaced by `interval_hours` (default 24h = 09:00 AM every day).
+   */
+  async scheduleAllPlaybookPosts(
+    workspaceId: string,
+    actorId: string,
+    options: { start_date_iso?: string; interval_hours?: number } = {},
+  ) {
+    const settings = await this.ensureSchemaAndContext(workspaceId);
+    const targetMode = settings.publish_target;
+
+    await this.ensurePlaybookTopicsScheduled(workspaceId, undefined, actorId, settings);
+
+    const intervalMs = Math.max(1, Number(options.interval_hours ?? 24)) * 3600_000;
+    const nowUtc = new Date();
+    const vnNow = new Date(nowUtc.getTime() + 7 * 3600_000);
+    const vnYear = vnNow.getUTCFullYear();
+    const vnMonth = vnNow.getUTCMonth();
+    const vnDay = vnNow.getUTCDate();
+
+    const targetPlatformClause =
+      targetMode === 'fanpage'
+        ? "ch.platform_name = 'facebook'"
+        : targetMode === 'both'
+          ? "ch.platform_name IN ('facebook_group', 'facebook')"
+          : "ch.platform_name = 'facebook_group'";
+
+    // Check if there is already a published post for today on the target channel (in VN date)
+    const todayStartUtc = new Date(Date.UTC(vnYear, vnMonth, vnDay, 0, 0, 0) - 7 * 3600_000);
+    const todayEndUtc = new Date(todayStartUtc.getTime() + 24 * 3600_000);
+    const todayPublishedCount = (
+      await this.pool.query<{ cnt: number }>(
+        `SELECT count(*)::int AS cnt
+           FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id
+          WHERE j.workspace_id = $1
+            AND ${targetPlatformClause}
+            AND j.status = 'published'
+            AND COALESCE(j.external_post_id, '') NOT LIKE 'newsletter_%'
+            AND j.published_at >= $2 AND j.published_at < $3`,
+        [workspaceId, todayStartUtc.toISOString(), todayEndUtc.toISOString()],
+      )
+    ).rows[0]?.cnt ?? 0;
+
+    let startUtc: Date;
+    if (options.start_date_iso) {
+      const parsed = new Date(options.start_date_iso);
+      startUtc = Number.isNaN(parsed.getTime()) ? nowUtc : parsed;
+    } else {
+      const todayNineAmVn = new Date(Date.UTC(vnYear, vnMonth, vnDay, 2, 0, 0));
+      if (todayPublishedCount === 0) {
+        // Ensure today is never skipped in the calendar
+        startUtc = todayNineAmVn.getTime() > nowUtc.getTime() ? todayNineAmVn : new Date(nowUtc.getTime() + 10 * 60_000);
+      } else {
+        startUtc = new Date(Date.UTC(vnYear, vnMonth, vnDay + 1, 2, 0, 0));
+      }
+    }
+
+    const scheduledRows = (
+      await this.pool.query<{ id: string; title: string; platform_name: string }>(
+        `SELECT j.id, c.title, ch.platform_name
+           FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id
+           JOIN contents c ON c.id = j.content_id
+          WHERE j.workspace_id = $1
+            AND ${targetPlatformClause}
+            AND j.status IN ('scheduled', 'failed')
+          ORDER BY j.scheduled_for ASC, c.title ASC`,
+        [workspaceId],
+      )
+    ).rows;
+
+    for (let i = 0; i < scheduledRows.length; i++) {
+      const row = scheduledRows[i];
+      const slotUtc = new Date(startUtc.getTime() + i * intervalMs);
+      if (row.platform_name === 'facebook_group') {
+        await this.pool.query(
+          `UPDATE publishing_jobs
+              SET scheduled_for = $2,
+                  status = 'scheduled',
+                  mode = 'live',
+                  utm_url = $4,
+                  error_message = NULL
+            WHERE id = $1 AND workspace_id = $3`,
+          [row.id, slotUtc.toISOString(), workspaceId, settings.group_url],
+        );
+      } else {
+        await this.pool.query(
+          `UPDATE publishing_jobs
+              SET scheduled_for = $2, status = 'scheduled', error_message = NULL
+            WHERE id = $1 AND workspace_id = $3`,
+          [row.id, slotUtc.toISOString(), workspaceId],
+        );
+      }
+      await this.pool.query(
+        `UPDATE outbox_events
+            SET status = 'pending', retry_count = 0
+          WHERE workspace_id = $1 AND dedup_key = $2`,
+        [workspaceId, `publish:${row.id}`],
+      );
+    }
+
+    return {
+      publish_target: targetMode,
+      scheduled_count: scheduledRows.length,
+      first_scheduled_iso: startUtc.toISOString(),
+      interval_hours: Math.max(1, Number(options.interval_hours ?? 24)),
+    };
+  }
+
+  /**
+   * Reschedule a specific Playbook topic to an exact date/time (`scheduled_for`).
+   * Once `scheduled_for <= NOW()`, `PublishingOutboxRunner` in `apps/worker` automatically publishes it.
+   */
+  async reschedulePlaybookPost(
+    workspaceId: string,
+    actorId: string,
+    input: { source_id: string; scheduled_for: string },
+  ) {
+    const targetDate = new Date(input.scheduled_for);
+    if (Number.isNaN(targetDate.getTime())) {
+      throw new Error('Thời gian hẹn đăng không hợp lệ');
+    }
+    return await this.publishFreshPlaybookPost(workspaceId, actorId, {
+      source_id: input.source_id,
+      scheduled_for: targetDate,
+      create_discussion: false,
+    });
+  }
+
+  /**
+   * Generates and schedules (or immediately publishes when `scheduled_for` is omitted)
+   * a 100% fresh, non-duplicate article + post for the configured community destination
+   * (Facebook Group by default; Fanpage only when `publish_target` is `'fanpage'` or `'both'`).
    */
   async publishFreshPlaybookPost(
     workspaceId: string,
     actorId: string,
-    options: { source_id?: string } = {},
+    options: { source_id?: string; scheduled_for?: Date; create_discussion?: boolean } = {},
   ) {
     const settings = await this.ensureSchemaAndContext(workspaceId);
+    const targetMode = settings.publish_target;
+    const wantGroup = targetMode === 'group' || targetMode === 'both';
+    const wantFanpage = targetMode === 'fanpage' || targetMode === 'both';
+    const isImmediate = options.scheduled_for === undefined;
+    const scheduledForDate = options.scheduled_for ?? new Date();
+    const shouldCreateDiscussionNow = options.create_discussion !== false && scheduledForDate.getTime() <= Date.now() + 60_000;
 
     const ctx = (
       await this.pool.query<{ snapshot_id: string }>(
@@ -2072,23 +2896,42 @@ export class CommunityHubService {
     ).rows[0];
     if (!ctx) throw new Error('Workspace has no active knowledge context');
 
+    const usedPlatformFilter =
+      targetMode === 'fanpage' ? "ch.platform_name = 'facebook'" : "ch.platform_name = 'facebook_group'";
     const usedSourceRows = (
       await this.pool.query<{ source_id: string | null }>(
         `SELECT DISTINCT a.evidence->0->>'source_id' AS source_id
            FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id
            JOIN content_artifacts a ON a.id = j.artifact_id
-          WHERE j.workspace_id = $1 AND j.status = 'published' AND a.evidence->0->>'source_id' IS NOT NULL`,
+          WHERE j.workspace_id = $1 AND j.status = 'published'
+            AND ${usedPlatformFilter}
+            AND COALESCE(j.external_post_id, '') NOT LIKE 'newsletter_%'
+            AND a.evidence->0->>'source_id' IS NOT NULL`,
         [workspaceId],
       )
     ).rows;
     const usedSourceIds = new Set(usedSourceRows.map((r) => r.source_id).filter(Boolean) as string[]);
+    if (wantGroup) {
+      const postedInGroup = (
+        await this.pool.query<{ source_id: string | null }>(
+          `SELECT DISTINCT source_id
+             FROM community_group_posts
+            WHERE workspace_id = $1 AND status = 'published' AND source_id IS NOT NULL`,
+          [workspaceId],
+        )
+      ).rows;
+      for (const r of postedInGroup) {
+        if (r.source_id) usedSourceIds.add(r.source_id);
+      }
+    }
 
     const usedImageRows = (
       await this.pool.query<{ url: string | null }>(
         `SELECT a.payload->'result'->'image_assets'->0->>'url' AS url
            FROM publishing_jobs j
            JOIN content_artifacts a ON a.id = j.artifact_id
-          WHERE j.workspace_id = $1 AND j.status = 'published'
+          WHERE j.workspace_id = $1 AND j.status IN ('published', 'scheduled')
             AND a.payload->'result'->'image_assets'->0->>'url' IS NOT NULL`,
         [workspaceId],
       )
@@ -2122,6 +2965,110 @@ export class CommunityHubService {
 
     if (!targetSource) throw new Error('No approved source found');
 
+    const cleanTitle = targetSource.title.replace(/\s*\(tripc\.ai\)\s*$/i, '').trim();
+
+    const findExistingJob = async (platformName: 'facebook_group' | 'facebook') =>
+      (
+        await this.pool.query<{
+          job_id: string;
+          artifact_id: string;
+          approval_id: string | null;
+          channel_id: string;
+          content_id: string;
+          mode: string;
+          status: string;
+          img_url: string | null;
+        }>(
+          `SELECT j.id AS job_id, j.artifact_id, j.approval_id, j.channel_id, j.content_id,
+                  j.mode, j.status,
+                  a.payload->'result'->'image_assets'->0->>'url' AS img_url
+             FROM publishing_jobs j
+             JOIN channels ch ON ch.id = j.channel_id
+             JOIN content_artifacts a ON a.id = j.artifact_id
+            WHERE j.workspace_id = $1
+              AND ch.platform_name = $2
+              AND j.status IN ('scheduled', 'failed', 'publishing')
+              AND a.evidence->0->>'source_id' = $3
+            ORDER BY j.created_at DESC LIMIT 1`,
+          [workspaceId, platformName, targetSource.id],
+        )
+      ).rows[0];
+
+    const existingGroupJob = wantGroup ? await findExistingJob('facebook_group') : undefined;
+    const existingFanpageJob = wantFanpage ? await findExistingJob('facebook') : undefined;
+
+    // Fast path for non-immediate rescheduling when the target channel job already exists
+    if (!isImmediate) {
+      const canReuseGroupOnly = targetMode === 'group' && Boolean(existingGroupJob);
+      const canReuseFanpageOnly = targetMode === 'fanpage' && Boolean(existingFanpageJob);
+      const canReuseBoth = targetMode === 'both' && Boolean(existingGroupJob) && Boolean(existingFanpageJob);
+
+      if (canReuseGroupOnly || canReuseFanpageOnly || canReuseBoth) {
+        const primaryJob = existingGroupJob ?? existingFanpageJob!;
+        const jobsToReschedule = [existingGroupJob, existingFanpageJob].filter(Boolean) as NonNullable<
+          typeof existingGroupJob
+        >[];
+
+        for (const jobRow of jobsToReschedule) {
+          const isGroupJob = jobRow === existingGroupJob;
+          await this.pool.query(
+            isGroupJob
+              ? `UPDATE publishing_jobs
+                    SET scheduled_for = $2, status = 'scheduled', mode = 'live', utm_url = $4, error_message = NULL
+                  WHERE id = $1 AND workspace_id = $3`
+              : `UPDATE publishing_jobs
+                    SET scheduled_for = $2, status = 'scheduled', error_message = NULL
+                  WHERE id = $1 AND workspace_id = $3`,
+            isGroupJob
+              ? [jobRow.job_id, scheduledForDate.toISOString(), workspaceId, settings.group_url]
+              : [jobRow.job_id, scheduledForDate.toISOString(), workspaceId],
+          );
+          await this.pool.query(
+            `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
+             VALUES ($1, 'publishing.scheduled', $2, $3, 'pending', 0)
+             ON CONFLICT (workspace_id, dedup_key)
+             DO UPDATE SET status = 'pending', retry_count = 0, payload = EXCLUDED.payload`,
+            [
+              workspaceId,
+              `publish:${jobRow.job_id}`,
+              JSON.stringify({
+                job_id: jobRow.job_id,
+                artifact_id: jobRow.artifact_id,
+                approval_id: jobRow.approval_id,
+                channel_id: jobRow.channel_id,
+                mode: isGroupJob ? 'live' : jobRow.mode,
+              }),
+            ],
+          );
+        }
+
+        const webArt = (
+          await this.pool.query<{ slug: string | null }>(
+            `SELECT c.slug FROM contents c
+               JOIN content_artifacts a ON a.id = c.artifact_id
+              WHERE c.workspace_id = $1 AND c.type = 'blog_post' AND a.evidence->0->>'source_id' = $2
+              ORDER BY c.published_at DESC NULLS LAST LIMIT 1`,
+            [workspaceId, targetSource.id],
+          )
+        ).rows[0];
+
+        return {
+          status: 'scheduled' as const,
+          publish_target: targetMode,
+          title: cleanTitle,
+          source_id: targetSource.id,
+          source_url: targetSource.source_url,
+          image_url: primaryJob.img_url ?? '',
+          image_attribution: 'Unsplash',
+          seo_artifact_id: primaryJob.artifact_id,
+          content_artifact_id: primaryJob.artifact_id,
+          website_slug: webArt?.slug ?? slugifySimple(cleanTitle),
+          publishing_job_id: primaryJob.job_id,
+          scheduled_for: scheduledForDate.toISOString(),
+        };
+      }
+    }
+
     const chunks = (
       await this.pool.query<{ id: string; text_content: string; citation_locator: string }>(
         `SELECT id, text_content, citation_locator
@@ -2134,10 +3081,69 @@ export class CommunityHubService {
 
     if (!chunks.length) throw new Error('Selected source has no text chunks');
 
-    const cleanTitle = targetSource.title.replace(/\s*\(tripc\.ai\)\s*$/i, '').trim();
+    const bulletPoints = chunks
+      .slice(0, 3)
+      .map((c) => {
+        const firstSentence =
+          c.text_content.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/)[0] || c.text_content.slice(0, 160);
+        return `• ${firstSentence.slice(0, 200)}`;
+      })
+      .join('\n');
+
+    const discussionQuestion = `💬 CÙNG THẢO LUẬN: Bạn đã có trải nghiệm thực tế nào về "${cleanTitle}" khi đi du lịch hoặc sinh sống tại Việt Nam chưa? Hãy để lại bình luận chia sẻ bên dưới để cùng giao lưu với các thành viên trong ${settings.community_name} nhé!`;
+
+    const defaultFacebookText = [
+      `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${cleanTitle}`,
+      '',
+      bulletPoints,
+      '',
+      discussionQuestion,
+      '',
+      `🤝 Kết nối & Thảo luận tại ${settings.community_name}: ${settings.group_url}`,
+      '#CongDongDuLich #DichVuHoTroDuLich #DaNang #ExploreVietnam',
+    ].join('\n');
+
+    // Reuse existing Website blog_post + approved SEO/content artifacts for this source_id when present
+    // so re-targeting onto Group NEVER creates `-2` duplicate website posts.
+    const existingBlog = (
+      await this.pool.query<{ content_id: string; slug: string | null; artifact_id: string | null }>(
+        `SELECT c.id AS content_id, c.slug, c.artifact_id
+           FROM contents c
+           JOIN content_artifacts a ON a.id = c.artifact_id AND a.workspace_id = c.workspace_id
+          WHERE c.workspace_id = $1 AND c.type = 'blog_post'
+            AND a.evidence->0->>'source_id' = $2
+          ORDER BY c.published_at DESC NULLS LAST LIMIT 1`,
+        [workspaceId, targetSource.id],
+      )
+    ).rows[0];
+
+    const existingApprovedContent = (
+      await this.pool.query<{
+        artifact_id: string;
+        content_hash: string;
+        payload: Record<string, any>;
+        approval_id: string;
+      }>(
+        `SELECT a.id AS artifact_id, a.content_hash, a.payload, ap.id AS approval_id
+           FROM content_artifacts a
+           JOIN approvals ap
+             ON ap.workspace_id = a.workspace_id
+            AND ap.target_type = 'artifact'
+            AND ap.target_id = a.id
+            AND ap.target_version = a.version
+            AND ap.target_hash = a.content_hash
+            AND ap.status = 'approved'
+          WHERE a.workspace_id = $1
+            AND a.role = 'content'
+            AND a.evidence->0->>'source_id' = $2
+          ORDER BY a.created_at DESC LIMIT 1`,
+        [workspaceId, targetSource.id],
+      )
+    ).rows[0];
+
     const topicAssets = getTopicImageAssets(workspaceId);
     const chosenAsset = matchAssetForTopic(cleanTitle, topicAssets, usedImageUrls, targetSource.source_url);
-    const { topic_tags, match_slug, ...assetPayload } = chosenAsset;
+    const { topic_tags: _tags, match_slug: _mslug, ...assetPayload } = chosenAsset;
 
     const evidence = chunks.slice(0, 4).map((c) => ({
       source_id: targetSource.id,
@@ -2178,7 +3184,7 @@ export class CommunityHubService {
       ctaText,
     ].join('\n');
 
-    const seoArtifactId = randomUUID();
+    const seoArtifactId = existingBlog?.artifact_id ?? randomUUID();
     const seoResult = {
       article_id: seoArtifactId,
       workspace_id: workspaceId,
@@ -2204,202 +3210,298 @@ export class CommunityHubService {
       role: 'seo',
     };
 
-    const bulletPoints = chunks
-      .slice(0, 3)
-      .map((c) => {
-        const firstSentence = c.text_content.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/)[0] || c.text_content.slice(0, 160);
-        return `• ${firstSentence.slice(0, 200)}`;
-      })
-      .join('\n');
-
-    const discussionQuestion = `💬 CÙNG THẢO LUẬN: Bạn đã có trải nghiệm thực tế nào về "${cleanTitle}" khi đi du lịch hoặc sinh sống tại Việt Nam chưa? Hãy để lại bình luận chia sẻ bên dưới để cùng giao lưu với các thành viên trong ${settings.community_name} nhé!`;
-
-    const facebookText = [
-      `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${cleanTitle}`,
-      '',
-      bulletPoints,
-      '',
-      discussionQuestion,
-      '',
-      `🤝 Kết nối & Thảo luận tại ${settings.community_name}: ${settings.group_url}`,
-      '#CongDongDuLich #DichVuHoTroDuLich #DaNang #ExploreVietnam',
-    ].join('\n');
-
-    const contentArtifactId = randomUUID();
-    const contentResult = {
-      pack_id: contentArtifactId,
-      workspace_id: workspaceId,
-      context_snapshot_id: ctx.snapshot_id,
-      parent_content_id: seoArtifactId,
-      parent_version: 1,
-      status: 'draft',
-      missing_facts: [],
-      synthetic: false,
-      caption: facebookText,
-      cta: ctaText,
-      channels: ['facebook'],
-      facebook: {
-        hook: `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${cleanTitle}`,
-        body: bulletPoints,
-        discussion_question: discussionQuestion,
-        cta: ctaText,
-        hashtags: ['#CongDongDuLich', '#DichVuHoTroDuLich'],
-        text: facebookText,
-      },
-      image_assets: [assetPayload],
-      alt_text: chosenAsset.attribution,
-      citations: evidence,
-      input_artifact_refs: [seoArtifactRef],
-    };
-    const contentHash = sha256Hex(canonicalJson({ result: contentResult, evidence }));
-    const contentArtifactRef = {
-      artifact_id: contentArtifactId,
-      workspace_id: workspaceId,
-      version: 1,
-      content_hash: contentHash,
-      context_snapshot_id: ctx.snapshot_id,
-      role: 'content',
-    };
+    let contentArtifactId = existingApprovedContent?.artifact_id ?? randomUUID();
+    let contentHash = existingApprovedContent?.content_hash ?? '';
+    let contentApprovalId = existingApprovedContent?.approval_id ?? '';
+    let resolvedImageUrl =
+      (existingApprovedContent?.payload?.result?.image_assets?.[0]?.url as string | undefined) ?? chosenAsset.url;
+    let resolvedAttribution =
+      (existingApprovedContent?.payload?.result?.alt_text as string | undefined) ?? chosenAsset.attribution;
+    const resolvedFacebookText =
+      (existingApprovedContent?.payload?.result?.facebook?.text as string | undefined) ||
+      (existingApprovedContent?.payload?.result?.caption as string | undefined) ||
+      defaultFacebookText;
 
     const db = await this.pool.connect();
-    let publishedSite: { content_id: string; slug: string; published: boolean } | null = null;
-    let publishingJobId: string | null = null;
+    let publishedSite: { content_id: string; slug: string | null; published: boolean } | null = existingBlog
+      ? { content_id: existingBlog.content_id, slug: existingBlog.slug, published: false }
+      : null;
+    let socialContentId: string | null = null;
+    let groupJobId: string | null = null;
+    let fanpageJobId: string | null = null;
 
     try {
       await db.query('BEGIN');
 
-      await db.query(
-        `INSERT INTO content_artifacts
-           (id, workspace_id, version, content_hash, context_snapshot_id, role, operation, artifact_type, title, storage, payload, evidence)
-         VALUES ($1, $2, 1, $3, $4, 'seo', 'seo.local_draft', 'ai_result', $5, 'ai_run_store', $6::jsonb, $7::jsonb)`,
-        [
-          seoArtifactId,
-          workspaceId,
-          seoHash,
-          ctx.snapshot_id,
-          cleanTitle,
-          JSON.stringify({ artifact: seoArtifactRef, result: seoResult }),
-          JSON.stringify(evidence),
-        ],
-      );
+      if (!existingBlog) {
+        await db.query(
+          `INSERT INTO content_artifacts
+             (id, workspace_id, version, content_hash, context_snapshot_id, role, operation, artifact_type, title, storage, payload, evidence)
+           VALUES ($1, $2, 1, $3, $4, 'seo', 'seo.local_draft', 'ai_result', $5, 'ai_run_store', $6::jsonb, $7::jsonb)`,
+          [
+            seoArtifactId,
+            workspaceId,
+            seoHash,
+            ctx.snapshot_id,
+            cleanTitle,
+            JSON.stringify({ artifact: seoArtifactRef, result: seoResult }),
+            JSON.stringify(evidence),
+          ],
+        );
 
-      await db.query(
-        `INSERT INTO approvals
-           (workspace_id, target_type, target_id, target_version, target_hash, status, decision, actor_id, actor_role, review_note)
-         VALUES ($1, 'artifact', $2, 1, $3, 'approved', 'approve', $4, 'owner', 'Approved fresh community calendar post')`,
-        [workspaceId, seoArtifactId, seoHash, actorId],
-      );
-
-      publishedSite = await publishSeoArtifact(db, workspaceId, seoArtifactId, actorId);
-
-      await db.query(
-        `INSERT INTO content_artifacts
-           (id, workspace_id, version, content_hash, context_snapshot_id, role, operation, artifact_type, title, storage, payload, evidence)
-         VALUES ($1, $2, 1, $3, $4, 'content', 'content.generate', 'ai_result', $5, 'ai_run_store', $6::jsonb, $7::jsonb)`,
-        [
-          contentArtifactId,
-          workspaceId,
-          contentHash,
-          ctx.snapshot_id,
-          cleanTitle,
-          JSON.stringify({ artifact: contentArtifactRef, result: contentResult }),
-          JSON.stringify(evidence),
-        ],
-      );
-
-      const contentApproval = (
-        await db.query<{ id: string }>(
+        await db.query(
           `INSERT INTO approvals
              (workspace_id, target_type, target_id, target_version, target_hash, status, decision, actor_id, actor_role, review_note)
-           VALUES ($1, 'artifact', $2, 1, $3, 'approved', 'approve', $4, 'owner', 'Approved fresh Facebook community post')
-           RETURNING id`,
-          [workspaceId, contentArtifactId, contentHash, actorId],
-        )
-      ).rows[0];
+           VALUES ($1, 'artifact', $2, 1, $3, 'approved', 'approve', $4, 'owner', 'Approved fresh community calendar post')`,
+          [workspaceId, seoArtifactId, seoHash, actorId],
+        );
 
-      const fbChannel = (
+        publishedSite = await publishSeoArtifact(db, workspaceId, seoArtifactId, actorId);
+      }
+
+      if (!existingApprovedContent) {
+        const contentResult = {
+          pack_id: contentArtifactId,
+          workspace_id: workspaceId,
+          context_snapshot_id: ctx.snapshot_id,
+          parent_content_id: seoArtifactId,
+          parent_version: 1,
+          status: 'draft',
+          missing_facts: [],
+          synthetic: false,
+          caption: resolvedFacebookText,
+          cta: ctaText,
+          channels: wantGroup ? ['facebook_group'] : ['facebook'],
+          facebook: {
+            hook: `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${cleanTitle}`,
+            body: bulletPoints,
+            discussion_question: discussionQuestion,
+            cta: ctaText,
+            hashtags: ['#CongDongDuLich', '#DichVuHoTroDuLich'],
+            text: resolvedFacebookText,
+          },
+          image_assets: [assetPayload],
+          alt_text: resolvedAttribution,
+          citations: evidence,
+          input_artifact_refs: [seoArtifactRef],
+        };
+        contentHash = sha256Hex(canonicalJson({ result: contentResult, evidence }));
+        const contentArtifactRef = {
+          artifact_id: contentArtifactId,
+          workspace_id: workspaceId,
+          version: 1,
+          content_hash: contentHash,
+          context_snapshot_id: ctx.snapshot_id,
+          role: 'content',
+        };
+
+        await db.query(
+          `INSERT INTO content_artifacts
+             (id, workspace_id, version, content_hash, context_snapshot_id, role, operation, artifact_type, title, storage, payload, evidence)
+           VALUES ($1, $2, 1, $3, $4, 'content', 'content.generate', 'ai_result', $5, 'ai_run_store', $6::jsonb, $7::jsonb)`,
+          [
+            contentArtifactId,
+            workspaceId,
+            contentHash,
+            ctx.snapshot_id,
+            cleanTitle,
+            JSON.stringify({ artifact: contentArtifactRef, result: contentResult }),
+            JSON.stringify(evidence),
+          ],
+        );
+
+        const contentApproval = (
+          await db.query<{ id: string }>(
+            `INSERT INTO approvals
+               (workspace_id, target_type, target_id, target_version, target_hash, status, decision, actor_id, actor_role, review_note)
+             VALUES ($1, 'artifact', $2, 1, $3, 'approved', 'approve', $4, 'owner', 'Approved fresh Facebook community post')
+             RETURNING id`,
+            [workspaceId, contentArtifactId, contentHash, actorId],
+          )
+        ).rows[0];
+        contentApprovalId = contentApproval.id;
+      }
+
+      const existingSocial = (
         await db.query<{ id: string }>(
-          "SELECT id FROM channels WHERE workspace_id = $1 AND platform_name = 'facebook' ORDER BY created_at LIMIT 1",
-          [workspaceId],
+          `SELECT id FROM contents WHERE workspace_id = $1 AND artifact_id = $2 AND type = 'social_post' LIMIT 1`,
+          [workspaceId, contentArtifactId],
         )
       ).rows[0];
 
-      const fbStatus = await getWorkspaceConnectionStatus(workspaceId, 'facebook_page');
-      const mode = fbStatus.status === 'connected' ? 'live' : 'manual';
-
-      if (fbChannel) {
-        const socialContent = (
+      if (existingSocial) {
+        socialContentId = existingSocial.id;
+      } else {
+        const insertedSocial = (
           await db.query<{ id: string }>(
             `INSERT INTO contents
                (workspace_id, title, body_markdown, type, status, created_by, approved_by, current_version, content_hash, artifact_id)
              VALUES ($1, $2, $3, 'social_post', 'approved', 'ai', $4, 1, $5, $6)
              RETURNING id`,
-            [workspaceId, cleanTitle, facebookText, actorId, contentHash, contentArtifactId],
+            [workspaceId, cleanTitle, resolvedFacebookText, actorId, contentHash, contentArtifactId],
           )
         ).rows[0];
-
-        const job = (
-          await db.query<{ id: string }>(
-            `INSERT INTO publishing_jobs
-               (content_id, channel_id, scheduled_for, status, workspace_id, artifact_id, approval_id, mode, created_by, utm_url)
-             VALUES ($1, $2, NOW(), 'scheduled', $3, $4, $5, $6, $7, $8)
-             RETURNING id`,
-            [
-              socialContent.id,
-              fbChannel.id,
-              workspaceId,
-              contentArtifactId,
-              contentApproval.id,
-              mode,
-              actorId,
-              settings.group_url,
-            ],
-          )
-        ).rows[0];
-        publishingJobId = job.id;
-
-        await db.query(
-          `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload)
-           VALUES ($1, 'publishing.scheduled', $2, $3)
-           ON CONFLICT (workspace_id, dedup_key) DO NOTHING`,
-          [
-            workspaceId,
-            `publish:${job.id}`,
-            JSON.stringify({
-              job_id: job.id,
-              artifact_id: contentArtifactId,
-              approval_id: contentApproval.id,
-              channel_id: fbChannel.id,
-              mode,
-            }),
-          ],
-        );
+        socialContentId = insertedSocial.id;
       }
 
-      const discAssets = getDiscussionImageAssets(workspaceId);
-      const discAsset = matchAssetForTopic(cleanTitle, discAssets);
-      await db.query(
-        `INSERT INTO community_hub_discussions
-           (workspace_id, category, title, author_name, author_role, body, discussion_prompt, source_url, image_url, replies, participants_count)
-         VALUES ($1, 'Thảo luận Bài mới Hàng ngày', $2, $3, 'Quản trị viên Cộng đồng', $4, $5, $6, $7, $8::jsonb, 5)`,
-        [
-          workspaceId,
-          cleanTitle,
-          `Ban Quản Trị (${settings.page_name})`,
-          bulletPoints,
-          discussionQuestion,
-          settings.group_url,
-          discAsset.url,
-          JSON.stringify([
-            {
-              author: `Ban Quản Trị (${settings.page_name})`,
-              role: 'Quản trị viên Cộng đồng',
-              text: `Chủ đề mới trong ngày "${cleanTitle}" đã lên sóng! Mời các thành viên trong ${settings.community_name} cùng bình luận chia sẻ kinh nghiệm thực tế nhé.`,
-              created_at: new Date().toISOString(),
-            },
-          ]),
-        ],
-      );
+      // 1) Group Channel Job (Primary default destination)
+      if (wantGroup) {
+        const groupChannelId = await this.ensureGroupChannel(workspaceId, settings.group_url, settings.community_name, db);
+        if (groupChannelId && socialContentId) {
+          const nextJobStatus = isImmediate ? 'publishing' : 'scheduled';
+          const outboxStatus = isImmediate ? 'processing' : 'pending';
+          if (existingGroupJob) {
+            await db.query(
+              `UPDATE publishing_jobs
+                  SET status = $2,
+                      mode = 'live',
+                      utm_url = $3,
+                      scheduled_for = $4,
+                      error_message = NULL
+                WHERE id = $1 AND workspace_id = $5`,
+              [existingGroupJob.job_id, nextJobStatus, settings.group_url, scheduledForDate.toISOString(), workspaceId],
+            );
+            groupJobId = existingGroupJob.job_id;
+          } else {
+            const job = (
+              await db.query<{ id: string }>(
+                `INSERT INTO publishing_jobs
+                   (content_id, channel_id, scheduled_for, status, workspace_id, artifact_id, approval_id, mode, created_by, utm_url)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, 'live', $8, $9)
+                 RETURNING id`,
+                [
+                  socialContentId,
+                  groupChannelId,
+                  scheduledForDate.toISOString(),
+                  nextJobStatus,
+                  workspaceId,
+                  contentArtifactId,
+                  contentApprovalId,
+                  actorId,
+                  settings.group_url,
+                ],
+              )
+            ).rows[0];
+            groupJobId = job.id;
+          }
+
+          await db.query(
+            `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
+             VALUES ($1, 'publishing.scheduled', $2, $3, $4, 0)
+             ON CONFLICT (workspace_id, dedup_key)
+             DO UPDATE SET status = $4, retry_count = 0, payload = EXCLUDED.payload`,
+            [
+              workspaceId,
+              `publish:${groupJobId}`,
+              JSON.stringify({
+                job_id: groupJobId,
+                artifact_id: contentArtifactId,
+                approval_id: contentApprovalId,
+                channel_id: groupChannelId,
+                mode: 'live',
+              }),
+              outboxStatus,
+            ],
+          );
+        }
+      }
+
+      // 2) Fanpage Channel Job (ONLY when publish_target is explicitly 'fanpage' or 'both')
+      if (wantFanpage) {
+        const fbChannel = (
+          await db.query<{ id: string }>(
+            "SELECT id FROM channels WHERE workspace_id = $1 AND platform_name = 'facebook' ORDER BY created_at LIMIT 1",
+            [workspaceId],
+          )
+        ).rows[0];
+        if (fbChannel && socialContentId) {
+          const fbStatus = await getWorkspaceConnectionStatus(workspaceId, 'facebook_page');
+          const mode = fbStatus.status === 'connected' ? 'live' : 'manual';
+          if (existingFanpageJob) {
+            await db.query(
+              `UPDATE publishing_jobs
+                  SET scheduled_for = $2, status = 'scheduled', mode = $3, error_message = NULL
+                WHERE id = $1 AND workspace_id = $4`,
+              [existingFanpageJob.job_id, scheduledForDate.toISOString(), mode, workspaceId],
+            );
+            fanpageJobId = existingFanpageJob.job_id;
+          } else {
+            const job = (
+              await db.query<{ id: string }>(
+                `INSERT INTO publishing_jobs
+                   (content_id, channel_id, scheduled_for, status, workspace_id, artifact_id, approval_id, mode, created_by, utm_url)
+                 VALUES ($1, $2, $3, 'scheduled', $4, $5, $6, $7, $8, $9)
+                 RETURNING id`,
+                [
+                  socialContentId,
+                  fbChannel.id,
+                  scheduledForDate.toISOString(),
+                  workspaceId,
+                  contentArtifactId,
+                  contentApprovalId,
+                  mode,
+                  actorId,
+                  settings.group_url,
+                ],
+              )
+            ).rows[0];
+            fanpageJobId = job.id;
+          }
+
+          await db.query(
+            `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
+             VALUES ($1, 'publishing.scheduled', $2, $3, 'pending', 0)
+             ON CONFLICT (workspace_id, dedup_key)
+             DO UPDATE SET status = 'pending', retry_count = 0, payload = EXCLUDED.payload`,
+            [
+              workspaceId,
+              `publish:${fanpageJobId}`,
+              JSON.stringify({
+                job_id: fanpageJobId,
+                artifact_id: contentArtifactId,
+                approval_id: contentApprovalId,
+                channel_id: fbChannel.id,
+                mode,
+              }),
+            ],
+          );
+        }
+      }
+
+      if (shouldCreateDiscussionNow && !wantGroup) {
+        const discExists = (
+          await db.query('SELECT 1 FROM community_hub_discussions WHERE workspace_id = $1 AND title = $2 LIMIT 1', [
+            workspaceId,
+            cleanTitle,
+          ])
+        ).rows[0];
+        if (!discExists) {
+          const discAssets = getDiscussionImageAssets(workspaceId);
+          const discAsset = matchAssetForTopic(cleanTitle, discAssets);
+          await db.query(
+            `INSERT INTO community_hub_discussions
+               (workspace_id, category, title, author_name, author_role, body, discussion_prompt, source_url, image_url, replies, participants_count)
+             VALUES ($1, 'Thảo luận Bài mới Hàng ngày', $2, $3, 'Quản trị viên Cộng đồng', $4, $5, $6, $7, $8::jsonb, 5)`,
+            [
+              workspaceId,
+              cleanTitle,
+              `Ban Quản Trị (${settings.page_name})`,
+              bulletPoints,
+              discussionQuestion,
+              settings.group_url,
+              discAsset.url,
+              JSON.stringify([
+                {
+                  author: `Ban Quản Trị (${settings.page_name})`,
+                  role: 'Quản trị viên Cộng đồng',
+                  text: `Chủ đề mới trong ngày "${cleanTitle}" đã lên sóng! Mời các thành viên trong ${settings.community_name} cùng bình luận chia sẻ kinh nghiệm thực tế nhé.`,
+                  created_at: new Date().toISOString(),
+                },
+              ]),
+            ],
+          );
+        }
+      }
 
       await db.query('COMMIT');
     } catch (error) {
@@ -2409,17 +3511,537 @@ export class CommunityHubService {
       db.release();
     }
 
-    return {
+    const baseResponse = {
+      publish_target: targetMode,
       title: cleanTitle,
       source_id: targetSource.id,
       source_url: targetSource.source_url,
-      image_url: chosenAsset.url,
-      image_attribution: chosenAsset.attribution,
+      image_url: resolvedImageUrl,
+      image_attribution: resolvedAttribution,
       seo_artifact_id: seoArtifactId,
       content_artifact_id: contentArtifactId,
       website_slug: publishedSite?.slug ?? null,
-      publishing_job_id: publishingJobId,
+      publishing_job_id: groupJobId ?? fanpageJobId,
+      scheduled_for: scheduledForDate.toISOString(),
+      group_url: settings.group_url,
     };
+
+    // Execute real Group Bot synchronously when immediate Group publish is requested (outside DB transaction!)
+    if (isImmediate && wantGroup) {
+      const botResult = await this.postToGroupViaBot(workspaceId, {
+        title: cleanTitle,
+        body: resolvedFacebookText,
+        discussion_prompt: discussionQuestion,
+        image_url: resolvedImageUrl,
+        source_id: targetSource.id,
+        article_id: socialContentId ?? undefined,
+        publishing_job_id: groupJobId ?? undefined,
+      });
+
+      if (botResult.success) {
+        const externalPostUrl = botResult.postUrl || settings.group_url;
+        if (groupJobId) {
+          await this.pool.query(
+            `UPDATE publishing_jobs
+                SET status = 'published', published_at = NOW(), external_post_id = $2, error_message = NULL
+              WHERE id = $1`,
+            [groupJobId, externalPostUrl],
+          );
+          await this.pool.query(
+            `UPDATE outbox_events SET status = 'published', published_at = NOW() WHERE workspace_id = $1 AND dedup_key = $2`,
+            [workspaceId, `publish:${groupJobId}`],
+          );
+        }
+        if (socialContentId) {
+          await this.pool.query(
+            `UPDATE contents SET status = 'published', published_at = NOW() WHERE id = $1`,
+            [socialContentId],
+          );
+        }
+        if (options.create_discussion !== false) {
+          const discExists = (
+            await this.pool.query('SELECT 1 FROM community_hub_discussions WHERE workspace_id = $1 AND title = $2 LIMIT 1', [
+              workspaceId,
+              cleanTitle,
+            ])
+          ).rows[0];
+          if (!discExists) {
+            const discAssets = getDiscussionImageAssets(workspaceId);
+            const discAsset = matchAssetForTopic(cleanTitle, discAssets);
+            await this.pool.query(
+              `INSERT INTO community_hub_discussions
+                 (workspace_id, category, title, author_name, author_role, body, discussion_prompt, source_url, image_url, replies, participants_count, facebook_post_id)
+               VALUES ($1, 'Thảo luận Bài mới Hàng ngày', $2, $3, 'Quản trị viên Cộng đồng', $4, $5, $6, $7, $8::jsonb, 5, $9)`,
+              [
+                workspaceId,
+                cleanTitle,
+                `Ban Quản Trị (${settings.page_name})`,
+                bulletPoints,
+                discussionQuestion,
+                externalPostUrl,
+                discAsset.url,
+                JSON.stringify([
+                  {
+                    author: `Ban Quản Trị (${settings.page_name})`,
+                    role: 'Quản trị viên Cộng đồng',
+                    text: `Chủ đề mới trong ngày "${cleanTitle}" đã đăng trực tiếp vào Group "${settings.community_name}"! Mời các thành viên cùng bình luận chia sẻ kinh nghiệm thực tế nhé.`,
+                    created_at: new Date().toISOString(),
+                  },
+                ]),
+                externalPostUrl,
+              ],
+            );
+          }
+        }
+        return {
+          status: 'published' as const,
+          ...baseResponse,
+          group_post_url: externalPostUrl,
+        };
+      }
+
+      const failCode = botResult.errorCode || 'FACEBOOK_GROUP_PUBLISH_FAILED';
+      const detail = botResult.message.startsWith(failCode) ? botResult.message : `${failCode}: ${botResult.message}`;
+      if (groupJobId) {
+        await this.pool.query(
+          `UPDATE publishing_jobs SET status = 'failed', error_message = $2 WHERE id = $1`,
+          [groupJobId, detail],
+        );
+        await this.pool.query(
+          `UPDATE outbox_events SET status = 'failed', published_at = NOW() WHERE workspace_id = $1 AND dedup_key = $2`,
+          [workspaceId, `publish:${groupJobId}`],
+        );
+      }
+
+      return {
+        status:
+          failCode === 'FACEBOOK_GROUP_SESSION_MISSING'
+            ? ('group_session_required' as const)
+            : ('group_publish_failed' as const),
+        error_code: failCode,
+        error: botResult.message,
+        ...baseResponse,
+      };
+    }
+
+    return {
+      status: isImmediate ? ('published' as const) : ('scheduled' as const),
+      ...baseResponse,
+    };
+  }
+
+  /**
+   * Fast synchronous check for whether a saved Edge Group Bot session file or FB_ADMIN_COOKIE exists.
+   * Never exposes local filesystem paths or secret cookie contents.
+   */
+  async getGroupBotSessionStatus(): Promise<GroupBotSessionStatus> {
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+    if (session.exists) {
+      return { isLoggedIn: true, sessionSource: 'file' };
+    }
+    if (process.env.FB_ADMIN_COOKIE?.trim()) {
+      return { isLoggedIn: true, sessionSource: 'cookie' };
+    }
+    return { isLoggedIn: false, sessionSource: 'none' };
+  }
+
+  /**
+   * Verifies live Group Bot session validity via Playwright Edge script (`check`).
+   */
+  async verifyGroupBotSession(): Promise<GroupBotSessionStatus> {
+    const syncStatus = await this.getGroupBotSessionStatus();
+    if (!syncStatus.isLoggedIn) {
+      return {
+        isLoggedIn: false,
+        sessionSource: 'none',
+        detail:
+          'Chưa phát hiện tệp phiên đăng nhập .fb-session.json hoặc FB_ADMIN_COOKIE. Hãy bấm "Mở Edge Đăng nhập Group Bot (1 lần)".',
+      };
+    }
+
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+    const runner = resolveGroupBotRunner(workerDir);
+
+    return await new Promise((resolve) => {
+      const child = spawn(runner.command, [...runner.prefixArgs, 'check'], {
+        cwd: workerDir,
+        env: { ...process.env, FB_SESSION_FILE: session.filePath },
+        shell: false,
+        windowsHide: true,
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          try {
+            child.kill();
+          } catch {
+            // ignore
+          }
+          resolve({
+            isLoggedIn: false,
+            sessionSource: syncStatus.sessionSource,
+            detail: 'Kiểm tra phiên Group Bot quá thời gian chờ (45s).',
+          });
+        }
+      }, 45_000);
+
+      child.stdout?.on('data', (d) => {
+        stdout += d.toString();
+      });
+      child.stderr?.on('data', (d) => {
+        stderr += d.toString();
+      });
+      child.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({
+          isLoggedIn: false,
+          sessionSource: syncStatus.sessionSource,
+          detail: `Không thể chạy trình kiểm tra Group Bot: ${err.message}`,
+        });
+      });
+      child.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const parsed = parseGroupBotResultLine(stdout);
+        const isLoggedIn = Boolean(parsed?.isLoggedIn ?? (code === 0));
+        const detail =
+          typeof parsed?.detail === 'string' && parsed.detail.trim()
+            ? parsed.detail.trim()
+            : isLoggedIn
+              ? 'Phiên đăng nhập Quản trị viên Facebook Group hợp lệ.'
+              : stderr.trim() || 'Phiên đăng nhập Facebook đã hết hạn. Vui lòng đăng nhập lại.';
+        resolve({
+          isLoggedIn,
+          sessionSource: isLoggedIn ? syncStatus.sessionSource : 'none',
+          detail,
+        });
+      });
+    });
+  }
+
+  /**
+   * Launches a single visible Microsoft Edge window so the admin can log into Facebook once
+   * and save `.fb-session.json` for automated Group posting.
+   */
+  async launchGroupBotLogin(workspaceId?: string): Promise<{ started: boolean; alreadyRunning?: boolean; message: string }> {
+    const groupUrl = workspaceId
+      ? (await this.ensureSchemaAndContext(workspaceId)).group_url
+      : 'https://www.facebook.com/groups/1134282109069209';
+
+    if (activeLoginChild && activeLoginChild.exitCode === null && !activeLoginChild.killed) {
+      return {
+        started: true,
+        alreadyRunning: true,
+        message:
+          'Cửa sổ Microsoft Edge đăng nhập Group Bot đang mở sẵn. Vui lòng hoàn tất đăng nhập Facebook trên cửa sổ đó rồi quay lại bấm "Kiểm tra phiên Group Bot".',
+      };
+    }
+
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+    const runner = resolveGroupBotRunner(workerDir);
+
+    return await new Promise((resolve) => {
+      let resolved = false;
+      let errBuf = '';
+      let outBuf = '';
+
+      const child = spawn(
+        runner.command,
+        [...runner.prefixArgs, 'login', '--group-url', groupUrl],
+        {
+          cwd: workerDir,
+          env: { ...process.env, FB_SESSION_FILE: session.filePath },
+          shell: false,
+          windowsHide: false,
+          detached: false,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      );
+
+      activeLoginChild = child;
+
+      child.stdout?.on('data', (chunk) => {
+        if (outBuf.length < 4096) outBuf += chunk.toString();
+      });
+      child.stderr?.on('data', (chunk) => {
+        if (errBuf.length < 4096) errBuf += chunk.toString();
+      });
+      child.stdout?.resume();
+      child.stderr?.resume();
+
+      const clearActive = () => {
+        if (activeLoginChild === child) activeLoginChild = null;
+      };
+
+      child.once('error', (err) => {
+        clearTimeout(startupTimer);
+        clearActive();
+        if (!resolved) {
+          resolved = true;
+          resolve({
+            started: false,
+            message: `Không mở được cửa sổ Microsoft Edge để đăng nhập Group Bot: ${err.message}`,
+          });
+        }
+      });
+
+      child.once('close', (code) => {
+        clearTimeout(startupTimer);
+        clearActive();
+        if (!resolved) {
+          resolved = true;
+          const parsed = parseGroupBotResultLine(outBuf);
+          if (code === 0 && parsed?.success) {
+            resolve({
+              started: true,
+              message: String(parsed.message || 'Đã lưu phiên đăng nhập Quản trị viên Group Bot thành công!'),
+            });
+          } else {
+            resolve({
+              started: false,
+              message: String(
+                parsed?.message || errBuf.trim() || outBuf.trim() || 'Cửa sổ đăng nhập Edge đóng trước khi hoàn tất.',
+              ),
+            });
+          }
+        }
+      });
+
+      const startupTimer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          resolve({
+            started: true,
+            message:
+              'Đã mở cửa sổ Microsoft Edge để đăng nhập Quản trị viên Facebook (1 lần duy nhất)! Hãy đăng nhập tài khoản Facebook của bạn, mở Group xong rồi quay lại đây bấm "Kiểm tra phiên Group Bot".',
+          });
+        }
+      }, 1200);
+    });
+  }
+
+  /**
+   * Automatically publish a discussion or fresh playbook article directly into the Facebook Group
+   * using the Administrator's browser session (Playwright Browser Bot).
+   */
+  async postToGroupViaBot(
+    workspaceId: string,
+    options: {
+      title: string;
+      body: string;
+      discussion_prompt?: string;
+      image_url?: string;
+      source_id?: string;
+      article_id?: string;
+      publishing_job_id?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    message: string;
+    groupUrl?: string;
+    postUrl?: string;
+    externalPostId?: string;
+    errorCode?: string;
+  }> {
+    const settings = await this.ensureSchemaAndContext(workspaceId);
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+
+    const upsertGroupPostRecord = async (record: {
+      status: 'published' | 'failed';
+      postUrl?: string;
+      errorMessage?: string;
+    }) => {
+      try {
+        await this.pool.query(
+          `INSERT INTO community_group_posts
+             (workspace_id, source_id, article_id, publishing_job_id, post_title, group_url, facebook_post_url, body_text, image_url, status, error_message, published_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+           ON CONFLICT (workspace_id, post_title)
+           DO UPDATE SET
+             source_id = COALESCE(EXCLUDED.source_id, community_group_posts.source_id),
+             article_id = COALESCE(EXCLUDED.article_id, community_group_posts.article_id),
+             publishing_job_id = COALESCE(EXCLUDED.publishing_job_id, community_group_posts.publishing_job_id),
+             group_url = EXCLUDED.group_url,
+             body_text = CASE WHEN EXCLUDED.body_text <> '' THEN EXCLUDED.body_text ELSE community_group_posts.body_text END,
+             image_url = COALESCE(EXCLUDED.image_url, community_group_posts.image_url),
+             status = CASE
+               WHEN EXCLUDED.status = 'published' THEN 'published'
+               WHEN community_group_posts.status = 'published' THEN 'published'
+               ELSE 'failed'
+             END,
+             facebook_post_url = COALESCE(EXCLUDED.facebook_post_url, community_group_posts.facebook_post_url),
+             error_message = CASE
+               WHEN EXCLUDED.status = 'published' THEN NULL
+               WHEN community_group_posts.status = 'published' THEN NULL
+               ELSE EXCLUDED.error_message
+             END,
+             published_at = CASE
+               WHEN EXCLUDED.status = 'published' THEN COALESCE(EXCLUDED.published_at, NOW())
+               ELSE community_group_posts.published_at
+             END,
+             updated_at = NOW()`,
+          [
+            workspaceId,
+            options.source_id ?? null,
+            options.article_id ?? null,
+            options.publishing_job_id ?? null,
+            options.title,
+            settings.group_url,
+            record.postUrl ?? null,
+            options.body ?? '',
+            options.image_url ?? null,
+            record.status,
+            record.errorMessage ?? null,
+            record.status === 'published' ? new Date().toISOString() : null,
+          ],
+        );
+      } catch {
+        // Ignore if mock DB omits table
+      }
+    };
+
+    if (!hasSession) {
+      const msg =
+        'FACEBOOK_GROUP_SESSION_MISSING: Chưa có phiên đăng nhập Quản trị viên Facebook Group (.fb-session.json). Hãy bấm "Mở Edge Đăng nhập Group Bot (1 lần)" hoặc dùng "Copy & Mở Group" để dán thủ công.';
+      await upsertGroupPostRecord({ status: 'failed', errorMessage: msg });
+      return {
+        success: false,
+        errorCode: 'FACEBOOK_GROUP_SESSION_MISSING',
+        groupUrl: settings.group_url,
+        message: msg,
+      };
+    }
+
+    const runner = resolveGroupBotRunner(workerDir);
+    const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-post-${randomUUID()}.json`);
+    fs.writeFileSync(
+      tmpPayloadFile,
+      JSON.stringify({
+        groupUrl: settings.group_url,
+        title: options.title,
+        body: options.body,
+        discussionPrompt: options.discussion_prompt,
+        imageUrl: options.image_url,
+        headless: true,
+      }),
+      'utf8',
+    );
+
+    try {
+      const botOutput = await new Promise<{
+        code: number | null;
+        stdout: string;
+        stderr: string;
+        spawnErr?: string;
+        timedOut?: boolean;
+      }>((resolve) => {
+        const child = spawn(
+          runner.command,
+          [...runner.prefixArgs, 'post', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
+          {
+            cwd: workerDir,
+            env: { ...process.env, FB_SESSION_FILE: session.filePath },
+            shell: false,
+            windowsHide: true,
+          },
+        );
+
+        let stdout = '';
+        let stderr = '';
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            try {
+              child.kill();
+            } catch {
+              // ignore
+            }
+            resolve({ code: null, stdout, stderr, timedOut: true });
+          }
+        }, 120_000);
+
+        child.stdout?.on('data', (d) => {
+          stdout += d.toString();
+        });
+        child.stderr?.on('data', (d) => {
+          stderr += d.toString();
+        });
+        child.on('error', (err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({ code: 1, stdout, stderr, spawnErr: err.message });
+        });
+        child.on('close', (code) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({ code, stdout, stderr });
+        });
+      });
+
+      const parsed = parseGroupBotResultLine(botOutput.stdout);
+      const isOk = Boolean(parsed?.success === true || (botOutput.code === 0 && !botOutput.spawnErr && !botOutput.timedOut));
+
+      if (isOk) {
+        const postUrl = typeof parsed?.postUrl === 'string' && parsed.postUrl ? parsed.postUrl : settings.group_url;
+        const externalPostId = typeof parsed?.externalPostId === 'string' ? parsed.externalPostId : undefined;
+        const message =
+          typeof parsed?.message === 'string' && parsed.message
+            ? parsed.message
+            : `Bot Quản trị viên đã đăng bài thành công vào Group Facebook "${settings.community_name}"!`;
+        await upsertGroupPostRecord({ status: 'published', postUrl });
+        return {
+          success: true,
+          groupUrl: settings.group_url,
+          postUrl,
+          externalPostId,
+          message,
+        };
+      }
+
+      const rawError =
+        botOutput.timedOut
+          ? 'Group Bot đăng bài quá thời gian chờ (120s).'
+          : botOutput.spawnErr ||
+            (typeof parsed?.message === 'string' ? parsed.message : '') ||
+            botOutput.stderr.trim() ||
+            botOutput.stdout.trim() ||
+            'Quá trình đăng bài vào Group gặp sự cố.';
+      const errorCode =
+        typeof parsed?.errorCode === 'string' && parsed.errorCode
+          ? parsed.errorCode
+          : /SESSION_MISSING|hết hạn|expired|login/i.test(rawError)
+            ? 'FACEBOOK_GROUP_SESSION_MISSING'
+            : 'FACEBOOK_GROUP_PUBLISH_FAILED';
+
+      await upsertGroupPostRecord({ status: 'failed', errorMessage: `${errorCode}: ${rawError}` });
+      return {
+        success: false,
+        errorCode,
+        groupUrl: settings.group_url,
+        message: rawError,
+      };
+    } finally {
+      try {
+        if (fs.existsSync(tmpPayloadFile)) fs.unlinkSync(tmpPayloadFile);
+      } catch {
+        // Ignore cleanup failure
+      }
+    }
   }
 }
 

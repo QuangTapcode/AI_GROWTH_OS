@@ -14,13 +14,15 @@ type Props = {
   jobs: PublishingJob[];
   sitePosts: SitePost[];
   facebook: { connected: boolean; reason: string | null };
+  facebookGroup?: { connected: boolean; reason: string | null };
   websiteAutoPublish: boolean;
 };
 
 const MAX_POSTS = 8;
 const FACEBOOK_REASONS: Record<string, string> = {
   FACEBOOK_PAGE_PERMISSION_MISSING: "Meta đang chặn hoặc token Page thiếu quyền đăng bài",
-  INTEGRATION_NOT_CONNECTED: "chưa kết nối Facebook Page",
+  FACEBOOK_GROUP_SESSION_MISSING: "chưa đăng nhập Group Bot (.fb-session.json)",
+  INTEGRATION_NOT_CONNECTED: "chưa kết nối kênh Facebook",
 };
 
 const obj = (value: unknown): Record<string, unknown> =>
@@ -63,12 +65,17 @@ function publishState(artifact: ContentArtifact, props: Props): { label: string;
       : { label: "Chưa đăng: ô \"Tự đăng bài SEO lên website\" đang tắt. Đây là bản nháp để xem.", tone: "bg-amber-50 text-amber-900" };
   }
   const job = props.jobs.filter((j) => j.artifact_id === artifact.id).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  if (job?.status === "published") return { label: `Đã đăng Facebook${job.external_post_id ? ` · ${job.external_post_id}` : ""}`, tone: "bg-emerald-50 text-emerald-800" };
-  if (job?.status === "failed") return { label: `Đăng Facebook lỗi: ${job.error_message ?? "không rõ"}. Bản nháp vẫn dùng được để đăng tay.`, tone: "bg-rose-50 text-rose-800" };
-  if (job) return { label: "Đang chờ đăng Facebook", tone: "bg-blue-50 text-blue-800" };
+  const isGroupJob = job?.platform_name === "facebook_group";
+  const targetLabel = isGroupJob ? "Facebook Group" : "Facebook";
+  if (job?.status === "published") return { label: `Đã đăng ${targetLabel}${job.external_post_id ? ` · ${job.external_post_id}` : ""}`, tone: "bg-emerald-50 text-emerald-800" };
+  if (job?.status === "failed") return { label: `Đăng ${targetLabel} lỗi: ${job.error_message ?? "không rõ"}. Bản nháp vẫn dùng được để đăng tay.`, tone: "bg-rose-50 text-rose-800" };
+  if (job) return { label: `Đang chờ đăng ${targetLabel}`, tone: "bg-blue-50 text-blue-800" };
+  if (props.facebookGroup?.connected) {
+    return { label: "Chưa đăng Facebook Group", tone: "bg-slate-100 text-slate-700" };
+  }
   return props.facebook.connected
     ? { label: "Chưa đăng Facebook", tone: "bg-slate-100 text-slate-700" }
-    : { label: `Chưa đăng: ${FACEBOOK_REASONS[props.facebook.reason ?? ""] ?? "Facebook chưa kết nối được"}. Đây là bản nháp để xem và đăng tay.`, tone: "bg-amber-50 text-amber-900" };
+    : { label: `Chưa đăng: ${FACEBOOK_REASONS[props.facebookGroup?.reason ?? props.facebook.reason ?? ""] ?? "Facebook Group / Page chưa kết nối được"}. Đây là bản nháp để xem và đăng tay.`, tone: "bg-amber-50 text-amber-900" };
 }
 
 function TikTokScript({ script }: { script: Record<string, unknown> }) {

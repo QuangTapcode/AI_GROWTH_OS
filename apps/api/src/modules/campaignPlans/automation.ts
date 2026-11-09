@@ -102,6 +102,69 @@ async function articleLink(db: import("pg").PoolClient, workspaceId: string, row
   return `${siteBase}/posts/${article.slug}?${utm}`;
 }
 
+type FacebookPublishTarget = {
+  platform: "facebook" | "facebook_group";
+  provider: "facebook_page" | "facebook_group";
+  groupUrl?: string;
+  communityName?: string;
+};
+
+async function resolveFacebookTargets(
+  db: { query: Pool["query"] },
+  workspaceId: string,
+): Promise<FacebookPublishTarget[]> {
+  let publishTarget: string | null = null;
+  let groupUrl: string | undefined;
+  let communityName: string | undefined;
+  try {
+    const row = (
+      await db.query<{ publish_target?: string; group_url?: string; community_name?: string }>(
+        "SELECT publish_target, group_url, community_name FROM community_hub_settings WHERE workspace_id=$1 LIMIT 1",
+        [workspaceId],
+      )
+    ).rows[0];
+    if (row) {
+      publishTarget = row.publish_target ?? "group";
+      groupUrl = row.group_url;
+      communityName = row.community_name;
+    }
+  } catch {
+    // community_hub_settings may not exist in isolated DB fixtures
+  }
+
+  if (publishTarget === "both") {
+    return [
+      { platform: "facebook_group", provider: "facebook_group", groupUrl, communityName },
+      { platform: "facebook", provider: "facebook_page" },
+    ];
+  }
+  if (publishTarget === "fanpage") {
+    return [{ platform: "facebook", provider: "facebook_page" }];
+  }
+  if (publishTarget === "group") {
+    return [{ platform: "facebook_group", provider: "facebook_group", groupUrl, communityName }];
+  }
+
+  // Fallback when community_hub_settings row has not been created yet: prefer facebook_group if configured
+  const groupChannel = (
+    await db.query<{ channel_identifier: string | null; display_name: string | null }>(
+      "SELECT channel_identifier, display_name FROM channels WHERE workspace_id=$1 AND platform_name='facebook_group' ORDER BY created_at LIMIT 1",
+      [workspaceId],
+    )
+  ).rows[0];
+  if (groupChannel) {
+    return [
+      {
+        platform: "facebook_group",
+        provider: "facebook_group",
+        groupUrl: groupChannel.channel_identifier ?? undefined,
+        communityName: groupChannel.display_name ?? undefined,
+      },
+    ];
+  }
+  return [{ platform: "facebook", provider: "facebook_page" }];
+}
+
 async function scheduleFacebookArtifact(
   db: import("pg").PoolClient,
   workspaceId: string,
@@ -109,21 +172,35 @@ async function scheduleFacebookArtifact(
   row: AutoArtifactRow,
   approvalId: string,
   mode: "live" | "manual",
+  targetPlatform: "facebook" | "facebook_group" = "facebook",
+  groupInfo?: { groupUrl?: string; communityName?: string },
 ) {
   if (row.role !== "content" || !row.payload?.result) return;
-  // Auto-publish never creates a misleading manual job. The Facebook
-  // connector must be verified before an automated post is enqueued.
+  // Auto-publish never creates a misleading manual job. The connector
+  // must be verified before an automated post is enqueued.
   if (mode !== "live") return;
-  const channel = (await db.query(
-    "SELECT id FROM channels WHERE workspace_id=$1 AND platform_name='facebook' ORDER BY created_at LIMIT 1",
-    [workspaceId],
+  let channel = (await db.query(
+    "SELECT id FROM channels WHERE workspace_id=$1 AND platform_name=$2 ORDER BY created_at LIMIT 1",
+    [workspaceId, targetPlatform],
   )).rows[0];
+  if (!channel && targetPlatform === "facebook_group") {
+    channel = (await db.query(
+      `INSERT INTO channels (workspace_id, platform_name, display_name, channel_identifier)
+       VALUES ($1, 'facebook_group', $2, $3) RETURNING id`,
+      [
+        workspaceId,
+        groupInfo?.communityName || "Cộng đồng Du lịch & Sống tại Việt Nam",
+        groupInfo?.groupUrl || "https://www.facebook.com/groups/1134282109069209",
+      ],
+    )).rows[0];
+  }
   if (!channel) return;
   const result = row.payload.result;
   // Prefer the Facebook-specific post (hook, body, question, exact CTA) over the generic caption.
   const facebook = result.facebook as { text?: unknown } | null | undefined;
   const body = typeof facebook?.text === "string" ? facebook.text : typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
-  const utmUrl = await articleLink(db, workspaceId, row);
+  const resolvedLink = await articleLink(db, workspaceId, row);
+  const utmUrl = targetPlatform === "facebook_group" ? (resolvedLink ?? groupInfo?.groupUrl ?? "https://www.facebook.com/groups/1134282109069209") : resolvedLink;
   const content = (await db.query<{ id: string }>(
     `INSERT INTO contents (workspace_id,title,body_markdown,type,status,created_by,approved_by,current_version,content_hash,artifact_id)
      VALUES($1,$2,$3,'social_post','approved','ai',$4,$5,$6,$7)
@@ -134,7 +211,7 @@ async function scheduleFacebookArtifact(
     [workspaceId, row.result_ref],
   )).rows[0];
   if (!content) return;
-  // One automated attempt per artifact: a failed post (e.g. missing Page permission) is
+  // One automated attempt per artifact per channel: a failed post is
   // retried by a person, never re-created on every tick.
   const existing = (await db.query(
     "SELECT id FROM publishing_jobs WHERE workspace_id=$1 AND artifact_id=$2 AND channel_id=$3",
@@ -166,41 +243,46 @@ async function scheduleApprovedFacebookArtifacts(
   actorId: string,
   contextSnapshotId: string,
 ) {
-  const status = await getWorkspaceConnectionStatus(workspaceId, "facebook_page");
-  if (status.status !== "connected") return 0;
-  const rows = (await pool.query<AutoArtifactRow & { approval_id: string }>(
-    `SELECT t.id AS task_id,t.role,t.campaign_id,t.status,t.result_ref,
-            a.version,a.content_hash,a.title,a.artifact_type,a.payload,a.evidence,
-            ap.id AS approval_id
-       FROM workflow_tasks t
-       JOIN content_artifacts a ON a.id=t.result_ref AND a.workspace_id=t.workspace_id
-       JOIN approvals ap ON ap.workspace_id=t.workspace_id
-          AND ap.target_type='artifact' AND ap.target_id=a.id
-          AND ap.target_version=a.version AND ap.target_hash=a.content_hash
-          AND ap.status='approved'
-      WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2
-        AND t.role='content' AND t.status='completed'
-        AND NOT EXISTS (
-          SELECT 1 FROM publishing_jobs pj
-           WHERE pj.workspace_id=t.workspace_id AND pj.artifact_id=a.id
-        )
-      ORDER BY t.updated_at DESC`,
-    [workspaceId, contextSnapshotId],
-  )).rows;
+  const targets = await resolveFacebookTargets(pool, workspaceId);
   let scheduled = 0;
-  for (const row of rows) {
-    if (!isAutoApprovable(row)) continue;
-    const db = await pool.connect();
-    try {
-      await db.query("BEGIN");
-      await scheduleFacebookArtifact(db, workspaceId, actorId, row, row.approval_id, "live");
-      await db.query("COMMIT");
-      scheduled++;
-    } catch (error) {
-      await db.query("ROLLBACK");
-      throw error;
-    } finally {
-      db.release();
+  for (const target of targets) {
+    const status = await getWorkspaceConnectionStatus(workspaceId, target.provider);
+    if (status.status !== "connected") continue;
+    const rows = (await pool.query<AutoArtifactRow & { approval_id: string }>(
+      `SELECT t.id AS task_id,t.role,t.campaign_id,t.status,t.result_ref,
+              a.version,a.content_hash,a.title,a.artifact_type,a.payload,a.evidence,
+              ap.id AS approval_id
+         FROM workflow_tasks t
+         JOIN content_artifacts a ON a.id=t.result_ref AND a.workspace_id=t.workspace_id
+         JOIN approvals ap ON ap.workspace_id=t.workspace_id
+            AND ap.target_type='artifact' AND ap.target_id=a.id
+            AND ap.target_version=a.version AND ap.target_hash=a.content_hash
+            AND ap.status='approved'
+        WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2
+          AND t.role='content' AND t.status='completed'
+          AND NOT EXISTS (
+            SELECT 1 FROM publishing_jobs pj
+             JOIN channels ch ON ch.id=pj.channel_id
+             WHERE pj.workspace_id=t.workspace_id AND pj.artifact_id=a.id
+               AND ch.platform_name=$3
+          )
+        ORDER BY t.updated_at DESC`,
+      [workspaceId, contextSnapshotId, target.platform],
+    )).rows;
+    for (const row of rows) {
+      if (!isAutoApprovable(row)) continue;
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        await scheduleFacebookArtifact(db, workspaceId, actorId, row, row.approval_id, "live", target.platform, target);
+        await db.query("COMMIT");
+        scheduled++;
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
+      }
     }
   }
   return scheduled;
@@ -220,8 +302,12 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
   )).rows;
   const warnings: string[] = [];
   if (!rows.length) return warnings;
-  const fbStatus = publishFacebook ? await getWorkspaceConnectionStatus(workspaceId, "facebook_page") : null;
-  const mode = fbStatus?.status === "connected" ? "live" : "manual";
+  const targets = publishFacebook ? await resolveFacebookTargets(pool, workspaceId) : [];
+  const targetModes: Array<{ target: FacebookPublishTarget; mode: "live" | "manual" }> = [];
+  for (const target of targets) {
+    const status = await getWorkspaceConnectionStatus(workspaceId, target.provider);
+    targetModes.push({ target, mode: status.status === "connected" ? "live" : "manual" });
+  }
   for (const row of rows) {
     if (!isAutoApprovable(row)) continue;
     const db = await pool.connect();
@@ -246,7 +332,11 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
       if (!hasAutomationHandoff) {
         await db.query("UPDATE workflow_tasks SET status='completed',completed_at=now(),updated_at=now(),error_details=NULL WHERE id=$1", [row.task_id]);
         await queueReadyChildren(db, workspaceId, row.campaign_id);
-        if (publishFacebook && row.role === "content") await scheduleFacebookArtifact(db, workspaceId, actorId, row, approvalId, mode);
+        if (publishFacebook && row.role === "content") {
+          for (const { target, mode } of targetModes) {
+            await scheduleFacebookArtifact(db, workspaceId, actorId, row, approvalId, mode, target.platform, target);
+          }
+        }
         // The owner opted into publishing approved SEO articles to the workspace's own site.
         if (publishWebsite && row.role === "seo") {
           // A refusal concerns the website only: the approved article still feeds Content, and the scheduler must not stop.

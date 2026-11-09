@@ -17,6 +17,7 @@ import * as repo from "./repository";
 const PROVIDER_BY_PLATFORM: Partial<Record<string, IntegrationProvider>> = {
   website: "website_cms",
   facebook: "facebook_page",
+  facebook_group: "facebook_group",
   tiktok: "tiktok",
   instagram: "instagram_business",
 };

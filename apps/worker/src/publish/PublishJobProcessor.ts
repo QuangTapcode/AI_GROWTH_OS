@@ -19,7 +19,7 @@ export interface PublishContext {
   jobId: string;
   workspaceId: string;
   contentId: string;
-  channel: 'Website' | 'Facebook' | 'TikTok' | 'Instagram' | 'Newsletter';
+  channel: 'Website' | 'Facebook' | 'FacebookGroup' | 'TikTok' | 'Instagram' | 'Newsletter';
   scheduledAt: Date;
   idempotencyKey: string;
   bodyMarkdown: string;

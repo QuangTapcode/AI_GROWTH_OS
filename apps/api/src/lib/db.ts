@@ -35,16 +35,45 @@ function resolveConnectionString(): string {
 
 const connectionString = resolveConnectionString();
 
-const pool = new Pool({
-  connectionString,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+const globalForPg = globalThis as typeof globalThis & {
+  __agosPgPool?: Pool;
+  __agosPgConnStr?: string;
+};
 
-pool.on("error", (err) => {
-  console.error("Unexpected error on idle PostgreSQL client", err);
-});
+const pool =
+  globalForPg.__agosPgPool && globalForPg.__agosPgConnStr === connectionString
+    ? globalForPg.__agosPgPool
+    : new Pool({
+        connectionString,
+        max: 25,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 15000,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+      });
+
+if (!globalForPg.__agosPgPool || globalForPg.__agosPgConnStr !== connectionString) {
+  globalForPg.__agosPgPool = pool;
+  globalForPg.__agosPgConnStr = connectionString;
+  pool.on("error", (err) => {
+    console.error("Unexpected error on idle PostgreSQL client", err);
+  });
+}
+
+function isTransientConnectionError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string; cause?: { code?: string; message?: string } } | undefined;
+  const code = e?.code || e?.cause?.code || "";
+  const msg = `${e?.message ?? ""} ${e?.cause?.message ?? ""}`;
+  return (
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    code === "EPIPE" ||
+    code === "ECONNREFUSED" ||
+    code === "57P01" ||
+    msg.includes("Connection terminated") ||
+    msg.includes("Client has encountered a connection error")
+  );
+}
 
 /**
  * Execute a parameterized SQL query
@@ -54,7 +83,15 @@ export async function query<T extends QueryResultRow = any>(
   params?: any[]
 ): Promise<QueryResult<T>> {
   const start = Date.now();
-  const res = await pool.query<T>(text, params);
+  let res: QueryResult<T>;
+  try {
+    res = await pool.query<T>(text, params);
+  } catch (err) {
+    if (!isTransientConnectionError(err)) throw err;
+    console.warn("[db] transient connection error, retrying query once:", (err as Error)?.message);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    res = await pool.query<T>(text, params);
+  }
   const duration = Date.now() - start;
 
   if (process.env.NODE_ENV === "development") {

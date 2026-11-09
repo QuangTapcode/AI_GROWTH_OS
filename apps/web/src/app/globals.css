@@ -22,6 +22,88 @@
   --ink: #102F70;
   --muted: #63748B;
   --accent: #2563EB;
+  --brand-color: #1D4ED8;
+}
+
+.visually-hidden {
+  position: absolute;
+  clip-path: inset(50%);
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  white-space: nowrap;
+}
+
+.community-form input,
+.community-form select,
+.community-form textarea {
+  accent-color: var(--brand-color);
+}
+
+.community-form input:focus-visible,
+.community-form select:focus-visible,
+.community-form textarea:focus-visible,
+.community-form button:focus-visible {
+  outline: 3px solid var(--brand-color);
+  outline-offset: 2px;
+}
+
+.community-radio {
+  accent-color: var(--brand-color);
+  width: 1.125rem;
+  height: 1.125rem;
+  min-width: 18px;
+  min-height: 18px;
+  cursor: pointer;
+}
+
+@supports not (accent-color: #1D4ED8) {
+  .community-radio {
+    position: absolute;
+    clip-path: inset(50%);
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    white-space: nowrap;
+  }
+
+  .community-radio + .community-radio-text {
+    position: relative;
+    padding-left: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .community-radio + .community-radio-text::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    border: 2px solid #94a3b8;
+    background: #ffffff;
+    box-sizing: border-box;
+  }
+
+  .community-radio:checked + .community-radio-text::before {
+    border-color: var(--brand-color);
+    background: var(--brand-color);
+    box-shadow: inset 0 0 0 3px #ffffff;
+  }
+
+  .community-radio:focus-visible + .community-radio-text::before {
+    outline: 3px solid var(--brand-color);
+    outline-offset: 2px;
+  }
 }
 
 * { box-sizing: border-box; }

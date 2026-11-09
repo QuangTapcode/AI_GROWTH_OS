@@ -45,6 +45,16 @@ type AutomationSnapshot = {
   observed_at: string;
 };
 
+type SecondaryLoadKey =
+  | "tasks"
+  | "artifacts"
+  | "approvals"
+  | "exceptions"
+  | "integrations"
+  | "businessProfile"
+  | "sources"
+  | "context";
+
 type AgentData = {
   currentContext: { snapshot_id: string; approved_sources: { source_id: string; version: number }[] } | null;
   automation: AutomationSnapshot;
@@ -56,6 +66,7 @@ type AgentData = {
   businessProfile: BusinessProfile | null;
   sources: SourceSummary[];
   warnings: string[];
+  failedLoads: Partial<Record<SecondaryLoadKey, string>>;
 };
 
 type PerformanceReport = {
@@ -150,12 +161,12 @@ const AGENTS: Record<RoleId, AgentConfig> = {
   },
   community: {
     name: "Community",
-    subtitle: "Phản hồi câu hỏi và đề xuất lead",
+    subtitle: "Điều phối Cộng đồng Facebook Group & phản hồi RAG",
     operations: ["community.response"],
-    steps: ["Nhận câu hỏi từ kênh đã kết nối", "Tìm quote approved phù hợp", "Tạo draft reply, escalation hoặc lead proposal"],
-    inputs: ["Business profile", "Knowledge context", "Câu hỏi/comment", "Publication/lead context nếu có"],
-    outputs: ["Reply draft có citation", "Escalation reason khi thiếu dữ kiện", "Lead proposal không chứa raw contact ngoài phạm vi"],
-    improvements: ["Kết nối Facebook Page để nhận comment thật", "Duyệt nguồn trước khi trả lời", "Escalate câu hỏi thiếu facts thay vì đoán"],
+    steps: ["Lên lịch & đăng bài trực tiếp vào Facebook Group Cộng đồng", "Nhận câu hỏi từ Messenger/bình luận và tìm quote approved phù hợp", "Tạo draft reply có citation, escalation hoặc lời mời vào Group"],
+    inputs: ["Business profile", "Knowledge context", "Cấu hình Group URL & phiên Group Bot", "Câu hỏi/comment nếu có"],
+    outputs: ["Bài đăng & lịch Group Cộng đồng", "Reply draft có citation", "Escalation reason khi thiếu dữ kiện", "Lead proposal không chứa raw contact ngoài phạm vi"],
+    improvements: ["Đăng nhập 1 lần Microsoft Edge cho Group Bot để tự động đăng vào Group", "Duyệt nguồn trước khi trả lời", "Escalate câu hỏi thiếu facts thay vì đoán"],
   },
   performance: {
     name: "Performance",
@@ -206,26 +217,72 @@ function provider(integrations: IntegrationProviderStatus[], names: string[]) {
   return integrations.find((item) => names.includes(item.provider.toLowerCase()));
 }
 
+function describeLoadError(reason: unknown): string {
+  const err = reason as { status?: number; code?: string; message?: string } | undefined;
+  const prefix = err?.status ? `HTTP ${err.status}` : err?.code || "Lỗi mạng";
+  return err?.message ? `${prefix}: ${err.message}` : prefix;
+}
+
+async function withTransientGetRetry<T>(fn: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const status = (err as { status?: number } | undefined)?.status;
+    if (signal.aborted || (status !== 500 && status !== 502 && status !== 503 && status !== 0)) {
+      throw err;
+    }
+    await new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(resolve, 400);
+      signal.addEventListener(
+        "abort",
+        () => {
+          window.clearTimeout(timer);
+          reject(new DOMException("Aborted", "AbortError"));
+        },
+        { once: true }
+      );
+    });
+    return fn();
+  }
+}
+
 async function loadAgentData(workspaceId: string, signal: AbortSignal): Promise<AgentData> {
   const requests = await Promise.allSettled([
-    apiRequest<AutomationSnapshot>(`/workspaces/${workspaceId}/automation`, { signal }),
-    growthApi.listTasks(workspaceId, signal),
-    growthApi.listArtifacts(workspaceId, signal),
-    growthApi.listApprovals(workspaceId, signal),
-    growthApi.listExceptions(workspaceId, signal),
-    growthApi.getIntegrations(workspaceId, signal),
-    growthApi.getBusinessProfile(workspaceId, signal),
-    apiRequest<{ items: SourceSummary[] }>(`/workspaces/${workspaceId}/sources?status=approved`, { signal }),
-    apiRequest<{ context: AgentData["currentContext"] }>(`/workspaces/${workspaceId}/knowledge-contexts`, { signal }),
+    withTransientGetRetry(() => apiRequest<AutomationSnapshot>(`/workspaces/${workspaceId}/automation`, { signal }), signal),
+    withTransientGetRetry(() => growthApi.listTasks(workspaceId, signal), signal),
+    withTransientGetRetry(() => growthApi.listArtifacts(workspaceId, signal), signal),
+    withTransientGetRetry(() => growthApi.listApprovals(workspaceId, signal), signal),
+    withTransientGetRetry(() => growthApi.listExceptions(workspaceId, signal), signal),
+    withTransientGetRetry(() => growthApi.getIntegrations(workspaceId, signal), signal),
+    withTransientGetRetry(() => growthApi.getBusinessProfile(workspaceId, signal), signal),
+    withTransientGetRetry(() => apiRequest<{ items: SourceSummary[] }>(`/workspaces/${workspaceId}/sources?status=approved`, { signal }), signal),
+    withTransientGetRetry(() => apiRequest<{ context: AgentData["currentContext"] }>(`/workspaces/${workspaceId}/knowledge-contexts`, { signal }), signal),
   ]);
 
   const read = <T,>(index: number, fallback: T): T => {
     const result = requests[index];
     return result?.status === "fulfilled" ? result.value as T : fallback;
   };
-  const warnings = requests
-    .map((result, index) => result.status === "rejected" ? `Không tải được nguồn dữ liệu #${index + 1}` : null)
-    .filter((value): value is string => Boolean(value));
+  const secondaryEntries: Array<{ idx: number; key: SecondaryLoadKey; label: string }> = [
+    { idx: 1, key: "tasks", label: "tasks" },
+    { idx: 2, key: "artifacts", label: "artifacts" },
+    { idx: 3, key: "approvals", label: "approvals" },
+    { idx: 4, key: "exceptions", label: "exceptions" },
+    { idx: 5, key: "integrations", label: "integrations" },
+    { idx: 6, key: "businessProfile", label: "business-profile" },
+    { idx: 7, key: "sources", label: "sources" },
+    { idx: 8, key: "context", label: "knowledge-contexts" },
+  ];
+  const failedLoads: Partial<Record<SecondaryLoadKey, string>> = {};
+  const warnings: string[] = [];
+  for (const entry of secondaryEntries) {
+    const res = requests[entry.idx];
+    if (res?.status === "rejected") {
+      const msg = describeLoadError(res.reason);
+      failedLoads[entry.key] = msg;
+      warnings.push(`${entry.label} (${msg})`);
+    }
+  }
   const automation = read<AutomationSnapshot | null>(0, null);
   if (!automation) throw requests[0].status === "rejected" ? requests[0].reason : new Error("Automation data is unavailable");
   return {
@@ -239,6 +296,7 @@ async function loadAgentData(workspaceId: string, signal: AbortSignal): Promise<
     businessProfile: read<BusinessProfile | null>(6, null),
     sources: read<{ items: SourceSummary[] }>(7, { items: [] }).items,
     warnings,
+    failedLoads,
   };
 }
 
@@ -331,6 +389,7 @@ function AgentPage({ role }: { role: RoleId }) {
   const roleExceptions = data?.exceptions.filter((item) => !item.source_task_id || roleTasks.some((task) => task.id === item.source_task_id)) ?? [];
   const contextId = data?.currentContext?.snapshot_id ?? null;
   const approvedSources = data?.sources.length ?? 0;
+  const facebookGroup = provider(data?.integrations ?? [], ["facebook_group"]);
   const facebook = provider(data?.integrations ?? [], ["facebook", "meta", "facebook_page"]);
   const tiktok = provider(data?.integrations ?? [], ["tiktok"]);
   const ga4 = provider(data?.integrations ?? [], ["ga4", "google_analytics"]);
@@ -340,15 +399,67 @@ function AgentPage({ role }: { role: RoleId }) {
   const artifactCitations = latestArtifact ? latestArtifact.evidence.length + payloadArray(latestArtifact.payload, "citations").length : 0;
   const approvedAsset = latestArtifact && payloadArray(latestArtifact.payload, "image_assets").some((asset) => typeof asset === "object" && asset !== null && (asset as Record<string, unknown>).status === "approved");
 
+  const integrationsFailed = data?.failedLoads.integrations;
+  const businessProfileFailed = data?.failedLoads.businessProfile;
+  const knowledgeFailed = [data?.failedLoads.context, data?.failedLoads.sources].filter(Boolean).join("; ");
+
   const requirements: Requirement[] = data ? [
-    { label: "API kết nối", detail: `Đọc dữ liệu lúc ${formatDate(data.automation.observed_at)}. Kết nối API không xác nhận worker đang chạy.`, state: "ready" },
-    { label: "Business profile", detail: data.businessProfile ? `${data.businessProfile.company_name}, version ${data.businessProfile.version}.` : "Chưa có business profile cho workspace.", state: data.businessProfile ? "ready" : "missing" },
-    { label: "Knowledge context và source approved", detail: contextId ? `${approvedSources} source approved; context ${contextId.slice(0, 12)}…` : `${approvedSources} source approved nhưng task/artifact chưa có context_snapshot_id.`, state: contextId && approvedSources > 0 ? "ready" : "missing" },
+    {
+      label: "API kết nối",
+      detail: data.warnings.length > 0
+        ? `Đọc dữ liệu lúc ${formatDate(data.automation.observed_at)}, nhưng ${data.warnings.length} API phụ bị lỗi (${data.warnings.join("; ")}). Hãy kiểm tra server API (:4000) và bấm Làm mới.`
+        : `Đọc dữ liệu lúc ${formatDate(data.automation.observed_at)}. Kết nối API không xác nhận worker đang chạy.`,
+      state: data.warnings.length > 0 ? "warning" : "ready",
+    },
+    {
+      label: "Business profile",
+      detail: businessProfileFailed
+        ? `Không kiểm tra được Business profile do API tạm lỗi (${businessProfileFailed}). Hãy bấm Làm mới để tải lại.`
+        : data.businessProfile
+          ? `${data.businessProfile.company_name}, version ${data.businessProfile.version}.`
+          : "Chưa có business profile cho workspace.",
+      state: businessProfileFailed ? "warning" : data.businessProfile ? "ready" : "missing",
+    },
+    {
+      label: "Knowledge context và source approved",
+      detail: knowledgeFailed
+        ? `Không kiểm tra được Knowledge context / Source approved do API tạm lỗi (${knowledgeFailed}). Hãy bấm Làm mới để tải lại.`
+        : contextId
+          ? `${approvedSources} source approved; context ${contextId.slice(0, 12)}…`
+          : `${approvedSources} source approved nhưng task/artifact chưa có context_snapshot_id.`,
+      state: knowledgeFailed ? "warning" : contextId && approvedSources > 0 ? "ready" : "missing",
+    },
     ...(["research", "performance", "community"].includes(role) ? [] : [{ label: "Parent artifact hợp lệ", detail: parentArtifact ? `${parentArtifact.role}/${parentArtifact.operation}, version ${parentArtifact.version}.` : "Chưa có artifact upstream cùng workspace để bàn giao.", state: parentArtifact ? "ready" as CheckState : "missing" as CheckState }]),
-    ...((role === "content" || role === "community") ? [{ label: "Facebook Page", detail: facebook?.status === "connected" ? "Đã kết nối. Quyền và nội dung được kiểm tra lại trước khi đăng." : role === "content" ? "Chưa kết nối hoặc chưa cấp quyền Facebook Page. Vẫn có thể tạo bản nháp; cần kết nối và cấp quyền trước khi đăng Facebook." : "Chưa kết nối hoặc chưa cấp quyền Facebook Page. Chưa thể nhận comment tự động; vẫn có thể soạn phản hồi từ câu hỏi nhập thủ công.", state: facebook?.status === "connected" ? "ready" as CheckState : "warning" as CheckState, ...(facebook?.status !== "connected" ? { action: { href: "/workspace-integrations", label: "Cấu hình kết nối Facebook" } } : {}) } ] : []),
+    ...(role === "community" ? [{
+      label: "Facebook Group Bot (Đích đăng chính)",
+      detail: integrationsFailed
+        ? `Không kiểm tra được trạng thái Group Bot vì API /integrations tạm lỗi (${integrationsFailed}).`
+        : facebookGroup?.status === "connected"
+          ? `Đã sẵn sàng phiên Quản trị viên cho Group Cộng đồng (ID: ${facebookGroup.property_ref ?? "1134282109069209"}). Lịch 09:00 sáng và nút đăng ngay sẽ đăng trực tiếp lên Group.`
+          : "Chưa đăng nhập phiên Quản trị viên Group Bot (.fb-session.json). Việc đăng Group hoàn toàn ĐỘC LẬP với key Fanpage — hãy bấm \"🌐 Mở Edge Đăng nhập Group Bot (1 lần)\" ở khung trên để lưu phiên.",
+      state: !integrationsFailed && facebookGroup?.status === "connected" ? "ready" as CheckState : "warning" as CheckState,
+    }] : []),
+    ...((role === "content" || role === "community") ? [{
+      label: role === "community" ? "Facebook Page (Messenger & RAG — tuỳ chọn)" : "Facebook Page",
+      detail: integrationsFailed
+        ? `Không kiểm tra được trạng thái Facebook Page vì API /integrations tạm lỗi (${integrationsFailed}). Key Facebook đã cấu hình không bị mất — hãy kiểm tra API (:4000) và bấm 'Làm mới'.`
+        : facebook?.status === "connected"
+          ? `Đã kết nối${facebook.property_ref ? ` (Page ID: ${facebook.property_ref})` : ""}. Quyền và nội dung được kiểm tra lại trước khi đăng hoặc gửi lời mời Messenger.`
+          : facebook?.status === "error"
+            ? role === "community"
+              ? `Token Facebook Page trên server đang báo lỗi (${facebook.missing_reason ?? "FACEBOOK_PAGE_PERMISSION_MISSING"}). Chỉ ảnh hưởng nhận/gửi Messenger Fanpage, KHÔNG chặn luồng đăng Group Cộng đồng.`
+              : `Key hoặc quyền Facebook Page trên server đang trả lỗi (${facebook.missing_reason ?? "FACEBOOK_PAGE_PERMISSION_MISSING"}). Cần kiểm tra lại Page Access Token.`
+            : facebook?.status === "connecting"
+              ? "Kết nối Facebook Page đang chờ xác minh quyền (connecting)."
+              : role === "content"
+                ? "Chưa kết nối hoặc chưa cấp quyền Facebook Page. Vẫn có thể tạo bản nháp; cần kết nối và cấp quyền trước khi đăng Facebook."
+                : "Chưa kết nối Facebook Page. Chỉ dùng cho Messenger/RAG & mời vào Group từ Page; không chặn việc đăng bài lên Group Cộng đồng.",
+      state: !integrationsFailed && facebook?.status === "connected" ? "ready" as CheckState : "warning" as CheckState,
+      ...(!integrationsFailed && facebook?.status !== "connected" ? { action: { href: "/workspace-integrations", label: "Cấu hình kết nối Facebook" } } : {}),
+    }] : []),
     ...(role === "content" ? [{ label: "Approved image asset", detail: approvedAsset ? "Artifact mới nhất có asset đã approved." : "Chưa có ảnh được duyệt trong social pack. Vẫn có thể soạn nội dung; cần bổ sung và duyệt ảnh trước khi đăng bài có ảnh.", state: approvedAsset ? "ready" as CheckState : "warning" as CheckState, ...(!approvedAsset ? { action: { href: "/artifacts", label: "Kiểm tra nội dung và ảnh" } } : {}) } ] : []),
-    ...(role === "performance" ? [{ label: "Metric providers", detail: `GA4: ${ga4?.status ?? "chưa kết nối"}; GSC: ${gsc?.status ?? "chưa kết nối"}; Meta Ads: ${metaAds?.status ?? "chưa kết nối"}. ${ga4?.status === "connected" || gsc?.status === "connected" || metaAds?.status === "connected" ? "Kết nối không đảm bảo time window đã có dữ liệu." : "Chưa kết nối provider; báo cáo vẫn có thể trả insufficient_data."}`, state: "warning" as CheckState } ] : []),
-    ...(role === "content" || role === "community" ? [{ label: "TikTok (tuỳ chọn)", detail: tiktok?.status === "connected" ? "Đã kết nối." : "Chưa kết nối; không chặn luồng Facebook.", state: tiktok?.status === "connected" ? "ready" as CheckState : "warning" as CheckState } ] : []),
+    ...(role === "performance" ? [{ label: "Metric providers", detail: integrationsFailed ? `Không kiểm tra được GA4/GSC/Meta Ads do API /integrations tạm lỗi (${integrationsFailed}).` : `GA4: ${ga4?.status ?? "chưa kết nối"}; GSC: ${gsc?.status ?? "chưa kết nối"}; Meta Ads: ${metaAds?.status ?? "chưa kết nối"}. ${ga4?.status === "connected" || gsc?.status === "connected" || metaAds?.status === "connected" ? "Kết nối không đảm bảo time window đã có dữ liệu." : "Chưa kết nối provider; báo cáo vẫn có thể trả insufficient_data."}`, state: "warning" as CheckState } ] : []),
+    ...(role === "content" || role === "community" ? [{ label: "TikTok (tuỳ chọn)", detail: integrationsFailed ? "Không kiểm tra được trạng thái TikTok do API /integrations tạm lỗi." : tiktok?.status === "connected" ? "Đã kết nối." : "Chưa kết nối; không chặn luồng Facebook.", state: !integrationsFailed && tiktok?.status === "connected" ? "ready" as CheckState : "warning" as CheckState } ] : []),
   ] : [];
 
   async function retry(task: WorkflowTask) {
@@ -455,6 +566,21 @@ function AgentPage({ role }: { role: RoleId }) {
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><Metric label="Task role này" value={String(roleTasks.length)} /><Metric label="Đã hoàn tất" value={String(roleTasks.filter((t) => t.status === "completed").length)} tone="green" /><Metric label="Đang/chờ chạy" value={String(roleTasks.filter((t) => ["queued", "pending", "running"].includes(t.status)).length)} tone="blue" /><Metric label="Lỗi" value={String(failedTasks.length)} tone={failedTasks.length ? "red" : undefined} /><Metric label="Artifact" value={String(roleArtifacts.length)} /></div>
       </header>
       {error && <ErrorBlock error={error} onRetry={reload} />}
+      {data && data.warnings.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 shadow-sm">
+          <div>
+            <p className="font-bold">⚠️ API Backend (:4000) vừa gặp lỗi khi tải một số dữ liệu nền (không phải do mất key Facebook hay xóa dữ liệu):</p>
+            <p className="mt-1 text-xs text-amber-900">{data.warnings.join(" • ")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={reload}
+            className="shrink-0 rounded-lg bg-amber-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-amber-800"
+          >
+            🔄 Thử tải lại ngay
+          </button>
+        </div>
+      )}
       {role === "content" && data && <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <SectionTitle title="SEO đã duyệt → Caption Marketing" subtitle="Content tự nhận bài SEO đã duyệt theo kế hoạch Growth Lead. Caption gồm mở đầu, ý chính từ bài viết, CTA và hashtag; không tự đăng lên mạng xã hội." />
         {roleTasks.some((task) => task.operation === "content.repurpose" && task.status === "pending" && task.campaign_id) && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Có task Content đang chờ duyệt bài SEO. Mở Review Queue, kiểm tra và duyệt đúng bài SEO để worker tự tạo caption.</p>}
@@ -552,7 +678,6 @@ function AgentPage({ role }: { role: RoleId }) {
       </>}
       {!data && loading && <LoadingBlock label="Đang tải dữ liệu vận hành của agent…" />}
       {data && <>
-        {data.warnings.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Một số nguồn phụ chưa tải được: {data.warnings.join(", ")}. Các phần còn lại vẫn hiển thị theo dữ liệu thực có.</div>}
         <div className="grid gap-6 xl:grid-cols-[1.15fr_.85fr]">
           <section className="rounded-2xl border border-slate-200 bg-white p-6"><SectionTitle title="Cách agent hoạt động" subtitle="Chu trình thực tế của role này trong pipeline." /><div className="mt-5 space-y-3">{config.steps.map((step, index) => <div key={step} className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{index + 1}</span><p className="pt-1 text-sm text-slate-700">{step}</p></div>)}</div><div className="mt-6 rounded-xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Operations được phép</p><div className="mt-2 flex flex-wrap gap-2">{config.operations.map((operation) => <code key={operation} className="rounded-md bg-white px-2 py-1 text-xs text-blue-800 shadow-sm ring-1 ring-slate-200">{operation}</code>)}</div></div></section>
           <section className="rounded-2xl border border-slate-200 bg-white p-6"><SectionTitle title="Đầu vào và điều kiện" subtitle="Xanh: đã có. Vàng: cần bổ sung cho bước được mô tả. Đỏ: thiếu đầu vào để chạy agent." /><div className="mt-5 space-y-3">{requirements.map((item) => <Check key={item.label} {...item} />)}</div></section>

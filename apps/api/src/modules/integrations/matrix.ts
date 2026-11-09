@@ -17,6 +17,7 @@ export interface IntegrationCapabilityRow {
     | 'verify_site_ownership'
     | 'read_page_posts'
     | 'publish_page_post'
+    | 'publish_group_post'
     | 'read_creator_info'
     | 'publish_tiktok_video'
     | 'publish_tiktok_photo'
@@ -34,6 +35,7 @@ export interface IntegrationCapabilityRow {
     | 'search_analytics_query'
     | 'stream_event_report'
     | 'page_posts_lookup'
+    | 'group_session_check'
     | 'creator_info_lookup'
     | 'publish_video_init'
     | 'publish_status_lookup'
@@ -171,6 +173,16 @@ export const INTEGRATION_MATRIX: readonly IntegrationCapabilityRow[] = [
     server_env_key: 'FACEBOOK_PAGE_ACCESS_TOKEN',
     default_status: 'not_connected',
     default_missing_reason: 'FACEBOOK_PAGE_PERMISSION_MISSING',
+  },
+  {
+    provider: 'facebook_group',
+    capability: 'publish_group_post',
+    required_scope: 'group_admin_session',
+    required_permission: 'Facebook Group Admin/Member session (.fb-session.json or FB_ADMIN_COOKIE)',
+    probe: 'group_session_check',
+    server_env_key: 'FB_ADMIN_COOKIE',
+    default_status: 'not_connected',
+    default_missing_reason: 'FACEBOOK_GROUP_SESSION_MISSING',
   },
   {
     provider: 'instagram_business',

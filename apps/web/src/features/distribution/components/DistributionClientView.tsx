@@ -133,9 +133,9 @@ function AddChannelForm({ onAdded }: { onAdded: (c: Channel) => void }) {
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Add channel</p>
       <div className="grid grid-cols-3 gap-2">
         <select className={input} value={platform} onChange={(e) => setPlatform(e.target.value as Channel["platform_name"])}>
-          {(["website", "facebook", "tiktok", "instagram", "linkedin", "email"] as const).map((p) => (
+          {(["website", "facebook_group", "facebook", "tiktok", "instagram", "linkedin", "email"] as const).map((p) => (
             <option key={p} value={p}>
-              {humanize(p)}
+              {p === "facebook_group" ? "Facebook Group" : humanize(p)}
             </option>
           ))}
         </select>
@@ -165,8 +165,10 @@ function DistributionContent() {
       apiRequest<{ items: SitePost[] }>(`/workspaces/${workspace.id}/site-posts`, { signal }),
     ]);
     const facebook = integrations.providers.find((p) => p.provider === "facebook_page");
+    const facebookGroup = integrations.providers.find((p) => p.provider === "facebook_group");
     return { channels: channels.items, jobs: jobs.items, artifacts: artifacts.items, approvals: approvals.items,
       facebook: { connected: facebook?.status === "connected", reason: facebook?.missing_reason ?? null },
+      facebookGroup: { connected: facebookGroup?.status === "connected", reason: facebookGroup?.missing_reason ?? null },
       websiteAutoPublish: automation.settings?.auto_publish_website === true, sitePosts: sitePosts.items };
   });
 
@@ -237,7 +239,7 @@ function DistributionContent() {
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
           <div className="xl:col-span-8 space-y-6">
             <GeneratedPosts artifacts={data.artifacts} approvals={data.approvals} jobs={data.jobs} sitePosts={data.sitePosts}
-              facebook={data.facebook} websiteAutoPublish={data.websiteAutoPublish} />
+              facebook={data.facebook} facebookGroup={data.facebookGroup} websiteAutoPublish={data.websiteAutoPublish} />
             <section className={`${card} p-6`}>
               <h2 className="text-sm font-bold text-slate-900">Ready to publish</h2>
               <p className="text-[11px] text-slate-400 mt-0.5 mb-4">Artifacts whose exact current version was approved by an owner.</p>
