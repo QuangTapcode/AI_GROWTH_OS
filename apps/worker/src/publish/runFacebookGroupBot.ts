@@ -1,6 +1,6 @@
 import '../loadApiEnv';
 import fs from 'node:fs';
-import { FacebookGroupBot, type GroupPostOptions } from './FacebookGroupBot';
+import { FacebookGroupBot, type DeleteGroupPostOptions, type GroupPostOptions } from './FacebookGroupBot';
 
 function parseArgValue(flag: string): string | undefined {
   const idx = process.argv.indexOf(flag);
@@ -77,8 +77,26 @@ async function main() {
     console.log('🎉 KẾT QUẢ:', result);
     emitResult(result as unknown as Record<string, unknown>);
     process.exit(result.success ? 0 : 1);
+  } else if (command === 'delete') {
+    const postUrlFlag = parseArgValue('--post-url');
+    const titleFlag = parseArgValue('--title');
+    let delOptions: DeleteGroupPostOptions = {
+      groupUrl: groupUrlFlag,
+      postUrl: postUrlFlag,
+      titleSnippet: titleFlag,
+      headless: true,
+    };
+    if (payloadFile) {
+      const raw = fs.readFileSync(payloadFile, 'utf8');
+      delOptions = { ...delOptions, ...(JSON.parse(raw) as DeleteGroupPostOptions) };
+    }
+    console.log(`🗑️ ĐANG THU HỒI BÀI ĐĂNG TRÊN GROUP: ${delOptions.postUrl || delOptions.titleSnippet || delOptions.groupUrl}...`);
+    const result = await bot.deleteGroupPost(delOptions);
+    console.log('🎉 KẾT QUẢ THU HỒI:', result);
+    emitResult(result as unknown as Record<string, unknown>);
+    process.exit(result.success ? 0 : 1);
   } else {
-    const msg = `Lệnh không hợp lệ: "${command}". Các lệnh hỗ trợ: login, check, post`;
+    const msg = `Lệnh không hợp lệ: "${command}". Các lệnh hỗ trợ: login, check, post, delete`;
     console.log(msg);
     emitResult({ success: false, errorCode: 'INVALID_COMMAND', message: msg });
     process.exit(1);

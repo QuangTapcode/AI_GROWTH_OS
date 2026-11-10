@@ -154,6 +154,7 @@ function DistributionContent() {
   const { workspace, canEdit, canApprove } = useWorkspace();
   const [toast, setToast] = useState<string | null>(null);
   const [scheduling, setScheduling] = useState<string | null>(null);
+  const [publishedDateFilter, setPublishedDateFilter] = useState<string>("");
   const { data, error, loading, reload } = useApiData(workspace.id, async (signal) => {
     const [channels, jobs, artifacts, approvals, integrations, automation, sitePosts] = await Promise.all([
       growthApi.listChannels(workspace.id, signal),
@@ -166,10 +167,12 @@ function DistributionContent() {
     ]);
     const facebook = integrations.providers.find((p) => p.provider === "facebook_page");
     const facebookGroup = integrations.providers.find((p) => p.provider === "facebook_group");
-    return { channels: channels.items, jobs: jobs.items, artifacts: artifacts.items, approvals: approvals.items,
+    return {
+      channels: channels.items, jobs: jobs.items, artifacts: artifacts.items, approvals: approvals.items,
       facebook: { connected: facebook?.status === "connected", reason: facebook?.missing_reason ?? null },
       facebookGroup: { connected: facebookGroup?.status === "connected", reason: facebookGroup?.missing_reason ?? null },
-      websiteAutoPublish: automation.settings?.auto_publish_website === true, sitePosts: sitePosts.items };
+      websiteAutoPublish: automation.settings?.auto_publish_website === true, sitePosts: sitePosts.items
+    };
   });
 
   // Chỉ artifact có approval mới nhất = approved và khớp đúng version + hash (cùng quy tắc với BE)
@@ -206,6 +209,37 @@ function DistributionContent() {
     published: data?.jobs.filter((j) => j.status === "published").length ?? 0,
   };
 
+  const publishedJobsByDate = useMemo(() => {
+    if (!data) return [];
+    const pubJobs = data.jobs
+      .filter((j) => j.status === "published")
+      .filter((j) => {
+        if (!publishedDateFilter) return true;
+        const raw = j.published_at || j.scheduled_for;
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return false;
+        const vn = new Date(d.getTime() + 7 * 3600_000);
+        const iso = `${vn.getUTCFullYear()}-${String(vn.getUTCMonth() + 1).padStart(2, "0")}-${String(vn.getUTCDate()).padStart(2, "0")}`;
+        return iso === publishedDateFilter;
+      })
+      .sort((a, b) => (b.published_at || b.scheduled_for).localeCompare(a.published_at || a.scheduled_for));
+
+    const grouped = new Map<string, PublishingJob[]>();
+    for (const job of pubJobs) {
+      const raw = job.published_at || job.scheduled_for;
+      const d = new Date(raw);
+      let label = "Không rõ ngày";
+      if (!Number.isNaN(d.getTime())) {
+        const vn = new Date(d.getTime() + 7 * 3600_000);
+        label = `${String(vn.getUTCDate()).padStart(2, "0")}/${String(vn.getUTCMonth() + 1).padStart(2, "0")}/${vn.getUTCFullYear()}`;
+      }
+      const list = grouped.get(label) ?? [];
+      list.push(job);
+      grouped.set(label, list);
+    }
+    return Array.from(grouped.entries());
+  }, [data, publishedDateFilter]);
+
   return (
     <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
@@ -238,6 +272,81 @@ function DistributionContent() {
       {data && (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
           <div className="xl:col-span-8 space-y-6">
+            <section className={`${card} p-6 border-emerald-200/90 bg-emerald-50/20`}>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    📚 Các bài đã đăng theo Ngày / Tháng / Năm ({counts.published} bài)
+                  </h2>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Toàn bộ bài đã xuất bản lên Group Cộng đồng, Website và Fanpage được lưu cố định theo ngày tháng năm, không bị ẩn.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    aria-label="Lọc bài đã đăng theo ngày tháng năm"
+                    className={input}
+                    value={publishedDateFilter}
+                    onChange={(e) => setPublishedDateFilter(e.target.value)}
+                  />
+                  {publishedDateFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setPublishedDateFilter("")}
+                      className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-semibold"
+                    >
+                      Xóa lọc
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {publishedJobsByDate.length === 0 ? (
+                <p className="text-xs text-slate-500 bg-white rounded-xl border border-slate-200/80 p-4">
+                  Không có bài đã đăng nào trong ngày đã chọn.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {publishedJobsByDate.map(([dateLabel, jobsOnDate]) => (
+                    <div key={dateLabel} className="rounded-xl border border-emerald-200/80 bg-white p-4 space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-emerald-700 text-white text-xs font-bold">
+                          📅 Ngày {dateLabel}
+                        </span>
+                        <span className="text-[11px] font-semibold text-emerald-800">
+                          {jobsOnDate.length} bài đã đăng
+                        </span>
+                      </div>
+                      <ul className="divide-y divide-slate-100">
+                        {jobsOnDate.map((job) => (
+                          <li key={job.id} className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900">{job.content_title}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {job.channel_name ?? humanize(job.platform_name)} · Đăng lúc{" "}
+                                {formatDateTime(job.published_at || job.scheduled_for)}
+                              </p>
+                            </div>
+                            {job.utm_url && (
+                              <a
+                                href={job.utm_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold hover:bg-blue-100"
+                              >
+                                Xem bài đã đăng ↗
+                              </a>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
             <GeneratedPosts artifacts={data.artifacts} approvals={data.approvals} jobs={data.jobs} sitePosts={data.sitePosts}
               facebook={data.facebook} facebookGroup={data.facebookGroup} websiteAutoPublish={data.websiteAutoPublish} />
             <section className={`${card} p-6`}>
@@ -376,9 +485,8 @@ function DistributionContent() {
                       </p>
                     </div>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                        c.publish_mode === "live" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${c.publish_mode === "live" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}
                     >
                       {c.publish_mode}
                     </span>

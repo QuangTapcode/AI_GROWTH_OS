@@ -5,6 +5,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Pool } from 'pg';
 import {
   CommunityHubService,
+  classifyMemberInterests,
+  classifyVietnamCalendarWeek,
+  getDiscussionImageAssets,
+  getTopicImageAssets,
+  matchAssetForTopic,
   normalizePublishTarget,
 } from '../../src/modules/community/hub';
 
@@ -458,6 +463,80 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
     expect(card.job_status).toBe('scheduled');
     expect(card.group_post_url).toBeNull();
     expect(card.fanpage_post_url).toBe('https://www.facebook.com/1381196421750749_1220987777');
+  });
+
+  it('classifyVietnamCalendarWeek isolates November weeks 1-4 from December week 5+', () => {
+    expect(classifyVietnamCalendarWeek('2026-11-01').weekNumber).toBe(0);
+    expect(classifyVietnamCalendarWeek('2026-11-02')).toEqual({
+      weekNumber: 1,
+      dateRange: '02/11/2026 – 08/11/2026',
+      weekRangeLabel: 'Tuần 1 (02/11/2026 00:00 – 08/11/2026 23:59)',
+    });
+    expect(classifyVietnamCalendarWeek('2026-11-08').weekNumber).toBe(1);
+    expect(classifyVietnamCalendarWeek('2026-11-10').weekNumber).toBe(2);
+    expect(classifyVietnamCalendarWeek('2026-11-22').weekNumber).toBe(3);
+    expect(classifyVietnamCalendarWeek('2026-11-30').weekNumber).toBe(4);
+    expect(classifyVietnamCalendarWeek('2026-12-01')).toEqual({
+      weekNumber: 5,
+      dateRange: '01/12/2026 – 07/12/2026',
+      weekRangeLabel: 'Tuần 5 (01/12/2026 00:00 – 07/12/2026 23:59)',
+    });
+    expect(classifyVietnamCalendarWeek('2026-12-07').weekNumber).toBe(5);
+    expect(classifyVietnamCalendarWeek('2026-12-08').weekNumber).toBe(6);
+  });
+
+  it('provides 27 unique topic assets and 5 disjoint discussion assets with 0% overlap and accurate slug matching', () => {
+    const topicAssets = getTopicImageAssets(WORKSPACE_ID);
+    const discussionAssets = getDiscussionImageAssets(WORKSPACE_ID);
+
+    expect(topicAssets).toHaveLength(27);
+    expect(discussionAssets).toHaveLength(5);
+
+    const topicUrls = new Set(topicAssets.map((a) => a.url));
+    const discussionUrls = new Set(discussionAssets.map((a) => a.url));
+    expect(topicUrls.size).toBe(27);
+    expect(discussionUrls.size).toBe(5);
+    for (const url of discussionUrls) {
+      expect(topicUrls.has(url)).toBe(false);
+    }
+
+    const esimAsset = matchAssetForTopic(
+      'eSIM or Local SIM in Vietnam: Which Should You Buy?',
+      topicAssets,
+      new Set(),
+      'https://tripc.ai/blog/vietnam-esim-vs-sim-card',
+    );
+    expect(esimAsset.match_slug).toBe('vietnam-esim-vs-sim-card');
+    expect(esimAsset.url).toContain('photo-1511707171634-5f897ff02aa9');
+
+    const phoAsset = matchAssetForTopic(
+      'Cẩm nang Ẩm thực & Quán Phở Ngon tại Đà Nẵng',
+      topicAssets,
+      new Set(),
+      'https://tripc.ai/blog/da-nang-food-and-pho-guide',
+    );
+    expect(phoAsset.match_slug).toBe('da-nang-food-and-pho-guide');
+    expect(phoAsset.url).toContain('photo-1582878826629-29b7ad1cdc43');
+
+    const creditCardAsset = matchAssetForTopic(
+      'Do Foreign Credit Cards Work in Vietnam?',
+      topicAssets,
+      new Set(),
+      'https://tripc.ai/blog/credit-cards-in-vietnam',
+    );
+    expect(creditCardAsset.match_slug).toBe('credit-cards-in-vietnam');
+    expect(creditCardAsset.url).toContain('photo-1563013544-824ae1b704d3');
+  });
+
+  it('classifyMemberInterests uses word boundaries so similar/simple do not trigger eSIM tags', () => {
+    const similarRes = classifyMemberInterests('Looking for a similar place in Da Nang next month');
+    expect(similarRes.interest_tags).not.toContain('eSIM & Kết nối Internet');
+
+    const esimRes = classifyMemberInterests('Which eSIM or local SIM works best in Hanoi?');
+    expect(esimRes.interest_tags).toContain('eSIM & Kết nối Internet');
+
+    const phoRes = classifyMemberInterests('Xin gợi ý quán phở ngon ở Đà Nẵng');
+    expect(phoRes.interest_tags).toContain('Ẩm thực Địa phương');
   });
 });
 

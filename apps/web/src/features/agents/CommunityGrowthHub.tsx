@@ -107,6 +107,7 @@ type DailyCalendarItem = {
   published_slug: string | null;
   published_at: string | null;
   facebook_post_url?: string | null;
+  post_body_preview?: string | null;
   unique_topic_verified: boolean;
   unique_image_verified: boolean;
 };
@@ -200,6 +201,23 @@ type HubResponse = {
   };
 };
 
+type WeekFilterId = `week${number}`;
+
+function buildShareableCardBody(item: DailyCalendarItem): string {
+  if (item.post_body_preview && item.post_body_preview.trim()) {
+    return item.post_body_preview.trim();
+  }
+  const articleLink = item.published_slug
+    ? `http://localhost:3001/posts/${item.published_slug}`
+    : item.source_url;
+  return [
+    `Chủ đề: ${item.target_trend}`,
+    articleLink ? `Xem bài viết chi tiết tại: ${articleLink}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function getTodayVnParts(): {
   dayStr: string;
   monthStr: string;
@@ -233,7 +251,9 @@ export default function CommunityGrowthHub({
   const [loading, setLoading] = useState(true);
   const [syncingRealtime, setSyncingRealtime] = useState(false);
   const [lastSyncedDisplay, setLastSyncedDisplay] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"calendar" | "campaigns" | "discussions" | "architecture">("calendar");
+  const [activeTab, setActiveTab] = useState<
+    "calendar" | "published_archive" | "campaigns" | "discussions" | "architecture"
+  >("calendar");
   const [calendarView, setCalendarView] = useState<"daily" | "weekly" | "monthly">("daily");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [bannerMessage, setBannerMessage] = useState<string>("");
@@ -245,9 +265,19 @@ export default function CommunityGrowthHub({
   } | null>(null);
   const [editingSettings, setEditingSettings] = useState(false);
   const editingSettingsRef = useRef(editingSettings);
+  const bannerRef = useRef<HTMLDivElement | null>(null);
+  const loginPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     editingSettingsRef.current = editingSettings;
   }, [editingSettings]);
+  useEffect(() => {
+    return () => {
+      if (loginPollTimerRef.current) {
+        clearInterval(loginPollTimerRef.current);
+        loginPollTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Settings & Custom Target form state
   const [customCommunityName, setCustomCommunityName] = useState("");
@@ -269,13 +299,23 @@ export default function CommunityGrowthHub({
   const [dailyPage, setDailyPage] = useState<number>(1);
   const [dailyPageSize, setDailyPageSize] = useState<number>(6);
   const [dailyFilter, setDailyFilter] = useState<
-    "all" | "published" | "scheduled" | "failed" | "fanpage_only" | "week1" | "week2" | "week3" | "week4"
+    "all" | "published" | "scheduled" | "failed" | "fanpage_only" | WeekFilterId
   >("all");
   const [selectedDay, setSelectedDay] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedExactDate, setSelectedExactDate] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Dedicated "Các bài đã đăng theo ngày tháng năm" section state (never hidden)
+  const [archiveChannelFilter, setArchiveChannelFilter] = useState<
+    "primary" | "group" | "website" | "fanpage" | "all_published"
+  >("primary");
+  const [archiveDay, setArchiveDay] = useState<string>("all");
+  const [archiveMonth, setArchiveMonth] = useState<string>("all");
+  const [archiveYear, setArchiveYear] = useState<string>("all");
+  const [archiveExactDate, setArchiveExactDate] = useState<string>("");
+  const [archiveSearch, setArchiveSearch] = useState<string>("");
 
   function extractItemDateParts(item: DailyCalendarItem): {
     dayStr: string;
@@ -354,11 +394,32 @@ export default function CommunityGrowthHub({
 
   function toDatetimeLocalValue(iso?: string): string {
     if (!iso) return "";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
+    const raw = new Date(iso);
+    if (Number.isNaN(raw.getTime())) return "";
+    // Always display Vietnam Standard Time (Asia/Ho_Chi_Minh, UTC+7) to match the calendar card labels
+    const vn = new Date(raw.getTime() + 7 * 3600_000);
     const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${vn.getUTCFullYear()}-${pad(vn.getUTCMonth() + 1)}-${pad(vn.getUTCDate())}T${pad(vn.getUTCHours())}:${pad(vn.getUTCMinutes())}`;
   }
+
+  function parseVnDatetimeLocalToIso(localValue: string): string | null {
+    const trimmed = localValue.trim();
+    if (!trimmed) return null;
+    const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed)
+      ? `${trimmed}:00+07:00`
+      : /(?:Z|[+-]\d{2}:\d{2})$/i.test(trimmed)
+        ? trimmed
+        : `${trimmed}+07:00`;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+
+  const stopLoginPolling = useCallback(() => {
+    if (loginPollTimerRef.current) {
+      clearInterval(loginPollTimerRef.current);
+      loginPollTimerRef.current = null;
+    }
+  }, []);
 
   const showBanner = useCallback(
     (
@@ -369,6 +430,19 @@ export default function CommunityGrowthHub({
       setBannerTone(tone);
       setBannerMessage(message);
       setBannerRecovery(recovery);
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          const el = bannerRef.current;
+          if (!el) return;
+          const prefersReducedMotion =
+            typeof window.matchMedia === "function" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          el.scrollIntoView({
+            behavior: prefersReducedMotion ? "auto" : "smooth",
+            block: "nearest",
+          });
+        });
+      }
     },
     []
   );
@@ -386,17 +460,19 @@ export default function CommunityGrowthHub({
   }, []);
 
   const syncFromServer = useCallback(
-    async (options: { showErrorOnFailure?: boolean } = {}) => {
+    async (options: { showErrorOnFailure?: boolean } = {}): Promise<HubResponse | null> => {
       try {
         const res = await apiRequest<HubResponse>(`/workspaces/${workspaceId}/community/hub`);
         setHub(res);
         syncFormFromHub(res, editingSettingsRef.current);
         const now = res.synced_at ? new Date(res.synced_at) : new Date();
         setLastSyncedDisplay(now.toLocaleTimeString("vi-VN", { hour12: false }));
+        return res;
       } catch (err) {
         if (options.showErrorOnFailure) {
           showBanner("error", (err as Error).message);
         }
+        return null;
       } finally {
         setLoading(false);
         setSyncingRealtime(false);
@@ -489,6 +565,7 @@ export default function CommunityGrowthHub({
   }
 
   async function handleLaunchGroupBotLogin() {
+    stopLoginPolling();
     setBusyAction("login_group_bot");
     setBannerMessage("");
     setBannerRecovery(null);
@@ -503,6 +580,25 @@ export default function CommunityGrowthHub({
         body: { action: "login_group_bot" },
       });
       showBanner(res.started ? "warning" : "error", res.message);
+      if (res.started) {
+        let attempts = 0;
+        loginPollTimerRef.current = setInterval(() => {
+          attempts += 1;
+          void (async () => {
+            const latest = await syncFromServer({ showErrorOnFailure: false });
+            if (latest?.group?.group_bot_session?.isLoggedIn) {
+              stopLoginPolling();
+              showBanner(
+                "success",
+                "✅ Đã lưu phiên đăng nhập Quản trị viên Facebook Group Bot thành công! Hệ thống sẵn sàng tự động đăng bài vào Group Cộng đồng."
+              );
+              onUpdated?.();
+            } else if (attempts >= 36) {
+              stopLoginPolling();
+            }
+          })();
+        }, 2500);
+      }
     } catch (err) {
       showBanner("error", (err as Error).message);
     } finally {
@@ -548,27 +644,33 @@ export default function CommunityGrowthHub({
     }
   }
 
-  async function handleScanMembers() {
+  async function handleScanMembers(includeManualProspect = false) {
     setBusyAction("scan");
     setBannerMessage("");
     setBannerRecovery(null);
     try {
+      const shouldCreateManual =
+        includeManualProspect && Boolean(prospectName.trim() && prospectSignal.trim());
       const res = await apiRequest<{ data: HubResponse }>(`/workspaces/${workspaceId}/community/hub`, {
         method: "POST",
         body: {
           action: "scan_members",
-          ...(prospectName.trim() && prospectSignal.trim()
+          ...(shouldCreateManual
             ? { display_name: prospectName.trim(), signal: prospectSignal.trim(), campaign_week: 2 }
             : {}),
         },
       });
       setHub(res.data);
-      setProspectName("");
-      setProspectSignal("");
+      if (shouldCreateManual) {
+        setProspectName("");
+        setProspectSignal("");
+      }
       setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
       showBanner(
         "success",
-        `Đã đồng bộ trực tiếp số thành viên Group (${res.data.stats.real_group_members} thành viên) & hộp thư Messenger thật trên Fanpage "${res.data.group.page_name}".`
+        shouldCreateManual
+          ? `Đã ghi nhận khách tiềm năng mới và đồng bộ dữ liệu Cộng đồng (${res.data.stats.real_group_members} thành viên Group).`
+          : `Đã đồng bộ trực tiếp số thành viên Group (${res.data.stats.real_group_members} thành viên) & hộp thư Messenger thật trên Fanpage "${res.data.group.page_name}".`
       );
       onUpdated?.();
     } catch (err) {
@@ -825,8 +927,8 @@ export default function CommunityGrowthHub({
 
   async function handleReschedulePost(sourceId: string, fallbackIso?: string) {
     const chosenLocal = customScheduleMap[sourceId] || toDatetimeLocalValue(fallbackIso);
-    if (!chosenLocal) return;
-    const scheduledIso = new Date(chosenLocal).toISOString();
+    const scheduledIso = parseVnDatetimeLocalToIso(chosenLocal);
+    if (!scheduledIso) return;
     setBusyAction(`reschedule_${sourceId}`);
     setBannerMessage("");
     setBannerRecovery(null);
@@ -844,13 +946,67 @@ export default function CommunityGrowthHub({
         },
       });
       setHub(res.data);
+      setCustomScheduleMap((prev) => {
+        const next = { ...prev };
+        delete next[sourceId];
+        return next;
+      });
       setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
-      const formatted = new Date(res.result.scheduled_for).toLocaleString("vi-VN", { hour12: false });
+      const formatted = new Date(res.result.scheduled_for).toLocaleString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
       showBanner(
         "success",
-        `⏰ Đã cập nhật giờ hẹn tự động đăng bài vào Cộng đồng: ${formatted}! Worker chạy ngầm sẽ tự động xử lý khi đến giờ này.`
+        `⏰ Đã cập nhật giờ hẹn tự động đăng bài vào Cộng đồng: ${formatted} (Giờ VN)! Worker chạy ngầm sẽ tự động xử lý khi đến giờ này.`
       );
       onUpdated?.();
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRetractGroupPost(item: DailyCalendarItem) {
+    setBusyAction(`retract_${item.source_id}`);
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        retractResult: { success: boolean; message: string; errorCode?: string };
+        data: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: {
+          action: "retract_group_post",
+          source_id: item.source_id,
+          post_url: item.group_post_url || item.facebook_post_url || undefined,
+          title: item.topic_title,
+        },
+      });
+      if (res.data) {
+        setHub(res.data);
+        setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      }
+      if (res.retractResult?.success) {
+        showBanner(
+          "success",
+          `🗑️ ${res.retractResult.message} Bài "${item.topic_title}" đã được đặt lại trạng thái sẵn sàng để bạn đăng lại bản chuẩn.`
+        );
+        onUpdated?.();
+      } else {
+        showBanner(
+          "error",
+          `⚠️ ${res.retractResult?.message || "Không thể thu hồi bài viết trên Group Facebook."}`
+        );
+      }
     } catch (err) {
       showBanner("error", (err as Error).message);
     } finally {
@@ -928,10 +1084,10 @@ export default function CommunityGrowthHub({
     }
     if (dailyFilter === "failed" && item.group_status !== "failed") return false;
     if (dailyFilter === "fanpage_only" && !(item.is_published_fanpage && !item.is_published_group)) return false;
-    if (dailyFilter === "week1" && item.week_number !== 1) return false;
-    if (dailyFilter === "week2" && item.week_number !== 2) return false;
-    if (dailyFilter === "week3" && item.week_number !== 3) return false;
-    if (dailyFilter === "week4" && item.week_number !== 4) return false;
+    if (dailyFilter.startsWith("week")) {
+      const targetWeekNum = Number(dailyFilter.slice(4));
+      if (Number.isFinite(targetWeekNum) && item.week_number !== targetWeekNum) return false;
+    }
 
     const parts = extractItemDateParts(item);
     if (selectedExactDate && parts.dateIso !== selectedExactDate) return false;
@@ -950,6 +1106,10 @@ export default function CommunityGrowthHub({
 
     return true;
   });
+
+  const nextUpcomingItem = hub.calendar.daily.find((i) => i.status !== "published") ?? null;
+  const nextUpcomingParts = nextUpcomingItem ? extractItemDateParts(nextUpcomingItem) : null;
+  const availableYears = Array.from(new Set(["2026", "2027", ...Array.from(yearCountsMap.keys())])).sort();
 
   const filteredPublishedCount = filteredDailyItems.filter((i) => i.status === "published").length;
   const filteredFailedCount =
@@ -970,7 +1130,469 @@ export default function CommunityGrowthHub({
   const dailyStartIndex = (currentDailyPage - 1) * dailyPageSize;
   const paginatedDailyItems = filteredDailyItems.slice(dailyStartIndex, dailyStartIndex + dailyPageSize);
 
-  const weekSummaryStats = [1, 2, 3, 4].map((wNum) => {
+  function extractPublishedDateParts(item: DailyCalendarItem): {
+    dayStr: string;
+    monthStr: string;
+    yearStr: string;
+    dateIso: string;
+    timeHm: string;
+    dateDisplay: string;
+    timestampMs: number;
+  } {
+    const rawIso =
+      (archiveChannelFilter === "fanpage"
+        ? item.fanpage_published_at
+        : archiveChannelFilter === "group"
+          ? item.group_published_at
+          : item.group_published_at || item.published_at || item.fanpage_published_at) || item.scheduled_iso;
+    if (rawIso) {
+      const parsed = new Date(rawIso);
+      if (!Number.isNaN(parsed.getTime())) {
+        const vn = new Date(parsed.getTime() + 7 * 3600_000);
+        const dayStr = String(vn.getUTCDate()).padStart(2, "0");
+        const monthStr = String(vn.getUTCMonth() + 1).padStart(2, "0");
+        const yearStr = String(vn.getUTCFullYear());
+        const timeHm = `${String(vn.getUTCHours()).padStart(2, "0")}:${String(vn.getUTCMinutes()).padStart(2, "0")}`;
+        return {
+          dayStr,
+          monthStr,
+          yearStr,
+          dateIso: `${yearStr}-${monthStr}-${dayStr}`,
+          timeHm,
+          dateDisplay: `${dayStr}/${monthStr}/${yearStr}`,
+          timestampMs: parsed.getTime(),
+        };
+      }
+    }
+    const fallback = extractItemDateParts(item);
+    return { ...fallback, timestampMs: 0 };
+  }
+
+  const primaryPublishedItems = hub.calendar.daily.filter((item) => item.status === "published");
+  const anyChannelPublishedItems = hub.calendar.daily.filter(
+    (item) =>
+      item.status === "published" ||
+      Boolean(item.is_published_group) ||
+      Boolean(item.is_published_fanpage) ||
+      Boolean(item.published_slug)
+  );
+
+  const archiveChannelScopedItems = hub.calendar.daily.filter((item) => {
+    if (archiveChannelFilter === "primary") return item.status === "published";
+    if (archiveChannelFilter === "group") return Boolean(item.is_published_group || item.group_status === "published");
+    if (archiveChannelFilter === "website") return Boolean(item.published_slug);
+    if (archiveChannelFilter === "fanpage") return Boolean(item.is_published_fanpage || item.fanpage_post_url);
+    return (
+      item.status === "published" ||
+      Boolean(item.is_published_group) ||
+      Boolean(item.is_published_fanpage) ||
+      Boolean(item.published_slug)
+    );
+  });
+
+  const filteredArchiveItems = archiveChannelScopedItems
+    .filter((item) => {
+      const p = extractPublishedDateParts(item);
+      if (archiveExactDate && p.dateIso !== archiveExactDate) return false;
+      if (archiveDay !== "all" && p.dayStr !== archiveDay) return false;
+      if (archiveMonth !== "all" && p.monthStr !== archiveMonth) return false;
+      if (archiveYear !== "all" && p.yearStr !== archiveYear) return false;
+      if (archiveSearch.trim()) {
+        const q = archiveSearch.trim().toLowerCase();
+        const hitTitle = item.topic_title.toLowerCase().includes(q);
+        const hitTrend = item.target_trend.toLowerCase().includes(q);
+        const hitTags = (item.interest_tags || []).some((t) => t.toLowerCase().includes(q));
+        const hitBody = (item.post_body_preview || "").toLowerCase().includes(q);
+        if (!hitTitle && !hitTrend && !hitTags && !hitBody) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => extractPublishedDateParts(b).timestampMs - extractPublishedDateParts(a).timestampMs);
+
+  const archiveGroupsByDate = Array.from(
+    filteredArchiveItems.reduce((map, item) => {
+      const p = extractPublishedDateParts(item);
+      const list = map.get(p.dateDisplay) ?? [];
+      list.push(item);
+      map.set(p.dateDisplay, list);
+      return map;
+    }, new Map<string, DailyCalendarItem[]>())
+  );
+
+  const hasArchiveFilter =
+    archiveDay !== "all" ||
+    archiveMonth !== "all" ||
+    archiveYear !== "all" ||
+    Boolean(archiveExactDate) ||
+    Boolean(archiveSearch.trim());
+
+  function renderPublishedArchivePanel(currentHub: HubResponse) {
+    return (
+      <section
+        id="published-posts-by-date"
+        aria-label="Mục các bài đã đăng theo ngày tháng năm"
+        className="space-y-4 rounded-2xl border-2 border-emerald-300 bg-gradient-to-b from-emerald-50/70 to-white p-4 sm:p-5 shadow-sm"
+      >
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-emerald-700 px-2.5 py-0.5 text-xs font-bold text-white">
+                📚 LƯU TRỮ BÀI ĐÃ ĐĂNG (KHÔNG BAO GIỜ ẨN)
+              </span>
+              <span className="rounded-md border border-emerald-300 bg-white px-2.5 py-0.5 text-xs font-bold text-emerald-900">
+                ✓ {primaryPublishedItems.length} bài đã đăng {targetMode === "fanpage" ? "Fanpage" : "Group Cộng đồng"}
+              </span>
+              <span className="rounded-md border border-slate-300 bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                Tổng đa kênh (Group + Web + Fanpage cũ): {anyChannelPublishedItems.length} bài
+              </span>
+            </div>
+            <h3 className="mt-2 text-lg font-bold text-slate-900">
+              Các Bài Đã Đăng Theo Ngày • Tháng • Năm
+            </h3>
+            <p className="mt-0.5 text-xs text-slate-600">
+              Tất cả bài đã đăng đều được lưu trữ cố định tại đây theo đúng mốc <b>Ngày / Tháng / Năm & Giờ:Phút</b> thực tế (không bị ẩn đi khi lọc lịch hẹn), kèm ảnh thật, nội dung đã đăng, link xem trực tiếp và nút thu hồi nếu cần.
+            </p>
+          </div>
+          {hasArchiveFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                setArchiveDay("all");
+                setArchiveMonth("all");
+                setArchiveYear("all");
+                setArchiveExactDate("");
+                setArchiveSearch("");
+              }}
+              className="self-start rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100"
+            >
+              🔄 Xóa lọc ngày đã đăng
+            </button>
+          )}
+        </div>
+
+        {/* Bộ lọc kênh & Ngày / Tháng / Năm cho mục Các bài đã đăng */}
+        <div className="space-y-3 rounded-xl border border-emerald-200 bg-white p-3.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-slate-700">Kênh đã đăng:</span>
+            {[
+              {
+                id: "primary" as const,
+                label: `✓ Đã đăng ${targetMode === "fanpage" ? "Fanpage" : "Group Cộng đồng"} (${primaryPublishedItems.length})`,
+              },
+              {
+                id: "group" as const,
+                label: `👥 Group Cộng đồng (${publishedGroupCount})`,
+              },
+              {
+                id: "website" as const,
+                label: `🌐 Website (${currentHub.calendar.daily.filter((i) => Boolean(i.published_slug)).length})`,
+              },
+              {
+                id: "fanpage" as const,
+                label: `📘 Fanpage (${publishedFanpageCount})`,
+              },
+              {
+                id: "all_published" as const,
+                label: `📚 Tất cả kênh đã đăng (${anyChannelPublishedItems.length})`,
+              },
+            ].map((ch) => (
+              <button
+                key={ch.id}
+                type="button"
+                onClick={() => setArchiveChannelFilter(ch.id)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                  archiveChannelFilter === ch.id
+                    ? "bg-emerald-700 text-white shadow-sm"
+                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-emerald-50"
+                }`}
+              >
+                {ch.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+            <div>
+              <label htmlFor="archive-day" className="block text-[11px] font-bold text-slate-700">
+                Ngày đăng (01 – 31)
+              </label>
+              <select
+                id="archive-day"
+                value={archiveDay}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setArchiveDay(val);
+                  if (val === "all") {
+                    setArchiveExactDate("");
+                  } else if (archiveMonth !== "all" && archiveYear !== "all") {
+                    setArchiveExactDate(`${archiveYear}-${archiveMonth}-${val}`);
+                  }
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-900"
+              >
+                <option value="all">Tất cả các ngày</option>
+                {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0")).map((dStr) => (
+                  <option key={dStr} value={dStr}>
+                    Ngày {dStr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="archive-month" className="block text-[11px] font-bold text-slate-700">
+                Tháng đăng (01 – 12)
+              </label>
+              <select
+                id="archive-month"
+                value={archiveMonth}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setArchiveMonth(val);
+                  if (val === "all" || archiveDay === "all") {
+                    setArchiveExactDate("");
+                  } else if (archiveYear !== "all") {
+                    setArchiveExactDate(`${archiveYear}-${val}-${archiveDay}`);
+                  }
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-900"
+              >
+                <option value="all">Tất cả các tháng</option>
+                {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((mStr) => (
+                  <option key={mStr} value={mStr}>
+                    Tháng {mStr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="archive-year" className="block text-[11px] font-bold text-slate-700">
+                Năm đăng
+              </label>
+              <select
+                id="archive-year"
+                value={archiveYear}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setArchiveYear(val);
+                  if (val === "all" || archiveMonth === "all" || archiveDay === "all") {
+                    setArchiveExactDate("");
+                  } else {
+                    setArchiveExactDate(`${val}-${archiveMonth}-${archiveDay}`);
+                  }
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-900"
+              >
+                <option value="all">Tất cả các năm</option>
+                {availableYears.map((yr) => (
+                  <option key={yr} value={yr}>
+                    Năm {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="archive-exact-date" className="block text-[11px] font-bold text-slate-700">
+                Chọn Lịch Ngày/Tháng/Năm
+              </label>
+              <input
+                id="archive-exact-date"
+                type="date"
+                value={archiveExactDate}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setArchiveExactDate(val);
+                  if (val) {
+                    const [y, m, d] = val.split("-");
+                    if (y && m && d) {
+                      setArchiveYear(y);
+                      setArchiveMonth(m);
+                      setArchiveDay(d);
+                    }
+                  } else {
+                    setArchiveDay("all");
+                  }
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-900"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="archive-search" className="block text-[11px] font-bold text-slate-700">
+                Tìm bài đã đăng
+              </label>
+              <input
+                id="archive-search"
+                type="search"
+                value={archiveSearch}
+                onChange={(e) => setArchiveSearch(e.target.value)}
+                placeholder="Tiêu đề, nội dung..."
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-900"
+              />
+            </div>
+          </div>
+        </div>
+
+        {archiveGroupsByDate.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-emerald-300 bg-white p-6 text-center text-xs text-slate-600">
+            Không có bài đã đăng nào khớp với ngày/tháng/năm đang chọn. Hãy bấm &ldquo;Xóa lọc ngày đã đăng&rdquo; hoặc chuyển sang kênh &ldquo;Tất cả kênh đã đăng&rdquo;.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {archiveGroupsByDate.map(([dateDisplay, itemsOnDate]) => (
+              <div key={dateDisplay} className="space-y-2.5 rounded-xl border border-emerald-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 pb-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-800 px-3 py-1 text-xs font-bold text-white">
+                    📅 Ngày {dateDisplay}
+                  </span>
+                  <span className="text-xs font-bold text-emerald-900">
+                    {itemsOnDate.length} bài đã xuất bản trong ngày này
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
+                  {itemsOnDate.map((item) => {
+                    const pubParts = extractPublishedDateParts(item);
+                    const isGroupPub = Boolean(item.is_published_group || item.group_status === "published");
+                    const isFanpagePub = Boolean(item.is_published_fanpage || item.fanpage_post_url);
+                    const groupHref =
+                      (isGroupPub ? item.group_post_url || item.facebook_post_url : null) || currentHub.group.group_url;
+                    const fanpageHref = item.fanpage_post_url || currentHub.group.page_url;
+
+                    return (
+                      <article
+                        key={`archive_${item.source_id}`}
+                        className="flex flex-col justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/25 p-3.5"
+                      >
+                        <div className="flex gap-3">
+                          <img
+                            src={item.image_url}
+                            alt={item.topic_title}
+                            className="h-20 w-24 shrink-0 rounded-lg border border-slate-200 object-cover"
+                            loading="lazy"
+                          />
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                Bài #{item.day_index}
+                              </span>
+                              <span className="rounded bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white">
+                                ✓ Đã đăng {pubParts.dateDisplay} • {pubParts.timeHm}
+                              </span>
+                            </div>
+                            <h4 className="line-clamp-2 text-xs font-bold text-slate-900">{item.topic_title}</h4>
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {isGroupPub && (
+                                <span className="rounded border border-emerald-300 bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900">
+                                  👥 Group Cộng đồng
+                                </span>
+                              )}
+                              {item.published_slug && (
+                                <span className="rounded border border-blue-300 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-900">
+                                  🌐 Website
+                                </span>
+                              )}
+                              {isFanpagePub && (
+                                <span className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                                  📘 Fanpage
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {item.post_body_preview && (
+                          <details className="rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-700">
+                            <summary className="cursor-pointer font-bold text-slate-800">
+                              📄 Xem nội dung & ảnh đã đăng
+                            </summary>
+                            <p className="mt-1.5 whitespace-pre-wrap leading-relaxed">{item.post_body_preview}</p>
+                          </details>
+                        )}
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-emerald-100 pt-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {isGroupPub && (
+                              <a
+                                href={groupHref}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-lg bg-blue-700 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-blue-800"
+                              >
+                                👥 Xem trong Group ↗
+                              </a>
+                            )}
+                            {item.published_slug && (
+                              <a
+                                href={`http://localhost:3001/posts/${item.published_slug}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-lg border border-emerald-600 bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-50"
+                              >
+                                🌐 Xem Web ↗
+                              </a>
+                            )}
+                            {isFanpagePub && (
+                              <a
+                                href={fanpageHref}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100"
+                              >
+                                📘 Fanpage ↗
+                              </a>
+                            )}
+                          </div>
+
+                          {isGroupPub && canEdit && (
+                            <button
+                              type="button"
+                              disabled={!!busyAction}
+                              onClick={() => void handleRetractGroupPost(item)}
+                              className="rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                            >
+                              {busyAction === `retract_${item.source_id}`
+                                ? "Đang thu hồi…"
+                                : "🗑️ Thu hồi bài Group"}
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  const weekEntries =
+    hub.calendar.weekly.length > 0
+      ? hub.calendar.weekly
+      : [1, 2, 3, 4].map((wNum) => ({
+          week_number: wNum,
+          week_label: `Tuần ${wNum}`,
+          date_range:
+            wNum === 1
+              ? "02/11/2026 00:00 – 08/11/2026 23:59"
+              : wNum === 2
+                ? "09/11/2026 00:00 – 15/11/2026 23:59"
+                : wNum === 3
+                  ? "16/11/2026 00:00 – 22/11/2026 23:59"
+                  : "23/11/2026 00:00 – 30/11/2026 23:59",
+          member_target: "",
+          pillar_theme: "",
+          planned_topics: [],
+          interactive_format: "",
+        }));
+
+  const weekSummaryStats = weekEntries.map((wk) => {
+    const wNum = wk.week_number;
     const items = hub.calendar.daily.filter((i) => i.week_number === wNum);
     const pub = items.filter((i) => i.status === "published").length;
     const fail =
@@ -978,17 +1600,10 @@ export default function CommunityGrowthHub({
         ? 0
         : items.filter((i) => i.status !== "published" && i.group_status === "failed").length;
     const sched = items.length - pub - fail;
-    const dateRange =
-      wNum === 1
-        ? "02/11/2026 (00:00) – 08/11/2026 (23:59)"
-        : wNum === 2
-          ? "09/11/2026 (00:00) – 15/11/2026 (23:59)"
-          : wNum === 3
-            ? "16/11/2026 (00:00) – 22/11/2026 (23:59)"
-            : "23/11/2026 (00:00) – 30/11/2026 (23:59)";
+    const dateRange = wk.date_range || wk.week_label;
     return {
       weekNum: wNum,
-      id: `week${wNum}` as "week1" | "week2" | "week3" | "week4",
+      id: `week${wNum}` as WeekFilterId,
       total: items.length,
       pub,
       fail,
@@ -1159,6 +1774,70 @@ export default function CommunityGrowthHub({
             </div>
           </div>
         </div>
+
+        {bannerMessage && (
+          <div
+            ref={bannerRef}
+            role={bannerTone === "error" ? "alert" : "status"}
+            aria-live={bannerTone === "error" ? "assertive" : "polite"}
+            aria-atomic="true"
+            className={`space-y-3 rounded-xl border p-4 text-sm font-medium shadow-sm ${
+              bannerTone === "error"
+                ? "border-rose-300 bg-rose-50 text-rose-950"
+                : bannerTone === "warning"
+                  ? "border-amber-300 bg-amber-50 text-amber-950"
+                  : "border-emerald-300 bg-emerald-50 text-emerald-900"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="leading-relaxed">{bannerMessage}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  stopLoginPolling();
+                  setBannerMessage("");
+                  setBannerRecovery(null);
+                }}
+                className="shrink-0 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Đóng
+              </button>
+            </div>
+            {bannerRecovery && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction}
+                  onClick={() => void handleLaunchGroupBotLogin()}
+                  className="rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-800 disabled:opacity-50"
+                >
+                  🌐 Mở Edge Đăng nhập Group Bot (1 lần)
+                </button>
+                <button
+                  type="button"
+                  disabled={!!busyAction}
+                  onClick={() => void handleVerifyGroupBotSession()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  🔍 Kiểm tra phiên Group Bot
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleCopyAndOpenGroup(
+                      bannerRecovery.title,
+                      bannerRecovery.body,
+                      bannerRecovery.prompt
+                    )
+                  }
+                  className="rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-50"
+                >
+                  📋 Copy & Mở Group để dán tay ↗
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {editingSettings && (
           <form
@@ -1426,7 +2105,9 @@ export default function CommunityGrowthHub({
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-bold text-amber-900">Kho Chủ đề & Ảnh Chuẩn</p>
               <span className="rounded bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-950">
-                0% Trùng lặp
+                {hub.stats.duplication_rate_pct === 0
+                  ? "✓ 0% Trùng lặp"
+                  : `⚠ ${hub.stats.duplication_rate_pct}% Trùng lặp`}
               </span>
             </div>
             <p className="mt-1.5 text-2xl font-bold text-amber-900">
@@ -1467,65 +2148,6 @@ export default function CommunityGrowthHub({
         </div>
       </div>
 
-      {bannerMessage && (
-        <div
-          role={bannerTone === "error" ? "alert" : "status"}
-          aria-live="polite"
-          className={`space-y-3 rounded-xl border p-4 text-sm font-medium ${
-            bannerTone === "error"
-              ? "border-rose-300 bg-rose-50 text-rose-950"
-              : bannerTone === "warning"
-                ? "border-amber-300 bg-amber-50 text-amber-950"
-                : "border-emerald-300 bg-emerald-50 text-emerald-900"
-          }`}
-        >
-          <p>{bannerMessage}</p>
-          {bannerRecovery && (
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="button"
-                disabled={!canEdit || !!busyAction}
-                onClick={() => void handleLaunchGroupBotLogin()}
-                className="rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-800 disabled:opacity-50"
-              >
-                🌐 Mở Edge Đăng nhập Group Bot (1 lần)
-              </button>
-              <button
-                type="button"
-                disabled={!!busyAction}
-                onClick={() => void handleVerifyGroupBotSession()}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-              >
-                🔍 Kiểm tra phiên Group Bot
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void handleCopyAndOpenGroup(
-                    bannerRecovery.title,
-                    bannerRecovery.body,
-                    bannerRecovery.prompt
-                  )
-                }
-                className="rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-50"
-              >
-                📋 Copy & Mở Group để dán tay ↗
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setBannerMessage("");
-                  setBannerRecovery(null);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-              >
-                Đóng
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Navigation Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
         <button
@@ -1540,13 +2162,23 @@ export default function CommunityGrowthHub({
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab("published_archive")}
+          className={`rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === "published_archive"
+              ? "bg-emerald-700 text-white shadow-sm"
+              : "border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+            }`}
+        >
+          2. 📚 Các Bài Đã Đăng Theo Ngày / Tháng / Năm ({primaryPublishedItems.length} bài)
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab("campaigns")}
           className={`rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === "campaigns"
               ? "bg-blue-700 text-white shadow-sm"
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
         >
-          2. Chiến dịch Thu hút Thành viên ({hub.stats.week1_target} → {hub.stats.week2_target} → {hub.stats.week3_target ?? 150} → {hub.stats.week4_target ?? 300})
+          3. Chiến dịch Thu hút Thành viên ({hub.stats.week1_target} → {hub.stats.week2_target} → {hub.stats.week3_target ?? 150} → {hub.stats.week4_target ?? 300})
         </button>
         <button
           type="button"
@@ -1556,7 +2188,7 @@ export default function CommunityGrowthHub({
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
         >
-          3. Thảo luận Cộng đồng ({hub.discussions.length} Chủ đề)
+          4. Thảo luận Cộng đồng ({hub.discussions.length} Chủ đề)
         </button>
         <button
           type="button"
@@ -1566,7 +2198,7 @@ export default function CommunityGrowthHub({
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
         >
-          4. Phân vai 4 Agent & Cơ chế Trả lời Tin nhắn bằng RAG
+          5. Phân vai 4 Agent & Cơ chế Trả lời Tin nhắn bằng RAG
         </button>
       </div>
 
@@ -1585,7 +2217,7 @@ export default function CommunityGrowthHub({
                 </span>{" "}
                 ·{" "}
                 <span className="font-bold text-indigo-700">
-                  ⏰ {scheduledFilterCount} bài đang hẹn giờ (09:00 sáng)
+                  ⏰ {scheduledFilterCount} bài đang hẹn giờ tự động
                 </span>
                 {failedGroupCount > 0 && targetMode !== "fanpage" ? (
                   <>
@@ -1618,7 +2250,7 @@ export default function CommunityGrowthHub({
                 className={`rounded-lg px-3.5 py-2 text-xs font-bold transition ${calendarView === "weekly" ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
               >
-                🗓️ Xem Theo 4 Tuần Cụ Thể (02/11 – 30/11/2026)
+                🗓️ Xem Theo {weekSummaryStats.length} Tuần Cụ Thể (Lịch Chi Tiết)
               </button>
               <button
                 type="button"
@@ -1691,7 +2323,7 @@ export default function CommunityGrowthHub({
               </div>
 
               {/* BẢNG ĐIỀU KHIỂN PHÂN LỌC KHOA HỌC: CHỌN NGÀY / THÁNG / NĂM / TUẦN & TRẠNG THÁI */}
-              <div className="community-form space-y-4 rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm">
+              <search aria-label="Bộ lọc lịch xuất bản cộng đồng" className="community-form block space-y-4 rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm">
                 {/* Hàng Lọc 1: Chọn Ngày, Tháng, Năm & Lịch Ngày Cụ Thể */}
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
@@ -1713,20 +2345,38 @@ export default function CommunityGrowthHub({
                       >
                         📍 Xem Hôm nay ({todayVn.dateDisplay})
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDailyFilter("all");
-                          setSelectedYear("2026");
-                          setSelectedMonth("11");
-                          setSelectedDay("06");
-                          setSelectedExactDate("2026-11-06");
-                          setDailyPage(1);
-                        }}
-                        className="rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
-                      >
-                        📅 Ngày 06/11/2026 (Bài Fanpage cũ)
-                      </button>
+                      {nextUpcomingParts && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDailyFilter("scheduled");
+                            setSelectedYear(nextUpcomingParts.yearStr);
+                            setSelectedMonth(nextUpcomingParts.monthStr);
+                            setSelectedDay(nextUpcomingParts.dayStr);
+                            setSelectedExactDate(nextUpcomingParts.dateIso);
+                            setDailyPage(1);
+                          }}
+                          className="rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-800 hover:bg-indigo-100"
+                        >
+                          ⏰ Lịch hẹn kế tiếp ({nextUpcomingParts.dateDisplay})
+                        </button>
+                      )}
+                      {fanpageOnlyCount > 0 && targetMode !== "fanpage" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDailyFilter("fanpage_only");
+                            setSelectedYear("all");
+                            setSelectedMonth("all");
+                            setSelectedDay("all");
+                            setSelectedExactDate("");
+                            setDailyPage(1);
+                          }}
+                          className="rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
+                        >
+                          📘 Chưa đăng Group ({fanpageOnlyCount} bài Page cũ)
+                        </button>
+                      )}
                       {hasActiveCustomFilter && (
                         <button
                           type="button"
@@ -1799,6 +2449,7 @@ export default function CommunityGrowthHub({
                             setSelectedExactDate("");
                           } else {
                             const y = selectedYear === "all" ? todayVn.yearStr : selectedYear;
+                            if (selectedYear === "all") setSelectedYear(y);
                             setSelectedExactDate(`${y}-${val}-${selectedDay}`);
                           }
                           setDailyPage(1);
@@ -1840,8 +2491,11 @@ export default function CommunityGrowthHub({
                         className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-bold text-slate-900 focus:border-blue-600 focus:bg-white"
                       >
                         <option value="all">Tất cả các năm</option>
-                        <option value="2026">Năm 2026 ({yearCountsMap.get("2026") ?? hub.calendar.daily.length} bài)</option>
-                        <option value="2027">Năm 2027 ({yearCountsMap.get("2027") ?? 0} bài)</option>
+                        {availableYears.map((yr) => (
+                          <option key={yr} value={yr}>
+                            Năm {yr} ({yearCountsMap.get(yr) ?? 0} bài)
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -1960,13 +2614,20 @@ export default function CommunityGrowthHub({
                     <span className="block text-xs font-bold text-slate-700">
                       🗓️ 3. Lọc theo Tuần (Kèm Mốc Ngày Tháng Năm & Giờ Cụ Thể, Trạng Thái Bài Trong Tuần):
                     </span>
-                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="mt-2 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                       {weekSummaryStats.map((w) => {
                         const isSelected = dailyFilter === w.id;
+                        const statusParts = [
+                          w.pub > 0 ? `✓ ${w.pub} Đã đăng` : "",
+                          w.fail > 0 ? `⚠ ${w.fail} Lỗi` : "",
+                          w.sched > 0 ? `⏰ ${w.sched} Hẹn giờ` : "",
+                        ].filter(Boolean);
+                        const statusText = w.total === 0 ? "0 bài trong tuần" : statusParts.join(" • ");
                         return (
                           <button
                             key={w.id}
                             type="button"
+                            aria-pressed={isSelected}
                             onClick={() => {
                               setDailyFilter(isSelected ? "all" : w.id);
                               setSelectedDay("all");
@@ -1985,18 +2646,16 @@ export default function CommunityGrowthHub({
                               <span
                                 className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${isSelected
                                     ? "bg-white/20 text-white"
-                                    : w.fail > 0
-                                      ? "bg-rose-100 text-rose-900"
-                                      : w.pub === w.total
-                                        ? "bg-emerald-100 text-emerald-800"
-                                        : "bg-indigo-100 text-indigo-800"
+                                    : w.total === 0
+                                      ? "bg-slate-200 text-slate-700"
+                                      : w.fail > 0
+                                        ? "bg-rose-100 text-rose-900"
+                                        : w.pub === w.total
+                                          ? "bg-emerald-100 text-emerald-800"
+                                          : "bg-indigo-100 text-indigo-800"
                                   }`}
                               >
-                                {w.pub > 0 ? `✓ ${w.pub} Đã đăng` : ""}
-                                {w.pub > 0 && (w.fail > 0 || w.sched > 0) ? " • " : ""}
-                                {w.fail > 0 ? `⚠ ${w.fail} Lỗi` : ""}
-                                {w.fail > 0 && w.sched > 0 ? " • " : ""}
-                                {w.sched > 0 ? `⏰ ${w.sched} Hẹn giờ` : ""}
+                                {statusText}
                               </span>
                             </div>
                             <span
@@ -2058,7 +2717,9 @@ export default function CommunityGrowthHub({
                         <option value={6}>6 bài / trang</option>
                         <option value={9}>9 bài / trang</option>
                         <option value={12}>12 bài / trang</option>
-                        <option value={27}>Tất cả {hub.calendar.daily.length} bài</option>
+                        <option value={Math.max(24, hub.calendar.daily.length)}>
+                          Tất cả {hub.calendar.daily.length} bài
+                        </option>
                       </select>
                     </div>
                     <span className="font-semibold text-slate-600">
@@ -2102,7 +2763,7 @@ export default function CommunityGrowthHub({
                     </div>
                   </div>
                 </div>
-              </div>
+              </search>
 
               {/* DANH SÁCH THẺ BÀI VIẾT KHOA HỌC — TÁCH BẠCH 5 VÙNG, KHÔNG ĐÈ LAYOUT & TAG */}
               {paginatedDailyItems.length === 0 ? (
@@ -2313,8 +2974,16 @@ export default function CommunityGrowthHub({
                                 <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold leading-normal text-emerald-800">
                                   ✓ Không trùng chủ đề
                                 </span>
-                                <span className="inline-flex items-center rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-bold leading-normal text-purple-800">
-                                  ✓ Ảnh độc nhất #{item.day_index}
+                                <span
+                                  className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold leading-normal ${
+                                    item.unique_image_verified
+                                      ? "border-purple-200 bg-purple-50 text-purple-800"
+                                      : "border-amber-300 bg-amber-50 text-amber-900"
+                                  }`}
+                                >
+                                  {item.unique_image_verified
+                                    ? `✓ Ảnh độc nhất #${item.day_index}`
+                                    : `⚠ Ảnh trùng lặp #${item.day_index}`}
                                 </span>
                               </div>
                             </div>
@@ -2323,6 +2992,17 @@ export default function CommunityGrowthHub({
                               <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-700">
                                 🎯 <b>Chi tiết trạng thái & hành động:</b> {item.concrete_action}
                               </div>
+                            )}
+
+                            {item.post_body_preview && (
+                              <details className="rounded-lg border border-slate-200 bg-white p-2.5 text-[11px] text-slate-700">
+                                <summary className="cursor-pointer font-bold text-slate-800">
+                                  📄 Nội dung bài đăng thực tế (khớp với Group & Distribution)
+                                </summary>
+                                <p className="mt-2 whitespace-pre-wrap leading-relaxed text-slate-700">
+                                  {item.post_body_preview}
+                                </p>
+                              </details>
                             )}
 
                             <p className="text-xs leading-relaxed text-slate-600">
@@ -2381,19 +3061,33 @@ export default function CommunityGrowthHub({
                                     </a>
                                   )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void handleCopyAndOpenGroup(
-                                      item.topic_title,
-                                      item.concrete_action || item.target_trend,
-                                      item.community_discussion_hook
-                                    )
-                                  }
-                                  className="rounded-lg border border-blue-600 bg-white px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-50"
-                                >
-                                  📋 Copy & Mở Group ↗
-                                </button>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {isGroupPublished && canEdit && (
+                                    <button
+                                      type="button"
+                                      disabled={!!busyAction}
+                                      onClick={() => void handleRetractGroupPost(item)}
+                                      className="rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1.5 text-[11px] font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                                    >
+                                      {busyAction === `retract_${item.source_id}`
+                                        ? "Đang thu hồi…"
+                                        : "🗑️ Thu hồi bài Group"}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void handleCopyAndOpenGroup(
+                                        item.topic_title,
+                                        buildShareableCardBody(item),
+                                        item.community_discussion_hook
+                                      )
+                                    }
+                                    className="rounded-lg border border-blue-600 bg-white px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-50"
+                                  >
+                                    📋 Copy & Mở Group ↗
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ) : (
@@ -2469,7 +3163,7 @@ export default function CommunityGrowthHub({
                                     onClick={() =>
                                       void handlePublishFreshPost(item.source_id, {
                                         title: item.topic_title,
-                                        body: item.concrete_action || item.target_trend,
+                                        body: buildShareableCardBody(item),
                                         prompt: item.community_discussion_hook,
                                       })
                                     }
@@ -2486,7 +3180,7 @@ export default function CommunityGrowthHub({
                                     onClick={() =>
                                       void handleCopyAndOpenGroup(
                                         item.topic_title,
-                                        item.concrete_action || item.target_trend,
+                                        buildShareableCardBody(item),
                                         item.community_discussion_hook
                                       )
                                     }
@@ -2562,6 +3256,9 @@ export default function CommunityGrowthHub({
                   </div>
                 </div>
               )}
+
+              {/* MỤC CÁC BÀI ĐÃ ĐĂNG THEO NGÀY / THÁNG / NĂM — LUÔN HIỂN THỊ, KHÔNG BAO GIỜ BỊ ẨN */}
+              {renderPublishedArchivePanel(hub)}
             </div>
           )}
 
@@ -2575,7 +3272,7 @@ export default function CommunityGrowthHub({
                     ? 0
                     : weekPosts.filter((item) => item.status !== "published" && item.group_status === "failed").length;
                 const weekSchedCount = weekPosts.length - weekPubCount - weekFailCount;
-                const weekFilterId = `week${w.week_number}` as "week1" | "week2" | "week3" | "week4";
+                const weekFilterId = `week${w.week_number}` as WeekFilterId;
 
                 return (
                   <div key={w.week_number} className="flex min-w-0 flex-col justify-between rounded-xl border-2 border-slate-200 bg-white p-5 shadow-sm">
@@ -2632,7 +3329,12 @@ export default function CommunityGrowthHub({
                       </div>
 
                       <ul className="mt-2.5 space-y-2 text-xs">
-                        {weekPosts.map((post) => {
+                        {weekPosts.length === 0 ? (
+                          <li className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-center text-slate-600">
+                            Không có bài viết nào được xếp trong khoảng thời gian {w.date_range || w.week_label}.
+                          </li>
+                        ) : (
+                          weekPosts.map((post) => {
                           const isPub = post.status === "published";
                           const isGroupPub = Boolean(post.is_published_group || post.group_status === "published");
                           const isFanpagePub = Boolean(post.is_published_fanpage || post.fanpage_post_url);
@@ -2720,7 +3422,8 @@ export default function CommunityGrowthHub({
                               </div>
                             </li>
                           );
-                        })}
+                        })
+                        )}
                       </ul>
                     </div>
                   </div>
@@ -2758,7 +3461,10 @@ export default function CommunityGrowthHub({
         </div>
       )}
 
-      {/* TAB 2: WEEKLY MEMBER ACQUISITION CAMPAIGNS & AUTO-MATCHING */}
+      {/* TAB 2: PUBLISHED POSTS ARCHIVE BY DAY / MONTH / YEAR */}
+      {activeTab === "published_archive" && renderPublishedArchivePanel(hub)}
+
+      {/* TAB 3: WEEKLY MEMBER ACQUISITION CAMPAIGNS & AUTO-MATCHING */}
       {activeTab === "campaigns" && (
         <div className="space-y-6">
           <div>
@@ -2868,7 +3574,7 @@ export default function CommunityGrowthHub({
                 <button
                   type="button"
                   disabled={!canEdit || busyAction === "scan"}
-                  onClick={handleScanMembers}
+                  onClick={() => void handleScanMembers(false)}
                   className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
                 >
                   {busyAction === "scan" ? "Đang quét…" : "🔍 Quét lại tin nhắn & bình luận thật trên Fanpage"}
@@ -2881,7 +3587,7 @@ export default function CommunityGrowthHub({
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!prospectName.trim() || !prospectSignal.trim()) return;
-                void handleScanMembers();
+                void handleScanMembers(true);
               }}
               className="community-form mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-[1fr_1.6fr_auto] sm:items-end"
             >

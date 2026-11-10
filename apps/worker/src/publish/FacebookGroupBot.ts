@@ -23,6 +23,21 @@ export interface GroupPostResult {
   message?: string;
 }
 
+export interface DeleteGroupPostOptions {
+  groupUrl?: string;
+  postUrl?: string;
+  titleSnippet?: string;
+  headless?: boolean;
+}
+
+export interface DeleteGroupPostResult {
+  success: boolean;
+  groupUrl: string;
+  postUrl?: string;
+  alreadyDeleted?: boolean;
+  message: string;
+}
+
 export class FacebookGroupBot {
   private readonly stateFile: string;
   private readonly browserChannel: string;
@@ -61,7 +76,7 @@ export class FacebookGroupBot {
 
   static buildPostText(options: GroupPostOptions): string {
     const bodyTrimmed = (options.body || '').trim();
-    const hasCommunityHeader = /\[CẨM NANG CỘNG ĐỒNG\]/i.test(bodyTrimmed);
+    const hasCommunityHeader = /\[(CẨM NANG CỘNG ĐỒNG|VIETNAM PLAYBOOK)\]/i.test(bodyTrimmed);
     const hasPromptInBody =
       bodyTrimmed.includes('💬') ||
       (Boolean(options.discussionPrompt?.trim()) && bodyTrimmed.includes(options.discussionPrompt!.trim()));
@@ -138,24 +153,28 @@ export class FacebookGroupBot {
   }
 
   async launchBrowser(headless = true): Promise<Browser> {
+    const args = [
+      '--disable-blink-features=AutomationControlled',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-sync',
+      '--disable-features=Translate,OptimizationHints',
+    ];
+    if (!headless) {
+      args.push('--start-maximized');
+    }
     return await chromium.launch({
       channel: this.browserChannel,
       headless,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-sync',
-        '--disable-features=Translate,OptimizationHints',
-      ],
+      args,
     });
   }
 
-  async createContext(browser: Browser): Promise<BrowserContext> {
+  async createContext(browser: Browser, options?: { fullViewport?: boolean }): Promise<BrowserContext> {
     const hasState = fs.existsSync(this.stateFile);
     const context = await browser.newContext({
       storageState: hasState ? this.stateFile : undefined,
-      viewport: { width: 1280, height: 850 },
+      viewport: options?.fullViewport ? null : { width: 1280, height: 850 },
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0',
     });
@@ -219,9 +238,10 @@ export class FacebookGroupBot {
     console.log('[FacebookGroupBot] Đang mở trình duyệt để Quản trị viên đăng nhập...');
     const browser = await this.launchBrowser(false);
     try {
-      const context = await this.createContext(browser);
+      const context = await this.createContext(browser, { fullViewport: true });
       const page = await context.newPage();
       await page.goto('https://www.facebook.com/login', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.bringToFront().catch(() => {});
 
       console.log('👉 Vui lòng đăng nhập tài khoản Quản trị viên trên cửa sổ trình duyệt.');
       console.log('👉 Sau khi đăng nhập vào Facebook, hệ thống sẽ tự động lưu phiên vào:', this.stateFile);
@@ -365,26 +385,41 @@ export class FacebookGroupBot {
       console.log('[FacebookGroupBot] Đã điền xong nội dung bài viết.');
       await page.waitForTimeout(1500);
 
-      // Attach image if present
+      // Attach image strictly inside the composer dialog (never match cover-photo inputs outside div[role="dialog"])
       if (tempImagePath && fs.existsSync(tempImagePath)) {
         try {
-          const fileInput = await page.$('input[type="file"][accept*="image"]');
-          if (fileInput) {
-            await fileInput.setInputFiles(tempImagePath);
-            console.log('[FacebookGroupBot] Đã tải ảnh lên bài viết...');
-            await page.waitForTimeout(3000);
-          } else {
-            const photoButton = await page.$('div[role="dialog"] div[aria-label*="Ảnh/video"], div[role="dialog"] div[aria-label*="Photo/video"]');
-            if (photoButton) {
-              await photoButton.click();
-              await page.waitForTimeout(1000);
-              const retryInput = await page.$('input[type="file"][accept*="image"]');
-              if (retryInput) {
-                await retryInput.setInputFiles(tempImagePath);
-                console.log('[FacebookGroupBot] Đã tải ảnh lên bài viết...');
-                await page.waitForTimeout(3000);
+          let dialogFileInputs = await page.$$('div[role="dialog"] input[type="file"][accept*="image"]');
+          if (dialogFileInputs.length === 0) {
+            const photoButtonSelectors = [
+              'div[role="dialog"] div[aria-label*="Ảnh/video"]',
+              'div[role="dialog"] div[aria-label*="Photo/video"]',
+              'div[role="dialog"] [role="button"][aria-label*="Ảnh"]',
+              'div[role="dialog"] [role="button"][aria-label*="Photo"]',
+            ];
+            for (const btnSel of photoButtonSelectors) {
+              const photoButton = await page.$(btnSel);
+              if (photoButton) {
+                await photoButton.click();
+                await page.waitForTimeout(1200);
+                dialogFileInputs = await page.$$('div[role="dialog"] input[type="file"][accept*="image"]');
+                if (dialogFileInputs.length > 0) break;
               }
             }
+          }
+
+          const targetFileInput = dialogFileInputs[dialogFileInputs.length - 1];
+          if (targetFileInput) {
+            await targetFileInput.setInputFiles(tempImagePath);
+            console.log('[FacebookGroupBot] Đã chọn ảnh trong hộp thoại bài viết, đang chờ tải lên...');
+            await page
+              .waitForSelector('div[role="dialog"] img[src^="blob:"], div[role="dialog"] img[src*="scontent"]', {
+                timeout: 12000,
+              })
+              .catch(() => {});
+            await page.waitForTimeout(1500);
+            console.log('[FacebookGroupBot] Đã tải ảnh lên hộp thoại bài viết.');
+          } else {
+            console.warn('[FacebookGroupBot] Không tìm thấy input tải ảnh bên trong hộp thoại đăng bài.');
           }
         } catch (imgErr) {
           console.warn('[FacebookGroupBot] Lỗi khi đính kèm ảnh:', (imgErr as Error).message);
@@ -474,6 +509,214 @@ export class FacebookGroupBot {
           fs.unlinkSync(tempImagePath);
         } catch {}
       }
+      await browser.close();
+    }
+  }
+
+  /**
+   * Retract (delete) a post from the Facebook Group using the Administrator session.
+   */
+  async deleteGroupPost(options: DeleteGroupPostOptions): Promise<DeleteGroupPostResult> {
+    const groupUrl = options.groupUrl || 'https://www.facebook.com/groups/1134282109069209';
+    const headless = options.headless !== undefined ? options.headless : true;
+
+    const hasSession = fs.existsSync(this.stateFile) || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    if (!hasSession) {
+      throw new Error(
+        'FACEBOOK_GROUP_SESSION_MISSING: Chưa tìm thấy phiên đăng nhập Quản trị viên Group Facebook (.fb-session.json hoặc FB_ADMIN_COOKIE).'
+      );
+    }
+
+    const browser = await this.launchBrowser(headless);
+    try {
+      const context = await this.createContext(browser);
+      const page = await context.newPage();
+
+      const tryDeleteOnCurrentPage = async (snippet?: string): Promise<'deleted' | 'unavailable' | 'not_found'> => {
+        await page.waitForTimeout(2500);
+        const bodyText = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
+        if (
+          /Nội dung này hiện không khả dụng|This content isn't available|Trang này không hiển thị/i.test(bodyText)
+        ) {
+          return 'unavailable';
+        }
+
+        const dialog = await page.$('div[role="dialog"]');
+        const articles = await page.$$('div[role="article"]');
+        let targetArticle = articles[0] ?? null;
+
+        if (snippet && snippet.trim()) {
+          const needle = snippet.trim().toLowerCase();
+          for (const art of articles) {
+            const txt = (await art.innerText().catch(() => '')).toLowerCase();
+            if (txt.includes(needle)) {
+              targetArticle = art;
+              break;
+            }
+          }
+          if (!targetArticle && articles.length > 0 && !page.url().includes('/posts/') && !page.url().includes('/permalink/')) {
+            return 'not_found';
+          }
+        }
+
+        const menuSelectors = [
+          '[aria-label*="Hành động cho bài viết này"]',
+          '[aria-label*="Actions for this post"]',
+          '[aria-label*="Tùy chọn khác"]',
+          '[aria-label*="More options"]',
+          'div[role="button"][aria-haspopup="menu"]',
+        ];
+
+        let menuOpened = false;
+        const scopes = [dialog, targetArticle, page].filter(Boolean) as NonNullable<typeof dialog>[];
+        for (const scope of scopes) {
+          for (const sel of menuSelectors) {
+            const btns = await scope.$$(sel);
+            for (const btn of btns) {
+              const visible = await btn.isVisible().catch(() => false);
+              if (!visible) continue;
+              const label = ((await btn.getAttribute('aria-label')) || '').toLowerCase();
+              if (
+                label.includes('tài khoản') ||
+                label.includes('account') ||
+                label.includes('thông báo') ||
+                label.includes('notification') ||
+                label.includes('messenger') ||
+                label.includes('menu facebook')
+              ) {
+                continue;
+              }
+              await btn.click({ force: true, timeout: 5000 }).catch(() => {});
+              await page.waitForTimeout(1200);
+              const menuVisible = await page.$('div[role="menu"], div[role="menuitem"]');
+              if (menuVisible) {
+                menuOpened = true;
+                break;
+              }
+            }
+            if (menuOpened) break;
+          }
+          if (menuOpened) break;
+        }
+
+        if (!menuOpened) {
+          return 'not_found';
+        }
+
+        const deleteMenuSelectors = [
+          'div[role="menuitem"]:has-text("Gỡ bài viết")',
+          'div[role="menuitem"]:has-text("Remove post")',
+          'div[role="menuitem"]:has-text("Xóa bài viết")',
+          'div[role="menuitem"]:has-text("Delete post")',
+          'div[role="menuitem"]:has-text("Chuyển vào thùng rác")',
+          'div[role="menuitem"]:has-text("Move to trash")',
+          'span:has-text("Gỡ bài viết")',
+          'span:has-text("Remove post")',
+          'span:has-text("Xóa bài viết")',
+          'span:has-text("Delete post")',
+          'span:has-text("Chuyển vào thùng rác")',
+          'span:has-text("Move to trash")',
+        ];
+
+        let clickedDeleteItem = false;
+        for (const sel of deleteMenuSelectors) {
+          const item = await page.$(sel);
+          if (item && (await item.isVisible().catch(() => false))) {
+            await item.click({ force: true, timeout: 5000 });
+            clickedDeleteItem = true;
+            break;
+          }
+        }
+
+        if (!clickedDeleteItem) {
+          const menuItemsText = await page.$$eval('div[role="menuitem"]', (els) =>
+            els.map((e) => e.textContent?.trim() || '').filter(Boolean)
+          ).catch(() => []);
+          console.log('[FacebookGroupBot] Các mục trong menu bài viết:', menuItemsText);
+          await page.keyboard.press('Escape').catch(() => {});
+          return 'not_found';
+        }
+
+        await page.waitForTimeout(1500);
+
+        const confirmSelectors = [
+          'div[role="dialog"] div[aria-label="Gỡ"]',
+          'div[role="dialog"] div[aria-label="Remove"]',
+          'div[role="dialog"] div[aria-label="Xóa"]',
+          'div[role="dialog"] div[aria-label="Delete"]',
+          'div[role="dialog"] div[aria-label="Xác nhận"]',
+          'div[role="dialog"] div[aria-label="Confirm"]',
+          'div[role="dialog"] [role="button"]:has-text("Gỡ")',
+          'div[role="dialog"] [role="button"]:has-text("Remove")',
+          'div[role="dialog"] [role="button"]:has-text("Xóa")',
+          'div[role="dialog"] [role="button"]:has-text("Delete")',
+          'div[role="dialog"] [role="button"]:has-text("Xác nhận")',
+          'div[role="dialog"] [role="button"]:has-text("Confirm")',
+        ];
+
+        for (const sel of confirmSelectors) {
+          const confirmBtns = await page.$$(sel);
+          const confirmBtn = confirmBtns[confirmBtns.length - 1];
+          if (confirmBtn && (await confirmBtn.isVisible().catch(() => false))) {
+            await confirmBtn.click({ force: true, timeout: 5000 });
+            await page.waitForTimeout(3000);
+            return 'deleted';
+          }
+        }
+
+        return 'not_found';
+      };
+
+      let outcome: 'deleted' | 'unavailable' | 'not_found' = 'not_found';
+
+      if (options.postUrl && /^https?:\/\/(www\.|m\.)?facebook\.com\/groups\//i.test(options.postUrl)) {
+        console.log(`[FacebookGroupBot] Đang mở bài viết cần thu hồi: ${options.postUrl}`);
+        await page.goto(options.postUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        const cur = page.url();
+        if (cur.includes('/login') || cur.includes('/checkpoint')) {
+          throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn.');
+        }
+        outcome = await tryDeleteOnCurrentPage(options.titleSnippet);
+      }
+
+      if (outcome === 'not_found') {
+        console.log(`[FacebookGroupBot] Đang tìm bài trên trang Group để thu hồi: ${groupUrl}`);
+        await page.goto(groupUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        const cur = page.url();
+        if (cur.includes('/login') || cur.includes('/checkpoint')) {
+          throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn.');
+        }
+        outcome = await tryDeleteOnCurrentPage(options.titleSnippet);
+      }
+
+      fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
+      await context.storageState({ path: this.stateFile });
+
+      if (outcome === 'deleted') {
+        return {
+          success: true,
+          groupUrl,
+          postUrl: options.postUrl,
+          message: 'Đã thu hồi (xóa) bài đăng nhầm khỏi Group Facebook thành công!',
+        };
+      }
+      if (outcome === 'unavailable') {
+        return {
+          success: true,
+          groupUrl,
+          postUrl: options.postUrl,
+          alreadyDeleted: true,
+          message: 'Bài viết đã không còn tồn tại trên Group Facebook (đã được gỡ trước đó).',
+        };
+      }
+
+      return {
+        success: false,
+        groupUrl,
+        postUrl: options.postUrl,
+        message: 'Không tìm thấy nút Xóa bài viết trên Group Facebook. Vui lòng kiểm tra lại quyền Quản trị viên hoặc link bài viết.',
+      };
+    } finally {
       await browser.close();
     }
   }

@@ -146,6 +146,16 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
       return NextResponse.json({ status: botResult.success ? 'posted' : 'error', botResult, data });
     }
 
+    if (action === 'retract_group_post') {
+      const retractResult = await service.retractGroupPost(params.workspace_id, {
+        source_id: body.source_id ? String(body.source_id) : undefined,
+        post_url: body.post_url ? String(body.post_url) : undefined,
+        title: body.title ? String(body.title) : undefined,
+      });
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: retractResult.success ? 'retracted' : 'error', retractResult, data });
+    }
+
     const data = await service.getHubData(params.workspace_id);
     return NextResponse.json({ status: 'ok', data });
   } catch (error) {

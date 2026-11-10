@@ -3,7 +3,7 @@ import dns from 'node:dns';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { getWorkspaceConnectionStatus } from '../integrations/stubs';
@@ -55,9 +55,9 @@ function makeAsset(
 }
 
 /**
- * 30 Approved, 100% Distinct High-Resolution Unsplash Images:
- * - Assets 1..25: Dedicated 1-to-1 to each of the 25 unique approved Playbook topics (0% overlap).
- * - Assets 26..30: Dedicated exclusively to Community Discussions (0% overlap with article images).
+ * 32 Approved, 100% Distinct High-Resolution Unsplash Images:
+ * - Assets 1..27: Dedicated 1-to-1 to each of the 27 unique approved Playbook topics (0% overlap).
+ * - Assets 28..32: Dedicated exclusively to Community Discussions (0% overlap with article images).
  */
 export function getPlaybookImageAssets(workspaceId: string): PlaybookAsset[] {
   return [
@@ -82,7 +82,7 @@ export function getPlaybookImageAssets(workspaceId: string): PlaybookAsset[] {
       3,
       'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80',
       'Unsplash - eSIM or Local SIM Which Should You Buy Mobile Data Cellular',
-      ['esim or local sim', 'esim', 'local sim'],
+      ['esim or local sim', 'vietnam esim', 'esim', 'local sim', 'sim card'],
       'vietnam-esim-vs-sim-card',
     ),
     makeAsset(
@@ -261,10 +261,26 @@ export function getPlaybookImageAssets(workspaceId: string): PlaybookAsset[] {
       ['website is official', 'spot fake sites', 'official'],
       'official-vietnam-evisa-website',
     ),
-    // Dedicated exclusively to Community Discussions (26..30) so discussions never reuse article photos:
     makeAsset(
       workspaceId,
       26,
+      'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&w=1200&q=80',
+      'Unsplash - Da Nang Food and Pho Guide Authentic Vietnamese Noodle Soup Local Dining',
+      ['ẩm thực', 'quán phở', 'phở ngon', 'da nang food', 'pho guide'],
+      'da-nang-food-and-pho-guide',
+    ),
+    makeAsset(
+      workspaceId,
+      27,
+      'https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&w=1200&q=80',
+      'Unsplash - Do Foreign Credit Cards Work in Vietnam Contactless Payment Terminal',
+      ['foreign credit cards', 'credit cards', 'visa mastercard'],
+      'credit-cards-in-vietnam',
+    ),
+    // Dedicated exclusively to Community Discussions (28..32) so discussions never reuse article photos:
+    makeAsset(
+      workspaceId,
+      28,
       'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
       'Unsplash - Community Discussion Da Nang Neighborhoods My An vs Son Tra Apartment Living',
       ['discussion-housing', 'mỹ an', 'sơn trà'],
@@ -272,7 +288,7 @@ export function getPlaybookImageAssets(workspaceId: string): PlaybookAsset[] {
     ),
     makeAsset(
       workspaceId,
-      27,
+      29,
       'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80',
       'Unsplash - Community Discussion Remote Workers Fiber Wifi 4G 5G Backup Cafe Coworking',
       ['discussion-remote', 'cáp quang', 'coworking'],
@@ -280,7 +296,7 @@ export function getPlaybookImageAssets(workspaceId: string): PlaybookAsset[] {
     ),
     makeAsset(
       workspaceId,
-      28,
+      30,
       'https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=1200&q=80',
       'Unsplash - Community Discussion QR Payment VietQR ATM Card Wise Revolut Daily Living',
       ['discussion-payment', 'vietqr', 'atm'],
@@ -288,7 +304,7 @@ export function getPlaybookImageAssets(workspaceId: string): PlaybookAsset[] {
     ),
     makeAsset(
       workspaceId,
-      29,
+      31,
       'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80',
       'Unsplash - Community Discussion Welcome New Members Connect Travelers Expats Vietnam',
       ['discussion-welcome', 'chào mừng thành viên mới'],
@@ -296,7 +312,7 @@ export function getPlaybookImageAssets(workspaceId: string): PlaybookAsset[] {
     ),
     makeAsset(
       workspaceId,
-      30,
+      32,
       'https://images.unsplash.com/photo-1528181304800-259b08848526?auto=format&fit=crop&w=1200&q=80',
       'Unsplash - Community Discussion Open Forum Vietnam Travel Experiences Local Tips',
       ['discussion-general', 'thảo luận cộng đồng'],
@@ -306,11 +322,11 @@ export function getPlaybookImageAssets(workspaceId: string): PlaybookAsset[] {
 }
 
 export function getTopicImageAssets(workspaceId: string): PlaybookAsset[] {
-  return getPlaybookImageAssets(workspaceId).slice(0, 25);
+  return getPlaybookImageAssets(workspaceId).slice(0, 27);
 }
 
 export function getDiscussionImageAssets(workspaceId: string): PlaybookAsset[] {
-  return getPlaybookImageAssets(workspaceId).slice(25, 30);
+  return getPlaybookImageAssets(workspaceId).slice(27, 32);
 }
 
 export const PLAYBOOK_OFFERS = [
@@ -354,6 +370,16 @@ const PLAYBOOK_TREND_TOPICS = [
   { query: 'Vietnam common scams safety expats', title: 'Common Scams in Vietnam: What New Arrivals Should Watch For', url: 'https://tripc.ai/blog/common-scams-in-vietnam-guide' },
 ];
 
+function matchesTagInText(lowerText: string, tag: string): boolean {
+  const clean = tag.trim().toLowerCase();
+  if (!clean) return false;
+  if (clean.includes(' ') || /[^\x00-\x7F]/.test(clean) || clean.length > 4) {
+    return lowerText.includes(clean);
+  }
+  const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'i').test(lowerText);
+}
+
 export function matchAssetForTopic(
   titleOrSlug: string,
   assets: PlaybookAsset[],
@@ -365,21 +391,23 @@ export function matchAssetForTopic(
 
   // 1. Direct 1-to-1 slug match if available and not used
   if (slugPart) {
-    const exactBySlug = assets.find(
-      (a) => a.match_slug && (slugPart === a.match_slug || slugPart.includes(a.match_slug)) && !usedUrls.has(a.url),
-    );
+    const exactBySlug = assets.find((a) => a.match_slug === slugPart && !usedUrls.has(a.url));
     if (exactBySlug) return exactBySlug;
+    const partialBySlug = assets.find(
+      (a) => a.match_slug && (slugPart.includes(a.match_slug) || a.match_slug.includes(slugPart)) && !usedUrls.has(a.url),
+    );
+    if (partialBySlug) return partialBySlug;
   }
 
-  // 2. Score by multi-word phrase hits first, then single tag hits, strictly preferring unused URLs
+  // 2. Score by multi-word phrase hits first, then single tag hits (with word boundaries for short ASCII tags)
   const scored = assets.map((asset, idx) => {
-    const phraseHits = asset.topic_tags.filter((tag) => tag.includes(' ') && lower.includes(tag)).length;
-    const singleHits = asset.topic_tags.filter((tag) => !tag.includes(' ') && lower.includes(tag)).length;
+    const phraseHits = asset.topic_tags.filter((tag) => tag.includes(' ') && matchesTagInText(lower, tag)).length;
+    const singleHits = asset.topic_tags.filter((tag) => !tag.includes(' ') && matchesTagInText(lower, tag)).length;
     const attrWords = asset.attribution
       .toLowerCase()
       .split(/\W+/)
       .filter((w) => w.length > 3 && !['unsplash', 'vietnam', 'guide', 'complete', 'what', 'when', 'which'].includes(w));
-    const attrHits = attrWords.filter((w) => lower.includes(w)).length;
+    const attrHits = attrWords.filter((w) => matchesTagInText(lower, w)).length;
     const isUsed = usedUrls.has(asset.url) ? 1 : 0;
     return { asset, score: phraseHits * 50 + singleHits * 15 + attrHits * 4, isUsed, idx };
   });
@@ -416,17 +444,23 @@ export function classifyMemberInterests(text: string): {
     score = 97;
     topic = 'Apartment Viewing Checklist in Vietnam: What to Check Before You Sign';
   }
-  if (/remote|coworking|wifi|esim|sim|làm việc|nomad|cafe/i.test(lower)) {
+  if (/remote|coworking|wifi|\besim\b|\bsim\b|làm việc|nomad|cafe/i.test(lower)) {
     tags.push('Làm việc từ xa (Remote Work)', 'eSIM & Kết nối Internet');
     trend = 'Làm việc từ xa, Coworking & SIM/eSIM tại Việt Nam';
     score = 96;
     topic = 'Working Remotely from Vietnam: How to Build a Reliable Work Setup';
   }
-  if (/bank|ngân hàng|vietqr|tiền|chi phí|budget|cost|atm|cash/i.test(lower)) {
+  if (/bank|ngân hàng|vietqr|tiền|chi phí|budget|cost|atm|cash|credit card/i.test(lower)) {
     tags.push('Thanh toán VietQR & Ngân hàng', 'Chi phí du lịch mỗi ngày');
     trend = 'Chi phí du lịch, Thanh toán VietQR & Ngân hàng tại Việt Nam';
     score = 94;
     topic = 'Opening a Bank Account in Vietnam as a Foreigner: The 2026 Reality';
+  }
+  if (/ẩm thực|quán phở|\bphở\b|\bpho\b|food|dining/i.test(lower)) {
+    tags.push('Ẩm thực Địa phương', 'Đà Nẵng & Việt Nam');
+    trend = 'Ẩm thực Địa phương & Quán Ngon tại Đà Nẵng / Việt Nam';
+    score = 95;
+    topic = 'Cẩm nang Ẩm thực & Quán Phở Ngon tại Đà Nẵng';
   }
   if (/bảo hiểm|insurance|y tế|bệnh viện|khẩn cấp|emergency|scam/i.test(lower)) {
     tags.push('Bảo hiểm & Y tế', 'An toàn Du lịch');
@@ -547,6 +581,86 @@ let activeLoginChild: ChildProcess | null = null;
 
 const VN_WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 
+function formatUtcDateDdMmYyyy(date: Date): string {
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = date.getUTCFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+export interface VietnamCalendarWeekInfo {
+  weekNumber: number;
+  dateRange: string;
+  weekRangeLabel: string;
+}
+
+/**
+ * Classifies a Vietnam calendar date (`YYYY-MM-DD` in Asia/Ho_Chi_Minh, UTC+7) into an exact
+ * date-bounded campaign week so December/January dates are never misclassified into Week 1 of November.
+ */
+export function classifyVietnamCalendarWeek(dateIsoVn: string): VietnamCalendarWeekInfo {
+  const [yStr = '2026', mStr = '11', dStr = '09'] = dateIsoVn.split('-');
+  const y = Number(yStr);
+  const m = Number(mStr);
+  const d = Number(dStr);
+  const targetMs = Date.UTC(y, m - 1, d);
+
+  const w1Start = Date.UTC(2026, 10, 2); // 02/11/2026
+  const w2Start = Date.UTC(2026, 10, 9); // 09/11/2026
+  const w3Start = Date.UTC(2026, 10, 16); // 16/11/2026
+  const w4Start = Date.UTC(2026, 10, 23); // 23/11/2026
+  const w5Start = Date.UTC(2026, 11, 1); // 01/12/2026
+
+  if (targetMs < w1Start) {
+    return {
+      weekNumber: 0,
+      dateRange: 'Trước 02/11/2026',
+      weekRangeLabel: 'Giai đoạn Khởi tạo (Trước 02/11/2026 00:00)',
+    };
+  }
+  if (targetMs < w2Start) {
+    return {
+      weekNumber: 1,
+      dateRange: '02/11/2026 – 08/11/2026',
+      weekRangeLabel: 'Tuần 1 (02/11/2026 00:00 – 08/11/2026 23:59)',
+    };
+  }
+  if (targetMs < w3Start) {
+    return {
+      weekNumber: 2,
+      dateRange: '09/11/2026 – 15/11/2026',
+      weekRangeLabel: 'Tuần 2 (09/11/2026 00:00 – 15/11/2026 23:59)',
+    };
+  }
+  if (targetMs < w4Start) {
+    return {
+      weekNumber: 3,
+      dateRange: '16/11/2026 – 22/11/2026',
+      weekRangeLabel: 'Tuần 3 (16/11/2026 00:00 – 22/11/2026 23:59)',
+    };
+  }
+  if (targetMs < w5Start) {
+    return {
+      weekNumber: 4,
+      dateRange: '23/11/2026 – 30/11/2026',
+      weekRangeLabel: 'Tuần 4 (23/11/2026 00:00 – 30/11/2026 23:59)',
+    };
+  }
+
+  const diffDays = Math.floor((targetMs - w5Start) / 86_400_000);
+  const weekOffset = Math.floor(diffDays / 7);
+  const weekNumber = 5 + weekOffset;
+  const blockStart = new Date(w5Start + weekOffset * 7 * 86_400_000);
+  const blockEnd = new Date(w5Start + (weekOffset * 7 + 6) * 86_400_000);
+  const startStr = formatUtcDateDdMmYyyy(blockStart);
+  const endStr = formatUtcDateDdMmYyyy(blockEnd);
+  return {
+    weekNumber,
+    dateRange: `${startStr} – ${endStr}`,
+    weekRangeLabel: `Tuần ${weekNumber} (${startStr} 00:00 – ${endStr} 23:59)`,
+  };
+}
+
 function formatVnDateTime(date: Date, includeTime = true): { full: string; short: string; dateOnly: string } {
   // Shift to UTC+7 (Vietnam Standard Time)
   const vnTime = new Date(date.getTime() + 7 * 3600_000);
@@ -568,7 +682,7 @@ function formatVnDateTime(date: Date, includeTime = true): { full: string; short
 }
 
 export class CommunityHubService {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool) { }
 
   async getCommunitySettings(workspaceId: string): Promise<CommunitySettings> {
     const fbConn = (
@@ -1049,11 +1163,11 @@ export class CommunityHubService {
         };
         const updatedGoal = currentCtx.goal
           ? {
-              ...currentCtx.goal,
-              objective:
-                'Phát triển Cộng đồng Du lịch & Sống tại Việt Nam và chuỗi bài cẩm nang du lịch, lưu trú thực tế',
-              focus_offers: [],
-            }
+            ...currentCtx.goal,
+            objective:
+              'Phát triển Cộng đồng Du lịch & Sống tại Việt Nam và chuỗi bài cẩm nang du lịch, lưu trú thực tế',
+            focus_offers: [],
+          }
           : null;
 
         await this.pool.query(
@@ -1131,7 +1245,7 @@ export class CommunityHubService {
       }
     }
 
-    // Also deduplicate content_artifacts (role='content') so Review Queue & Distribution never show duplicate images
+    // Also deduplicate content_artifacts (role='content') per source_id so Review Queue & Distribution never show duplicate or mismatched images
     const topicAssets = getTopicImageAssets(workspaceId);
     const artRows = (
       await this.pool.query<{
@@ -1140,9 +1254,11 @@ export class CommunityHubService {
         content_hash: string;
         payload: Record<string, any>;
         evidence: any[];
+        source_id: string | null;
         source_url: string | null;
       }>(
         `SELECT id, title, content_hash, payload, evidence,
+                evidence->0->>'source_id' AS source_id,
                 evidence->0->>'source_url' AS source_url
            FROM content_artifacts
           WHERE workspace_id = $1 AND role = 'content'
@@ -1151,14 +1267,20 @@ export class CommunityHubService {
       )
     ).rows;
 
-    const seenArtUrls = new Set<string>();
+    const usedSourceUrls = new Set<string>();
+    const canonicalAssetBySource = new Map<string, PlaybookAsset>();
     for (const art of artRows) {
-      const currentUrl = art.payload?.result?.image_assets?.[0]?.url as string | undefined;
-      const hookText = (art.payload?.result?.facebook?.hook || art.payload?.result?.caption || art.title || '') as string;
-      const matched = matchAssetForTopic(`${art.title} ${hookText}`, topicAssets, seenArtUrls, art.source_url ?? undefined);
-      seenArtUrls.add(matched.url);
+      const groupKey = art.source_id || art.id;
+      let matched = canonicalAssetBySource.get(groupKey);
+      if (!matched) {
+        const hookText = (art.payload?.result?.facebook?.hook || art.payload?.result?.caption || art.title || '') as string;
+        matched = matchAssetForTopic(`${art.title} ${hookText}`, topicAssets, usedSourceUrls, art.source_url ?? undefined);
+        canonicalAssetBySource.set(groupKey, matched);
+        usedSourceUrls.add(matched.url);
+      }
 
-      if (currentUrl && currentUrl !== matched.url) {
+      const currentUrl = art.payload?.result?.image_assets?.[0]?.url as string | undefined;
+      if (currentUrl !== matched.url) {
         const { topic_tags, match_slug, ...cleanAsset } = matched;
         const nextResult = {
           ...(art.payload?.result ?? {}),
@@ -1552,14 +1674,14 @@ export class CommunityHubService {
                 WHERE workspace_id = $1`,
               [workspaceId, finalCount, liveDescription],
             )
-            .catch(() => {});
+            .catch(() => { });
         } else if (parsedCount !== null && parsedCount > 0 && parsedCount !== fallbackCount) {
           await this.pool
             .query(
               'UPDATE community_hub_settings SET group_member_count = $2, updated_at = NOW() WHERE workspace_id = $1',
               [workspaceId, parsedCount],
             )
-            .catch(() => {});
+            .catch(() => { });
         }
       }
 
@@ -1788,11 +1910,13 @@ export class CommunityHubService {
         utm_url: string | null;
         source_id: string | null;
         img_url: string | null;
+        body_text: string | null;
       }>(
         `SELECT j.id AS job_id, j.external_post_id, j.published_at,
                 ch.platform_name, j.utm_url,
                 a.evidence->0->>'source_id' AS source_id,
-                a.payload->'result'->'image_assets'->0->>'url' AS img_url
+                a.payload->'result'->'image_assets'->0->>'url' AS img_url,
+                COALESCE(a.payload->'result'->'facebook'->>'text', a.payload->'result'->>'caption') AS body_text
            FROM publishing_jobs j
            JOIN channels ch ON ch.id = j.channel_id
            JOIN content_artifacts a ON a.id = j.artifact_id
@@ -1815,11 +1939,13 @@ export class CommunityHubService {
         utm_url: string | null;
         source_id: string | null;
         img_url: string | null;
+        body_text: string | null;
       }>(
         `SELECT j.id AS job_id, j.scheduled_for, j.status, j.error_message,
                 ch.platform_name, j.utm_url,
                 a.evidence->0->>'source_id' AS source_id,
-                a.payload->'result'->'image_assets'->0->>'url' AS img_url
+                a.payload->'result'->'image_assets'->0->>'url' AS img_url,
+                COALESCE(a.payload->'result'->'facebook'->>'text', a.payload->'result'->>'caption') AS body_text
            FROM publishing_jobs j
            JOIN channels ch ON ch.id = j.channel_id
            JOIN content_artifacts a ON a.id = j.artifact_id
@@ -1839,13 +1965,15 @@ export class CommunityHubService {
         post_title: string;
         group_url: string;
         facebook_post_url: string | null;
+        image_url: string | null;
+        body_text: string | null;
         status: string;
         error_message: string | null;
         published_at: Date | null;
         updated_at: Date;
       }>(
         `SELECT id, source_id, publishing_job_id, post_title, group_url, facebook_post_url,
-                status, error_message, published_at, updated_at
+                image_url, body_text, status, error_message, published_at, updated_at
            FROM community_group_posts
           WHERE workspace_id = $1
           ORDER BY published_at DESC NULLS LAST, updated_at DESC`,
@@ -1853,19 +1981,45 @@ export class CommunityHubService {
       )
     ).rows;
 
+    const contentPackRows = (
+      await this.pool.query<{
+        source_id: string | null;
+        img_url: string | null;
+        body_text: string | null;
+      }>(
+        `SELECT DISTINCT ON (a.evidence->0->>'source_id')
+                a.evidence->0->>'source_id' AS source_id,
+                a.payload->'result'->'image_assets'->0->>'url' AS img_url,
+                COALESCE(a.payload->'result'->'facebook'->>'text', a.payload->'result'->>'caption') AS body_text
+           FROM content_artifacts a
+          WHERE a.workspace_id = $1
+            AND a.role = 'content'
+            AND a.evidence->0->>'source_id' IS NOT NULL
+          ORDER BY a.evidence->0->>'source_id', a.created_at DESC`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const contentPackBySource = new Map<string, { img_url: string | null; body_text: string | null }>();
+    for (const cp of contentPackRows) {
+      if (cp.source_id && !contentPackBySource.has(cp.source_id)) {
+        contentPackBySource.set(cp.source_id, { img_url: cp.img_url, body_text: cp.body_text });
+      }
+    }
+
     const normalizeGroupPostKey = (title: string): string =>
       title
-        .replace(/^[\p{Emoji}\s]*\[CẨM NANG CỘNG ĐỒNG\]\s*/iu, '')
+        .replace(/^[\p{Emoji}\s]*\[(CẨM NANG CỘNG ĐỒNG|VIETNAM PLAYBOOK)\]\s*/iu, '')
         .trim()
         .toLowerCase();
 
     const fanpagePublishedBySource = new Map<
       string,
-      { external_post_id: string; published_at: Date | null; img_url: string | null }
+      { external_post_id: string; published_at: Date | null; img_url: string | null; body_text: string | null }
     >();
     const groupPublishedBySource = new Map<
       string,
-      { job_id: string | null; post_url: string; published_at: Date | null; img_url: string | null }
+      { job_id: string | null; post_url: string; published_at: Date | null; img_url: string | null; body_text: string | null }
     >();
 
     for (const job of publishedChannelJobs) {
@@ -1881,6 +2035,7 @@ export class CommunityHubService {
             post_url: postUrl,
             published_at: job.published_at,
             img_url: job.img_url,
+            body_text: job.body_text,
           });
         }
       } else if (job.platform_name === 'facebook' && job.external_post_id) {
@@ -1889,12 +2044,16 @@ export class CommunityHubService {
             external_post_id: job.external_post_id,
             published_at: job.published_at,
             img_url: job.img_url,
+            body_text: job.body_text,
           });
         }
       }
     }
 
-    const groupPublishedByTitle = new Map<string, { post_url: string; published_at: Date | null; job_id: string | null }>();
+    const groupPublishedByTitle = new Map<
+      string,
+      { post_url: string; published_at: Date | null; job_id: string | null; img_url: string | null; body_text: string | null }
+    >();
     const groupFailedBySource = new Map<string, { error: string; job_id: string | null }>();
     const groupFailedByTitle = new Map<string, { error: string; job_id: string | null }>();
 
@@ -1902,12 +2061,14 @@ export class CommunityHubService {
       const titleKey = normalizeGroupPostKey(gp.post_title);
       if (gp.status === 'published') {
         const postUrl = gp.facebook_post_url || gp.group_url || settings.group_url;
-        if (gp.source_id && !groupPublishedBySource.has(gp.source_id)) {
+        if (gp.source_id) {
+          const existing = groupPublishedBySource.get(gp.source_id);
           groupPublishedBySource.set(gp.source_id, {
-            job_id: gp.publishing_job_id,
-            post_url: postUrl,
-            published_at: gp.published_at,
-            img_url: null,
+            job_id: existing?.job_id ?? gp.publishing_job_id,
+            post_url: gp.facebook_post_url || existing?.post_url || postUrl,
+            published_at: existing?.published_at ?? gp.published_at,
+            img_url: gp.image_url || existing?.img_url || null,
+            body_text: gp.body_text || existing?.body_text || null,
           });
         }
         if (titleKey && !groupPublishedByTitle.has(titleKey)) {
@@ -1915,6 +2076,8 @@ export class CommunityHubService {
             post_url: postUrl,
             published_at: gp.published_at,
             job_id: gp.publishing_job_id,
+            img_url: gp.image_url,
+            body_text: gp.body_text,
           });
         }
       } else if (gp.status === 'failed') {
@@ -1930,11 +2093,11 @@ export class CommunityHubService {
 
     const groupScheduledBySource = new Map<
       string,
-      { job_id: string; scheduled_for: Date; status: string; img_url: string | null }
+      { job_id: string; scheduled_for: Date; status: string; img_url: string | null; body_text: string | null }
     >();
     const fanpageScheduledBySource = new Map<
       string,
-      { job_id: string; scheduled_for: Date; status: string; img_url: string | null }
+      { job_id: string; scheduled_for: Date; status: string; img_url: string | null; body_text: string | null }
     >();
 
     for (const job of activeChannelJobs) {
@@ -1953,6 +2116,7 @@ export class CommunityHubService {
             scheduled_for: new Date(job.scheduled_for),
             status: job.status,
             img_url: job.img_url,
+            body_text: job.body_text,
           });
         }
       } else if (job.platform_name === 'facebook') {
@@ -1966,6 +2130,7 @@ export class CommunityHubService {
             scheduled_for: new Date(job.scheduled_for),
             status: job.status,
             img_url: job.img_url,
+            body_text: job.body_text,
           });
         }
       }
@@ -1987,7 +2152,13 @@ export class CommunityHubService {
       if (bySrc) return bySrc;
       const byTitle = groupPublishedByTitle.get(s.title.toLowerCase());
       return byTitle
-        ? { job_id: byTitle.job_id, post_url: byTitle.post_url, published_at: byTitle.published_at, img_url: null }
+        ? {
+            job_id: byTitle.job_id,
+            post_url: byTitle.post_url,
+            published_at: byTitle.published_at,
+            img_url: byTitle.img_url,
+            body_text: byTitle.body_text,
+          }
         : undefined;
     };
     const getGroupFail = (s: { id: string; title: string }) =>
@@ -2034,28 +2205,37 @@ export class CommunityHubService {
       });
     const orderedSources = [...primaryPublishedSources, ...upcomingSources];
 
-    const nowUtc = new Date();
-    const baseYear = nowUtc.getUTCFullYear();
-    const baseMonth = nowUtc.getUTCMonth();
-    const baseDay = nowUtc.getUTCDate();
+    const nowVn = new Date(Date.now() + 7 * 3600_000);
+    const baseYearVn = nowVn.getUTCFullYear();
+    const baseMonthVn = nowVn.getUTCMonth();
+    const baseDayVn = nowVn.getUTCDate();
 
     const calendarUsedImages = new Set<string>();
-    let upcomingIdx = 0;
+    let fallbackOffsetDays = 0;
 
     let publishedGroupCount = 0;
     let publishedFanpageCount = 0;
     let failedGroupCount = 0;
 
     const dailyCalendar = orderedSources.map((source, index) => {
-      const matchedAsset = matchAssetForTopic(source.title, topicAssets, calendarUsedImages, source.source_url);
-      calendarUsedImages.add(matchedAsset.url);
-
       const groupPub = getGroupPub(source);
       const groupSched = groupScheduledBySource.get(source.id);
       const groupFail = !groupPub && !groupSched ? getGroupFail(source) : undefined;
       const fanpagePub = fanpagePublishedBySource.get(source.id);
       const fanpageSched = fanpageScheduledBySource.get(source.id);
       const webPub = webPublishedBySource.get(source.id);
+      const contentPack = contentPackBySource.get(source.id);
+
+      const matchedAsset = matchAssetForTopic(source.title, topicAssets, calendarUsedImages, source.source_url);
+      const storedImageUrl = groupPub?.img_url || groupSched?.img_url || fanpagePub?.img_url || contentPack?.img_url || null;
+      const resolvedImageUrl =
+        storedImageUrl && !calendarUsedImages.has(storedImageUrl) ? storedImageUrl : matchedAsset.url;
+      const resolvedImageAsset = topicAssets.find((a) => a.url === resolvedImageUrl) ?? matchedAsset;
+      const isUniqueImage = !calendarUsedImages.has(resolvedImageUrl);
+      calendarUsedImages.add(resolvedImageUrl);
+
+      const resolvedPostBody =
+        groupPub?.body_text || groupSched?.body_text || fanpagePub?.body_text || contentPack?.body_text || null;
 
       const isPublishedGroup = Boolean(groupPub);
       const isPublishedFanpage = Boolean(fanpagePub);
@@ -2086,24 +2266,22 @@ export class CommunityHubService {
           targetDateUtc = new Date(fanpagePub.published_at);
         } else if (fanpageSched?.scheduled_for) {
           targetDateUtc = new Date(fanpageSched.scheduled_for);
-          upcomingIdx++;
         } else {
-          targetDateUtc = new Date(Date.UTC(baseYear, baseMonth, baseDay + upcomingIdx + 1, 2, 0, 0));
-          upcomingIdx++;
+          targetDateUtc = new Date(Date.UTC(baseYearVn, baseMonthVn, baseDayVn + fallbackOffsetDays + 1, 2, 0, 0));
+          fallbackOffsetDays++;
         }
       } else {
         if (isPublishedGroup && groupPub?.published_at) {
           targetDateUtc = new Date(groupPub.published_at);
         } else if (groupSched?.scheduled_for) {
           targetDateUtc = new Date(groupSched.scheduled_for);
-          upcomingIdx++;
         } else if (fanpagePub?.published_at) {
           targetDateUtc = new Date(fanpagePub.published_at);
         } else if (webPub?.published_at) {
           targetDateUtc = new Date(webPub.published_at);
         } else {
-          targetDateUtc = new Date(Date.UTC(baseYear, baseMonth, baseDay + upcomingIdx + 1, 2, 0, 0));
-          upcomingIdx++;
+          targetDateUtc = new Date(Date.UTC(baseYearVn, baseMonthVn, baseDayVn + fallbackOffsetDays + 1, 2, 0, 0));
+          fallbackOffsetDays++;
         }
       }
 
@@ -2114,15 +2292,9 @@ export class CommunityHubService {
       const yearVn = vnDate.getUTCFullYear();
       const dateIsoVn = `${yearVn}-${String(monthVn).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
       const timeHmVn = `${String(vnDate.getUTCHours()).padStart(2, '0')}:${String(vnDate.getUTCMinutes()).padStart(2, '0')}`;
-      const weekNum = dayOfMonth <= 8 ? 1 : dayOfMonth <= 15 ? 2 : dayOfMonth <= 22 ? 3 : 4;
-      const weekRangeLabel =
-        weekNum === 1
-          ? 'Tuần 1 (02/11/2026 00:00 – 08/11/2026 23:59)'
-          : weekNum === 2
-            ? 'Tuần 2 (09/11/2026 00:00 – 15/11/2026 23:59)'
-            : weekNum === 3
-              ? 'Tuần 3 (16/11/2026 00:00 – 22/11/2026 23:59)'
-              : 'Tuần 4 (23/11/2026 00:00 – 30/11/2026 23:59)';
+      const weekInfo = classifyVietnamCalendarWeek(dateIsoVn);
+      const weekNum = weekInfo.weekNumber;
+      const weekRangeLabel = weekInfo.weekRangeLabel;
 
       const fanpagePostUrl = fanpagePub?.external_post_id
         ? fanpagePub.external_post_id.includes('_')
@@ -2152,13 +2324,11 @@ export class CommunityHubService {
           ? `Đã xuất bản lên Fanpage "${settings.page_name}" lúc ${formatted.short}`
           : `Đã lên lịch trong publishing_jobs (${fanpageSched?.job_id?.slice(0, 8) ?? 'auto'}): Tự động xuất bản lúc ${formatted.short} lên Fanpage "${settings.page_name}"`;
       } else if (isPublishedGroup) {
-        concreteAction = `Đã đăng thật vào Group "${settings.community_name}" lúc ${formatted.short}${
-          targetMode === 'both' ? (isPublishedFanpage ? ` (và Fanpage "${settings.page_name}")` : ' (đang chờ Fanpage)') : ''
-        }`;
+        concreteAction = `Đã đăng thật vào Group "${settings.community_name}" lúc ${formatted.short}${targetMode === 'both' ? (isPublishedFanpage ? ` (và Fanpage "${settings.page_name}")` : ' (đang chờ Fanpage)') : ''
+          }`;
       } else if (groupSched) {
-        concreteAction = `Đã lên lịch trong publishing_jobs (${groupSched.job_id.slice(0, 8)}): Bot tự động đăng lúc ${formatted.short} vào Group "${settings.community_name}"${
-          targetMode === 'both' ? ` & Fanpage "${settings.page_name}"` : ''
-        }`;
+        concreteAction = `Đã lên lịch trong publishing_jobs (${groupSched.job_id.slice(0, 8)}): Bot tự động đăng lúc ${formatted.short} vào Group "${settings.community_name}"${targetMode === 'both' ? ` & Fanpage "${settings.page_name}"` : ''
+          }`;
       } else if (groupFail) {
         concreteAction = `Đăng tự động vào Group thất bại: ${groupFail.error}. Bấm "🤖 Đăng bài này vào Group" sau khi đăng nhập Group Bot hoặc dùng "📋 Copy & Mở Group".`;
       } else if (isPublishedFanpage) {
@@ -2205,8 +2375,9 @@ export class CommunityHubService {
         source_id: source.id,
         topic_title: source.title,
         source_url: source.source_url,
-        image_url: matchedAsset.url,
-        image_attribution: matchedAsset.attribution,
+        image_url: resolvedImageUrl,
+        image_attribution: resolvedImageAsset.attribution,
+        post_body_preview: resolvedPostBody,
         target_trend: matchInfo.matched_trend,
         interest_tags: matchInfo.interest_tags,
         community_discussion_hook: `Thảo luận tại ${settings.community_name}: Kinh nghiệm thực tế của bạn về "${source.title}" là gì? Cùng chia sẻ dưới phần bình luận nhé!`,
@@ -2224,7 +2395,7 @@ export class CommunityHubService {
           null,
         facebook_post_url: targetMode === 'fanpage' ? fanpagePostUrl : groupPostUrl ?? fanpagePostUrl,
         unique_topic_verified: true,
-        unique_image_verified: true,
+        unique_image_verified: isUniqueImage,
       };
     });
 
@@ -2274,6 +2445,22 @@ export class CommunityHubService {
       realCommunityMembers >= target ? 'completed_target' : realCommunityMembers >= previousTarget ? 'active_campaign' : 'scheduled';
 
     const weekItems = (w: number) => dailyCalendar.filter((item) => item.week_number === w);
+    const duplicateImagesCount = dailyCalendar.filter((d) => !d.unique_image_verified).length;
+    const duplicationRatePct =
+      dailyCalendar.length > 0 ? Math.round((duplicateImagesCount / dailyCalendar.length) * 1000) / 10 : 0;
+    const formatWeekTopics = (items: typeof dailyCalendar) =>
+      items.map(
+        (item) =>
+          `[${item.scheduled_date_short}] ${item.topic_title} (${
+            item.status === 'published'
+              ? `✓ Đã đăng ${targetMode === 'fanpage' ? 'Fanpage' : 'Group'} lúc ${item.scheduled_date_short}`
+              : item.group_status === 'scheduled' || item.job_status === 'scheduled'
+                ? `⏰ Đã hẹn giờ lúc ${item.scheduled_date_short}`
+                : item.group_status === 'failed'
+                  ? `⚠️ Lỗi đăng Group (${item.scheduled_date_short})`
+                  : '⏳ Chưa đăng'
+          })`,
+      );
 
     const weeklyCampaigns = [
       {
@@ -2301,9 +2488,9 @@ export class CommunityHubService {
         status: campaignStatus(w2Target, w1Target),
         theme: 'Sân bay nhập cảnh, Thời hạn Hộ chiếu, Vé khứ hồi, Rút tiền mặt/ATM & Chi phí mỗi ngày',
         target_trends: ['Sân bay Hà Nội/Đà Nẵng/TP.HCM', 'Hộ chiếu & Vé khứ hồi', 'Ngân hàng & VietQR', 'Ngân sách mỗi ngày'],
-        responsible_agents: 'Growth Lead (Lịch 09/11–15/11) • SEO & Content Agent (7 bài lúc 09:00 sáng mỗi ngày) • Community Bot (Đăng thẳng Group)',
+        responsible_agents: 'Growth Lead (Lịch 09/11–15/11) • SEO & Content Agent (Bài mới lúc 09:00 sáng mỗi ngày) • Community Bot (Đăng thẳng Group)',
         tactics: [
-          '[09/11 – 15/11/2026 lúc 09:00 sáng] Đăng đều đặn 1 bài mới/ngày vào Group Cộng đồng theo đúng lịch ngày tháng cụ thể (7 chủ đề mới + 7 hình ảnh riêng biệt)',
+          `[09/11 – 15/11/2026 lúc 09:00 sáng] Đăng đều đặn 1 bài mới/ngày vào Group Cộng đồng theo đúng lịch ngày tháng cụ thể (${weekItems(2).length} chủ đề trong tuần + ảnh độc nhất)`,
           `[09/11 – 15/11/2026] Community Agent tự động phân loại khách nhắn tin theo 4 nhóm nhu cầu (Nhập cảnh, Lưu trú, Ngân hàng/VietQR, Chi phí) và mời vào "${settings.community_name}"`,
           '[Thứ Tư 11/11 & Thứ Bảy 14/11/2026] Mở 2 chủ đề thảo luận thực tế trong Group về so sánh chi phí sống và cách thanh toán VietQR/ATM cho người mới',
         ],
@@ -2317,9 +2504,9 @@ export class CommunityHubService {
         status: campaignStatus(w3Target, w2Target),
         theme: 'Di chuyển Tàu/Xe/Máy bay, Thời điểm đẹp nhất du lịch, Cách tìm Địa chỉ Ngõ/Hẻm & Thủ tục E-Visa 2026',
         target_trends: ['Phương tiện di chuyển', 'Thời tiết & Mùa du lịch', 'Địa chỉ ngõ/hẻm Việt Nam', 'Hướng dẫn E-Visa 2026'],
-        responsible_agents: 'Growth Lead (Lịch 16/11–22/11) • SEO & Content Agent (7 bài lúc 09:00 sáng) • Community Agent (Kết nối thành viên cũ giải đáp thành viên mới)',
+        responsible_agents: 'Growth Lead (Lịch 16/11–22/11) • SEO & Content Agent (Bài mới lúc 09:00 sáng) • Community Agent (Kết nối thành viên cũ giải đáp thành viên mới)',
         tactics: [
-          '[16/11 – 22/11/2026 lúc 09:00 sáng] Xuất bản 7 bài chuyên sâu vào Group về di chuyển nội địa, mùa đẹp nhất đi Đà Nẵng/Hà Nội/Phú Quốc và thủ tục E-Visa chuẩn 2026',
+          `[16/11 – 22/11/2026 lúc 09:00 sáng] Xuất bản ${weekItems(3).length} bài chuyên sâu vào Group về di chuyển nội địa, mùa đẹp nhất đi Đà Nẵng/Hà Nội/Phú Quốc và thủ tục E-Visa chuẩn 2026`,
           '[Thứ Năm 19/11/2026] Tổ chức phiên Hỏi - Đáp (Q&A) trực tiếp trên Group giữa các thành viên đã có kinh nghiệm sống tại Đà Nẵng với thành viên mới',
           '[Chủ Nhật 22/11/2026] Tổng hợp các câu hỏi thực tế từ Messenger trong tuần để bổ sung vào chủ đề thảo luận chung của Group',
         ],
@@ -2333,16 +2520,16 @@ export class CommunityHubService {
         status: campaignStatus(w4Target, w3Target),
         theme: 'Hoàn thiện Hành trang Chuyển đến Việt Nam, Chỗ ở 2 Tuần Đầu, Góc Làm việc Từ xa & Sự kiện Kết nối',
         target_trends: ['Hành lý chuyển đến VN', 'Chỗ ở 2 tuần đầu', 'Góc làm việc Remote Work', 'Offline/Online Meetup'],
-        responsible_agents: 'Growth Lead & Performance Agent (Đo lường & Mở vòng học mới) • Content & Community Agent (Hoàn tất 25/25 chủ đề Tháng 11)',
+        responsible_agents: `Growth Lead & Performance Agent (Đo lường & Mở vòng học mới) • Content & Community Agent (Hoàn tất ${dailyCalendar.length}/${dailyCalendar.length} chủ đề)`,
         tactics: [
-          '[23/11 – 26/11/2026 lúc 09:00 sáng] Hoàn tất xuất bản các chủ đề còn lại vào Group Facebook (đạt 100% độ phủ 25 chủ đề, 0% trùng ảnh)',
+          `[23/11 – 30/11/2026 lúc 09:00 sáng] Xuất bản ${weekItems(4).length} bài cuối Tháng 11 và nối tiếp chuỗi sang đầu Tháng 12/2026 (${dailyCalendar.length} chủ đề, ${duplicationRatePct}% trùng ảnh)`,
           '[Thứ Sáu 27/11/2026] Mở cuộc bình chọn (Community Poll) trên Group để thành viên chọn chủ đề ưu tiên cho Tháng 12/2026 (Lễ hội cuối năm & Giáng sinh)',
           '[Chủ Nhật 29/11/2026] Performance Agent & Growth Lead tổng kết chỉ số tăng trưởng Tháng 11/2026 và kích hoạt kế hoạch Tháng 12/2026',
         ],
       },
     ];
 
-    const weeklyCalendar = [
+    const baseWeeklyCalendar = [
       {
         week_number: 1,
         week_label: 'Tuần 1 (02/11/2026 00:00 – 08/11/2026 23:59)',
@@ -2350,10 +2537,7 @@ export class CommunityHubService {
         member_target: `Mục tiêu: ${w1Target} thành viên (Thực tế đạt: ${week1Count}/${w1Target} — ✓ Đạt chỉ tiêu)`,
         pillar_theme: 'Khởi chạy Cộng đồng, Cẩm nang Thiết yếu, Thuê nhà, eSIM, Đi chợ, Bảo hiểm & Tạm trú',
         responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Group Bot',
-        planned_topics: weekItems(1).map(
-          (item) =>
-            `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? `✓ Đã đăng Group lúc ${item.scheduled_date_short}` : item.group_status === 'scheduled' ? `⏰ Hẹn Group lúc ${item.scheduled_date_short}` : '⚠ Chưa đăng Group'})`,
-        ),
+        planned_topics: formatWeekTopics(weekItems(1)),
         interactive_format: 'Chào mừng thành viên đầu tiên + Trả lời tự động khách hàng qua Messenger RAG và mời vào Group',
       },
       {
@@ -2363,10 +2547,7 @@ export class CommunityHubService {
         member_target: `Mục tiêu: ${w2Target} thành viên (Hiện tại: ${totalMatchedCount}/${w2Target} — Đang chạy chiến dịch)`,
         pillar_theme: 'Sân bay Nhập cảnh, Thời hạn Hộ chiếu, Vé khứ hồi, Tiền mặt/ATM, Chi phí Mỗi ngày & Mở Tài khoản Ngân hàng',
         responsible_agents: 'Growth Lead (Phân lịch 09/11–15/11) → SEO Agent → Content Agent (Đăng Group 09:00 sáng) → Community Agent',
-        planned_topics: weekItems(2).map(
-          (item) =>
-            `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? `✓ Đã đăng Group lúc ${item.scheduled_date_short}` : `⏰ Đã hẹn giờ lúc ${item.scheduled_date_short}`})`,
-        ),
+        planned_topics: formatWeekTopics(weekItems(2)),
         interactive_format: 'Mỗi bài đăng thẳng Group lúc 09:00 sáng kèm câu hỏi thảo luận mở + Gửi lời mời vào Group cho khách nhắn tin',
       },
       {
@@ -2376,10 +2557,7 @@ export class CommunityHubService {
         member_target: `Mục tiêu: ${w3Target} thành viên (Mở rộng tương tác đời sống địa phương)`,
         pillar_theme: 'Thời điểm Đẹp nhất đến VN, Cách Tìm Địa chỉ Ngõ/Hẻm & Trọn bộ Thủ tục E-Visa Chính thức 2026',
         responsible_agents: 'Growth Lead (Phân lịch 16/11–22/11) → SEO Agent → Content Agent (Đăng Group 09:00 sáng) → Community Agent',
-        planned_topics: weekItems(3).map(
-          (item) =>
-            `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? `✓ Đã đăng Group lúc ${item.scheduled_date_short}` : `⏰ Đã hẹn giờ lúc ${item.scheduled_date_short}`})`,
-        ),
+        planned_topics: formatWeekTopics(weekItems(3)),
         interactive_format: 'Thảo luận tình huống thực tế trên Group về tìm địa chỉ ngõ/hẻm, đi tàu hỏa/máy bay nội địa và kiểm tra trang E-Visa chính thức',
       },
       {
@@ -2389,40 +2567,77 @@ export class CommunityHubService {
         member_target: `Mục tiêu: ${w4Target} thành viên (Cộng đồng tự vận hành & Kết nối bền vững)`,
         pillar_theme: 'Chuẩn bị Hành lý Chuyển đến VN, Chọn Khu vực Ở 2 Tuần Đầu & Thiết lập Góc Làm việc Từ xa (Remote Work)',
         responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Group Bot → Performance Agent (Đánh giá KPI cuối tháng)',
-        planned_topics: weekItems(4).map(
-          (item) =>
-            `[${item.scheduled_date_short}] ${item.topic_title} (${item.status === 'published' ? `✓ Đã đăng Group lúc ${item.scheduled_date_short}` : `⏰ Đã hẹn giờ lúc ${item.scheduled_date_short}`})`,
-        ),
+        planned_topics: formatWeekTopics(weekItems(4)),
         interactive_format: 'Bình chọn chủ đề Tháng 12/2026 + Vinh danh thành viên chia sẻ kinh nghiệm hữu ích nhất trong Group',
       },
     ];
+
+    const extraWeekNumbers = Array.from(
+      new Set(dailyCalendar.map((item) => item.week_number).filter((w) => w < 1 || w > 4)),
+    ).sort((a, b) => a - b);
+
+    const extraWeeklyCalendar = extraWeekNumbers.map((wNum) => {
+      const items = weekItems(wNum);
+      const sampleLabel = items[0]?.week_range_label ?? `Tuần ${wNum}`;
+      const dateRangeMatch = sampleLabel.match(/\(([^)]+)\)/);
+      const dateRange = dateRangeMatch?.[1] ?? sampleLabel;
+      return {
+        week_number: wNum,
+        week_label: sampleLabel,
+        date_range: dateRange,
+        member_target:
+          wNum >= 5
+            ? `Mở rộng Tháng 12/2026: ${w4Target} → ${w4Target * 3} thành viên (Tiếp nối chuỗi cẩm nang hàng ngày)`
+            : `Khởi tạo Cộng đồng: ${w1Target} thành viên hạt nhân`,
+        pillar_theme:
+          wNum >= 5
+            ? 'Nối tiếp Chuỗi Cẩm nang Tháng 12/2026: Ẩm thực Đà Nẵng, Thẻ tín dụng Quốc tế, E-Visa & Đời sống Thực tế'
+            : 'Chuẩn bị nền tảng nội dung & kết nối thành viên hạt nhân ban đầu',
+        responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Group Bot',
+        planned_topics: formatWeekTopics(items),
+        interactive_format: 'Đăng bài tự động lúc 09:00 sáng kèm câu hỏi thảo luận mở & tổng hợp kinh nghiệm thực tế từ thành viên Group',
+      };
+    });
+
+    const weeklyCalendar = [...baseWeeklyCalendar, ...extraWeeklyCalendar].sort(
+      (a, b) => a.week_number - b.week_number,
+    );
 
     const scheduledTopicsCount =
       targetMode === 'fanpage' ? fanpageScheduledBySource.size : groupScheduledBySource.size;
     const publishedTopicsCount = primaryPublishedSources.length;
 
+    const nov2026Items = dailyCalendar.filter((d) => d.year_vn === 2026 && d.month_vn === 11);
+    const dec2026Items = dailyCalendar.filter((d) => d.year_vn === 2026 && d.month_vn === 12);
+    const jan2027Items = dailyCalendar.filter((d) => d.year_vn === 2027 && d.month_vn === 1);
+    const novPublishedCount = nov2026Items.filter((d) => d.status === 'published').length;
+    const novScheduledCount = nov2026Items.filter((d) => d.status !== 'published').length;
+
     const monthlyCalendar = [
       {
         month_number: 1,
-        month_label: `Tháng 11/2026 (01/11/2026 – 30/11/2026): Xây dựng "${settings.community_name}" & Xuất bản ${dailyCalendar.length} Bài Cẩm nang Cốt lõi`,
+        month_label: `Tháng 11/2026 (01/11/2026 – 30/11/2026): Xây dựng "${settings.community_name}" & Xuất bản ${nov2026Items.length} Bài Cẩm nang Tháng 11`,
         date_range: '01/11/2026 – 30/11/2026',
         member_goal: `Tuần 1 (02/11–08/11): ${w1Target} người [Đã đạt ${week1Count}/${w1Target} ✓] → Tuần 2 (09/11–15/11): ${w2Target} người → Tuần 3 (16/11–22/11): ${w3Target} người → Cuối Tháng 11 (30/11/2026): ${w4Target} thành viên thật`,
-        content_commitment: `${dailyCalendar.length} bài cẩm nang chuyên sâu (Đã đăng vào Group ${publishedGroupCount}/${dailyCalendar.length} bài; ${scheduledTopicsCount} bài đã hẹn giờ vào Group lúc 09:00 sáng — 100% ảnh riêng biệt từ kho 30 ảnh)`,
+        content_commitment: `${nov2026Items.length} bài cẩm nang trong Tháng 11/2026 (Đã đăng ${novPublishedCount}/${nov2026Items.length} bài; ${novScheduledCount} bài hẹn giờ lúc 09:00 sáng — 100% ảnh riêng biệt từ kho ${all30Assets.length} ảnh)`,
         key_pillars: [
-          `02/11/2026 – 08/11/2026 (Tuần 1): Đã hoàn thành mục tiêu ${week1Count}/${w1Target} thành viên hạt nhân + Khởi chạy chuỗi bài cẩm nang Thiết yếu`,
-          '09/11/2026 – 15/11/2026 (Tuần 2): Xuất bản 7 bài lúc 09:00 sáng vào Group (Vé khứ hồi, Chọn sân bay, Thời hạn hộ chiếu, Tiền mặt/ATM, Chi phí mỗi ngày, Ngân hàng, Di chuyển)',
-          '16/11/2026 – 22/11/2026 (Tuần 3): Xuất bản 7 bài lúc 09:00 sáng vào Group (Thời điểm đẹp nhất đến VN, Địa chỉ ngõ/hẻm, Hướng dẫn E-Visa 2026, So sánh E-Visa, Hành lý)',
-          '23/11/2026 – 30/11/2026 (Tuần 4): Xuất bản các bài còn lại vào Group + Bình chọn chủ đề Tháng 12/2026 vào ngày 27/11/2026',
+          `02/11/2026 – 08/11/2026 (Tuần 1): Đã hoàn thành mục tiêu ${week1Count}/${w1Target} thành viên hạt nhân (${weekItems(1).length} bài trong tuần này)`,
+          `09/11/2026 – 15/11/2026 (Tuần 2): ${weekItems(2).length} bài cẩm nang tại Group (Khởi động từ 10/11/2026 & đều đặn 09:00 sáng mỗi ngày)`,
+          `16/11/2026 – 22/11/2026 (Tuần 3): ${weekItems(3).length} bài chuyên sâu lúc 09:00 sáng vào Group (Điểm đến, Phương tiện, Sân bay, E-Visa, Chi phí)`,
+          `23/11/2026 – 30/11/2026 (Tuần 4): ${weekItems(4).length} bài hoàn thiện chuỗi Tháng 11 + Bình chọn chủ đề Tháng 12/2026 vào ngày 27/11/2026`,
         ],
       },
       {
         month_number: 2,
-        month_label: 'Tháng 12/2026 (01/12/2026 – 31/12/2026): Chiến dịch Mùa Lễ hội Cuối năm, Giáng sinh & Đón Năm mới 2027 tại Việt Nam',
+        month_label: `Tháng 12/2026 (01/12/2026 – 31/12/2026): Tiếp nối ${dec2026Items.length} Bài Đã Lên Lịch & Chiến dịch Mùa Lễ hội Cuối năm`,
         date_range: '01/12/2026 – 31/12/2026',
         member_goal: `Mở rộng từ ${w4Target} → ${w4Target * 3} thành viên (Tự động gom nhóm theo từng thành phố: Đà Nẵng, Hà Nội, TP.HCM, Phú Quốc)`,
-        content_commitment: '31 bài cẩm nang theo lịch ngày cụ thể (01/12/2026 – 31/12/2026 lúc 09:00 sáng) do Research Agent & Growth Lead cập nhật từ nhu cầu thực tế cuối năm',
+        content_commitment:
+          dec2026Items.length > 0
+            ? `Hiện đã lên lịch sẵn ${dec2026Items.length} bài cẩm nang đầu Tháng 12/2026 (01/12 – 07/12/2026 lúc 09:00 sáng) và tiếp tục mở rộng tới 31/12/2026`
+            : '31 bài cẩm nang theo lịch ngày cụ thể (01/12/2026 – 31/12/2026 lúc 09:00 sáng) do Research Agent & Growth Lead cập nhật từ nhu cầu thực tế cuối năm',
         key_pillars: [
-          '01/12/2026 – 07/12/2026: Cẩm nang thời tiết Tháng 12 & Lịch trình du lịch biển mùa khô tại Phú Quốc, Nha Trang, Mũi Né',
+          `01/12/2026 – 07/12/2026 (Tuần 5): ${weekItems(5).length} bài cẩm nang đã lên lịch sẵn lúc 09:00 sáng (Ẩm thực & Phở Đà Nẵng, Thẻ tín dụng Quốc tế, eSIM, Ứng dụng thiết yếu, E-Visa)`,
           '08/12/2026 – 14/12/2026: So sánh chi phí thuê căn hộ ngắn hạn & dài hạn dịp cuối năm tại Mỹ An / Sơn Trà (Đà Nẵng), Tây Hồ (Hà Nội), Thảo Điền (TP.HCM)',
           '15/12/2026 – 21/12/2026: Bản đồ Quán Cafe làm việc từ xa & Không gian Coworking tốc độ cao do thành viên Group bình chọn',
           '22/12/2026 – 31/12/2026: Sự kiện Kết nối Thành viên Cộng đồng dịp Giáng sinh (24/12/2026) & Đếm ngược Năm mới 2027 (31/12/2026)',
@@ -2433,7 +2648,10 @@ export class CommunityHubService {
         month_label: 'Tháng 01/2027 (01/01/2027 – 31/01/2027): Cẩm nang Du lịch Tết Nguyên Đán 2027 & Hệ sinh thái Cộng đồng Tự sinh Nội dung',
         date_range: '01/01/2027 – 31/01/2027',
         member_goal: `Đạt ${w4Target * 8}+ thành viên — Cộng đồng tự đặt câu hỏi, chia sẻ review thực tế và kết nối bạn đồng hành hàng ngày`,
-        content_commitment: '31 bài kết hợp giữa Cẩm nang chuẩn bị đón Tết Nguyên Đán tại Việt Nam (09:00 sáng) + Bài tổng hợp kinh nghiệm hay nhất của thành viên vào mỗi tối Chủ Nhật',
+        content_commitment:
+          jan2027Items.length > 0
+            ? `Đã lên lịch ${jan2027Items.length} bài trong Tháng 01/2027 kết hợp Cẩm nang đón Tết Nguyên Đán (09:00 sáng)`
+            : '31 bài kết hợp giữa Cẩm nang chuẩn bị đón Tết Nguyên Đán tại Việt Nam (09:00 sáng) + Bài tổng hợp kinh nghiệm hay nhất của thành viên vào mỗi tối Chủ Nhật',
         key_pillars: [
           '01/01/2027 – 07/01/2027: Cập nhật quy định mới nhất năm 2027 về thị thực, ngân hàng số, VietQR và thủ tục lưu trú cho người nước ngoài & du khách',
           '08/01/2027 – 14/01/2027: Hướng dẫn đặt vé tàu hỏa, máy bay và phòng khách sạn sớm trước kỳ nghỉ Tết Nguyên Đán 2027',
@@ -2487,7 +2705,7 @@ export class CommunityHubService {
         failed_group_count: failedGroupCount,
         fresh_unposted_topics: dailyCalendar.filter((d) => d.status !== 'published').length,
         approved_unique_images: all30Assets.length,
-        duplication_rate_pct: 0,
+        duplication_rate_pct: duplicationRatePct,
       },
       architecture_info: {
         agent_roles: [
@@ -2510,7 +2728,7 @@ export class CommunityHubService {
             agent_name: '3. Content Marketing Agent',
             operations: ['content.generate', 'content.repurpose'],
             responsibility:
-              'Chịu trách nhiệm CHUYỂN HÓA BÀI VIẾT THÀNH BÀI ĐĂNG CỘNG ĐỒNG (Hook, Body, Câu hỏi thảo luận, Hashtag), chọn 1 hình ảnh minh họa độc nhất không trùng lặp từ kho 30 ảnh và đẩy sang PublishingOutboxRunner / FacebookGroupBot để đăng trực tiếp lên Group Facebook Cộng đồng (chỉ đăng Fanpage nếu bạn bật).',
+              `Chịu trách nhiệm CHUYỂN HÓA BÀI VIẾT THÀNH BÀI ĐĂNG CỘNG ĐỒNG (Hook, Body, Câu hỏi thảo luận, Hashtag), chọn 1 hình ảnh minh họa độc nhất không trùng lặp từ kho ${all30Assets.length} ảnh và đẩy sang PublishingOutboxRunner / FacebookGroupBot để đăng trực tiếp lên Group Facebook Cộng đồng (chỉ đăng Fanpage nếu bạn bật).`,
           },
           {
             agent_id: 'community',
@@ -2704,6 +2922,7 @@ export class CommunityHubService {
 
     // Find the latest scheduled_for among active jobs on the target channel so new topics append day-by-day at 09:00 VN (02:00 UTC)
     const nowUtc = new Date();
+    const nowVn = new Date(nowUtc.getTime() + 7 * 3600_000);
     const expectedPlatform = targetMode === 'fanpage' ? 'facebook' : 'facebook_group';
     const existingScheduledDates = existingRows
       .filter((r) => r.status !== 'published' && r.scheduled_for && r.platform_name === expectedPlatform)
@@ -2712,14 +2931,16 @@ export class CommunityHubService {
     let nextBaseUtc: Date;
     if (existingScheduledDates.length > 0) {
       const maxScheduledMs = Math.max(...existingScheduledDates);
-      const maxDate = new Date(maxScheduledMs);
-      nextBaseUtc = new Date(Date.UTC(maxDate.getUTCFullYear(), maxDate.getUTCMonth(), maxDate.getUTCDate() + 1, 2, 0, 0));
+      const maxVnDate = new Date(maxScheduledMs + 7 * 3600_000);
+      nextBaseUtc = new Date(
+        Date.UTC(maxVnDate.getUTCFullYear(), maxVnDate.getUTCMonth(), maxVnDate.getUTCDate() + 1, 2, 0, 0),
+      );
     } else {
-      const todayNineAmVn = new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate(), 2, 0, 0));
+      const todayNineAmVn = new Date(Date.UTC(nowVn.getUTCFullYear(), nowVn.getUTCMonth(), nowVn.getUTCDate(), 2, 0, 0));
       nextBaseUtc =
         todayNineAmVn.getTime() > nowUtc.getTime()
           ? todayNineAmVn
-          : new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate() + 1, 2, 0, 0));
+          : new Date(Date.UTC(nowVn.getUTCFullYear(), nowVn.getUTCMonth(), nowVn.getUTCDate() + 1, 2, 0, 0));
     }
 
     let createdCount = 0;
@@ -2785,14 +3006,20 @@ export class CommunityHubService {
     ).rows[0]?.cnt ?? 0;
 
     let startUtc: Date;
+    let snapFutureSlotsToNineAmVn = false;
     if (options.start_date_iso) {
       const parsed = new Date(options.start_date_iso);
       startUtc = Number.isNaN(parsed.getTime()) ? nowUtc : parsed;
     } else {
       const todayNineAmVn = new Date(Date.UTC(vnYear, vnMonth, vnDay, 2, 0, 0));
       if (todayPublishedCount === 0) {
-        // Ensure today is never skipped in the calendar
-        startUtc = todayNineAmVn.getTime() > nowUtc.getTime() ? todayNineAmVn : new Date(nowUtc.getTime() + 10 * 60_000);
+        // Ensure today is never skipped in the calendar; subsequent days snap cleanly to 09:00 AM VN
+        if (todayNineAmVn.getTime() > nowUtc.getTime()) {
+          startUtc = todayNineAmVn;
+        } else {
+          startUtc = new Date(nowUtc.getTime() + 10 * 60_000);
+          snapFutureSlotsToNineAmVn = true;
+        }
       } else {
         startUtc = new Date(Date.UTC(vnYear, vnMonth, vnDay + 1, 2, 0, 0));
       }
@@ -2814,7 +3041,10 @@ export class CommunityHubService {
 
     for (let i = 0; i < scheduledRows.length; i++) {
       const row = scheduledRows[i];
-      const slotUtc = new Date(startUtc.getTime() + i * intervalMs);
+      const slotUtc =
+        snapFutureSlotsToNineAmVn && i >= 1 && intervalMs === 24 * 3600_000
+          ? new Date(Date.UTC(vnYear, vnMonth, vnDay + i, 2, 0, 0))
+          : new Date(startUtc.getTime() + i * intervalMs);
       if (row.platform_name === 'facebook_group') {
         await this.pool.query(
           `UPDATE publishing_jobs
@@ -3081,11 +3311,13 @@ export class CommunityHubService {
 
     if (!chunks.length) throw new Error('Selected source has no text chunks');
 
+    const escapedTitle = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const leadingTitlePattern = new RegExp(`^${escapedTitle}\\s*[:\\-—.]?\\s*`, 'i');
     const bulletPoints = chunks
       .slice(0, 3)
       .map((c) => {
-        const firstSentence =
-          c.text_content.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/)[0] || c.text_content.slice(0, 160);
+        const cleaned = c.text_content.replace(/\s+/g, ' ').trim().replace(leadingTitlePattern, '').trim();
+        const firstSentence = cleaned.split(/(?<=[.!?])\s+/)[0] || cleaned.slice(0, 160);
         return `• ${firstSentence.slice(0, 200)}`;
       })
       .join('\n');
@@ -3178,7 +3410,7 @@ export class CommunityHubService {
       '',
       `## ${sectionHeadings[2]}`,
       bodyParagraphs.slice(3).join('\n\n') ||
-        'Connect with fellow travelers, expats, and remote workers in our community to compare real experiences across Da Nang, Hanoi, and Ho Chi Minh City.',
+      'Connect with fellow travelers, expats, and remote workers in our community to compare real experiences across Da Nang, Hanoi, and Ho Chi Minh City.',
       `[source: ${chunks[chunks.length - 1].id}]`,
       '',
       ctaText,
@@ -3733,40 +3965,179 @@ export class CommunityHubService {
    * and save `.fb-session.json` for automated Group posting.
    */
   async launchGroupBotLogin(workspaceId?: string): Promise<{ started: boolean; alreadyRunning?: boolean; message: string }> {
-    const groupUrl = workspaceId
-      ? (await this.ensureSchemaAndContext(workspaceId)).group_url
-      : 'https://www.facebook.com/groups/1134282109069209';
+    let groupUrl = 'https://www.facebook.com/groups/1134282109069209';
+    if (workspaceId) {
+      try {
+        const saved = (
+          await this.pool.query<{ group_url: string | null }>(
+            'SELECT group_url FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1',
+            [workspaceId],
+          )
+        ).rows[0];
+        if (saved?.group_url && /^https?:\/\//i.test(saved.group_url)) {
+          groupUrl = saved.group_url;
+        }
+      } catch {
+        // Ignore if settings table is not initialized yet
+      }
+    }
+
+    const psExe =
+      process.platform === 'win32'
+        ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+        : '';
+    const runEncodedPowerShell = (script: string): Promise<string> =>
+      new Promise((resolve) => {
+        const encoded = Buffer.from(script, 'utf16le').toString('base64');
+        execFile(
+          psExe,
+          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
+          { windowsHide: true, timeout: 4000 },
+          (_err, stdout) => resolve((stdout || '').trim()),
+        );
+      });
 
     if (activeLoginChild && activeLoginChild.exitCode === null && !activeLoginChild.killed) {
-      return {
-        started: true,
-        alreadyRunning: true,
-        message:
-          'Cửa sổ Microsoft Edge đăng nhập Group Bot đang mở sẵn. Vui lòng hoàn tất đăng nhập Facebook trên cửa sổ đó rồi quay lại bấm "Kiểm tra phiên Group Bot".',
-      };
+      if (process.platform === 'win32') {
+        const focusResult = await runEncodedPowerShell(`
+$ErrorActionPreference = 'SilentlyContinue'
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class WinFocusExisting {
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  public static void BringFront(IntPtr hWnd) {
+    if (IsIconic(hWnd)) { ShowWindowAsync(hWnd, 9); } else { ShowWindowAsync(hWnd, 5); }
+    SetWindowPos(hWnd, new IntPtr(-1), 0, 0, 0, 0, 0x0003);
+    SetWindowPos(hWnd, new IntPtr(-2), 0, 0, 0, 0, 0x0003);
+    SetForegroundWindow(hWnd);
+  }
+}
+"@
+$found = $false
+Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'msedge.exe' -and $_.CommandLine -like '*playwright*' } | ForEach-Object {
+  $gp = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
+  if ($gp -and $gp.MainWindowHandle -ne 0) {
+    [WinFocusExisting]::BringFront($gp.MainWindowHandle)
+    $found = $true
+  }
+}
+if ($found) { 'FOCUSED' } else { 'NONE' }
+`);
+        if (focusResult === 'FOCUSED') {
+          return {
+            started: true,
+            alreadyRunning: true,
+            message:
+              'Cửa sổ Microsoft Edge đăng nhập Group Bot đang mở — hệ thống vừa đưa cửa sổ đó lên phía trước. Vui lòng hoàn tất đăng nhập Facebook rồi bấm "Kiểm tra phiên Group Bot".',
+          };
+        }
+        // Stale/invisible child without a real Edge window: clean up so user gets a fresh visible window
+        await runEncodedPowerShell(`
+$ErrorActionPreference = 'SilentlyContinue'
+Get-CimInstance Win32_Process | Where-Object {
+  ($_.Name -eq 'msedge.exe' -and $_.CommandLine -like '*playwright*') -or
+  ($_.Name -eq 'node.exe' -and $_.CommandLine -like '*runFacebookGroupBot*login*')
+} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+`);
+        try {
+          activeLoginChild.kill();
+        } catch {}
+        activeLoginChild = null;
+      } else {
+        return {
+          started: true,
+          alreadyRunning: true,
+          message:
+            'Cửa sổ Microsoft Edge đăng nhập Group Bot đang mở sẵn. Vui lòng hoàn tất đăng nhập Facebook trên cửa sổ đó rồi quay lại bấm "Kiểm tra phiên Group Bot".',
+        };
+      }
     }
 
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
     const runner = resolveGroupBotRunner(workerDir);
+    const runnerArgs = [...runner.prefixArgs, 'login', '--group-url', groupUrl];
 
     return await new Promise((resolve) => {
       let resolved = false;
       let errBuf = '';
       let outBuf = '';
 
-      const child = spawn(
-        runner.command,
-        [...runner.prefixArgs, 'login', '--group-url', groupUrl],
-        {
+      let tempOutFile = '';
+      let tempErrFile = '';
+      let child: ChildProcess;
+
+      if (process.platform === 'win32') {
+        const stamp = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        tempOutFile = path.join(os.tmpdir(), `fb-group-login-${stamp}.out.log`);
+        tempErrFile = path.join(os.tmpdir(), `fb-group-login-${stamp}.err.log`);
+        const psQ = (s: string) => `'${String(s).replace(/'/g, "''")}'`;
+        const winQ = (s: string) => `"${String(s).replace(/"/g, '\\"')}"`;
+        const quotedArgs = runnerArgs.map((a) => psQ(winQ(a))).join(', ');
+
+        // Launch Playwright via Start-Process -WindowStyle Minimized so Edge never inherits
+        // SW_HIDE from the background API service (:4000), then bring Edge to the foreground.
+        const psScript = `
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+$p = Start-Process -FilePath ${psQ(runner.command)} -ArgumentList @(${quotedArgs}) -WorkingDirectory ${psQ(workerDir)} -WindowStyle Minimized -RedirectStandardOutput ${psQ(tempOutFile)} -RedirectStandardError ${psQ(tempErrFile)} -PassThru
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class WinFocusLaunch {
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  public static void BringFront(IntPtr hWnd) {
+    if (IsIconic(hWnd)) { ShowWindowAsync(hWnd, 9); } else { ShowWindowAsync(hWnd, 5); }
+    SetWindowPos(hWnd, new IntPtr(-1), 0, 0, 0, 0, 0x0003);
+    SetWindowPos(hWnd, new IntPtr(-2), 0, 0, 0, 0, 0x0003);
+    SetForegroundWindow(hWnd);
+  }
+}
+"@
+for ($i = 0; $i -lt 32; $i++) {
+  if ($p.HasExited) { break }
+  $focused = $false
+  $edges = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'msedge.exe' -and $_.CommandLine -like '*playwright*' }
+  foreach ($edge in $edges) {
+    $gp = Get-Process -Id $edge.ProcessId -ErrorAction SilentlyContinue
+    if ($gp -and $gp.MainWindowHandle -ne 0) {
+      [WinFocusLaunch]::BringFront($gp.MainWindowHandle)
+      $focused = $true
+      break
+    }
+  }
+  if ($focused) { break }
+  Start-Sleep -Milliseconds 250
+}
+$p.WaitForExit()
+exit $p.ExitCode
+`;
+        const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+        child = spawn(psExe, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], {
+          cwd: workerDir,
+          env: { ...process.env, FB_SESSION_FILE: session.filePath },
+          shell: false,
+          windowsHide: true,
+          detached: false,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } else {
+        child = spawn(runner.command, runnerArgs, {
           cwd: workerDir,
           env: { ...process.env, FB_SESSION_FILE: session.filePath },
           shell: false,
           windowsHide: false,
           detached: false,
           stdio: ['ignore', 'pipe', 'pipe'],
-        },
-      );
+        });
+      }
 
       activeLoginChild = child;
 
@@ -3779,6 +4150,27 @@ export class CommunityHubService {
       child.stdout?.resume();
       child.stderr?.resume();
 
+      const cleanupTempLogs = () => {
+        if (tempOutFile && fs.existsSync(tempOutFile)) {
+          try {
+            const txt = fs.readFileSync(tempOutFile, 'utf8');
+            if (txt) outBuf = `${outBuf}\n${txt}`.trim();
+          } catch {}
+          try {
+            fs.unlinkSync(tempOutFile);
+          } catch {}
+        }
+        if (tempErrFile && fs.existsSync(tempErrFile)) {
+          try {
+            const txt = fs.readFileSync(tempErrFile, 'utf8');
+            if (txt) errBuf = `${errBuf}\n${txt}`.trim();
+          } catch {}
+          try {
+            fs.unlinkSync(tempErrFile);
+          } catch {}
+        }
+      };
+
       const clearActive = () => {
         if (activeLoginChild === child) activeLoginChild = null;
       };
@@ -3786,6 +4178,7 @@ export class CommunityHubService {
       child.once('error', (err) => {
         clearTimeout(startupTimer);
         clearActive();
+        cleanupTempLogs();
         if (!resolved) {
           resolved = true;
           resolve({
@@ -3798,6 +4191,7 @@ export class CommunityHubService {
       child.once('close', (code) => {
         clearTimeout(startupTimer);
         clearActive();
+        cleanupTempLogs();
         if (!resolved) {
           resolved = true;
           const parsed = parseGroupBotResultLine(outBuf);
@@ -3823,10 +4217,10 @@ export class CommunityHubService {
           resolve({
             started: true,
             message:
-              'Đã mở cửa sổ Microsoft Edge để đăng nhập Quản trị viên Facebook (1 lần duy nhất)! Hãy đăng nhập tài khoản Facebook của bạn, mở Group xong rồi quay lại đây bấm "Kiểm tra phiên Group Bot".',
+              'Đã mở cửa sổ Microsoft Edge để đăng nhập Quản trị viên Facebook (1 lần duy nhất)! Hãy đăng nhập tài khoản Facebook của bạn trên cửa sổ Edge vừa bật lên — trang này sẽ tự động cập nhật trạng thái Sẵn sàng sau khi bạn đăng nhập xong.',
           });
         }
-      }, 1200);
+      }, 600);
     });
   }
 
@@ -4017,10 +4411,10 @@ export class CommunityHubService {
         botOutput.timedOut
           ? 'Group Bot đăng bài quá thời gian chờ (120s).'
           : botOutput.spawnErr ||
-            (typeof parsed?.message === 'string' ? parsed.message : '') ||
-            botOutput.stderr.trim() ||
-            botOutput.stdout.trim() ||
-            'Quá trình đăng bài vào Group gặp sự cố.';
+          (typeof parsed?.message === 'string' ? parsed.message : '') ||
+          botOutput.stderr.trim() ||
+          botOutput.stdout.trim() ||
+          'Quá trình đăng bài vào Group gặp sự cố.';
       const errorCode =
         typeof parsed?.errorCode === 'string' && parsed.errorCode
           ? parsed.errorCode
@@ -4041,6 +4435,193 @@ export class CommunityHubService {
       } catch {
         // Ignore cleanup failure
       }
+    }
+  }
+
+  /**
+   * Retracts (deletes) a published post from the Facebook Group via Playwright Group Bot
+   * and updates local DB records so it returns to `ready_to_publish` / `scheduled` state.
+   */
+  async retractGroupPost(
+    workspaceId: string,
+    options: {
+      source_id?: string;
+      post_url?: string;
+      title?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    message: string;
+    groupUrl: string;
+    postUrl?: string;
+    errorCode?: string;
+  }> {
+    const settings = await this.ensureSchemaAndContext(workspaceId);
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+
+    let existingRow: {
+      id: string;
+      source_id: string | null;
+      publishing_job_id: string | null;
+      post_title: string;
+      facebook_post_url: string | null;
+    } | undefined;
+
+    if (options.source_id) {
+      existingRow = (
+        await this.pool.query<{
+          id: string;
+          source_id: string | null;
+          publishing_job_id: string | null;
+          post_title: string;
+          facebook_post_url: string | null;
+        }>(
+          `SELECT id, source_id, publishing_job_id, post_title, facebook_post_url
+             FROM community_group_posts
+            WHERE workspace_id = $1 AND source_id = $2
+            ORDER BY published_at DESC NULLS LAST, updated_at DESC LIMIT 1`,
+          [workspaceId, options.source_id],
+        )
+      ).rows[0];
+    } else if (options.title) {
+      existingRow = (
+        await this.pool.query<{
+          id: string;
+          source_id: string | null;
+          publishing_job_id: string | null;
+          post_title: string;
+          facebook_post_url: string | null;
+        }>(
+          `SELECT id, source_id, publishing_job_id, post_title, facebook_post_url
+             FROM community_group_posts
+            WHERE workspace_id = $1 AND LOWER(post_title) = LOWER($2)
+            ORDER BY published_at DESC NULLS LAST, updated_at DESC LIMIT 1`,
+          [workspaceId, options.title.trim()],
+        )
+      ).rows[0];
+    }
+
+    const targetPostUrl = options.post_url || existingRow?.facebook_post_url || undefined;
+    const targetTitle = options.title || existingRow?.post_title || undefined;
+
+    if (!hasSession) {
+      return {
+        success: false,
+        errorCode: 'FACEBOOK_GROUP_SESSION_MISSING',
+        groupUrl: settings.group_url,
+        postUrl: targetPostUrl,
+        message: 'Chưa có phiên đăng nhập Quản trị viên Facebook Group (.fb-session.json) để thu hồi bài tự động.',
+      };
+    }
+
+    const runner = resolveGroupBotRunner(workerDir);
+    const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-del-${randomUUID()}.json`);
+    fs.writeFileSync(
+      tmpPayloadFile,
+      JSON.stringify({
+        groupUrl: settings.group_url,
+        postUrl: targetPostUrl,
+        titleSnippet: targetTitle,
+        headless: true,
+      }),
+      'utf8',
+    );
+
+    try {
+      const botOutput = await new Promise<{
+        code: number | null;
+        stdout: string;
+        stderr: string;
+        spawnErr?: string;
+        timedOut?: boolean;
+      }>((resolve) => {
+        const child = spawn(
+          runner.command,
+          [...runner.prefixArgs, 'delete', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
+          {
+            cwd: workerDir,
+            env: { ...process.env, FB_SESSION_FILE: session.filePath },
+            shell: false,
+            windowsHide: true,
+          },
+        );
+        let stdout = '';
+        let stderr = '';
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            try {
+              child.kill();
+            } catch {}
+            resolve({ code: null, stdout, stderr, timedOut: true });
+          }
+        }, 90_000);
+        child.stdout?.on('data', (d) => {
+          stdout += d.toString();
+        });
+        child.stderr?.on('data', (d) => {
+          stderr += d.toString();
+        });
+        child.on('error', (err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({ code: 1, stdout, stderr, spawnErr: err.message });
+        });
+        child.on('close', (code) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({ code, stdout, stderr });
+        });
+      });
+
+      const parsed = parseGroupBotResultLine(botOutput.stdout);
+      const isOk = Boolean(parsed?.success === true || (botOutput.code === 0 && !botOutput.spawnErr && !botOutput.timedOut));
+
+      if (isOk) {
+        if (existingRow) {
+          await this.pool.query(
+            `DELETE FROM community_group_posts WHERE id = $1 AND workspace_id = $2`,
+            [existingRow.id, workspaceId],
+          ).catch(() => {});
+          if (existingRow.publishing_job_id) {
+            await this.pool.query(
+              `UPDATE publishing_jobs
+                  SET status = 'scheduled', published_at = NULL, external_post_id = NULL, error_message = NULL
+                WHERE id = $1 AND workspace_id = $2`,
+              [existingRow.publishing_job_id, workspaceId],
+            ).catch(() => {});
+          }
+        }
+        return {
+          success: true,
+          groupUrl: settings.group_url,
+          postUrl: targetPostUrl,
+          message:
+            typeof parsed?.message === 'string' && parsed.message
+              ? parsed.message
+              : 'Đã thu hồi bài viết khỏi Group Facebook và đặt lại trạng thái sẵn sàng đăng!',
+        };
+      }
+
+      return {
+        success: false,
+        errorCode: typeof parsed?.errorCode === 'string' ? parsed.errorCode : 'FACEBOOK_GROUP_PUBLISH_FAILED',
+        groupUrl: settings.group_url,
+        postUrl: targetPostUrl,
+        message:
+          (typeof parsed?.message === 'string' && parsed.message) ||
+          botOutput.stderr.trim() ||
+          'Không thể thu hồi bài viết trên Group Facebook.',
+      };
+    } finally {
+      try {
+        if (fs.existsSync(tmpPayloadFile)) fs.unlinkSync(tmpPayloadFile);
+      } catch {}
     }
   }
 }

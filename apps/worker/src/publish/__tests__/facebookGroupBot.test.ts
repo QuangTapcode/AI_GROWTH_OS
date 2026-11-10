@@ -45,6 +45,25 @@ describe('FacebookGroupBot & FacebookGroupPublisher', () => {
     expect(text.match(/#CongDongDuLich/g)?.length).toBe(1);
   });
 
+  it('buildPostText không gắn trùng [CẨM NANG CỘNG ĐỒNG] nếu body đã có [VIETNAM PLAYBOOK]', () => {
+    const playbookBody = [
+      '🇻🇳 [VIETNAM PLAYBOOK] Apartment Viewing Checklist in Vietnam',
+      '',
+      '• Check mobile signal and EVN electricity rates.',
+      '',
+      '💬 What is your #1 checklist item?',
+      '#CongDongDuLich',
+    ].join('\n');
+
+    const text = FacebookGroupBot.buildPostText({
+      title: 'Apartment Viewing Checklist in Vietnam',
+      body: playbookBody,
+    });
+
+    expect(text).not.toContain('[CẨM NANG CỘNG ĐỒNG]');
+    expect(text.match(/\[VIETNAM PLAYBOOK\]/g)?.length).toBe(1);
+  });
+
   it('buildPostText tự gắn header, câu hỏi thảo luận và hashtag khi body là văn bản thuần', () => {
     const text = FacebookGroupBot.buildPostText({
       title: 'eSIM Vietnam',
