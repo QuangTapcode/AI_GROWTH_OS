@@ -25,6 +25,9 @@ interface DirectMessage {
   content?: string | null;
   metadata: {
     business_connection_id?: string;
+    chat_type?: string;
+    reply_to_message_id?: number;
+    message_thread_id?: number;
     comment_id?: string;
     post_id?: string;
     comment_source?: 'page' | 'group';
@@ -146,9 +149,19 @@ async function queueDirectReply(
       groupUrl,
       includeCommunityInvite: shouldCommunityInvite,
     });
+    const replyToMessageId =
+      typeof message.metadata?.reply_to_message_id === 'number' && Number.isFinite(message.metadata.reply_to_message_id)
+        ? message.metadata.reply_to_message_id
+        : undefined;
+    const messageThreadId =
+      typeof message.metadata?.message_thread_id === 'number' && Number.isFinite(message.metadata.message_thread_id)
+        ? message.metadata.message_thread_id
+        : undefined;
     outboxText = composed.text;
     telegramExtras = {
       ...(composed.reply_markup ? { reply_markup: composed.reply_markup } : {}),
+      ...(replyToMessageId !== undefined ? { reply_to_message_id: replyToMessageId } : {}),
+      ...(messageThreadId !== undefined ? { message_thread_id: messageThreadId } : {}),
       should_community_invite: composed.invitedViaCta,
       invite_group_url: composed.inviteGroupUrl,
       community_name: communityName,

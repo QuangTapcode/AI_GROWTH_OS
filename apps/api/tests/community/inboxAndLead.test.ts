@@ -265,19 +265,19 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
             lead_proposal: { intent: "request_information", status: "proposed", contact: {} } } } }] };
         }
         if (sql.includes("platform IN ('facebook_message', 'telegram_message')")) {
-          return { rows: [{ id: "msg-tg", platform: "telegram_message", author_contact: "555", metadata: { business_connection_id: "conn-1" } }] };
+          return { rows: [{ id: "msg-tg", platform: "telegram_message", author_contact: "-100555", metadata: { business_connection_id: "conn-1", chat_type: "supergroup", reply_to_message_id: 78 } }] };
         }
         if (sql.includes("SELECT id, author_name, author_contact, content FROM community_messages")) {
-          return { rows: [{ id: "msg-tg", author_name: "Telegram user", author_contact: "555", content: "Street food?" }] };
+          return { rows: [{ id: "msg-tg", author_name: "Telegram user", author_contact: "-100555", content: "Street food?" }] };
         }
         if (sql.includes("INSERT INTO leads")) return { rows: [{ lead_id: "lead-tg" }] };
         return { rows: [], rowCount: 1 };
       });
       await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
       const outbox = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO outbox_events"))!;
-      expect(JSON.parse(outbox[1][2])).toMatchObject({ message_id: "msg-tg", recipient: "555", platform: "telegram_message", business_connection_id: "conn-1" });
+      expect(JSON.parse(outbox[1][2])).toMatchObject({ message_id: "msg-tg", recipient: "-100555", platform: "telegram_message", business_connection_id: "conn-1", reply_to_message_id: 78 });
       const lead = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO leads"))!;
-      expect(lead[1]).not.toContain("555");
+      expect(lead[1]).not.toContain("-100555");
       expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'replied'"))).toBe(false);
     });
 

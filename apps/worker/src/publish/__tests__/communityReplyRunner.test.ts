@@ -80,6 +80,26 @@ describe('CommunityReplyRunner', () => {
     expect(inviteLog!.params).toEqual(expect.arrayContaining(['ws-1', 'tg:555', 'Lan Anh']));
   });
 
+  it('forwards reply_to_message_id and message_thread_id for Telegram group replies', async () => {
+    const groupEvent = {
+      ...event,
+      payload: {
+        ...event.payload,
+        recipient: '-100555',
+        platform: 'telegram_message',
+        reply_to_message_id: 42,
+        message_thread_id: 7,
+      },
+    };
+    const { pool } = harness(groupEvent);
+    const telegram = vi.fn(async () => ({ message_id: '88' }));
+    expect(await new CommunityReplyRunner(pool, vi.fn(), telegram).runOnce()).toBe('sent');
+    expect(telegram).toHaveBeenCalledWith('-100555', 'Street food stalls open every evening.', undefined, {
+      reply_to_message_id: 42,
+      message_thread_id: 7,
+    });
+  });
+
   it('replies publicly to a Fanpage comment via comment_id (not recipient user_id) and sends Private Reply invite within quota', async () => {
     const commentEvent = {
       id: 'evt-cmt-1',

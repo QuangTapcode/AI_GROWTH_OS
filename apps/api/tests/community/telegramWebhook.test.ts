@@ -67,10 +67,56 @@ describe('Telegram webhook', () => {
     expect(payload.reply_markup?.inline_keyboard?.[0]?.[0]?.url).toBe('https://www.facebook.com/groups/custom999');
   });
 
+  it('replies immediately when tagged as @tripc_community_bot alone in a group', async () => {
+    const { POST } = await import('../../src/app/v1/webhooks/telegram/route');
+    query.mockImplementation((sql: string) => {
+      if (String(sql).includes('INSERT INTO community_messages')) return { rows: [{ id: 'msg-grp-ping' }], rowCount: 1 };
+      return { rows: [], rowCount: 1 };
+    });
+    const res = await POST(request({
+      update_id: 30,
+      message: {
+        message_id: 77,
+        text: '@tripc_community_bot',
+        entities: [{ type: 'mention', offset: 0, length: 20 }],
+        from: { id: 555, is_bot: false, first_name: 'Quang' },
+        chat: { id: -100, type: 'supergroup', title: 'Nhóm Du Lịch' },
+      },
+    }) as never);
+    expect(res.status).toBe(200);
+    const outbox = query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO outbox_events'));
+    expect(outbox).toHaveLength(1);
+    const payload = JSON.parse(String(outbox[0][1][2]));
+    expect(payload.recipient).toBe('-100');
+    expect(payload.reply_to_message_id).toBe(77);
+    expect(payload.text).toContain('@tripc_community_bot');
+  });
+
+  it('strips @tripc_community_bot and queues clean group questions with reply_to_message_id', async () => {
+    const { POST } = await import('../../src/app/v1/webhooks/telegram/route');
+    const res = await POST(request({
+      update_id: 31,
+      message: {
+        message_id: 78,
+        text: '@tripc_community_bot Mỹ Khê có đẹp không?',
+        entities: [{ type: 'mention', offset: 0, length: 20 }],
+        from: { id: 555, is_bot: false, first_name: 'Quang' },
+        chat: { id: -100, type: 'supergroup', title: 'Nhóm Du Lịch' },
+      },
+    }) as never);
+    expect(res.status).toBe(200);
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0][1][4]).toBe('Mỹ Khê có đẹp không?');
+    expect(JSON.parse(String(inserts()[0][1][5]))).toMatchObject({
+      chat_type: 'supergroup',
+      reply_to_message_id: 78,
+    });
+  });
+
   it.each([
     ['the connected account writing to a customer', { business_message: privateMessage({ business_connection_id: 'conn-1', from: { id: 999, first_name: 'Owner' } }) }],
     ['an unknown slash command', { message: privateMessage({ text: '/unknowncmd' }) }],
-    ['a group message', { message: privateMessage({ chat: { id: -100, type: 'supergroup' } }) }],
+    ['an unaddressed group message', { message: privateMessage({ chat: { id: -100, type: 'supergroup' } }) }],
     ['another bot', { message: privateMessage({ from: { id: 555, is_bot: true, first_name: 'Bot' } }) }],
     ['a message without text', { message: privateMessage({ text: undefined }) }],
     ['an edited message', { edited_message: privateMessage() }],

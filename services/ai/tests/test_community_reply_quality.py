@@ -124,6 +124,9 @@ def test_common_question_words_missing_from_the_sources_do_not_stop_an_answer(ma
     "cảm ơn ad nhiều nha",
     "bạn là ai vậy? giúp mình gì được?",
     "giới thiệu cộng đồng facebook giúp mình",
+    "chào bot nha, bạn khỏe không?",
+    "bot ơi nói chuyện với mọi người đi",
+    "bạn tên gì vậy?",
 ])
 def test_conversational_openers_get_a_grounded_reply_even_when_similarity_is_low(make_client, opener):
     job = request(mock_research_request(), "community.response", {"question": opener})

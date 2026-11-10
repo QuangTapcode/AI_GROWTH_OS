@@ -54,17 +54,20 @@ _CONVERSATIONAL_SIGNAL_WORDS = {
     "cam", "thank", "thanks", "bot", "ly", "giup", "help",
     "cong", "dong", "group", "nhom", "community", "facebook", "fb",
     "kenh", "telegram", "goi", "info", "information", "gioi", "thieu",
-    "chao", "hi", "hello", "hey", "morning", "afternoon", "evening",
+    "chao", "hi", "hello", "hey", "morning", "afternoon", "evening", "alo",
+    "khoe", "ten", "tuvan",
 }
 _CONVERSATIONAL_FILLER_WORDS = {
     "xin", "ban", "baj", "banj", "oi", "ad", "admin", "shop", "team", "tripc",
-    "minh", "toi", "em", "anh", "chi", "on", "nhieu", "lam", "nha", "nhe", "a",
-    "la", "ai", "gi", "vay", "the", "nao", "duoc", "khong", "ko", "k",
-    "co", "cho", "voi", "ve", "di", "du", "lich", "muon", "tim", "hieu",
-    "them", "hoi", "tham", "tu", "van", "ho", "tro", "noi", "can",
-    "you", "your", "are", "who", "what", "how", "me", "please",
+    "minh", "toi", "tui", "t", "m", "em", "anh", "chi", "on", "nhieu", "lam",
+    "nha", "nhe", "nhi", "a", "ne", "day", "luon", "roi",
+    "la", "ai", "gi", "vay", "the", "nao", "sao", "duoc", "khong", "ko", "k",
+    "co", "cho", "voi", "cung", "nhau", "chung", "ta", "ve", "di", "du", "lich",
+    "muon", "tim", "hieu", "them", "hoi", "tham", "tu", "van", "ho", "tro",
+    "noi", "tro", "chuyen", "moi", "nguoi", "can", "ke", "nghe",
+    "you", "your", "are", "who", "what", "how", "me", "please", "chat", "talk",
     "about", "more", "join", "tell", "for", "good", "there", "very", "much",
-    "so", "nice", "great", "ok", "okay", "vui", "long",
+    "so", "nice", "great", "ok", "okay", "vui", "long", "ten", "khoe",
 }
 _VIETNAMESE_LETTER = re.compile(r"[\u00C0-\u1EF9]")
 # Whole words: "possible" is not "ib", "different" is not "rent", and a restaurant or a review asks for no home or price.

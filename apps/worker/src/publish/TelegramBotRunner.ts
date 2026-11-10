@@ -3,6 +3,7 @@ import type { TelegramInlineKeyboardMarkup } from './CommunityReplyRunner';
 
 export const DEFAULT_FACEBOOK_GROUP_URL = 'https://www.facebook.com/groups/1134282109069209';
 export const DEFAULT_COMMUNITY_NAME = 'Cộng đồng Du lịch & Sống tại Việt Nam';
+export const DEFAULT_BOT_USERNAME = 'tripc_community_bot';
 
 const BOT_COMMANDS = [
   { command: 'start', description: 'Bắt đầu trò chuyện & nhận tư vấn du lịch' },
@@ -12,11 +13,16 @@ const BOT_COMMANDS = [
 
 export type TelegramCommand = 'start' | 'community' | 'help' | 'unknown';
 
-type TelegramChat = { id?: number; type?: string };
+type TelegramChat = { id?: number; type?: string; title?: string };
 type TelegramUser = { id?: number; is_bot?: boolean; first_name?: string; last_name?: string; username?: string };
+type TelegramMessageEntity = { type?: string; offset?: number; length?: number; user?: TelegramUser };
 type TelegramMessage = {
   message_id?: number;
+  message_thread_id?: number;
   text?: string;
+  entities?: TelegramMessageEntity[];
+  reply_to_message?: { message_id?: number; from?: TelegramUser; text?: string };
+  new_chat_members?: TelegramUser[];
   business_connection_id?: string;
   from?: TelegramUser;
   chat?: TelegramChat;
@@ -27,15 +33,154 @@ export type TelegramUpdate = {
   business_message?: TelegramMessage;
 };
 
-export function parseTelegramCommand(text?: string | null): TelegramCommand | null {
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function parseTelegramCommand(text?: string | null, botUsername?: string | null): TelegramCommand | null {
   const trimmed = text?.trim();
   if (!trimmed || !trimmed.startsWith('/')) return null;
-  const cmd = trimmed.slice(1).split(/\s+/)[0]?.split('@')[0]?.toLowerCase() ?? '';
+  const firstToken = trimmed.slice(1).split(/\s+/)[0] ?? '';
+  const [rawCmd = '', rawTarget] = firstToken.split('@');
+  const normalizedBot = botUsername?.trim().replace(/^@/, '').toLowerCase();
+  if (rawTarget && normalizedBot && rawTarget.toLowerCase() !== normalizedBot) {
+    return 'unknown';
+  }
+  const cmd = rawCmd.toLowerCase();
   if (!cmd) return 'unknown';
   if (cmd === 'start') return 'start';
   if (cmd === 'community' || cmd === 'congdong' || cmd === 'nhom' || cmd === 'group') return 'community';
   if (cmd === 'help' || cmd === 'menu' || cmd === 'trogiup' || cmd === 'tuvan') return 'help';
   return 'unknown';
+}
+
+export function analyzeTelegramGroupMessage(
+  message: TelegramMessage,
+  botIdentity: { id?: number | null; username?: string | null } = {},
+):
+  | { shouldRespond: false }
+  | {
+      shouldRespond: true;
+      kind: 'command' | 'ping' | 'question' | 'bot_joined' | 'member_joined';
+      command?: 'start' | 'community' | 'help';
+      cleanedText?: string;
+      memberNames?: string[];
+    } {
+  const normalizedBotUsername = botIdentity.username?.trim().replace(/^@/, '').toLowerCase() || null;
+  const botId = typeof botIdentity.id === 'number' && Number.isFinite(botIdentity.id) ? botIdentity.id : null;
+
+  if (Array.isArray(message.new_chat_members) && message.new_chat_members.length > 0) {
+    const includesSelf = message.new_chat_members.some(
+      (m) =>
+        (botId !== null && m.id === botId) ||
+        (normalizedBotUsername !== null && m.username?.toLowerCase() === normalizedBotUsername),
+    );
+    if (includesSelf) {
+      return { shouldRespond: true, kind: 'bot_joined' };
+    }
+    const humanNames = message.new_chat_members
+      .filter((m) => !m.is_bot)
+      .map((m) => [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || (m.username ? `@${m.username}` : 'bạn mới'));
+    if (humanNames.length > 0) {
+      return { shouldRespond: true, kind: 'member_joined', memberNames: humanNames };
+    }
+    return { shouldRespond: false };
+  }
+
+  const text = message.text?.trim();
+  if (!text) return { shouldRespond: false };
+
+  const command = parseTelegramCommand(text, normalizedBotUsername);
+  if (command === 'unknown') return { shouldRespond: false };
+  if (command) {
+    return { shouldRespond: true, kind: 'command', command, cleanedText: text };
+  }
+
+  let isMentioned = false;
+  if (normalizedBotUsername) {
+    const mentionRegex = new RegExp(`(^|[\\s,.;:!?()\\[\\]])@${escapeRegExp(normalizedBotUsername)}(?=$|[\\s,.;:!?()\\[\\]])`, 'i');
+    const entityHit = Array.isArray(message.entities)
+      ? message.entities.some((e) => {
+          if (e.type !== 'mention' || typeof e.offset !== 'number' || typeof e.length !== 'number') return false;
+          return text.slice(e.offset, e.offset + e.length).toLowerCase() === `@${normalizedBotUsername}`;
+        })
+      : false;
+    isMentioned = entityHit || mentionRegex.test(text);
+  }
+
+  const replyFrom = message.reply_to_message?.from;
+  const isReplyToBot = Boolean(
+    replyFrom?.is_bot &&
+      ((botId !== null && replyFrom.id === botId) ||
+        (normalizedBotUsername !== null && replyFrom.username?.toLowerCase() === normalizedBotUsername) ||
+        (botId === null && normalizedBotUsername === null)),
+  );
+
+  let stripped = text;
+  if (normalizedBotUsername && isMentioned) {
+    const stripRegex = new RegExp(`@${escapeRegExp(normalizedBotUsername)}(?=$|[\\s,.;:!?()\\[\\]])`, 'gi');
+    stripped = text.replace(stripRegex, ' ').replace(/\s+/g, ' ').replace(/^[\s,.:;!?-]+/, '').trim();
+  }
+
+  const isBotAddressPhrase = /(?<![\p{L}\p{N}])bot(?![\p{L}\p{N}])/iu.test(stripped);
+
+  if (!isMentioned && !isReplyToBot && !isBotAddressPhrase) {
+    return { shouldRespond: false };
+  }
+
+  if (!/\p{L}|\p{N}/u.test(stripped)) {
+    return { shouldRespond: true, kind: 'ping', cleanedText: text };
+  }
+
+  return { shouldRespond: true, kind: 'question', cleanedText: stripped };
+}
+
+export function buildGroupWelcomeReply(
+  kind: 'ping' | 'bot_joined' | 'member_joined',
+  options: {
+    userName?: string | null;
+    chatTitle?: string | null;
+    memberNames?: string[];
+    botUsername?: string | null;
+    communityName?: string | null;
+    groupUrl?: string | null;
+  } = {},
+): {
+  text: string;
+  reply_markup?: TelegramInlineKeyboardMarkup;
+} {
+  const handle = options.botUsername?.trim().replace(/^@/, '') || DEFAULT_BOT_USERNAME;
+  const communityName = options.communityName?.trim() || DEFAULT_COMMUNITY_NAME;
+  const groupUrl = normalizeGroupUrl(options.groupUrl);
+  const rawName = options.userName?.trim();
+  const greetingName = rawName && rawName !== 'Telegram user' ? ` ${rawName}` : '';
+  const chatTitle = options.chatTitle?.trim();
+  const reply_markup: TelegramInlineKeyboardMarkup | undefined = /^https?:\/\//i.test(groupUrl)
+    ? { inline_keyboard: [[{ text: '👥 Tham gia Cộng đồng trên Facebook', url: groupUrl }]] }
+    : undefined;
+
+  if (kind === 'bot_joined') {
+    return {
+      text:
+        `Chào cả nhà${chatTitle ? ` trong ${chatTitle}` : ''}! Mình là trợ lý AI của TripC & ${communityName} 🤖\n\nMọi người có thể trò chuyện với mình bất cứ lúc nào bằng cách:\n• Tag @${handle} kèm câu hỏi (vd: @${handle} Đà Nẵng có bãi biển nào đẹp?)\n• Hoặc bấm Reply trực tiếp vào tin nhắn của mình để hỏi tiếp\n• Nhắn /community để lấy link cộng đồng Facebook hoặc /help để xem gợi ý nhé!`,
+      reply_markup,
+    };
+  }
+
+  if (kind === 'member_joined') {
+    const names = options.memberNames?.filter(Boolean).join(', ') || 'bạn mới';
+    return {
+      text:
+        `Chào mừng ${names} gia nhập nhóm${chatTitle ? ` ${chatTitle}` : ''}! 🎉\n\nNếu cần gợi ý địa điểm du lịch, ẩm thực hay kinh nghiệm sống tại Việt Nam, bạn cứ tag @${handle} kèm câu hỏi (hoặc nhắn /help) để mình hỗ trợ ngay nhé!`,
+      reply_markup,
+    };
+  }
+
+  return {
+    text:
+      `Chào${greetingName}! Mình là trợ lý AI của TripC & ${communityName} đây 👋\n\nBạn cứ nhắn tự nhiên theo 1 trong 2 cách:\n• Tag @${handle} kèm điều bạn muốn hỏi (vd: @${handle} ăn gì ngon ở Đà Nẵng?)\n• Hoặc bấm Reply trực tiếp vào tin nhắn này của mình để trò chuyện tiếp!\n\n📌 Dùng /community để lấy link cộng đồng Facebook hoặc /help để xem hướng dẫn nhanh.`,
+    reply_markup,
+  };
 }
 
 export function normalizeGroupUrl(raw?: string | null): string {
@@ -100,11 +245,14 @@ export interface TelegramBotRunnerOptions {
   onMessageIngested?: () => void;
   pollTimeoutSeconds?: number;
   fetchImpl?: typeof fetch;
+  botId?: number;
+  botUsername?: string;
 }
 
 /**
- * Telegram Bot Long Polling worker: receives DM & Telegram Business updates without requiring a public HTTPS URL.
- * Disabled automatically when `TELEGRAM_BOT_TOKEN` is unset or `TELEGRAM_BOT_MODE=webhook`.
+ * Telegram Bot Long Polling worker: receives DM, Telegram Business, and addressed Group updates
+ * without requiring a public HTTPS URL. Disabled automatically when `TELEGRAM_BOT_TOKEN` is unset
+ * or `TELEGRAM_BOT_MODE=webhook`.
  */
 export class TelegramBotRunner {
   private offset = 0;
@@ -114,11 +262,60 @@ export class TelegramBotRunner {
   private cachedWorkspaceId: string | null = null;
   private conflictLogged = false;
   private schemaEnsured = false;
+  private botId: number | null = null;
+  private botUsername: string | null = null;
+  private identityLoaded = false;
 
   constructor(
     private readonly pool: Pool,
     private readonly options: TelegramBotRunnerOptions = {},
-  ) {}
+  ) {
+    if (typeof options.botId === 'number' && Number.isFinite(options.botId)) {
+      this.botId = options.botId;
+    }
+    if (options.botUsername?.trim()) {
+      this.botUsername = options.botUsername.trim().replace(/^@/, '').toLowerCase();
+      this.identityLoaded = true;
+    }
+  }
+
+  private async loadBotIdentity(): Promise<void> {
+    if (this.identityLoaded) return;
+    this.identityLoaded = true;
+
+    const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    if (this.botId === null && token) {
+      const parsedId = Number(token.split(':')[0]);
+      if (Number.isFinite(parsedId) && parsedId > 0) this.botId = parsedId;
+    }
+    const envUsername = process.env.TELEGRAM_BOT_USERNAME?.trim().replace(/^@/, '').toLowerCase();
+    if (envUsername) {
+      this.botUsername = envUsername;
+      return;
+    }
+    if (token) {
+      try {
+        const me = await this.callTelegram<{ id?: number; username?: string }>(
+          token,
+          'getMe',
+          {},
+          AbortSignal.timeout(5_000),
+        );
+        if (me.ok && me.result) {
+          if (typeof me.result.id === 'number' && Number.isFinite(me.result.id)) {
+            this.botId = me.result.id;
+          }
+          if (me.result.username?.trim()) {
+            this.botUsername = me.result.username.trim().replace(/^@/, '').toLowerCase();
+            return;
+          }
+        }
+      } catch {
+        // Fall back to default handle below if Telegram API is temporarily unreachable.
+      }
+    }
+    this.botUsername = DEFAULT_BOT_USERNAME;
+  }
 
   private async ensurePlatformSchema(): Promise<void> {
     if (this.schemaEnsured || typeof (this.pool as { connect?: unknown }).connect !== 'function') return;
@@ -225,8 +422,12 @@ export class TelegramBotRunner {
     if (res.status === 409 || res.error_code === 409) {
       if (!this.conflictLogged) {
         this.conflictLogged = true;
+        const detail = res.description?.trim() || 'Conflict';
+        const isOtherPoller = /other getUpdates/i.test(detail);
         console.warn(
-          '[telegram-bot] Conflict (409): a webhook is active on Telegram. Run "npm run telegram:webhook -- --delete" in apps/api to use Long Polling, or set TELEGRAM_BOT_MODE=webhook.',
+          isOtherPoller
+            ? `[telegram-bot] Conflict (409): ${detail}. Another machine/process is polling with the same TELEGRAM_BOT_TOKEN.`
+            : `[telegram-bot] Conflict (409): ${detail}. Run "npm run telegram:webhook -- --delete" in apps/api to use Long Polling, or set TELEGRAM_BOT_MODE=webhook.`,
         );
       }
       return { processed: 0, conflict: true };
@@ -240,39 +441,79 @@ export class TelegramBotRunner {
     const updates = Array.isArray(res.result) ? res.result : [];
     if (updates.length > 0) {
       await this.ensurePlatformSchema();
+      if (
+        !this.identityLoaded &&
+        updates.some((u) => {
+          const t = (u.message ?? u.business_message)?.chat?.type;
+          return t === 'group' || t === 'supergroup';
+        })
+      ) {
+        await this.loadBotIdentity();
+      }
     }
     let processed = 0;
 
     for (const update of updates) {
       const message = update.message ?? update.business_message;
-      const text = message?.text?.trim();
+      const rawText = message?.text?.trim() ?? '';
       const author = message?.from;
       const chatId = message?.chat?.id;
-      const command = parseTelegramCommand(text);
+      const chatType = message?.chat?.type;
+      const isPrivate = chatType === 'private';
+      const isGroup = chatType === 'group' || chatType === 'supergroup';
 
-      if (
-        !message?.message_id ||
-        !text ||
-        command === 'unknown' ||
-        message.chat?.type !== 'private' ||
-        !chatId ||
-        !author ||
-        author.id !== chatId ||
-        author.is_bot
-      ) {
+      if (!message?.message_id || !chatId || (!isPrivate && !isGroup) || author?.is_bot) {
         this.offset = Math.max(this.offset, update.update_id + 1);
         continue;
+      }
+
+      let command: TelegramCommand | null = null;
+      let contentText = rawText;
+      let instantGroupWelcome: { kind: 'ping' | 'bot_joined' | 'member_joined'; memberNames?: string[] } | null = null;
+
+      if (isPrivate) {
+        command = parseTelegramCommand(rawText, this.botUsername);
+        if (!rawText || command === 'unknown' || !author || author.id !== chatId) {
+          this.offset = Math.max(this.offset, update.update_id + 1);
+          continue;
+        }
+      } else {
+        const groupDecision = analyzeTelegramGroupMessage(message, { id: this.botId, username: this.botUsername });
+        if (!groupDecision.shouldRespond) {
+          this.offset = Math.max(this.offset, update.update_id + 1);
+          continue;
+        }
+        if (groupDecision.kind === 'command') {
+          command = groupDecision.command ?? null;
+          contentText = groupDecision.cleanedText ?? rawText;
+        } else if (groupDecision.kind === 'question') {
+          contentText = groupDecision.cleanedText ?? rawText;
+        } else {
+          instantGroupWelcome = { kind: groupDecision.kind, memberNames: groupDecision.memberNames };
+          contentText =
+            groupDecision.cleanedText ||
+            (groupDecision.kind === 'bot_joined'
+              ? '[Bot đã tham gia nhóm]'
+              : `[Thành viên mới: ${groupDecision.memberNames?.join(', ') ?? 'bạn mới'}]`);
+        }
       }
 
       const workspaceId = await this.resolveWorkspaceId();
       if (!workspaceId) break;
 
-      const connection = message.business_connection_id;
+      const connection = isPrivate ? message.business_connection_id : undefined;
       const externalId = `${connection ?? 'bot'}:${chatId}:${message.message_id}`;
-      const name = [author.first_name, author.last_name].filter(Boolean).join(' ') || 'Telegram user';
-      const metadata: Record<string, string> = {};
+      const name = (author ? [author.first_name, author.last_name].filter(Boolean).join(' ') : '') || 'Telegram user';
+      const metadata: Record<string, unknown> = {};
       if (connection) metadata.business_connection_id = connection;
-      if (author.username) metadata.username = author.username;
+      if (author?.username) metadata.username = author.username;
+      if (isGroup) {
+        metadata.chat_type = chatType;
+        if (message.chat?.title) metadata.chat_title = message.chat.title;
+        if (author?.id) metadata.sender_id = String(author.id);
+        metadata.reply_to_message_id = message.message_id;
+        if (typeof message.message_thread_id === 'number') metadata.message_thread_id = message.message_thread_id;
+      }
 
       // Typing feedback makes the conversation feel responsive before AI reply arrives.
       void this.callTelegram(
@@ -282,11 +523,13 @@ export class TelegramBotRunner {
           chat_id: String(chatId),
           action: 'typing',
           ...(connection ? { business_connection_id: connection } : {}),
+          ...(typeof message.message_thread_id === 'number' ? { message_thread_id: message.message_thread_id } : {}),
         },
         AbortSignal.timeout(5_000),
       ).catch(() => {});
 
-      if (command) {
+      if (command || instantGroupWelcome) {
+        const tagMeta = command ? { command } : { group_event: instantGroupWelcome!.kind };
         const inserted = (
           await this.pool.query<{ id: string }>(
             `INSERT INTO community_messages (workspace_id, platform, external_id, author_name, author_contact, content, status, metadata)
@@ -298,8 +541,8 @@ export class TelegramBotRunner {
               externalId,
               name.slice(0, 255),
               String(chatId),
-              text.slice(0, 4000),
-              JSON.stringify({ ...metadata, command }),
+              contentText.slice(0, 4000),
+              JSON.stringify({ ...metadata, ...tagMeta }),
             ],
           )
         ).rows[0];
@@ -326,15 +569,31 @@ export class TelegramBotRunner {
         if (hubSettings?.group_url) groupUrl = hubSettings.group_url;
         positioning = hubSettings?.positioning ?? null;
 
-        const cmdReply = buildCommandReply(command, { userName: name, communityName, groupUrl, positioning });
+        const instantReply = command
+          ? buildCommandReply(command, { userName: name, communityName, groupUrl, positioning })
+          : {
+              ...buildGroupWelcomeReply(instantGroupWelcome!.kind, {
+                userName: name,
+                chatTitle: message.chat?.title,
+                memberNames: instantGroupWelcome!.memberNames,
+                botUsername: this.botUsername,
+                communityName,
+                groupUrl,
+              }),
+              includeInviteLog: false,
+              inviteGroupUrl: groupUrl,
+            };
+
         const sendRes = await this.callTelegram<{ message_id?: number }>(
           token,
           'sendMessage',
           {
             chat_id: String(chatId),
-            text: cmdReply.text,
+            text: instantReply.text,
             ...(connection ? { business_connection_id: connection } : {}),
-            ...(cmdReply.reply_markup ? { reply_markup: cmdReply.reply_markup } : {}),
+            ...(instantReply.reply_markup ? { reply_markup: instantReply.reply_markup } : {}),
+            ...(isGroup ? { reply_to_message_id: message.message_id, allow_sending_without_reply: true } : {}),
+            ...(typeof message.message_thread_id === 'number' ? { message_thread_id: message.message_thread_id } : {}),
           },
           AbortSignal.timeout(15_000),
         );
@@ -349,13 +608,13 @@ export class TelegramBotRunner {
               JSON.stringify({
                 reply_channel: 'telegram_bot',
                 reply_message_id: sendRes.result?.message_id?.toString() ?? null,
-                reply_text: cmdReply.text,
+                reply_text: instantReply.text,
                 replied_at: new Date().toISOString(),
-                command,
+                ...(command ? { command } : { group_event: instantGroupWelcome!.kind }),
               }),
             ],
           );
-          if (cmdReply.includeInviteLog) {
+          if (instantReply.includeInviteLog && command) {
             await this.pool.query(
               `INSERT INTO community_invite_logs (workspace_id, target_ref, display_name, channel, status, detail)
                VALUES ($1, $2, $3, 'telegram_community_invite', 'invited', $4)`,
@@ -363,7 +622,7 @@ export class TelegramBotRunner {
                 workspaceId,
                 `tg:${chatId}`.slice(0, 255),
                 name.slice(0, 255),
-                `Telegram /${command} invite (${cmdReply.inviteGroupUrl})`.slice(0, 500),
+                `Telegram /${command} invite (${instantReply.inviteGroupUrl})`.slice(0, 500),
               ],
             ).catch(() => {});
           }
@@ -379,7 +638,7 @@ export class TelegramBotRunner {
            SELECT $1, 'telegram_message', $2::text, $3, $4, $5, $6
             WHERE NOT EXISTS (SELECT 1 FROM community_messages WHERE workspace_id=$1 AND platform='telegram_message' AND external_id=$2::text)
            RETURNING id`,
-          [workspaceId, externalId, name.slice(0, 255), String(chatId), text.slice(0, 4000), JSON.stringify(metadata)],
+          [workspaceId, externalId, name.slice(0, 255), String(chatId), contentText.slice(0, 4000), JSON.stringify(metadata)],
         )
       ).rows[0];
 
@@ -396,9 +655,10 @@ export class TelegramBotRunner {
   start(): void {
     if (!this.isEnabled() || this.loopPromise) return;
     this.stopped = false;
-    void this.registerCommands();
     console.log('[telegram-bot] Long Polling started');
     this.loopPromise = (async () => {
+      await this.loadBotIdentity();
+      void this.registerCommands();
       while (!this.stopped) {
         try {
           const outcome = await this.pollOnce();

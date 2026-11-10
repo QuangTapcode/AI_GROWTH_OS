@@ -89,7 +89,11 @@ export type SendTelegramReply = (
   chatId: string,
   text: string,
   businessConnectionId?: string,
-  options?: { reply_markup?: TelegramInlineKeyboardMarkup },
+  options?: {
+    reply_markup?: TelegramInlineKeyboardMarkup;
+    reply_to_message_id?: number;
+    message_thread_id?: number;
+  },
 ) => Promise<{ message_id?: string }>;
 
 /** Telegram Bot API; with a business connection the reply goes out from the connected account. */
@@ -103,6 +107,13 @@ export const sendTelegramReply: SendTelegramReply = async (chatId, text, busines
   };
   if (options?.reply_markup) {
     bodyPayload.reply_markup = options.reply_markup;
+  }
+  if (typeof options?.reply_to_message_id === 'number' && Number.isFinite(options.reply_to_message_id)) {
+    bodyPayload.reply_to_message_id = options.reply_to_message_id;
+    bodyPayload.allow_sending_without_reply = true;
+  }
+  if (typeof options?.message_thread_id === 'number' && Number.isFinite(options.message_thread_id)) {
+    bodyPayload.message_thread_id = options.message_thread_id;
   }
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
@@ -122,6 +133,8 @@ type CommunityReplyOutboxPayload = {
   platform?: string;
   business_connection_id?: string;
   reply_markup?: TelegramInlineKeyboardMarkup;
+  reply_to_message_id?: number;
+  message_thread_id?: number;
   should_community_invite?: boolean;
   comment_id?: string;
   comment_source?: 'page' | 'group';
@@ -161,6 +174,8 @@ export class CommunityReplyRunner {
       platform,
       business_connection_id: businessConnectionId,
       reply_markup: replyMarkup,
+      reply_to_message_id: replyToMessageId,
+      message_thread_id: messageThreadId,
       should_community_invite: shouldCommunityInvite,
       comment_id: explicitCommentId,
       comment_source: commentSource,
@@ -177,8 +192,20 @@ export class CommunityReplyRunner {
       const extraMeta: Record<string, unknown> = {};
 
       if (platform === 'telegram_message') {
-        sent = replyMarkup
-          ? await this.sendTelegram(recipient, text, businessConnectionId, { reply_markup: replyMarkup })
+        const tgOptions: {
+          reply_markup?: TelegramInlineKeyboardMarkup;
+          reply_to_message_id?: number;
+          message_thread_id?: number;
+        } = {};
+        if (replyMarkup) tgOptions.reply_markup = replyMarkup;
+        if (typeof replyToMessageId === 'number' && Number.isFinite(replyToMessageId)) {
+          tgOptions.reply_to_message_id = replyToMessageId;
+        }
+        if (typeof messageThreadId === 'number' && Number.isFinite(messageThreadId)) {
+          tgOptions.message_thread_id = messageThreadId;
+        }
+        sent = Object.keys(tgOptions).length > 0
+          ? await this.sendTelegram(recipient, text, businessConnectionId, tgOptions)
           : await this.sendTelegram(recipient, text, businessConnectionId);
         extraMeta.reply_channel = 'telegram_bot';
         if (shouldCommunityInvite && inviteGroupUrl) {

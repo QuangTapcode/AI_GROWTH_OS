@@ -189,5 +189,138 @@ describe('TelegramBotRunner', () => {
     expect(await runner.pollOnce()).toEqual({ processed: 1 });
     expect(offsetsSeen).toEqual([0, 0]);
   });
+
+  it('responds in Telegram groups for @mention pings, stripped questions, direct replies, /command@bot, and welcomes new members while ignoring casual chatter', async () => {
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', '9005376:bot-secret');
+    vi.stubEnv('TELEGRAM_WEBHOOK_WORKSPACE_ID', 'ws-1');
+    vi.stubEnv('TELEGRAM_BOT_MODE', 'polling');
+
+    const sqlCalls: Array<{ text: string; params: unknown[] }> = [];
+    const pool = {
+      query: vi.fn(async (text: string, params: unknown[] = []) => {
+        sqlCalls.push({ text, params });
+        if (text.includes('INSERT INTO community_messages')) return { rows: [{ id: `msg-${sqlCalls.length}` }], rowCount: 1 };
+        return { rows: [], rowCount: 1 };
+      }),
+    } as unknown as Pool;
+
+    const apiCalls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+      apiCalls.push({ url, body });
+      if (url.endsWith('/getUpdates')) {
+        return new Response(JSON.stringify({
+          ok: true,
+          result: [
+            {
+              update_id: 300,
+              message: {
+                message_id: 10,
+                text: 'ngủ đi kkk',
+                from: { id: 111, is_bot: false, first_name: 'Quang' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+            {
+              update_id: 301,
+              message: {
+                message_id: 11,
+                text: '@tripc_community_bot',
+                entities: [{ type: 'mention', offset: 0, length: 20 }],
+                from: { id: 222, is_bot: false, first_name: 'Hung' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+            {
+              update_id: 302,
+              message: {
+                message_id: 12,
+                text: '@tripc_community_bot, Đà Nẵng có bãi biển nào đẹp?',
+                entities: [{ type: 'mention', offset: 0, length: 20 }],
+                from: { id: 222, is_bot: false, first_name: 'Hung' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+            {
+              update_id: 303,
+              message: {
+                message_id: 13,
+                text: 'Ở đó ăn sáng món gì ngon?',
+                reply_to_message: {
+                  message_id: 120,
+                  from: { id: 9005376, is_bot: true, username: 'tripc_community_bot' },
+                  text: 'Bãi biển Mỹ Khê rất đẹp...',
+                },
+                from: { id: 111, is_bot: false, first_name: 'Quang' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+            {
+              update_id: 304,
+              message: {
+                message_id: 14,
+                new_chat_members: [{ id: 333, is_bot: false, first_name: 'Lan' }],
+                from: { id: 222, is_bot: false, first_name: 'Hung' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+            {
+              update_id: 305,
+              message: {
+                message_id: 15,
+                text: '/help@other_bot',
+                from: { id: 222, is_bot: false, first_name: 'Hung' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+            {
+              update_id: 306,
+              message: {
+                message_id: 16,
+                text: 'bot ơi nói chuyện với mọi người đi',
+                from: { id: 111, is_bot: false, first_name: 'Quang' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+          ],
+        }));
+      }
+      if (url.endsWith('/sendMessage')) {
+        return new Response(JSON.stringify({ ok: true, result: { message_id: 700 + apiCalls.length } }));
+      }
+      return new Response(JSON.stringify({ ok: true, result: true }));
+    }) as unknown as typeof fetch;
+
+    const onMessageIngested = vi.fn();
+    const runner = new TelegramBotRunner(pool, {
+      onMessageIngested,
+      fetchImpl,
+      pollTimeoutSeconds: 1,
+      botId: 9005376,
+      botUsername: 'tripc_community_bot',
+    });
+
+    const out = await runner.pollOnce();
+    expect(out).toEqual({ processed: 5 });
+    // Three RAG questions ingested: stripped @mention question (302), reply-to-bot follow-up (303), and admin group "bot" phrase (306).
+    expect(onMessageIngested).toHaveBeenCalledTimes(3);
+
+    const sends = apiCalls.filter((c) => c.url.endsWith('/sendMessage'));
+    expect(sends).toHaveLength(2);
+    expect(sends[0]!.body.chat_id).toBe('-100555');
+    expect(sends[0]!.body.reply_to_message_id).toBe(11);
+    expect(String(sends[0]!.body.text)).toContain('@tripc_community_bot');
+    expect(sends[1]!.body.reply_to_message_id).toBe(14);
+    expect(String(sends[1]!.body.text)).toContain('Lan');
+
+    const msgInserts = sqlCalls.filter((c) => c.text.includes('INSERT INTO community_messages'));
+    expect(msgInserts[1]!.params[4]).toBe('Đà Nẵng có bãi biển nào đẹp?');
+    expect(JSON.parse(String(msgInserts[1]!.params[5]))).toMatchObject({
+      chat_type: 'supergroup',
+      reply_to_message_id: 12,
+    });
+    expect(msgInserts[2]!.params[4]).toBe('Ở đó ăn sáng món gì ngon?');
+  });
 });
 
