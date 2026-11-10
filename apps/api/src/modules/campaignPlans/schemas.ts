@@ -31,6 +31,32 @@ const findingSchema = z.object({
     previous_rank: z.number().int().min(1).max(50).nullable().optional(), is_new: z.boolean().optional(),
   }).strict()).max(5).optional(),
 }).strict();
+const weeklyCommunityTargetSchema = z.object({
+  week: z.number().int().min(1).max(4),
+  label: z.string().min(1).max(120),
+  member_target: z.number().int().positive(),
+  weekly_new_target: z.number().int().nonnegative(),
+  focus: z.string().min(1).max(300),
+  channel_tactic: z.string().min(1).max(300),
+}).strict();
+
+export const communityGrowthPlanSchema = z.object({
+  source: z.literal('growth_lead_agent'),
+  auto_apply: z.literal(true),
+  current_members: z.number().int().nonnegative(),
+  pacing_status: z.enum(['ahead', 'on_track', 'behind', 'baseline']),
+  recommended_daily_invite_limit: z.number().int().min(10).max(15),
+  recommended_auto_reply_comments: z.boolean(),
+  recommended_auto_invite_enabled: z.boolean(),
+  week1_target: z.number().int().positive(),
+  week2_target: z.number().int().positive(),
+  week3_target: z.number().int().positive(),
+  week4_target: z.number().int().positive(),
+  weekly_targets: z.array(weeklyCommunityTargetSchema).length(4),
+  rationale: z.string().min(1).max(1000),
+  focus_channels: z.array(z.string().min(1).max(200)).min(1).max(6),
+}).strict();
+
 export const planSchema = z.object({
   contract_version: z.enum(['growth-lead-plan-v1', 'growth-lead-plan-v2']), plan_id: z.string().uuid(),
   workspace_id: z.string().uuid(), input_version: z.number().int().positive(),
@@ -72,6 +98,7 @@ export const planSchema = z.object({
     status: z.enum(['reached', 'behind', 'not_measured']),
   }).strict()).max(5).optional(),
   priority: z.object({ mode: z.enum(['reach', 'conversion', 'maintain']), reason: text }).strict().nullable().optional(),
+  community_growth_plan: communityGrowthPlanSchema.nullable().optional(),
   opportunity_score: z.object({
     factors: z.object({ demand: z.number().finite().min(0).max(5).nullable(), business_relevance: z.number().finite().min(0).max(5).nullable(),
       growth_potential: z.number().finite().min(0).max(5).nullable(), content_gap: z.number().finite().min(0).max(5).nullable(),

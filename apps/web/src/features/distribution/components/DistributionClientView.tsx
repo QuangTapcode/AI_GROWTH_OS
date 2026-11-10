@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/features/shell/AppShell";
 import { useWorkspace } from "@/features/shell/WorkspaceProvider";
 import { EmptyBlock, ErrorBlock, LoadingBlock, Toast } from "@/features/shell/StatusViews";
@@ -10,6 +11,100 @@ import GeneratedPosts, { type SitePost } from "./GeneratedPosts";
 import type { Channel, ContentArtifact, PublishingJob } from "@/lib/apiTypes";
 import { agentLabel, formatDateTime, humanize, shortCode, timeAgo } from "@/lib/format";
 import { useApiData } from "@/lib/useApiData";
+
+type DistributionPostMetric = {
+  id: string;
+  source_id: string | null;
+  channel: "group" | "fanpage";
+  external_post_key: string;
+  post_title: string;
+  post_url: string | null;
+  likes_count: number;
+  comments_count: number;
+  shares_count: number;
+  total_engagement: number;
+  last_synced_at: string;
+};
+
+type DistributionHubSummary = {
+  group?: {
+    last_post_stats_sync_at?: string | null;
+  };
+  stats?: {
+    real_group_members?: number | null;
+    total_post_likes?: number;
+    total_post_comments?: number;
+    total_post_shares?: number;
+    total_post_engagement?: number;
+    tracked_posts_count?: number;
+    member_growth_delta?: number;
+    engagement_growth_delta?: number;
+  };
+  post_metrics?: DistributionPostMetric[];
+};
+
+function normalizeMetricUrl(raw?: string | null): string {
+  if (!raw) return "";
+  return raw.trim().split("?")[0].split("#")[0].replace(/\/+$/, "").toLowerCase();
+}
+
+function normalizeMetricTitle(raw?: string | null): string {
+  if (!raw) return "";
+  return raw
+    .replace(/^[\p{Emoji}\s]*\[(CẨM NANG CỘNG ĐỒNG|VIETNAM PLAYBOOK)\]\s*/iu, "")
+    .replace(/\s*\(tripc\.ai\)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function matchJobPostMetric(
+  job: PublishingJob,
+  metrics: DistributionPostMetric[] | undefined
+): DistributionPostMetric | null {
+  if (!metrics || metrics.length === 0) return null;
+  const preferredChannel =
+    job.platform_name === "facebook_group"
+      ? "group"
+      : job.platform_name === "facebook"
+        ? "fanpage"
+        : null;
+  const pool = preferredChannel
+    ? metrics.filter((m) => m.channel === preferredChannel)
+    : metrics;
+  const candidates = pool.length > 0 ? pool : metrics;
+
+  if (job.external_post_id) {
+    const ext = job.external_post_id.trim();
+    const extSuffix = ext.includes("_") ? ext.split("_")[1] : ext;
+    const byKey = candidates.find(
+      (m) =>
+        m.external_post_key === ext ||
+        (extSuffix && (m.external_post_key === extSuffix || m.external_post_key.endsWith(`_${extSuffix}`)))
+    );
+    if (byKey) return byKey;
+  }
+
+  const normJobUrl = normalizeMetricUrl(job.utm_url);
+  if (normJobUrl) {
+    const byUrl = candidates.find((m) => {
+      const mUrl = normalizeMetricUrl(m.post_url);
+      return Boolean(mUrl && mUrl === normJobUrl);
+    });
+    if (byUrl) return byUrl;
+  }
+
+  const normTitle = normalizeMetricTitle(job.content_title);
+  if (normTitle.length >= 8) {
+    const byTitle = candidates.find((m) => {
+      const mTitle = normalizeMetricTitle(m.post_title);
+      return mTitle === normTitle || mTitle.includes(normTitle) || normTitle.includes(mTitle);
+    });
+    if (byTitle) return byTitle;
+  }
+
+  return null;
+}
 
 const card = "bg-white rounded-2xl border border-slate-200/80 shadow-xs";
 const input =
@@ -154,9 +249,10 @@ function DistributionContent() {
   const { workspace, canEdit, canApprove } = useWorkspace();
   const [toast, setToast] = useState<string | null>(null);
   const [scheduling, setScheduling] = useState<string | null>(null);
+  const [syncingStats, setSyncingStats] = useState(false);
   const [publishedDateFilter, setPublishedDateFilter] = useState<string>("");
   const { data, error, loading, reload } = useApiData(workspace.id, async (signal) => {
-    const [channels, jobs, artifacts, approvals, integrations, automation, sitePosts] = await Promise.all([
+    const [channels, jobs, artifacts, approvals, integrations, automation, sitePosts, communityHub] = await Promise.all([
       growthApi.listChannels(workspace.id, signal),
       growthApi.listPublishingJobs(workspace.id, signal),
       growthApi.listArtifacts(workspace.id, signal),
@@ -164,6 +260,7 @@ function DistributionContent() {
       growthApi.getIntegrations(workspace.id, signal),
       apiRequest<{ settings: { auto_publish_website?: boolean } | null }>(`/workspaces/${workspace.id}/automation`, { signal }),
       apiRequest<{ items: SitePost[] }>(`/workspaces/${workspace.id}/site-posts`, { signal }),
+      apiRequest<DistributionHubSummary>(`/workspaces/${workspace.id}/community/hub`, { signal }).catch(() => null),
     ]);
     const facebook = integrations.providers.find((p) => p.provider === "facebook_page");
     const facebookGroup = integrations.providers.find((p) => p.provider === "facebook_group");
@@ -171,9 +268,39 @@ function DistributionContent() {
       channels: channels.items, jobs: jobs.items, artifacts: artifacts.items, approvals: approvals.items,
       facebook: { connected: facebook?.status === "connected", reason: facebook?.missing_reason ?? null },
       facebookGroup: { connected: facebookGroup?.status === "connected", reason: facebookGroup?.missing_reason ?? null },
-      websiteAutoPublish: automation.settings?.auto_publish_website === true, sitePosts: sitePosts.items
+      websiteAutoPublish: automation.settings?.auto_publish_website === true, sitePosts: sitePosts.items,
+      communityHub,
     };
   });
+
+  const handleSyncPostStats = async () => {
+    setSyncingStats(true);
+    try {
+      const res = await apiRequest<{
+        sync_stats_result?: {
+          fanpage_posts_synced: number;
+          group_posts_synced: number;
+          total_likes: number;
+          total_comments: number;
+          total_shares: number;
+        };
+      }>(`/workspaces/${workspace.id}/community/hub`, {
+        method: "POST",
+        body: { action: "sync_post_stats", include_group_bot: true },
+      });
+      const r = res.sync_stats_result;
+      setToast(
+        r
+          ? `Đã đồng bộ ${r.group_posts_synced + r.fanpage_posts_synced} bài: ${r.total_likes} Likes · ${r.total_comments} Comments · ${r.total_shares} Chia sẻ.`
+          : "Đã đồng bộ thống kê tương tác bài viết."
+      );
+      reload();
+    } catch (err) {
+      setToast(errorText(err, "Không thể đồng bộ thống kê bài viết."));
+    } finally {
+      setSyncingStats(false);
+    }
+  };
 
   // Chỉ artifact có approval mới nhất = approved và khớp đúng version + hash (cùng quy tắc với BE)
   const ready = useMemo(() => {
@@ -271,7 +398,71 @@ function DistributionContent() {
 
       {data && (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-          <div className="xl:col-span-8 space-y-6">
+          <div className="xl:col-span-8 min-w-0 space-y-6">
+            {data.communityHub?.stats && (
+              <section className={`${card} p-5 border-rose-200/80 bg-gradient-to-r from-rose-50/50 via-white to-emerald-50/40`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0 flex-[1_1_420px] space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
+                        📊 Thống kê Tương tác &amp; Phát triển
+                      </span>
+                      <span className="text-[11px] font-semibold text-slate-600">
+                        {data.communityHub.stats.tracked_posts_count ?? 0} bài đã đồng bộ
+                      </span>
+                      {data.communityHub.group?.last_post_stats_sync_at && (
+                        <span className="text-[11px] text-slate-400">
+                          • Lúc {formatDateTime(data.communityHub.group.last_post_stats_sync_at)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                      <span className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-rose-800">
+                        ❤️ {data.communityHub.stats.total_post_likes ?? 0} Likes
+                      </span>
+                      <span className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-blue-800">
+                        💬 {data.communityHub.stats.total_post_comments ?? 0} Comments
+                      </span>
+                      <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">
+                        ↗️ {data.communityHub.stats.total_post_shares ?? 0} Chia sẻ
+                      </span>
+                      <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-800">
+                        👥 {data.communityHub.stats.real_group_members ?? 5} thành viên (
+                        {(data.communityHub.stats.member_growth_delta ?? 0) >= 0
+                          ? `+${data.communityHub.stats.member_growth_delta ?? 0}`
+                          : data.communityHub.stats.member_growth_delta}
+                        )
+                      </span>
+                      <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-700">
+                        📈 Biến động tương tác:{" "}
+                        {(data.communityHub.stats.engagement_growth_delta ?? 0) >= 0
+                          ? `+${data.communityHub.stats.engagement_growth_delta ?? 0}`
+                          : data.communityHub.stats.engagement_growth_delta}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canEdit && (
+                      <button
+                        type="button"
+                        disabled={syncingStats}
+                        onClick={() => void handleSyncPostStats()}
+                        className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60"
+                      >
+                        {syncingStats ? "Đang đồng bộ…" : "📊 Đồng bộ Like, Comment, Share"}
+                      </button>
+                    )}
+                    <Link
+                      href="/agents/community"
+                      className="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 text-xs font-bold"
+                    >
+                      👥 Chi tiết Stats &amp; Auto-Reply ↗
+                    </Link>
+                  </div>
+                </div>
+              </section>
+            )}
+
             <section className={`${card} p-6 border-emerald-200/90 bg-emerald-50/20`}>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
@@ -319,27 +510,38 @@ function DistributionContent() {
                         </span>
                       </div>
                       <ul className="divide-y divide-slate-100">
-                        {jobsOnDate.map((job) => (
-                          <li key={job.id} className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-900">{job.content_title}</p>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                {job.channel_name ?? humanize(job.platform_name)} · Đăng lúc{" "}
-                                {formatDateTime(job.published_at || job.scheduled_for)}
-                              </p>
-                            </div>
-                            {job.utm_url && (
-                              <a
-                                href={job.utm_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold hover:bg-blue-100"
-                              >
-                                Xem bài đã đăng ↗
-                              </a>
-                            )}
-                          </li>
-                        ))}
+                        {jobsOnDate.map((job) => {
+                          const matchedMetric = matchJobPostMetric(job, data.communityHub?.post_metrics);
+                          return (
+                            <li key={job.id} className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-900 break-words">{job.content_title}</p>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                  {job.channel_name ?? humanize(job.platform_name)} · Đăng lúc{" "}
+                                  {formatDateTime(job.published_at || job.scheduled_for)}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {matchedMetric && (
+                                  <span className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-900">
+                                    ❤️ {matchedMetric.likes_count} · 💬 {matchedMetric.comments_count} · ↗️{" "}
+                                    {matchedMetric.shares_count}
+                                  </span>
+                                )}
+                                {job.utm_url && (
+                                  <a
+                                    href={job.utm_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold hover:bg-blue-100"
+                                  >
+                                    Xem bài đã đăng ↗
+                                  </a>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   ))}
@@ -392,29 +594,40 @@ function DistributionContent() {
               )}
             </section>
 
-            <section className={`${card} overflow-hidden`}>
+            <section className={`${card} min-w-0`}>
               <div className="p-6 pb-3">
-                <h2 className="text-sm font-bold text-slate-900">Publishing schedule</h2>
+                <h2 id="publishing-schedule-heading" className="text-sm font-bold text-slate-900">Publishing schedule</h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">{data.jobs.length} jobs</p>
               </div>
               {data.jobs.length === 0 ? (
                 <p className="px-6 pb-6 text-xs text-slate-400">No publishing jobs yet.</p>
               ) : (
-                <div className="overflow-x-auto">
+                <div
+                  tabIndex={0}
+                  role="region"
+                  aria-labelledby="publishing-schedule-heading"
+                  className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-b-2xl"
+                >
                   <table className="w-full text-xs">
+                    <caption className="visually-hidden">Publishing schedule jobs and post engagement metrics</caption>
                     <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
                       <tr>
-                        <th className="text-left font-bold px-6 py-2.5">Content</th>
-                        <th className="text-left font-bold px-3 py-2.5">Channel</th>
-                        <th className="text-left font-bold px-3 py-2.5">Scheduled</th>
-                        <th className="text-left font-bold px-3 py-2.5">Status</th>
-                        <th className="text-right font-bold px-6 py-2.5">Action</th>
+                        <th scope="col" className="text-left font-bold px-6 py-2.5">Content</th>
+                        <th scope="col" className="text-left font-bold px-3 py-2.5">Channel</th>
+                        <th scope="col" className="text-left font-bold px-3 py-2.5">Scheduled</th>
+                        <th scope="col" className="text-left font-bold px-3 py-2.5">Status</th>
+                        <th scope="col" className="text-right font-bold px-6 py-2.5">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {data.jobs.map((job) => (
+                      {data.jobs.map((job) => {
+                        const matchedMetric =
+                          job.status === "published"
+                            ? matchJobPostMetric(job, data.communityHub?.post_metrics)
+                            : undefined;
+                        return (
                         <tr key={job.id}>
-                          <td className="px-6 py-3">
+                          <th scope="row" className="px-6 py-3 text-left font-normal">
                             <p className="font-semibold text-slate-900">{job.content_title}</p>
                             <p className="text-[11px] text-slate-400">
                               v{job.artifact_version ?? "?"}
@@ -427,7 +640,7 @@ function DistributionContent() {
                                 </>
                               )}
                             </p>
-                          </td>
+                          </th>
                           <td className="px-3 py-3 text-slate-700">
                             {job.channel_name ?? humanize(job.platform_name)}
                             <span className="ml-1.5 text-[10px] text-slate-400">{job.mode}</span>
@@ -437,6 +650,11 @@ function DistributionContent() {
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_STYLE[job.status] ?? STATUS_STYLE.scheduled}`}>
                               {humanize(job.status)}
                             </span>
+                            {matchedMetric && (
+                              <p className="mt-1 text-[10px] font-bold text-rose-800 whitespace-nowrap">
+                                ❤️ {matchedMetric.likes_count} · 💬 {matchedMetric.comments_count} · ↗️ {matchedMetric.shares_count}
+                              </p>
+                            )}
                             {job.published_at && <p className="text-[10px] text-slate-400 mt-0.5">{timeAgo(job.published_at)}</p>}
                           </td>
                           <td className="px-6 py-3 text-right whitespace-nowrap">
@@ -462,7 +680,8 @@ function DistributionContent() {
                             )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -470,7 +689,7 @@ function DistributionContent() {
             </section>
           </div>
 
-          <div className="xl:col-span-4">
+          <div className="xl:col-span-4 min-w-0">
             <section className={`${card} p-6 space-y-3`}>
               <h2 className="text-sm font-bold text-slate-900">Channels</h2>
               {data.channels.length === 0 && <p className="text-xs text-slate-400">No channels yet.</p>}

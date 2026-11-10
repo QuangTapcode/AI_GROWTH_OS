@@ -137,6 +137,21 @@ export async function processReceivedCommunityMessages(
   snapshotId: string,
   limit = 10,
 ): Promise<number> {
+  let autoReplyComments = true;
+  try {
+    const sRow = (
+      await pool.query<{ auto_reply_comments?: boolean | null }>(
+        `SELECT auto_reply_comments FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1`,
+        [workspaceId],
+      )
+    ).rows[0];
+    if (sRow?.auto_reply_comments === false) {
+      autoReplyComments = false;
+    }
+  } catch {
+    // Settings table may not exist in minimal unit fixtures; default to enabled.
+  }
+
   const pending = (
     await pool.query<{ id: string; content: string; platform: string; author_contact: string | null }>(
       `SELECT id, content, platform, author_contact FROM community_messages
@@ -148,6 +163,7 @@ export async function processReceivedCommunityMessages(
 
   let enqueued = 0;
   for (const msg of pending) {
+    if (msg.platform === 'facebook_comment' && !autoReplyComments) continue;
     const history = msg.author_contact ? await conversationHistory(pool, workspaceId, msg.platform, msg.author_contact, msg.id) : [];
     const taskId = randomUUID();
     await enqueueAiTask(pool, workspaceId, actorId, {

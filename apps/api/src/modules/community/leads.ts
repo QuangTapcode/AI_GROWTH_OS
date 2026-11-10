@@ -14,15 +14,25 @@ interface DirectMessage {
   id: string;
   platform: string;
   author_contact: string | null;
-  metadata: { business_connection_id?: string } | null;
+  author_name?: string | null;
+  post_url?: string | null;
+  content?: string | null;
+  metadata: {
+    business_connection_id?: string;
+    comment_id?: string;
+    post_id?: string;
+    comment_source?: 'page' | 'group';
+    permalink_url?: string | null;
+    from_name?: string | null;
+  } | null;
 }
 
 /**
  * Persists a lead from an approved Community artifact into PostgreSQL leads table (TQ-05 / W2).
  */
 /**
- * An approved grounded reply to a Messenger or Telegram message is queued for the worker to send to that person.
- * Escalations, incomplete drafts and empty replies are never sent; the message is marked escalated.
+ * An approved grounded reply to a Messenger, Telegram, or Facebook Comment inquiry is queued for the worker.
+ * Escalations without recipient or disabled auto-reply comments are left for human handling.
  */
 async function queueDirectReply(
   client: PoolClient,
@@ -31,24 +41,108 @@ async function queueDirectReply(
   artifactId: string,
   result: { reply?: string; status?: string; escalation_required?: boolean; missing_facts?: string[]; lead_proposal?: unknown },
 ) {
-  let text = result.reply?.trim();
-  const fallback = "Chào bạn! Cảm ơn bạn đã liên hệ TripC. Hiện tại cẩm nang của chúng tôi đang liên tục cập nhật thêm dữ liệu về chủ đề này. Bạn có thể tham gia thảo luận cùng người dân địa phương và cộng đồng tại nhóm Facebook của chúng tôi: https://www.facebook.com/groups/1134282109069209 để nhận được gợi ý nhanh nhất nhé!";
-  if (!text || text.includes("The verified information needed for this question is unavailable") || text.includes("A human needs to review it")) {
-    text = fallback;
+  let settings: {
+    group_url?: string | null;
+    auto_reply_comments?: boolean | null;
+    auto_invite_enabled?: boolean | null;
+    daily_invite_limit?: number | null;
+  } | undefined;
+  let alreadyInvited = false;
+  let todayInviteCount = 0;
+
+  try {
+    await client.query('SAVEPOINT sp_queue_direct_settings');
+    settings = (
+      await client.query<{
+        group_url?: string | null;
+        auto_reply_comments?: boolean | null;
+        auto_invite_enabled?: boolean | null;
+        daily_invite_limit?: number | null;
+      }>(
+        `SELECT group_url, auto_reply_comments, auto_invite_enabled, daily_invite_limit
+           FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1`,
+        [workspaceId],
+      )
+    ).rows[0];
+    if (message.author_contact) {
+      const logRes = (
+        await client.query<{ invited_before: boolean; today_count: number }>(
+          `SELECT
+             EXISTS (
+               SELECT 1 FROM community_invite_logs
+                WHERE workspace_id = $1 AND target_ref = $2 AND status = 'invited'
+             ) AS invited_before,
+             (
+               SELECT count(*)::int FROM community_invite_logs
+                WHERE workspace_id = $1 AND status = 'invited' AND invited_at >= CURRENT_DATE
+             ) AS today_count`,
+          [workspaceId, message.author_contact],
+        )
+      ).rows[0];
+      alreadyInvited = Boolean(logRes?.invited_before);
+      todayInviteCount = Number(logRes?.today_count ?? 0);
+    }
+    await client.query('RELEASE SAVEPOINT sp_queue_direct_settings');
+  } catch {
+    await client.query('ROLLBACK TO SAVEPOINT sp_queue_direct_settings').catch(() => {});
   }
-  if (!message.author_contact) {
+
+  if (message.platform === 'facebook_comment' && settings?.auto_reply_comments === false) {
+    return;
+  }
+
+  const groupUrl = settings?.group_url?.trim() || 'https://www.facebook.com/groups/1134282109069209';
+  const dailyCap = Math.max(10, Math.min(15, Number(settings?.daily_invite_limit ?? 12)));
+  const canInviteToday = settings?.auto_invite_enabled !== false && !alreadyInvited && todayInviteCount < dailyCap;
+
+  const isComment = message.platform === 'facebook_comment';
+  const commentSource = message.metadata?.comment_source === 'group' ? 'group' : 'page';
+  const commentId = message.metadata?.comment_id;
+  const recipient = message.author_contact || (isComment && commentId ? `comment:${commentId}` : null);
+
+  let text = result.reply?.trim();
+  const groupFallback = `Chào bạn! Cảm ơn bạn đã bình luận và chia sẻ trong Cộng đồng. Hiện tại cẩm nang TripC đang cập nhật thêm thông tin chi tiết về chủ đề này — các thành viên và quản trị viên sẽ hỗ trợ thêm cho bạn ngay bên dưới nhé!`;
+  const pageFallback = `Chào bạn! Cảm ơn bạn đã liên hệ TripC. Hiện tại cẩm nang của chúng tôi đang liên tục cập nhật thêm dữ liệu về chủ đề này. Bạn có thể tham gia thảo luận cùng người dân địa phương và cộng đồng tại nhóm Facebook của chúng tôi: ${groupUrl} để nhận được gợi ý nhanh nhất nhé!`;
+  if (!text || text.includes("The verified information needed for this question is unavailable") || text.includes("A human needs to review it")) {
+    text = isComment && commentSource === 'group' ? groupFallback : pageFallback;
+  }
+
+  if (!recipient) {
     await client.query(
       `UPDATE community_messages SET status = 'escalated', updated_at = NOW() WHERE workspace_id = $1 AND id = $2 AND status IN ('received', 'queued')`,
       [workspaceId, message.id],
     );
     return;
   }
+
+  // Only on Fanpage comments do we attach an invite link to join the Facebook Group; users in Group are already members.
+  let outboxText = text;
+  if (isComment && commentSource === 'page' && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
+    outboxText = `${outboxText}\n\n👉 Mời bạn tham gia Cộng đồng Du lịch & Sống tại Việt Nam để hỏi đáp thêm kinh nghiệm thực tế: ${groupUrl}`;
+  }
+
   await client.query(
     `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload) VALUES ($1, 'community.reply', $2, $3)
      ON CONFLICT (workspace_id, dedup_key) DO UPDATE SET payload = EXCLUDED.payload, status = 'pending', retry_count = 0, published_at = NULL`,
     [workspaceId, `community-reply:${message.id}`,
-      JSON.stringify({ message_id: message.id, artifact_id: artifactId, recipient: message.author_contact, text,
-        platform: message.platform, business_connection_id: message.metadata?.business_connection_id })],
+      JSON.stringify({
+        message_id: message.id,
+        artifact_id: artifactId,
+        recipient,
+        text: outboxText,
+        platform: message.platform,
+        business_connection_id: message.metadata?.business_connection_id,
+        ...(isComment ? {
+          comment_id: commentId,
+          comment_source: commentSource,
+          post_url: message.metadata?.permalink_url || message.post_url || null,
+          author_name: message.metadata?.from_name || message.author_name || null,
+          question_snippet: message.content ? message.content.slice(0, 140) : null,
+          comment_snippet: message.content ? message.content.slice(0, 140) : null,
+          invite_group_url: commentSource === 'page' && canInviteToday ? groupUrl : null,
+          should_private_invite: commentSource === 'page' && Boolean(commentId) && canInviteToday,
+        } : {}),
+      })],
   );
 }
 
@@ -79,7 +173,7 @@ export async function persistCommunityLead(
   if (!artifactRow || artifactRow.role !== 'community') return null;
 
   const direct = artifactRow.task_id ? (await client.query<DirectMessage>(
-    `SELECT id, platform, author_contact, metadata FROM community_messages WHERE workspace_id = $1 AND task_id = $2 AND platform IN ('facebook_message', 'telegram_message') LIMIT 1`,
+    `SELECT id, platform, author_contact, author_name, post_url, content, metadata FROM community_messages WHERE workspace_id = $1 AND task_id = $2 AND (platform IN ('facebook_message', 'telegram_message') OR platform = 'facebook_comment') LIMIT 1`,
     [workspaceId, artifactRow.task_id],
   )).rows[0] : undefined;
   if (direct) await queueDirectReply(client, workspaceId, direct, artifactId, artifactRow.payload?.result ?? {});

@@ -17,9 +17,10 @@ Object.assign(labels, {
   learning: "Nhận xét từ số liệu", lessons: "Bài học chuyển cho Research", promising_titles: "Bài có tín hiệu tốt", weak_titles: "Bài tín hiệu yếu",
   generated_image: "Ảnh do AI tạo", priority: "Ưu tiên", mode: "Hướng ưu tiên", reach: "Tăng lượt tiếp cận", conversion: "Tăng chuyển đổi", maintain: "Duy trì",
   kpi_progress: "Tiến độ KPI", metric_name: "Chỉ số", target_value: "Mục tiêu", current_value: "Hiện tại", reached: "Đã đạt mục tiêu", behind: "Chưa đạt mục tiêu", not_measured: "Chưa đo được",
+  community_growth_plan: "Mục tiêu Cộng đồng (Growth Lead đề xuất & tự áp dụng)",
 });
 // Absent for most packs and plans; an empty section would read as missing work.
-const optional = new Set(["tiktok", "image_suggestion", "generated_image", "priority", "lessons"]);
+const optional = new Set(["tiktok", "image_suggestion", "generated_image", "priority", "lessons", "community_growth_plan"]);
 const hidden = new Set(["workspace_id", "context_snapshot_id", "profile_version", "input_version", "input_artifact_refs", "research_artifact", "task_id", "article_id", "pack_id", "brief_id", "plan_id", "parent_content_id", "content_hash", "artifact_id", "chunk_id", "source_id", "snapshot_id", "metric_snapshot_id", "requires_human_approval", "applied", "synthetic", "evidence", "citations", "version", "tools", "depends_on", "dependency_artifact_from"]);
 
 function Value({ value, depth = 0 }: { value: unknown; depth?: number }) {
@@ -31,13 +32,106 @@ function Value({ value, depth = 0 }: { value: unknown; depth?: number }) {
   return <dl className="space-y-3">{Object.entries(obj(value)).filter(([key]) => !hidden.has(key)).map(([key, entry]) => <div key={key}><dt className="mb-1 text-xs font-semibold text-slate-500">{labels[key] ?? key.replaceAll("_", " ")}</dt><dd><Value value={entry} depth={depth + 1} /></dd></div>)}</dl>;
 }
 
+function CommunityGrowthPlanPreview({ plan }: { plan: Record<string, unknown> }) {
+  const weeklyTargets = list(plan.weekly_targets).map(obj);
+  const focusChannels = list(plan.focus_channels).map(String);
+  const pacingLabels: Record<string, string> = {
+    ahead: "Đang vượt tiến độ",
+    on_track: "Đang bám sát mục tiêu",
+    behind: "Cần đẩy mạnh mời & tương tác",
+    baseline: "Khởi tạo từ số liệu thực tế",
+  };
+  const pacing = String(plan.pacing_status ?? "baseline");
+  return (
+    <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-3 py-1 text-xs font-bold text-white">
+          ✓ Tự động áp dụng xuống Community Hub
+        </span>
+        <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+          Nhịp độ: {pacingLabels[pacing] ?? pacing} · Thành viên hiện tại: {String(plan.current_members ?? 0)}
+        </span>
+      </div>
+      {typeof plan.rationale === "string" && plan.rationale && (
+        <p className="rounded-lg bg-white p-3 text-xs leading-relaxed text-slate-700 ring-1 ring-emerald-100">
+          {plan.rationale}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-700">
+        <span className="rounded-md bg-white px-2.5 py-1 ring-1 ring-slate-200">
+          Giới hạn mời an toàn: {String(plan.recommended_daily_invite_limit ?? 12)} lời mời/ngày
+        </span>
+        <span className="rounded-md bg-white px-2.5 py-1 ring-1 ring-slate-200">
+          Auto-Reply Comment: {plan.recommended_auto_reply_comments !== false ? "Bật" : "Tắt"}
+        </span>
+        <span className="rounded-md bg-white px-2.5 py-1 ring-1 ring-slate-200">
+          Auto-Invite Group: {plan.recommended_auto_invite_enabled !== false ? "Bật" : "Tắt"}
+        </span>
+      </div>
+      {weeklyTargets.length > 0 && (
+        <div
+          tabIndex={0}
+          role="region"
+          aria-labelledby="growth-lead-community-targets-caption"
+          className="community-table-wrapper rounded-lg border border-slate-200 bg-white"
+        >
+          <table className="community-table text-left text-xs">
+            <caption id="growth-lead-community-targets-caption" className="visually-hidden">
+              Bảng mục tiêu thành viên cộng đồng 4 tuần do Growth Lead đề xuất
+            </caption>
+            <thead className="bg-slate-50 text-[11px] uppercase text-slate-600">
+              <tr>
+                <th className="px-3 py-2">Tuần</th>
+                <th className="px-3 py-2">Mục tiêu tích lũy</th>
+                <th className="px-3 py-2">Tăng mới</th>
+                <th className="px-3 py-2">Trọng tâm</th>
+                <th className="px-3 py-2">Chiến thuật kênh</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weeklyTargets.map((item, idx) => (
+                <tr key={idx} className="border-t border-slate-100 align-top">
+                  <th scope="row" className="px-3 py-2 font-bold text-slate-900">
+                    {String(item.label ?? `Tuần ${item.week ?? idx + 1}`)}
+                  </th>
+                  <td data-label="Mục tiêu tích lũy" className="px-3 py-2 font-bold text-blue-800">
+                    {String(item.member_target ?? "")} thành viên
+                  </td>
+                  <td data-label="Tăng mới" className="px-3 py-2 text-emerald-800">
+                    +{String(item.weekly_new_target ?? 0)} người
+                  </td>
+                  <td data-label="Trọng tâm" className="px-3 py-2 text-slate-700">
+                    {String(item.focus ?? "")}
+                  </td>
+                  <td data-label="Chiến thuật" className="px-3 py-2 text-slate-600">
+                    {String(item.channel_tactic ?? "")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {focusChannels.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {focusChannels.map((ch) => (
+            <span key={ch} className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
+              {ch}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ArtifactReviewContent({ artifact, task }: { artifact: ContentArtifact; task?: unknown }) {
   const payload = artifact.payload;
   const result = Object.keys(obj(payload.result)).length ? obj(payload.result) : payload;
   const roleTitles: Record<string, string> = { research: "Kết quả nghiên cứu", growth_lead: "Kế hoạch tăng trưởng", seo: "Bản thảo SEO", content: "Nội dung đề xuất", community: "Phản hồi Community", performance: "Báo cáo hiệu suất" };
   const fields: Record<string, string[]> = {
     research: ["summary", "findings", "keywords", "user_need"],
-    growth_lead: ["objective", "summary", "priority", "kpi_progress", "selected_opportunity", "opportunity_score", "tasks", "opportunities", "topic_clusters", "cta", "learning", "lessons"],
+    growth_lead: ["objective", "summary", "priority", "community_growth_plan", "kpi_progress", "selected_opportunity", "opportunity_score", "tasks", "opportunities", "topic_clusters", "cta", "learning", "lessons"],
     seo: ["title", "primary_keyword", "meta_description", "headings", "body_markdown", "document_markdown", "seo_checks", "cta"],
     content: ["summary", "facebook", "tiktok", "caption", "hook", "key_points", "hashtags", "channels", "cta", "alt_text", "image_assets", "generated_image", "image_suggestion", "document_markdown"],
     community: ["reply", "lead_proposal"],
@@ -51,7 +145,7 @@ export default function ArtifactReviewContent({ artifact, task }: { artifact: Co
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-bold text-slate-900">{roleTitles[artifact.role] ?? "Nội dung cần duyệt"}</h3><span className="rounded-md bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800">{labels[String(result.status)] ?? String(result.status ?? "Chờ kiểm tra")}</span></div>
     {result.synthetic === true && <p className="rounded-lg bg-amber-50 p-3 text-amber-900">Dữ liệu demo / AI mô phỏng. Cần kiểm tra trước khi sử dụng thực tế.</p>}
     {question != null && <section><h4 className="mb-2 font-semibold">Câu hỏi của khách</h4><Value value={question} /></section>}
-    {keys.map((key) => <section key={key} className="border-t border-slate-100 pt-4"><h4 className="mb-3 font-bold text-blue-800">{key === "findings" ? `Phát hiện nghiên cứu · ${list(result.findings).length}` : key === "tiktok" ? "Kịch bản TikTok" : labels[key] ?? key}</h4>{key === "generated_image" ? <GeneratedImagePreview image={obj(result[key])} /> : <Value value={key === "facebook" ? obj(result.facebook).text : result[key]} />}</section>)}
+    {keys.map((key) => <section key={key} className="border-t border-slate-100 pt-4"><h4 className="mb-3 font-bold text-blue-800">{key === "findings" ? `Phát hiện nghiên cứu · ${list(result.findings).length}` : key === "tiktok" ? "Kịch bản TikTok" : labels[key] ?? key}</h4>{key === "generated_image" ? <GeneratedImagePreview image={obj(result[key])} /> : key === "community_growth_plan" ? <CommunityGrowthPlanPreview plan={obj(result[key])} /> : <Value value={key === "facebook" ? obj(result.facebook).text : result[key]} />}</section>)}
     {!keys.length && <p className="text-slate-600">Chưa có nội dung phù hợp để xem trước cho kết quả này.</p>}
     <SentenceSources result={result} />
     <section className={`rounded-lg p-4 ${missing.length || result.escalation_required === true ? "bg-amber-50 text-amber-900" : "bg-slate-50 text-slate-700"}`}><h4 className="mb-2 font-semibold">{missing.length || result.escalation_required === true ? "Dữ liệu thiếu / Cần người xử lý" : "Kiểm tra dữ liệu"}</h4>{missing.length ? <Value value={missing} /> : <p>Agent chưa liệt kê dữ liệu thiếu. Người duyệt vẫn cần kiểm tra nguồn.</p>}</section>

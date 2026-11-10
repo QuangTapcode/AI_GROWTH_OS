@@ -12,6 +12,7 @@ import { getWorkspaceConnectionStatus } from "../integrations/stubs";
 import { propagateUpstreamTaskFailure } from "../tasks/dag";
 import { persistCommunityLead } from "../community/leads";
 import { processReceivedCommunityMessages } from "../community/service";
+import { CommunityHubService } from "../community/hub";
 
 // Stable IDs make a crash between enqueue and acknowledgement safe to replay.
 export function automationTaskId(key: string) {
@@ -543,7 +544,26 @@ export async function tickAutomation(
     }
     await closeTasksBehindDeadParents(pool, workspaceId);
     await closeDeadReviews(pool, workspaceId, context.snapshot_id);
-    // Process incoming community inbox messages into workflow tasks
+    // Sync recent Fanpage comments (throttled >= 60s) when Graph API token is configured
+    if (process.env.FACEBOOK_PAGE_ACCESS_TOKEN) {
+      try {
+        const syncRow = (
+          await pool.query<{ last_comment_sync_at?: Date | null; auto_reply_comments?: boolean | null }>(
+            'SELECT last_comment_sync_at, auto_reply_comments FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1',
+            [workspaceId],
+          )
+        ).rows[0];
+        const ageMs = syncRow?.last_comment_sync_at
+          ? Date.now() - new Date(syncRow.last_comment_sync_at).getTime()
+          : Infinity;
+        if (syncRow?.auto_reply_comments !== false && ageMs >= 60_000) {
+          await new CommunityHubService(pool).syncPageComments(workspaceId);
+        }
+      } catch {
+        // Never fail campaign automation tick on optional Graph comment polling
+      }
+    }
+    // Process incoming community inbox messages & comments into workflow tasks
     await processReceivedCommunityMessages(pool, workspaceId, settings.actor_id, context.snapshot_id);
     const enqueue = (key: string, input: unknown) =>
       enqueueAiTask(pool, workspaceId, settings.actor_id, {

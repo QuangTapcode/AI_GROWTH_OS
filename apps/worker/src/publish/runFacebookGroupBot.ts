@@ -1,6 +1,13 @@
 import '../loadApiEnv';
 import fs from 'node:fs';
-import { FacebookGroupBot, type DeleteGroupPostOptions, type GroupPostOptions } from './FacebookGroupBot';
+import {
+  FacebookGroupBot,
+  type DeleteGroupPostOptions,
+  type GroupPostOptions,
+  type ReplyGroupCommentOptions,
+  type ScanGroupCommentsOptions,
+  type SendNativeGroupInvitesOptions,
+} from './FacebookGroupBot';
 
 function parseArgValue(flag: string): string | undefined {
   const idx = process.argv.indexOf(flag);
@@ -8,6 +15,10 @@ function parseArgValue(flag: string): string | undefined {
     return process.argv[idx + 1];
   }
   return undefined;
+}
+
+function hasFlag(flag: string): boolean {
+  return process.argv.includes(flag);
 }
 
 function emitResult(payload: Record<string, unknown>): void {
@@ -21,17 +32,38 @@ async function main() {
   const bot = new FacebookGroupBot();
 
   if (command === 'login') {
-    console.log('🚀 KHỞI ĐỘNG TRÌNH DUYỆT ĐĂNG NHẬP QUẢN TRỊ VIÊN FACEBOOK...');
-    const result = await bot.loginInteractive(groupUrlFlag);
+    const fresh = hasFlag('--fresh');
+    const waitForConfirm = hasFlag('--wait-confirm');
+    const signalFile = parseArgValue('--signal-file');
+    console.log(
+      fresh
+        ? '🔄 KHỞI ĐỘNG EDGE SẠCH ĐỂ ĐỔI TÀI KHOẢN / CHUYỂN TRANG QUẢN TRỊ FACEBOOK...'
+        : '🚀 KHỞI ĐỘNG TRÌNH DUYỆT ĐĂNG NHẬP QUẢN TRỊ VIÊN FACEBOOK...',
+    );
+    const result = await bot.loginInteractive(groupUrlFlag, { fresh, waitForConfirm, signalFile });
     console.log(result.message);
     emitResult(result as unknown as Record<string, unknown>);
     process.exit(result.success ? 0 : 1);
+  } else if (command === 'clear-session') {
+    const cleared = bot.clearSession();
+    emitResult({
+      success: true,
+      removed: cleared.removed,
+      stateFile: cleared.stateFile,
+      message: cleared.removed
+        ? `Đã xóa phiên Group Bot cũ (${cleared.stateFile}).`
+        : 'Chưa có file phiên Group Bot nào để xóa.',
+    });
+    process.exit(0);
   } else if (command === 'check') {
     console.log('🔍 KIỂM TRA PHIÊN ĐĂNG NHẬP FACEBOOK...');
     const session = await bot.checkSession();
     emitResult({
       success: session.isLoggedIn,
       isLoggedIn: session.isLoggedIn,
+      usingPageProfile: session.usingPageProfile ?? false,
+      accountIdMask: session.accountIdMask ?? null,
+      adminName: session.adminName ?? null,
       detail: session.detail,
       stateFile: bot.getStateFile(),
     });
@@ -95,8 +127,45 @@ async function main() {
     console.log('🎉 KẾT QUẢ THU HỒI:', result);
     emitResult(result as unknown as Record<string, unknown>);
     process.exit(result.success ? 0 : 1);
+  } else if (command === 'scan-comments') {
+    let scanOptions: ScanGroupCommentsOptions = { groupUrl: groupUrlFlag, headless: true };
+    if (payloadFile) {
+      scanOptions = { ...scanOptions, ...(JSON.parse(fs.readFileSync(payloadFile, 'utf8')) as ScanGroupCommentsOptions) };
+    }
+    const result = await bot.scanGroupComments(scanOptions);
+    emitResult(result as unknown as Record<string, unknown>);
+    process.exit(result.success ? 0 : 1);
+  } else if (command === 'scan-stats') {
+    let scanOptions: ScanGroupCommentsOptions = { groupUrl: groupUrlFlag, headless: true };
+    if (payloadFile) {
+      scanOptions = { ...scanOptions, ...(JSON.parse(fs.readFileSync(payloadFile, 'utf8')) as ScanGroupCommentsOptions) };
+    }
+    const result = await bot.scrapeGroupPostStats(scanOptions);
+    emitResult(result as unknown as Record<string, unknown>);
+    process.exit(result.success ? 0 : 1);
+  } else if (command === 'reply-comment') {
+    let replyOptions: ReplyGroupCommentOptions = {
+      groupUrl: groupUrlFlag,
+      postUrl: parseArgValue('--post-url') || groupUrlFlag || '',
+      replyText: parseArgValue('--text') || '',
+      headless: true,
+    };
+    if (payloadFile) {
+      replyOptions = { ...replyOptions, ...(JSON.parse(fs.readFileSync(payloadFile, 'utf8')) as ReplyGroupCommentOptions) };
+    }
+    const result = await bot.replyToGroupComment(replyOptions);
+    emitResult(result as unknown as Record<string, unknown>);
+    process.exit(result.success ? 0 : 1);
+  } else if (command === 'invite') {
+    let inviteOptions: SendNativeGroupInvitesOptions = { groupUrl: groupUrlFlag, headless: true };
+    if (payloadFile) {
+      inviteOptions = { ...inviteOptions, ...(JSON.parse(fs.readFileSync(payloadFile, 'utf8')) as SendNativeGroupInvitesOptions) };
+    }
+    const result = await bot.sendNativeGroupInvites(inviteOptions);
+    emitResult(result as unknown as Record<string, unknown>);
+    process.exit(result.success ? 0 : 1);
   } else {
-    const msg = `Lệnh không hợp lệ: "${command}". Các lệnh hỗ trợ: login, check, post, delete`;
+    const msg = `Lệnh không hợp lệ: "${command}". Các lệnh hỗ trợ: login, check, clear-session, post, delete, scan-comments, scan-stats, reply-comment, invite`;
     console.log(msg);
     emitResult({ success: false, errorCode: 'INVALID_COMMAND', message: msg });
     process.exit(1);

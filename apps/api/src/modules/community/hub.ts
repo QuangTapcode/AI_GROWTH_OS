@@ -6,8 +6,19 @@ import path from 'node:path';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
+import { planSchema } from '../campaignPlans/schemas';
 import { getWorkspaceConnectionStatus } from '../integrations/stubs';
 import { publishSeoArtifact } from '../site/publish';
+import { processReceivedCommunityMessages } from './service';
+import {
+  applyCommunityGrowthPlan,
+  clampDailyInviteLimit,
+  currentVietnamCampaignWeek,
+  ensureCommunityGrowthSchema,
+  loadCommunityGrowthContext,
+  type TargetSource,
+  type WeeklyTargetPlanItem,
+} from './targets';
 
 try {
   dns.setDefaultResultOrder('ipv4first');
@@ -488,10 +499,110 @@ export function classifyMemberInterests(text: string): {
 
 export type CommunityPublishTarget = 'group' | 'fanpage' | 'both';
 
+const FB_ADMIN_UI_CHROME_NAMES = new Set([
+  'tài khoản',
+  'tài khoản của bạn',
+  'tài khoản cá nhân',
+  'tài khoản, trang cá nhân của bạn',
+  'tài khoản, trang cá nhân',
+  'trang cá nhân',
+  'trang cá nhân của bạn',
+  'trang cá nhân và quyền truy cập',
+  'ảnh đại diện',
+  'ảnh đại diện của bạn',
+  'chuyển trang cá nhân',
+  'xem tất cả trang cá nhân',
+  'menu',
+  'menu facebook',
+  'messenger',
+  'thông báo',
+  'cài đặt',
+  'cài đặt và quyền riêng tư',
+  'bạn',
+  'trang chủ',
+  'nhóm',
+  'video',
+  'marketplace',
+  'quản trị viên',
+  'người kiểm duyệt',
+  'viết bình luận',
+  'trả lời',
+  'đăng',
+  'thành viên ẩn danh',
+  'account',
+  'your account',
+  'account, your profile',
+  'your profile',
+  'profile',
+  'profiles',
+  'profile picture',
+  'your profile picture',
+  'switch profile',
+  'see all profiles',
+  'settings',
+  'settings & privacy',
+  'notifications',
+  'home',
+  'groups',
+  'you',
+  'facebook',
+  'admin',
+  'moderator',
+  'write a comment',
+  'reply',
+  'post',
+  'anonymous participant',
+]);
+
+export function sanitizeFbAdminName(raw?: string | null): string | null {
+  if (!raw) return null;
+  let candidate = String(raw).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!candidate) return null;
+
+  const prefixes = [
+    /^(?:tài khoản|account)\s*[,:\-–|]\s*/i,
+    /^(?:trang cá nhân của bạn|your profile|tài khoản của bạn|your account|tài khoản của|account of|profile of)\s*[:,.\-–|]*\s*/i,
+    /^(?:bình luận dưới tên|commenting as|đang tương tác với tư cách|interacting as|đang đăng với tư cách|posting as)\s*[:,.\-–|]*\s*/i,
+    /^(?:ảnh đại diện(?: của)?|profile picture(?: of)?)\s*[:,.\-–|]*\s*/i,
+  ];
+
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = false;
+    for (const rx of prefixes) {
+      const next = candidate.replace(rx, '').trim();
+      if (next !== candidate) {
+        candidate = next;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+
+  candidate = candidate.replace(/^[\s"'`“”‘’:,.\-|]+|[\s"'`“”‘’:,.\-|]+$/g, '').trim();
+  if (candidate.length < 2 || candidate.length > 80) return null;
+  if (/^[\d\s*._\-+]+$/.test(candidate)) return null;
+
+  const lower = candidate.toLowerCase();
+  if (FB_ADMIN_UI_CHROME_NAMES.has(lower)) return null;
+  if (
+    /^(?:tài khoản|account|trang cá nhân|your profile|profile)(?:[\s,:\-–|]+(?:của bạn|cá nhân|trang cá nhân|your profile|profile|account))+$/i.test(
+      lower,
+    )
+  ) {
+    return null;
+  }
+
+  return candidate;
+}
+
 export interface GroupBotSessionStatus {
   isLoggedIn: boolean;
   sessionSource: 'file' | 'cookie' | 'none';
   detail?: string;
+  loginInProgress?: boolean;
+  usingPageProfile?: boolean;
+  accountIdMask?: string;
+  adminName?: string | null;
 }
 
 export interface CommunitySettings {
@@ -507,6 +618,20 @@ export interface CommunitySettings {
   week2_target: number;
   week3_target: number;
   week4_target: number;
+  target_source: TargetSource;
+  strategy_artifact_id: string | null;
+  strategy_plan_id: string | null;
+  target_rationale: string | null;
+  target_updated_at: string | null;
+  weekly_targets_json: WeeklyTargetPlanItem[] | null;
+  auto_reply_comments: boolean;
+  auto_invite_enabled: boolean;
+  daily_invite_limit: number;
+  last_comment_sync_at: string | null;
+  last_group_comment_sync_at: string | null;
+  last_post_stats_sync_at: string | null;
+  fb_admin_name: string | null;
+  last_invite_run_at: string | null;
   updated_at?: string;
 }
 
@@ -529,12 +654,15 @@ function resolveWorkerDir(): string {
 }
 
 function resolveGroupBotSessionFile(workerDir: string): { exists: boolean; filePath: string } {
+  const explicit = process.env.FB_SESSION_FILE?.trim();
+  if (explicit) {
+    return { exists: fs.existsSync(explicit), filePath: explicit };
+  }
   const candidates = [
-    process.env.FB_SESSION_FILE?.trim(),
     path.resolve(workerDir, '.fb-session.json'),
     path.resolve(process.cwd(), 'apps/worker/.fb-session.json'),
     path.resolve(__dirname, '../../../../worker/.fb-session.json'),
-  ].filter(Boolean) as string[];
+  ];
   for (const p of candidates) {
     if (fs.existsSync(p)) return { exists: true, filePath: p };
   }
@@ -577,7 +705,47 @@ function parseGroupBotResultLine(stdout: string): Record<string, any> | null {
   return null;
 }
 
+type LoginAttemptTracker = {
+  mode: 'login' | 'switch';
+  workspaceId?: string;
+  sessionFilePath: string;
+  startedAtMs: number;
+  previousMtimeMs: number | null;
+  previousHash: string | null;
+  dbAdminUpdated?: boolean;
+};
+
 let activeLoginChild: ChildProcess | null = null;
+let activeLoginSignalFile: string | null = null;
+let activeLoginAttempt: LoginAttemptTracker | null = null;
+
+function readSessionFileFingerprint(filePath: string): {
+  exists: boolean;
+  mtimeMs: number | null;
+  hash: string | null;
+} {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) {
+      return { exists: false, mtimeMs: null, hash: null };
+    }
+    const stat = fs.statSync(filePath);
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const hash = createHash('sha256').update(raw).digest('hex');
+    return { exists: true, mtimeMs: stat.mtimeMs, hash };
+  } catch {
+    return { exists: false, mtimeMs: null, hash: null };
+  }
+}
+
+function hasNewSessionSinceAttempt(attempt: LoginAttemptTracker, sessionFilePath: string): boolean {
+  const current = readSessionFileFingerprint(sessionFilePath);
+  if (!current.exists) return false;
+  if (attempt.previousMtimeMs === null) return true;
+  return (
+    (current.mtimeMs ?? 0) > attempt.previousMtimeMs ||
+    (Boolean(current.hash) && current.hash !== attempt.previousHash)
+  );
+}
 
 const VN_WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 
@@ -705,29 +873,7 @@ export class CommunityHubService {
     const defaultCommunityName = 'Cộng đồng Du lịch & Sống tại Việt Nam';
     const defaultPositioning = `Chào mừng bạn đến với ${defaultCommunityName}! 🌿🇻🇳 Không gian dành cho những ai yêu thích khám phá vẻ đẹp mảnh đất hình chữ S và chia sẻ trải nghiệm thực tế về lịch trình du lịch, địa điểm check-in, ẩm thực địa phương, nơi ở, chi phí sinh hoạt, thủ tục và kết nối bạn đồng hành tại Nhóm Facebook Cộng đồng (${defaultGroupUrl}).`;
 
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS community_hub_settings (
-        workspace_id UUID PRIMARY KEY,
-        community_name VARCHAR(255) NOT NULL,
-        group_url TEXT NOT NULL,
-        publish_target VARCHAR(32) NOT NULL DEFAULT 'group',
-        page_name VARCHAR(255) NOT NULL,
-        page_url TEXT NOT NULL,
-        positioning TEXT NOT NULL,
-        group_member_count INT NOT NULL DEFAULT 5,
-        week1_target INT NOT NULL DEFAULT 5,
-        week2_target INT NOT NULL DEFAULT 50,
-        week3_target INT NOT NULL DEFAULT 150,
-        week4_target INT NOT NULL DEFAULT 300,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS publish_target VARCHAR(32) NOT NULL DEFAULT 'group';
-      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS group_member_count INT NOT NULL DEFAULT 5;
-      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week1_target INT NOT NULL DEFAULT 5;
-      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week2_target INT NOT NULL DEFAULT 50;
-      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week3_target INT NOT NULL DEFAULT 150;
-      ALTER TABLE community_hub_settings ADD COLUMN IF NOT EXISTS week4_target INT NOT NULL DEFAULT 300;
-    `);
+    await ensureCommunityGrowthSchema(this.pool);
 
     // Only normalize legacy URLs or forbidden "2 chiều" wording; preserve live synced positioning and member count
     await this.pool.query(
@@ -762,14 +908,33 @@ export class CommunityHubService {
         week2_target: number;
         week3_target: number;
         week4_target: number;
+        target_source?: string | null;
+        strategy_artifact_id?: string | null;
+        strategy_plan_id?: string | null;
+        target_rationale?: string | null;
+        target_updated_at?: Date | string | null;
+        weekly_targets_json?: WeeklyTargetPlanItem[] | null;
+        auto_reply_comments?: boolean | null;
+        auto_invite_enabled?: boolean | null;
+        daily_invite_limit?: number | null;
+        last_comment_sync_at?: Date | string | null;
+        last_group_comment_sync_at?: Date | string | null;
+        last_post_stats_sync_at?: Date | string | null;
+        fb_admin_name?: string | null;
+        last_invite_run_at?: Date | string | null;
         updated_at: Date;
       }>('SELECT * FROM community_hub_settings WHERE workspace_id = $1', [workspaceId])
     ).rows[0];
 
+    const normalizeTargetSource = (val: unknown): TargetSource => {
+      if (val === 'locked_manual' || val === 'manual') return val;
+      return 'growth_lead_agent';
+    };
+
     if (!saved) {
       await this.pool.query(
-        `INSERT INTO community_hub_settings (workspace_id, community_name, group_url, publish_target, page_name, page_url, positioning, group_member_count, week1_target, week2_target, week3_target, week4_target)
-         VALUES ($1, $2, $3, 'group', $4, $5, $6, 5, 5, 50, 150, 300)
+        `INSERT INTO community_hub_settings (workspace_id, community_name, group_url, publish_target, page_name, page_url, positioning, group_member_count, week1_target, week2_target, week3_target, week4_target, target_source, auto_reply_comments, auto_invite_enabled, daily_invite_limit)
+         VALUES ($1, $2, $3, 'group', $4, $5, $6, 5, 5, 10, 18, 30, 'growth_lead_agent', TRUE, TRUE, 12)
          ON CONFLICT (workspace_id) DO NOTHING`,
         [workspaceId, defaultCommunityName, defaultGroupUrl, pageName, defaultPageUrl, defaultPositioning],
       );
@@ -783,12 +948,31 @@ export class CommunityHubService {
         positioning: defaultPositioning,
         group_member_count: 5,
         week1_target: 5,
-        week2_target: 50,
-        week3_target: 150,
-        week4_target: 300,
+        week2_target: 10,
+        week3_target: 18,
+        week4_target: 30,
+        target_source: 'growth_lead_agent',
+        strategy_artifact_id: null,
+        strategy_plan_id: null,
+        target_rationale: null,
+        target_updated_at: null,
+        weekly_targets_json: null,
+        auto_reply_comments: true,
+        auto_invite_enabled: true,
+        daily_invite_limit: 12,
+        last_comment_sync_at: null,
+        last_group_comment_sync_at: null,
+        last_post_stats_sync_at: null,
+        fb_admin_name: null,
+        last_invite_run_at: null,
         updated_at: new Date().toISOString(),
       };
     }
+
+    const toIsoOrNull = (v: Date | string | null | undefined): string | null => {
+      if (!v) return null;
+      return v instanceof Date ? v.toISOString() : String(v);
+    };
 
     return {
       community_name: saved.community_name,
@@ -800,9 +984,23 @@ export class CommunityHubService {
       positioning: saved.positioning,
       group_member_count: typeof saved.group_member_count === 'number' ? saved.group_member_count : 5,
       week1_target: typeof saved.week1_target === 'number' && saved.week1_target > 0 ? saved.week1_target : 5,
-      week2_target: typeof saved.week2_target === 'number' && saved.week2_target > 0 ? saved.week2_target : 50,
-      week3_target: typeof saved.week3_target === 'number' && saved.week3_target > 0 ? saved.week3_target : 150,
-      week4_target: typeof saved.week4_target === 'number' && saved.week4_target > 0 ? saved.week4_target : 300,
+      week2_target: typeof saved.week2_target === 'number' && saved.week2_target > 0 ? saved.week2_target : 10,
+      week3_target: typeof saved.week3_target === 'number' && saved.week3_target > 0 ? saved.week3_target : 18,
+      week4_target: typeof saved.week4_target === 'number' && saved.week4_target > 0 ? saved.week4_target : 30,
+      target_source: normalizeTargetSource(saved.target_source),
+      strategy_artifact_id: saved.strategy_artifact_id ?? null,
+      strategy_plan_id: saved.strategy_plan_id ?? null,
+      target_rationale: saved.target_rationale ?? null,
+      target_updated_at: toIsoOrNull(saved.target_updated_at),
+      weekly_targets_json: Array.isArray(saved.weekly_targets_json) ? saved.weekly_targets_json : null,
+      auto_reply_comments: saved.auto_reply_comments !== false,
+      auto_invite_enabled: saved.auto_invite_enabled !== false,
+      daily_invite_limit: clampDailyInviteLimit(saved.daily_invite_limit, 12),
+      last_comment_sync_at: toIsoOrNull(saved.last_comment_sync_at),
+      last_group_comment_sync_at: toIsoOrNull(saved.last_group_comment_sync_at),
+      last_post_stats_sync_at: toIsoOrNull(saved.last_post_stats_sync_at),
+      fb_admin_name: sanitizeFbAdminName(saved.fb_admin_name),
+      last_invite_run_at: toIsoOrNull(saved.last_invite_run_at),
       updated_at: saved.updated_at ? saved.updated_at.toISOString() : new Date().toISOString(),
     };
   }
@@ -936,6 +1134,11 @@ export class CommunityHubService {
       week2_target?: number;
       week3_target?: number;
       week4_target?: number;
+      target_source?: TargetSource;
+      lock_manual?: boolean;
+      auto_reply_comments?: boolean;
+      auto_invite_enabled?: boolean;
+      daily_invite_limit?: number;
     },
   ): Promise<CommunitySettings> {
     const current = await this.getCommunitySettings(workspaceId);
@@ -948,6 +1151,11 @@ export class CommunityHubService {
       typeof input.group_member_count === 'number' && Number.isFinite(input.group_member_count) && input.group_member_count >= 0
         ? Math.round(input.group_member_count)
         : current.group_member_count;
+    const hasManualTargets =
+      input.week1_target !== undefined ||
+      input.week2_target !== undefined ||
+      input.week3_target !== undefined ||
+      input.week4_target !== undefined;
     const nextW1 =
       typeof input.week1_target === 'number' && Number.isFinite(input.week1_target) && input.week1_target >= 1
         ? Math.round(input.week1_target)
@@ -964,6 +1172,21 @@ export class CommunityHubService {
       typeof input.week4_target === 'number' && Number.isFinite(input.week4_target) && input.week4_target >= 1
         ? Math.round(input.week4_target)
         : current.week4_target;
+    const nextTargetSource: TargetSource = input.lock_manual
+      ? 'locked_manual'
+      : input.target_source
+        ? input.target_source
+        : hasManualTargets
+          ? 'manual'
+          : current.target_source;
+    const nextAutoReply =
+      typeof input.auto_reply_comments === 'boolean' ? input.auto_reply_comments : current.auto_reply_comments;
+    const nextAutoInvite =
+      typeof input.auto_invite_enabled === 'boolean' ? input.auto_invite_enabled : current.auto_invite_enabled;
+    const nextDailyLimit =
+      input.daily_invite_limit !== undefined
+        ? clampDailyInviteLimit(input.daily_invite_limit, current.daily_invite_limit)
+        : current.daily_invite_limit;
 
     await this.pool.query(
       `UPDATE community_hub_settings
@@ -976,6 +1199,11 @@ export class CommunityHubService {
               week2_target = $8,
               week3_target = $9,
               week4_target = $10,
+              target_source = $11,
+              target_updated_at = CASE WHEN $15::boolean THEN NOW() ELSE target_updated_at END,
+              auto_reply_comments = $12,
+              auto_invite_enabled = $13,
+              daily_invite_limit = $14,
               updated_at = NOW()
         WHERE workspace_id = $1`,
       [
@@ -989,6 +1217,11 @@ export class CommunityHubService {
         nextW2,
         nextW3,
         nextW4,
+        nextTargetSource,
+        nextAutoReply,
+        nextAutoInvite,
+        nextDailyLimit,
+        hasManualTargets || Boolean(input.target_source) || input.lock_manual !== undefined,
       ],
     );
 
@@ -1459,27 +1692,30 @@ export class CommunityHubService {
 
     await this.pool.query(
       `DELETE FROM community_hub_members
-        WHERE workspace_id = $1 AND external_ref !~ '^fb:[0-9]{14,}$' AND external_ref NOT LIKE 'manual:%'`,
+        WHERE workspace_id = $1 AND external_ref !~ '^fb:[0-9]{8,}$' AND external_ref NOT LIKE 'manual:%'`,
       [workspaceId],
     );
 
     const msgRows = (
-      await this.pool.query<{ psid: string; platform: string; content: string; received_at: Date }>(
-        `SELECT author_contact AS psid, platform, content, received_at
+      await this.pool.query<{ psid: string; platform: string; content: string; author_name?: string | null; received_at: Date }>(
+        `SELECT author_contact AS psid, platform, content, author_name, received_at
            FROM community_messages
           WHERE workspace_id = $1
             AND platform IN ('facebook_message', 'facebook_comment')
-            AND author_contact ~ '^[0-9]{14,}$'
+            AND author_contact ~ '^[0-9]{8,}$'
           ORDER BY received_at DESC
           LIMIT 500`,
         [workspaceId],
       )
     ).rows;
 
-    const byPerson = new Map<string, { platform: string; signals: string[]; first_seen: Date }>();
+    const byPerson = new Map<string, { platform: string; signals: string[]; first_seen: Date; name?: string }>();
     for (const m of msgRows) {
       const entry = byPerson.get(m.psid) ?? { platform: m.platform, signals: [], first_seen: m.received_at };
       entry.signals.push(m.content);
+      if (m.author_name && !['Facebook user', 'Người bình luận Facebook'].includes(m.author_name)) {
+        entry.name = entry.name || m.author_name;
+      }
       if (m.received_at < entry.first_seen) entry.first_seen = m.received_at;
       byPerson.set(m.psid, entry);
     }
@@ -1500,7 +1736,7 @@ export class CommunityHubService {
     for (const [psid, info] of byPerson.entries()) {
       const signal = [...info.signals].sort((a, b) => b.length - a.length)[0] ?? '';
       const match = classifyMemberInterests(info.signals.join(' '));
-      const displayName = names.get(psid) ?? `Người dùng Facebook #${psid.slice(-4)}`;
+      const displayName = names.get(psid) ?? info.name ?? `Người dùng Facebook #${psid.slice(-4)}`;
       const res = await this.pool.query(
         `INSERT INTO community_hub_members
            (workspace_id, external_ref, display_name, channel, matched_signal, matched_trend, interest_tags, affinity_score, campaign_week, status, invite_group_url, recommended_topic)
@@ -1765,6 +2001,13 @@ export class CommunityHubService {
               WHERE workspace_id = $1 AND id = $2`,
             [workspaceId, member.id, settings.group_url],
           );
+          await this.pool
+            .query(
+              `INSERT INTO community_invite_logs (workspace_id, target_ref, display_name, channel, status, detail)
+               VALUES ($1, $2, $3, 'messenger_invite', 'invited', $4)`,
+              [workspaceId, member.external_ref, member.display_name, `Messenger id: ${json.message_id}`],
+            )
+            .catch(() => {});
           results.push({
             name: member.display_name,
             status: 'sent',
@@ -1795,6 +2038,1460 @@ export class CommunityHubService {
     }
 
     return { sent_count: sentCount, results };
+  }
+
+  private async captureMemberSnapshot(
+    workspaceId: string,
+    stats: {
+      groupMemberCount: number;
+      pageFollowersCount: number | null;
+      identifiedProspectsCount: number;
+    },
+  ): Promise<void> {
+    try {
+      const latest = (
+        await this.pool.query<{
+          group_member_count: number;
+          page_followers_count: number | null;
+          captured_at: Date;
+        }>(
+          `SELECT group_member_count, page_followers_count, captured_at
+             FROM community_member_snapshots
+            WHERE workspace_id = $1
+            ORDER BY captured_at DESC LIMIT 1`,
+          [workspaceId],
+        )
+      ).rows[0];
+
+      const ageMs = latest?.captured_at ? Date.now() - new Date(latest.captured_at).getTime() : Infinity;
+      const changed =
+        !latest ||
+        latest.group_member_count !== stats.groupMemberCount ||
+        (stats.pageFollowersCount !== null && latest.page_followers_count !== stats.pageFollowersCount);
+
+      if (!changed && ageMs < 60 * 60_000) return;
+
+      const countsRow = (
+        await this.pool.query<{ invites_cnt: number; replies_cnt: number }>(
+          `SELECT
+             (SELECT count(*)::int FROM community_invite_logs WHERE workspace_id = $1 AND status = 'invited') AS invites_cnt,
+             (SELECT count(*)::int FROM community_messages WHERE workspace_id = $1 AND status = 'replied') AS replies_cnt`,
+          [workspaceId],
+        )
+      ).rows[0];
+
+      await this.pool.query(
+        `INSERT INTO community_member_snapshots
+           (workspace_id, group_member_count, page_followers_count, identified_prospects_count, invites_sent_count, replies_sent_count, campaign_week)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          workspaceId,
+          stats.groupMemberCount,
+          stats.pageFollowersCount,
+          stats.identifiedProspectsCount,
+          countsRow?.invites_cnt ?? 0,
+          countsRow?.replies_cnt ?? 0,
+          currentVietnamCampaignWeek(),
+        ],
+      );
+    } catch {
+      // Snapshot table may be omitted in lightweight mock tests.
+    }
+  }
+
+  /**
+   * Actively polls Fanpage posts & nested comments from Meta Graph API (`FACEBOOK_PAGE_ACCESS_TOKEN`),
+   * ingesting unseen user comments into `community_messages` as `platform = 'facebook_comment'`.
+   */
+  async syncPageComments(workspaceId: string): Promise<{ ingested: number; checked_posts: number; error?: string }> {
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    if (!token) {
+      return { ingested: 0, checked_posts: 0, error: 'FACEBOOK_PAGE_ACCESS_TOKEN chưa được cấu hình' };
+    }
+    const settings = await this.getCommunitySettings(workspaceId);
+    const version = (process.env.META_GRAPH_API_VERSION || 'v20.0').replace(/^\/+|\/+$/g, '');
+    try {
+      const url = `https://graph.facebook.com/${version}/me/posts?fields=id,permalink_url,comments.limit(20){id,from,message,created_time,permalink_url}&limit=15&access_token=${encodeURIComponent(token)}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) {
+        return { ingested: 0, checked_posts: 0, error: `Graph API HTTP ${res.status}` };
+      }
+      const json = (await res.json()) as {
+        data?: {
+          id: string;
+          permalink_url?: string;
+          comments?: {
+            data?: {
+              id: string;
+              message?: string;
+              permalink_url?: string;
+              created_time?: string;
+              from?: { id?: string; name?: string };
+            }[];
+          };
+        }[];
+      };
+
+      const posts = json.data ?? [];
+      let ingested = 0;
+
+      for (const post of posts) {
+        for (const comment of post.comments?.data ?? []) {
+          const text = comment.message?.trim();
+          const commentId = comment.id?.trim();
+          if (!text || !commentId) continue;
+          const fromId = comment.from?.id?.trim();
+          if (fromId && fromId === settings.connected_fanpage_id) continue;
+
+          const authorName = comment.from?.name?.trim() || 'Người bình luận Fanpage';
+          const authorContact = fromId || `comment:${commentId}`;
+          const permalink = comment.permalink_url || post.permalink_url || settings.page_url;
+
+          const insertRes = await this.pool.query(
+            `INSERT INTO community_messages (workspace_id, platform, external_id, author_name, author_contact, content, post_url, metadata, received_at)
+             SELECT $1::uuid, 'facebook_comment', $2::varchar, $3::varchar, $4::varchar, $5::text, $6::text, $7::jsonb, COALESCE($8::timestamptz, NOW())
+              WHERE NOT EXISTS (
+                SELECT 1 FROM community_messages WHERE workspace_id = $1::uuid AND platform = 'facebook_comment' AND external_id = $2::varchar
+              )
+             RETURNING id`,
+            [
+              workspaceId,
+              commentId,
+              authorName.slice(0, 255),
+              authorContact.slice(0, 255),
+              text.slice(0, 4000),
+              permalink,
+              JSON.stringify({
+                comment_id: commentId,
+                post_id: post.id,
+                permalink_url: permalink,
+                comment_source: 'page',
+                from_id: fromId ?? null,
+                from_name: authorName,
+              }),
+              comment.created_time ?? null,
+            ],
+          );
+          if ((insertRes.rowCount ?? insertRes.rows.length) > 0) ingested++;
+        }
+      }
+
+      await this.pool
+        .query('UPDATE community_hub_settings SET last_comment_sync_at = NOW() WHERE workspace_id = $1', [workspaceId])
+        .catch(() => {});
+
+      return { ingested, checked_posts: posts.length };
+    } catch (err) {
+      return { ingested: 0, checked_posts: 0, error: (err as Error).message };
+    }
+  }
+
+  private normalizePostUrlKey(raw?: string | null): string {
+    if (!raw) return '';
+    return raw.trim().split('?')[0].split('#')[0].replace(/\/+$/, '').toLowerCase();
+  }
+
+  private async persistGroupBotPostStats(
+    workspaceId: string,
+    settings: CommunitySettings,
+    postStats: Array<{
+      postUrl?: string;
+      externalPostId?: string;
+      titleSnippet?: string;
+      likesCount?: number;
+      commentsCount?: number;
+      sharesCount?: number;
+    }>,
+    options: { groupMemberCount?: number; adminNames?: string[] } = {},
+  ): Promise<number> {
+    if (options.groupMemberCount && options.groupMemberCount > 0) {
+      await this.pool
+        .query('UPDATE community_hub_settings SET group_member_count = $2, updated_at = NOW() WHERE workspace_id = $1', [
+          workspaceId,
+          Math.max(1, Math.round(options.groupMemberCount)),
+        ])
+        .catch(() => {});
+    }
+
+    const cleanAdminName = (options.adminNames ?? [])
+      .map((n) => sanitizeFbAdminName(n))
+      .find((n): n is string => Boolean(n));
+    if (cleanAdminName) {
+      await this.pool
+        .query('UPDATE community_hub_settings SET fb_admin_name = $2 WHERE workspace_id = $1', [
+          workspaceId,
+          cleanAdminName.slice(0, 250),
+        ])
+        .catch(() => {});
+    } else if (!settings.fb_admin_name) {
+      await this.pool
+        .query('UPDATE community_hub_settings SET fb_admin_name = NULL WHERE workspace_id = $1 AND fb_admin_name IS NOT NULL', [
+          workspaceId,
+        ])
+        .catch(() => {});
+    }
+
+    if (!postStats.length) return 0;
+
+    const groupPosts = (
+      await this.pool.query<{
+        source_id: string | null;
+        post_title: string;
+        facebook_post_url: string | null;
+        published_at: Date | null;
+      }>(
+        `SELECT source_id, post_title, facebook_post_url, published_at
+           FROM community_group_posts
+          WHERE workspace_id = $1 AND status = 'published'`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const sources = (
+      await this.pool.query<{ id: string; title: string }>(
+        `SELECT id, title FROM sources WHERE workspace_id = $1 AND status = 'approved' AND deleted_at IS NULL`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const msgCounts = (
+      await this.pool.query<{ post_url: string | null; cnt: number }>(
+        `SELECT post_url, count(*)::int AS cnt
+           FROM community_messages
+          WHERE workspace_id = $1 AND platform = 'facebook_comment' AND post_url IS NOT NULL
+          GROUP BY post_url`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const msgCountByUrl = new Map<string, number>();
+    for (const r of msgCounts) {
+      const k = this.normalizePostUrlKey(r.post_url);
+      if (k) msgCountByUrl.set(k, (msgCountByUrl.get(k) ?? 0) + Number(r.cnt || 0));
+    }
+
+    let upserted = 0;
+    for (const stat of postStats) {
+      const postUrl = stat.postUrl?.trim();
+      const key = stat.externalPostId?.trim() || postUrl;
+      if (!key) continue;
+
+      const normUrl = this.normalizePostUrlKey(postUrl);
+      const snippetLower = (stat.titleSnippet || '').toLowerCase();
+
+      const matchedGroupPost =
+        groupPosts.find((gp) => normUrl && this.normalizePostUrlKey(gp.facebook_post_url) === normUrl) ??
+        groupPosts.find((gp) => {
+          const clean = gp.post_title
+            .replace(/^[\p{Emoji}\s]*\[(CẨM NANG CỘNG ĐỒNG|VIETNAM PLAYBOOK)\]\s*/iu, '')
+            .trim()
+            .toLowerCase();
+          return clean.length >= 12 && snippetLower.includes(clean.slice(0, 36));
+        });
+
+      const matchedSource =
+        matchedGroupPost?.source_id
+          ? sources.find((s) => s.id === matchedGroupPost.source_id)
+          : sources.find((s) => {
+              const clean = s.title.replace(/\s*\(tripc\.ai\)\s*$/i, '').trim().toLowerCase();
+              return clean.length >= 12 && snippetLower.includes(clean.slice(0, 36));
+            });
+
+      const resolvedTitle =
+        matchedGroupPost?.post_title ||
+        matchedSource?.title.replace(/\s*\(tripc\.ai\)\s*$/i, '').trim() ||
+        stat.titleSnippet?.slice(0, 200) ||
+        `Bài viết Group #${key.slice(-8)}`;
+
+      const floorMsgComments = normUrl ? msgCountByUrl.get(normUrl) ?? 0 : 0;
+      const likesCount = Math.max(0, Math.round(stat.likesCount ?? 0));
+      const commentsCount = Math.max(floorMsgComments, Math.round(stat.commentsCount ?? 0));
+      const sharesCount = Math.max(0, Math.round(stat.sharesCount ?? 0));
+
+      await this.pool
+        .query(
+          `INSERT INTO community_post_metrics (
+             workspace_id, source_id, channel, external_post_key, post_title, post_url,
+             likes_count, comments_count, shares_count, sync_source, published_at, last_synced_at
+           ) VALUES ($1, $2, 'group', $3, $4, $5, $6, $7, $8, 'playwright_group_bot', $9, NOW())
+           ON CONFLICT (workspace_id, channel, external_post_key)
+           DO UPDATE SET
+             source_id = COALESCE(EXCLUDED.source_id, community_post_metrics.source_id),
+             post_title = CASE WHEN EXCLUDED.post_title <> '' THEN EXCLUDED.post_title ELSE community_post_metrics.post_title END,
+             post_url = COALESCE(EXCLUDED.post_url, community_post_metrics.post_url),
+             likes_count = EXCLUDED.likes_count,
+             comments_count = GREATEST(EXCLUDED.comments_count, $7),
+             shares_count = EXCLUDED.shares_count,
+             sync_source = EXCLUDED.sync_source,
+             published_at = COALESCE(EXCLUDED.published_at, community_post_metrics.published_at),
+             last_synced_at = NOW()`,
+          [
+            workspaceId,
+            matchedGroupPost?.source_id ?? matchedSource?.id ?? null,
+            key.slice(0, 255),
+            resolvedTitle.slice(0, 500),
+            postUrl || settings.group_url,
+            likesCount,
+            commentsCount,
+            sharesCount,
+            matchedGroupPost?.published_at ?? null,
+          ],
+        )
+        .catch(() => {});
+      upserted += 1;
+    }
+
+    return upserted;
+  }
+
+  private async capturePostEngagementSnapshot(workspaceId: string, groupMembers: number): Promise<{
+    total_posts_tracked: number;
+    total_likes: number;
+    total_comments: number;
+    total_shares: number;
+    group_likes: number;
+    group_comments: number;
+    group_shares: number;
+    page_likes: number;
+    page_comments: number;
+    page_shares: number;
+  }> {
+    const agg = (
+      await this.pool.query<{
+        total_posts_tracked: number;
+        total_likes: number;
+        total_comments: number;
+        total_shares: number;
+        group_likes: number;
+        group_comments: number;
+        group_shares: number;
+        page_likes: number;
+        page_comments: number;
+        page_shares: number;
+      }>(
+        `SELECT
+           count(*)::int AS total_posts_tracked,
+           COALESCE(sum(likes_count), 0)::int AS total_likes,
+           COALESCE(sum(comments_count), 0)::int AS total_comments,
+           COALESCE(sum(shares_count), 0)::int AS total_shares,
+           COALESCE(sum(likes_count) FILTER (WHERE channel = 'group'), 0)::int AS group_likes,
+           COALESCE(sum(comments_count) FILTER (WHERE channel = 'group'), 0)::int AS group_comments,
+           COALESCE(sum(shares_count) FILTER (WHERE channel = 'group'), 0)::int AS group_shares,
+           COALESCE(sum(likes_count) FILTER (WHERE channel = 'fanpage'), 0)::int AS page_likes,
+           COALESCE(sum(comments_count) FILTER (WHERE channel = 'fanpage'), 0)::int AS page_comments,
+           COALESCE(sum(shares_count) FILTER (WHERE channel = 'fanpage'), 0)::int AS page_shares
+         FROM community_post_metrics
+        WHERE workspace_id = $1`,
+        [workspaceId],
+      )
+    ).rows[0] ?? {
+      total_posts_tracked: 0,
+      total_likes: 0,
+      total_comments: 0,
+      total_shares: 0,
+      group_likes: 0,
+      group_comments: 0,
+      group_shares: 0,
+      page_likes: 0,
+      page_comments: 0,
+      page_shares: 0,
+    };
+
+    try {
+      const latest = (
+        await this.pool.query<{
+          total_posts_tracked: number;
+          total_likes: number;
+          total_comments: number;
+          total_shares: number;
+          group_members: number;
+          captured_at: Date;
+        }>(
+          `SELECT total_posts_tracked, total_likes, total_comments, total_shares, group_members, captured_at
+             FROM community_post_metric_snapshots
+            WHERE workspace_id = $1
+            ORDER BY captured_at DESC LIMIT 1`,
+          [workspaceId],
+        )
+      ).rows[0];
+
+      const ageMs = latest?.captured_at ? Date.now() - new Date(latest.captured_at).getTime() : Infinity;
+      const changed =
+        !latest ||
+        latest.total_posts_tracked !== agg.total_posts_tracked ||
+        latest.total_likes !== agg.total_likes ||
+        latest.total_comments !== agg.total_comments ||
+        latest.total_shares !== agg.total_shares ||
+        latest.group_members !== groupMembers;
+
+      if (changed || ageMs >= 30 * 60_000) {
+        await this.pool.query(
+          `INSERT INTO community_post_metric_snapshots (
+             workspace_id, total_posts_tracked, total_likes, total_comments, total_shares,
+             group_likes, group_comments, group_shares, page_likes, page_comments, page_shares, group_members
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            workspaceId,
+            agg.total_posts_tracked,
+            agg.total_likes,
+            agg.total_comments,
+            agg.total_shares,
+            agg.group_likes,
+            agg.group_comments,
+            agg.group_shares,
+            agg.page_likes,
+            agg.page_comments,
+            agg.page_shares,
+            groupMembers,
+          ],
+        );
+      }
+    } catch {
+      // Ignore if snapshot table is omitted in lightweight unit test DB mocks
+    }
+
+    return agg;
+  }
+
+  /**
+   * Syncs real per-post engagement statistics (Likes/Reactions, Comments, Shares) across Facebook Fanpage (Graph API)
+   * and Facebook Group (Playwright Group Bot) into `community_post_metrics` + chronological growth snapshots.
+   */
+  async syncPostEngagementStats(
+    workspaceId: string,
+    options: { includeGroupBot?: boolean } = {},
+  ): Promise<{
+    fanpage_posts_synced: number;
+    group_posts_synced: number;
+    total_likes: number;
+    total_comments: number;
+    total_shares: number;
+    warnings: string[];
+  }> {
+    const settings = await this.ensureSchemaAndContext(workspaceId);
+    const warnings: string[] = [];
+    let fanpageSynced = 0;
+    let groupSynced = 0;
+
+    // 1. Fanpage engagement via Meta Graph API (`FACEBOOK_PAGE_ACCESS_TOKEN`)
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    if (token) {
+      const version = (process.env.META_GRAPH_API_VERSION || 'v20.0').replace(/^\/+|\/+$/g, '');
+      try {
+        const publishedPageJobs = (
+          await this.pool.query<{
+            external_post_id: string | null;
+            source_id: string | null;
+            title: string | null;
+            published_at: Date | null;
+          }>(
+            `SELECT j.external_post_id, a.evidence->0->>'source_id' AS source_id, a.title, j.published_at
+               FROM publishing_jobs j
+               JOIN channels ch ON ch.id = j.channel_id
+               JOIN content_artifacts a ON a.id = j.artifact_id
+              WHERE j.workspace_id = $1
+                AND j.status = 'published'
+                AND ch.platform_name = 'facebook'
+                AND j.external_post_id IS NOT NULL
+                AND COALESCE(j.external_post_id, '') NOT LIKE 'newsletter_%'`,
+            [workspaceId],
+          )
+        ).rows;
+
+        const jobByPostId = new Map<string, (typeof publishedPageJobs)[number]>();
+        for (const j of publishedPageJobs) {
+          if (!j.external_post_id) continue;
+          jobByPostId.set(j.external_post_id, j);
+          const suffix = j.external_post_id.includes('_') ? j.external_post_id.split('_')[1] : j.external_post_id;
+          if (suffix) jobByPostId.set(suffix, j);
+        }
+
+        const msgCounts = (
+          await this.pool.query<{ post_id: string | null; permalink_url: string | null; cnt: number }>(
+            `SELECT metadata->>'post_id' AS post_id, metadata->>'permalink_url' AS permalink_url, count(*)::int AS cnt
+               FROM community_messages
+              WHERE workspace_id = $1 AND platform = 'facebook_comment'
+              GROUP BY 1, 2`,
+            [workspaceId],
+          )
+        ).rows;
+        const msgByPostId = new Map<string, number>();
+        for (const m of msgCounts) {
+          if (m.post_id) msgByPostId.set(m.post_id, (msgByPostId.get(m.post_id) ?? 0) + Number(m.cnt || 0));
+          const suffix = m.post_id?.includes('_') ? m.post_id.split('_')[1] : m.post_id;
+          if (suffix) msgByPostId.set(suffix, (msgByPostId.get(suffix) ?? 0) + Number(m.cnt || 0));
+        }
+
+        const fields = 'id,message,created_time,permalink_url,shares,likes.summary(true),reactions.summary(true),comments.summary(true)';
+        const listUrl = `https://graph.facebook.com/${version}/me/posts?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(token)}`;
+        const listRes = await fetch(listUrl, { signal: AbortSignal.timeout(12_000) });
+
+        type GraphPostNode = {
+          id?: string;
+          message?: string;
+          created_time?: string;
+          permalink_url?: string;
+          shares?: { count?: number };
+          likes?: { summary?: { total_count?: number } };
+          reactions?: { summary?: { total_count?: number } };
+          comments?: { summary?: { total_count?: number } };
+        };
+
+        const fetchedPosts: GraphPostNode[] = [];
+        if (listRes.ok) {
+          const listJson = (await listRes.json()) as { data?: GraphPostNode[] };
+          for (const p of listJson.data ?? []) {
+            if (p.id) fetchedPosts.push(p);
+          }
+        } else {
+          warnings.push(`Fanpage Graph API HTTP ${listRes.status}`);
+        }
+
+        const fetchedIdSet = new Set(fetchedPosts.map((p) => p.id).filter(Boolean) as string[]);
+        for (const pj of publishedPageJobs.slice(0, 12)) {
+          if (!pj.external_post_id || fetchedIdSet.has(pj.external_post_id)) continue;
+          const postRes = await fetch(
+            `https://graph.facebook.com/${version}/${encodeURIComponent(pj.external_post_id)}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`,
+            { signal: AbortSignal.timeout(8_000) },
+          ).catch(() => null);
+          if (postRes?.ok) {
+            const single = (await postRes.json()) as GraphPostNode;
+            if (single.id) {
+              fetchedPosts.push(single);
+              fetchedIdSet.add(single.id);
+            }
+          }
+        }
+
+        for (const p of fetchedPosts) {
+          if (!p.id) continue;
+          const suffix = p.id.includes('_') ? p.id.split('_')[1] : p.id;
+          const matchedJob = jobByPostId.get(p.id) ?? (suffix ? jobByPostId.get(suffix) : undefined);
+          const likesCount = Math.max(
+            0,
+            Number(p.reactions?.summary?.total_count ?? p.likes?.summary?.total_count ?? 0),
+          );
+          const msgFloor = Math.max(msgByPostId.get(p.id) ?? 0, suffix ? msgByPostId.get(suffix) ?? 0 : 0);
+          const commentsCount = Math.max(msgFloor, Number(p.comments?.summary?.total_count ?? 0));
+          const sharesCount = Math.max(0, Number(p.shares?.count ?? 0));
+          const title =
+            matchedJob?.title ||
+            (p.message ? p.message.replace(/\s+/g, ' ').trim().slice(0, 180) : `Fanpage Post ${p.id}`);
+          const postUrl =
+            p.permalink_url ||
+            (p.id.includes('_')
+              ? `https://www.facebook.com/${p.id}`
+              : `https://www.facebook.com/${settings.connected_fanpage_id}/posts/${p.id}`);
+
+          await this.pool
+            .query(
+              `INSERT INTO community_post_metrics (
+                 workspace_id, source_id, channel, external_post_key, post_title, post_url,
+                 likes_count, comments_count, shares_count, sync_source, published_at, last_synced_at
+               ) VALUES ($1, $2, 'fanpage', $3, $4, $5, $6, $7, $8, 'meta_graph_api', $9, NOW())
+               ON CONFLICT (workspace_id, channel, external_post_key)
+               DO UPDATE SET
+                 source_id = COALESCE(EXCLUDED.source_id, community_post_metrics.source_id),
+                 post_title = CASE WHEN EXCLUDED.post_title <> '' THEN EXCLUDED.post_title ELSE community_post_metrics.post_title END,
+                 post_url = COALESCE(EXCLUDED.post_url, community_post_metrics.post_url),
+                 likes_count = EXCLUDED.likes_count,
+                 comments_count = EXCLUDED.comments_count,
+                 shares_count = EXCLUDED.shares_count,
+                 sync_source = 'meta_graph_api',
+                 published_at = COALESCE(EXCLUDED.published_at, community_post_metrics.published_at),
+                 last_synced_at = NOW()`,
+              [
+                workspaceId,
+                matchedJob?.source_id ?? null,
+                p.id.slice(0, 255),
+                title.slice(0, 500),
+                postUrl,
+                likesCount,
+                commentsCount,
+                sharesCount,
+                matchedJob?.published_at ?? (p.created_time ? new Date(p.created_time) : null),
+              ],
+            )
+            .catch(() => {});
+          fanpageSynced += 1;
+        }
+      } catch (err) {
+        warnings.push(`Fanpage sync: ${(err as Error).message}`);
+      }
+    }
+
+    // 2. Group engagement via Playwright Group Bot (`scan-stats`)
+    if (options.includeGroupBot !== false) {
+      const workerDir = resolveWorkerDir();
+      const session = resolveGroupBotSessionFile(workerDir);
+      const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+      if (hasSession) {
+        const recentGroupPosts = (
+          await this.pool.query<{ facebook_post_url: string }>(
+            `SELECT DISTINCT facebook_post_url
+               FROM community_group_posts
+              WHERE workspace_id = $1
+                AND status = 'published'
+                AND facebook_post_url IS NOT NULL
+                AND facebook_post_url LIKE 'http%'
+              LIMIT 8`,
+            [workspaceId],
+          )
+        ).rows.map((r) => r.facebook_post_url);
+
+        const runner = resolveGroupBotRunner(workerDir);
+        const tmpPayloadFile = path.join(os.tmpdir(), `fb-scan-stats-${randomUUID()}.json`);
+        fs.writeFileSync(
+          tmpPayloadFile,
+          JSON.stringify({
+            groupUrl: settings.group_url,
+            postUrls: recentGroupPosts,
+            maxPosts: 8,
+            headless: true,
+          }),
+          'utf8',
+        );
+        try {
+          const botOutput = await new Promise<{ stdout: string; stderr: string }>((resolve) => {
+            const child = spawn(
+              runner.command,
+              [...runner.prefixArgs, 'scan-stats', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
+              {
+                cwd: workerDir,
+                env: { ...process.env, FB_SESSION_FILE: session.filePath },
+                shell: false,
+                windowsHide: true,
+              },
+            );
+            let stdout = '';
+            let stderr = '';
+            let settled = false;
+            const timer = setTimeout(() => {
+              if (!settled) {
+                settled = true;
+                try {
+                  child.kill();
+                } catch {}
+                resolve({ stdout, stderr });
+              }
+            }, 90_000);
+            child.stdout?.on('data', (d) => {
+              stdout += d.toString();
+            });
+            child.stderr?.on('data', (d) => {
+              stderr += d.toString();
+            });
+            child.on('error', (err) => {
+              if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                resolve({ stdout, stderr: err.message });
+              }
+            });
+            child.on('close', () => {
+              if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                resolve({ stdout, stderr });
+              }
+            });
+          });
+
+          const parsed = parseGroupBotResultLine(botOutput.stdout);
+          if (parsed && parsed.success === true) {
+            const postStats = Array.isArray(parsed.postStats) ? parsed.postStats : [];
+            const groupMemberCount =
+              typeof parsed.groupMemberCount === 'number' && parsed.groupMemberCount > 0
+                ? parsed.groupMemberCount
+                : undefined;
+            const adminNames = Array.isArray(parsed.adminNames) ? (parsed.adminNames as string[]) : undefined;
+            groupSynced = await this.persistGroupBotPostStats(workspaceId, settings, postStats, {
+              groupMemberCount,
+              adminNames,
+            });
+          } else if (parsed?.message || botOutput.stderr.trim()) {
+            warnings.push(`Group stats: ${String(parsed?.message || botOutput.stderr.trim())}`);
+          }
+        } finally {
+          try {
+            if (fs.existsSync(tmpPayloadFile)) fs.unlinkSync(tmpPayloadFile);
+          } catch {}
+        }
+      } else {
+        warnings.push('Chưa có phiên Group Bot (.fb-session.json) để quét tương tác bài trong Group.');
+      }
+    }
+
+    const latestSettings = await this.getCommunitySettings(workspaceId);
+    const totals = await this.capturePostEngagementSnapshot(workspaceId, latestSettings.group_member_count);
+    await this.pool
+      .query('UPDATE community_hub_settings SET last_post_stats_sync_at = NOW() WHERE workspace_id = $1', [workspaceId])
+      .catch(() => {});
+
+    return {
+      fanpage_posts_synced: fanpageSynced,
+      group_posts_synced: groupSynced,
+      total_likes: totals.total_likes,
+      total_comments: totals.total_comments,
+      total_shares: totals.total_shares,
+      warnings,
+    };
+  }
+
+  /**
+   * Scans recent published posts in the Facebook Group via Playwright `FacebookGroupBot`
+   * for unseen member questions/comments so the RAG Community Agent can auto-reply them.
+   */
+  async syncGroupComments(
+    workspaceId: string,
+    maxPosts = 5,
+  ): Promise<{ ingested: number; scanned_posts: number; post_stats_synced?: number; skipped?: string; error?: string }> {
+    const settings = await this.getCommunitySettings(workspaceId);
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    if (!hasSession) {
+      return { ingested: 0, scanned_posts: 0, skipped: 'FACEBOOK_GROUP_SESSION_MISSING' };
+    }
+
+    const recentGroupPosts = (
+      await this.pool.query<{ facebook_post_url: string }>(
+        `SELECT DISTINCT facebook_post_url
+           FROM community_group_posts
+          WHERE workspace_id = $1
+            AND status = 'published'
+            AND facebook_post_url IS NOT NULL
+            AND facebook_post_url LIKE 'http%'
+          LIMIT $2`,
+        [workspaceId, maxPosts],
+      )
+    ).rows.map((r) => r.facebook_post_url);
+
+    const runner = resolveGroupBotRunner(workerDir);
+    const tmpPayloadFile = path.join(os.tmpdir(), `fb-scan-comments-${randomUUID()}.json`);
+    fs.writeFileSync(
+      tmpPayloadFile,
+      JSON.stringify({
+        groupUrl: settings.group_url,
+        postUrls: recentGroupPosts,
+        maxPosts,
+        headless: true,
+      }),
+      'utf8',
+    );
+
+    try {
+      const botOutput = await new Promise<{ code: number | null; stdout: string; stderr: string; spawnErr?: string; timedOut?: boolean }>(
+        (resolve) => {
+          const child = spawn(
+            runner.command,
+            [...runner.prefixArgs, 'scan-comments', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
+            {
+              cwd: workerDir,
+              env: { ...process.env, FB_SESSION_FILE: session.filePath },
+              shell: false,
+              windowsHide: true,
+            },
+          );
+          let stdout = '';
+          let stderr = '';
+          let settled = false;
+          const timer = setTimeout(() => {
+            if (!settled) {
+              settled = true;
+              try {
+                child.kill();
+              } catch {}
+              resolve({ code: null, stdout, stderr, timedOut: true });
+            }
+          }, 90_000);
+          child.stdout?.on('data', (d) => {
+            stdout += d.toString();
+          });
+          child.stderr?.on('data', (d) => {
+            stderr += d.toString();
+          });
+          child.on('error', (err) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve({ code: 1, stdout, stderr, spawnErr: err.message });
+            }
+          });
+          child.on('close', (code) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve({ code, stdout, stderr });
+            }
+          });
+        },
+      );
+
+      const parsed = parseGroupBotResultLine(botOutput.stdout);
+      if (!parsed || parsed.success !== true) {
+        return {
+          ingested: 0,
+          scanned_posts: 0,
+          error: (typeof parsed?.message === 'string' && parsed.message) || botOutput.stderr.trim() || 'Scan group comments failed',
+        };
+      }
+
+      const comments = Array.isArray(parsed.comments)
+        ? (parsed.comments as { commentKey?: string; postUrl?: string; authorName?: string; text?: string }[])
+        : [];
+      const adminNames = Array.isArray(parsed.adminNames)
+        ? (parsed.adminNames as string[]).map((n) => sanitizeFbAdminName(n)).filter((n): n is string => Boolean(n))
+        : [];
+      const blockedAuthors = new Set(
+        [
+          settings.page_name,
+          settings.community_name,
+          settings.fb_admin_name ?? '',
+          ...adminNames,
+        ]
+          .map((n) => n.trim().toLowerCase())
+          .filter(Boolean),
+      );
+      let ingested = 0;
+
+      for (const c of comments) {
+        const key = c.commentKey?.trim();
+        const text = c.text?.trim();
+        const author = c.authorName?.trim() || 'Thành viên Group Facebook';
+        if (!key || !text) continue;
+        if (blockedAuthors.has(author.toLowerCase())) continue;
+
+        const res = await this.pool.query(
+          `INSERT INTO community_messages (workspace_id, platform, external_id, author_name, author_contact, content, post_url, metadata)
+           SELECT $1::uuid, 'facebook_comment', $2::varchar, $3::varchar, $4::varchar, $5::text, $6::text, $7::jsonb
+            WHERE NOT EXISTS (
+              SELECT 1 FROM community_messages WHERE workspace_id = $1::uuid AND platform = 'facebook_comment' AND external_id = $2::varchar
+            )
+           RETURNING id`,
+          [
+            workspaceId,
+            key.slice(0, 255),
+            author.slice(0, 255),
+            key.slice(0, 255),
+            text.slice(0, 4000),
+            c.postUrl || settings.group_url,
+            JSON.stringify({
+              comment_id: key,
+              comment_source: 'group',
+              permalink_url: c.postUrl || settings.group_url,
+              from_name: author,
+            }),
+          ],
+        );
+        if ((res.rowCount ?? res.rows.length) > 0) ingested++;
+      }
+
+      const postStats = Array.isArray(parsed.postStats) ? parsed.postStats : [];
+      const groupMemberCount =
+        typeof parsed.groupMemberCount === 'number' && parsed.groupMemberCount > 0
+          ? parsed.groupMemberCount
+          : undefined;
+      const postStatsSynced = await this.persistGroupBotPostStats(workspaceId, settings, postStats, {
+        groupMemberCount,
+        adminNames,
+      });
+
+      await this.pool
+        .query('UPDATE community_hub_settings SET last_group_comment_sync_at = NOW() WHERE workspace_id = $1', [workspaceId])
+        .catch(() => {});
+
+      return {
+        ingested,
+        scanned_posts: Number(parsed.scannedPosts ?? recentGroupPosts.length),
+        post_stats_synced: postStatsSynced,
+      };
+    } finally {
+      try {
+        if (fs.existsSync(tmpPayloadFile)) fs.unlinkSync(tmpPayloadFile);
+      } catch {}
+    }
+  }
+
+  /**
+   * Scans Fanpage & Group comments, then queues grounded RAG responses respecting `auto_reply_comments`.
+   */
+  async scanAndProcessComments(
+    workspaceId: string,
+    actorId: string,
+    options: { includeGroupBot?: boolean } = {},
+  ): Promise<{
+    page_ingested: number;
+    group_ingested: number;
+    queued_for_rag: number;
+    auto_reply_comments: boolean;
+    warnings: string[];
+  }> {
+    const settings = await this.getCommunitySettings(workspaceId);
+    const warnings: string[] = [];
+    const pageRes = await this.syncPageComments(workspaceId);
+    if (pageRes.error) warnings.push(`Fanpage: ${pageRes.error}`);
+
+    let groupIngested = 0;
+    if (options.includeGroupBot !== false) {
+      const groupRes = await this.syncGroupComments(workspaceId, 5);
+      groupIngested = groupRes.ingested;
+      if (groupRes.error) warnings.push(`Group scan: ${groupRes.error}`);
+    }
+
+    await this.syncMembersFromInteractions(workspaceId, settings);
+
+    // Refresh Fanpage stats & capture post engagement snapshot after scanning comments
+    await this.syncPostEngagementStats(workspaceId, { includeGroupBot: false }).catch(() => {});
+
+    let queuedForRag = 0;
+    if (settings.auto_reply_comments) {
+      const ctxRow = (
+        await this.pool.query<{ snapshot_id: string }>(
+          'SELECT snapshot_id FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
+          [workspaceId],
+        )
+      ).rows[0];
+      if (ctxRow?.snapshot_id) {
+        queuedForRag = await processReceivedCommunityMessages(this.pool, workspaceId, actorId, ctxRow.snapshot_id, 15);
+      }
+    }
+
+    return {
+      page_ingested: pageRes.ingested,
+      group_ingested: groupIngested,
+      queued_for_rag: queuedForRag,
+      auto_reply_comments: settings.auto_reply_comments,
+      warnings,
+    };
+  }
+
+  /**
+   * Sends REAL Facebook invitations (native Group "Mời / Invite" UI via Playwright + personalized Messenger link)
+   * strictly bounded by `daily_invite_limit` (10-15/day) and deduplicated in `community_invite_logs`. Never force-adds users.
+   */
+  async sendSafeCommunityInvites(
+    workspaceId: string,
+    options: { maxBatch?: number; includeNativeGroupUi?: boolean } = {},
+  ): Promise<{
+    invited_count: number;
+    remaining_today: number;
+    daily_limit: number;
+    cap_reached: boolean;
+    disabled?: boolean;
+    results: { name: string; channel: string; status: string; detail: string }[];
+  }> {
+    const settings = await this.getCommunitySettings(workspaceId);
+    const dailyLimit = clampDailyInviteLimit(settings.daily_invite_limit, 12);
+
+    if (!settings.auto_invite_enabled) {
+      return {
+        invited_count: 0,
+        remaining_today: 0,
+        daily_limit: dailyLimit,
+        cap_reached: false,
+        disabled: true,
+        results: [],
+      };
+    }
+
+    await ensureCommunityGrowthSchema(this.pool);
+    const sentTodayRow = (
+      await this.pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n
+           FROM community_invite_logs
+          WHERE workspace_id = $1
+            AND status = 'invited'
+            AND invited_at >= (date_trunc('day', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')`,
+        [workspaceId],
+      )
+    ).rows[0];
+    const sentToday = Number(sentTodayRow?.n ?? 0);
+    let remaining = Math.max(0, dailyLimit - sentToday);
+
+    if (remaining <= 0) {
+      return {
+        invited_count: 0,
+        remaining_today: 0,
+        daily_limit: dailyLimit,
+        cap_reached: true,
+        results: [],
+      };
+    }
+
+    const batchCap = Math.min(remaining, Math.max(1, Math.min(options.maxBatch ?? 5, 10)));
+    const results: { name: string; channel: string; status: string; detail: string }[] = [];
+    let invitedCount = 0;
+
+    // Step 1: Invite uninvited Messenger/Fanpage prospects within 24h window via real Messenger Graph API
+    const messengerCandidates = (
+      await this.pool.query<{ external_ref: string; display_name: string }>(
+        `SELECT m.external_ref, m.display_name
+           FROM community_hub_members m
+          WHERE m.workspace_id = $1
+            AND m.external_ref ~ '^fb:[0-9]{14,}$'
+            AND m.status = 'identified'
+            AND NOT EXISTS (
+              SELECT 1 FROM community_invite_logs l
+               WHERE l.workspace_id = $1 AND l.target_ref = m.external_ref AND l.status = 'invited'
+            )
+          ORDER BY m.affinity_score DESC, m.created_at DESC
+          LIMIT $2`,
+        [workspaceId, batchCap],
+      )
+    ).rows;
+
+    for (const candidate of messengerCandidates) {
+      if (remaining <= 0) break;
+      const res = await this.sendMessengerGroupInvite(workspaceId, candidate.external_ref);
+      for (const item of res.results) {
+        results.push({ name: item.name, channel: 'messenger_invite', status: item.status, detail: item.detail });
+        if (item.status === 'sent') {
+          invitedCount++;
+          remaining = Math.max(0, remaining - 1);
+        }
+      }
+    }
+
+    // Step 2: Native Facebook Group "Mời / Invite" UI button via Playwright (respecting daily quota)
+    if (options.includeNativeGroupUi !== false && remaining > 0) {
+      const workerDir = resolveWorkerDir();
+      const session = resolveGroupBotSessionFile(workerDir);
+      const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+      if (hasSession) {
+        const alreadyInvitedNames = new Set(
+          (
+            await this.pool.query<{ display_name: string }>(
+              `SELECT display_name FROM community_invite_logs WHERE workspace_id = $1 AND status = 'invited' LIMIT 500`,
+              [workspaceId],
+            )
+          ).rows.map((r) => r.display_name.toLowerCase()),
+        );
+        const runner = resolveGroupBotRunner(workerDir);
+        const nativeLimit = Math.min(remaining, Math.max(1, batchCap - invitedCount));
+        const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-invite-${randomUUID()}.json`);
+        fs.writeFileSync(
+          tmpPayloadFile,
+          JSON.stringify({
+            groupUrl: settings.group_url,
+            maxInvites: nativeLimit,
+            excludeNames: Array.from(alreadyInvitedNames),
+            headless: true,
+          }),
+          'utf8',
+        );
+
+        try {
+          const botOutput = await new Promise<{ code: number | null; stdout: string; stderr: string; spawnErr?: string; timedOut?: boolean }>(
+            (resolve) => {
+              const child = spawn(
+                runner.command,
+                [...runner.prefixArgs, 'invite', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
+                {
+                  cwd: workerDir,
+                  env: { ...process.env, FB_SESSION_FILE: session.filePath },
+                  shell: false,
+                  windowsHide: true,
+                },
+              );
+              let stdout = '';
+              let stderr = '';
+              let settled = false;
+              const timer = setTimeout(() => {
+                if (!settled) {
+                  settled = true;
+                  try {
+                    child.kill();
+                  } catch {}
+                  resolve({ code: null, stdout, stderr, timedOut: true });
+                }
+              }, 90_000);
+              child.stdout?.on('data', (d) => {
+                stdout += d.toString();
+              });
+              child.stderr?.on('data', (d) => {
+                stderr += d.toString();
+              });
+              child.on('error', (err) => {
+                if (!settled) {
+                  settled = true;
+                  clearTimeout(timer);
+                  resolve({ code: 1, stdout, stderr, spawnErr: err.message });
+                }
+              });
+              child.on('close', (code) => {
+                if (!settled) {
+                  settled = true;
+                  clearTimeout(timer);
+                  resolve({ code, stdout, stderr });
+                }
+              });
+            },
+          );
+
+          const parsed = parseGroupBotResultLine(botOutput.stdout);
+          const invitedList = Array.isArray(parsed?.invited)
+            ? (parsed.invited as { name?: string; profileRef?: string }[])
+            : [];
+          for (const person of invitedList) {
+            const displayName = person.name?.trim() || 'Người dùng Facebook gợi ý';
+            const targetRef = person.profileRef?.trim() || `fb_invite:${displayName.toLowerCase()}`;
+            await this.pool.query(
+              `INSERT INTO community_invite_logs (workspace_id, target_ref, display_name, channel, status, detail)
+               VALUES ($1, $2, $3, 'group_native_invite', 'invited', $4)`,
+              [workspaceId, targetRef.slice(0, 255), displayName.slice(0, 255), `Đã bấm nút Mời (Invite) thật trên ${settings.group_url}`],
+            );
+            invitedCount++;
+            remaining = Math.max(0, remaining - 1);
+            results.push({
+              name: displayName,
+              channel: 'group_native_invite',
+              status: 'invited',
+              detail: 'Đã gửi lời mời tham gia Group chính thức trên Facebook (nút Mời / Invite)',
+            });
+          }
+          if (invitedList.length === 0 && parsed?.message) {
+            results.push({
+              name: 'Facebook Group Invite Modal',
+              channel: 'group_native_invite',
+              status: parsed.success ? 'info' : 'skipped',
+              detail: String(parsed.message),
+            });
+          }
+        } finally {
+          try {
+            if (fs.existsSync(tmpPayloadFile)) fs.unlinkSync(tmpPayloadFile);
+          } catch {}
+        }
+      }
+    }
+
+    await this.pool
+      .query('UPDATE community_hub_settings SET last_invite_run_at = NOW() WHERE workspace_id = $1', [workspaceId])
+      .catch(() => {});
+
+    return {
+      invited_count: invitedCount,
+      remaining_today: remaining,
+      daily_limit: dailyLimit,
+      cap_reached: remaining <= 0,
+      results,
+    };
+  }
+
+  /**
+   * Searches public community demand & recurring questions via local SearXNG so Growth Lead & Community
+   * surface real outside-FB intent topics without inventing fake users.
+   */
+  async discoverSearxngCommunityOpportunities(): Promise<
+    { query: string; title: string; url: string; snippet: string; domain: string }[]
+  > {
+    const base = (process.env.SEARXNG_URL || process.env.SEARXNG_BASE_URL || 'http://127.0.0.1:18081').replace(/\/+$/, '');
+    const queries = [
+      'kinh nghiệm sống và thuê căn hộ Đà Nẵng Việt Nam expat',
+      'vietnam e-visa 2026 esim travel tips forum',
+    ];
+    const out: { query: string; title: string; url: string; snippet: string; domain: string }[] = [];
+    for (const q of queries) {
+      try {
+        const res = await fetch(`${base}/search?q=${encodeURIComponent(q)}&format=json&language=en`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!res.ok) continue;
+        const json = (await res.json()) as {
+          results?: { title?: string; url?: string; content?: string }[];
+        };
+        for (const r of (json.results ?? []).slice(0, 3)) {
+          if (!r.title || !r.url) continue;
+          let domain = '';
+          try {
+            domain = new URL(r.url).hostname.replace(/^www\./, '');
+          } catch {}
+          out.push({
+            query: q,
+            title: r.title.slice(0, 200),
+            url: r.url,
+            snippet: (r.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 220),
+            domain,
+          });
+        }
+      } catch {
+        // SearXNG offline in isolated tests — fail gracefully with empty list
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Executes or syncs Growth Lead Agent (`strategy.generate`) with live community metrics
+   * and immediately auto-applies `community_growth_plan` down to `community_hub_settings`.
+   */
+  async syncGrowthLeadTargets(
+    workspaceId: string,
+    options: { forceRecalculate?: boolean; forceOverrideManual?: boolean } = {},
+  ): Promise<{
+    applied: boolean;
+    reason?: string;
+    artifact_id?: string | null;
+    week1_target: number;
+    week2_target: number;
+    week3_target: number;
+    week4_target: number;
+    daily_invite_limit: number;
+    target_source: TargetSource;
+    target_rationale: string | null;
+  }> {
+    let settings = await this.getCommunitySettings(workspaceId);
+    const [pageStats, groupStats] = await Promise.all([
+      this.fetchRealPageStats(),
+      this.fetchRealGroupStats(settings.group_url, settings.group_member_count, workspaceId),
+    ]);
+    await this.captureMemberSnapshot(workspaceId, {
+      groupMemberCount: groupStats.member_count,
+      pageFollowersCount: pageStats.followers_count,
+      identifiedProspectsCount: 0,
+    });
+    settings = await this.getCommunitySettings(workspaceId);
+
+    // Try existing latest strategy.generate artifact first when not forcing recalculation
+    if (!options.forceRecalculate) {
+      const existingRow = (
+        await this.pool.query<{ id: string; payload: { result?: unknown } }>(
+          `SELECT id, payload
+             FROM content_artifacts
+            WHERE workspace_id = $1
+              AND role = 'growth_lead'
+              AND operation = 'strategy.generate'
+              AND payload->'result'->'community_growth_plan' IS NOT NULL
+            ORDER BY created_at DESC LIMIT 1`,
+          [workspaceId],
+        )
+      ).rows[0];
+      const checked = existingRow?.payload?.result ? planSchema.safeParse(existingRow.payload.result) : null;
+      if (checked?.success && checked.data.community_growth_plan) {
+        const applied = await applyCommunityGrowthPlan(this.pool, checked.data, existingRow.id, {
+          forceOverrideManual: options.forceOverrideManual,
+        });
+        const refreshed = await this.getCommunitySettings(workspaceId);
+        return {
+          applied: applied.applied,
+          reason: applied.reason,
+          artifact_id: existingRow.id,
+          week1_target: refreshed.week1_target,
+          week2_target: refreshed.week2_target,
+          week3_target: refreshed.week3_target,
+          week4_target: refreshed.week4_target,
+          daily_invite_limit: refreshed.daily_invite_limit,
+          target_source: refreshed.target_source,
+          target_rationale: refreshed.target_rationale,
+        };
+      }
+    }
+
+    // Run real Growth Lead Agent (strategy.generate) against current knowledge context + research + community_context
+    const contextRow = (
+      await this.pool.query<{ snapshot_id: string; profile_version: number; profile: unknown; snapshot: unknown; goal: unknown }>(
+        'SELECT snapshot_id, profile_version, profile, snapshot, goal FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
+        [workspaceId],
+      )
+    ).rows[0];
+
+    const researchRow = (
+      await this.pool.query<{ id: string; payload: { artifact?: unknown; result?: unknown }; evidence: unknown }>(
+        `SELECT id, payload, evidence
+           FROM content_artifacts
+          WHERE workspace_id = $1
+            AND context_snapshot_id = $2
+            AND role = 'research'
+            AND payload->'result'->>'status' = 'ready_for_handoff'
+          ORDER BY created_at DESC LIMIT 1`,
+        [workspaceId, contextRow?.snapshot_id],
+      )
+    ).rows[0];
+
+    if (contextRow && researchRow?.payload?.artifact && researchRow.payload.result) {
+      const communityContext = await loadCommunityGrowthContext(this.pool, workspaceId);
+      const automationRow = (
+        await this.pool.query<{ cta?: string | null }>('SELECT cta FROM agent_automation WHERE workspace_id = $1 LIMIT 1', [
+          workspaceId,
+        ])
+      ).rows[0];
+      const cta =
+        automationRow?.cta?.trim() ||
+        `Tham gia ${settings.community_name} (${settings.group_url})`;
+      const measuredRow = (
+        await this.pool.query<{ payload: { artifact?: unknown; result?: unknown }; evidence: unknown }>(
+          `SELECT payload, evidence FROM content_artifacts
+            WHERE workspace_id = $1 AND context_snapshot_id = $2 AND operation = 'metrics.snapshot'
+            ORDER BY created_at DESC LIMIT 1`,
+          [workspaceId, contextRow.snapshot_id],
+        )
+      ).rows[0];
+
+      const jobId = randomUUID();
+      const aiBaseUrl = (
+        process.env.INTERNAL_AI_URL ||
+        process.env.AI_SERVICE_BASE_URL ||
+        'http://127.0.0.1:5000'
+      ).replace(/\/+$/, '');
+      const aiToken = process.env.INTERNAL_AI_AUTH_TOKEN?.trim();
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+        ...(aiToken ? { authorization: `Bearer ${aiToken}` } : {}),
+      };
+
+      const researchArtifactObj = researchRow.payload.artifact as { synthetic?: boolean };
+      const isSynthetic = Boolean((researchRow.payload.result as { synthetic?: boolean })?.synthetic);
+      const jobPayload: Record<string, unknown> = {
+        workspace_id: workspaceId,
+        business_profile: contextRow.profile,
+        snapshot: contextRow.snapshot,
+        goal_context: contextRow.goal,
+        research: researchRow.payload.result,
+        research_artifact: researchArtifactObj,
+        cta: cta.slice(0, 200),
+        deadline: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+        score_factors: {},
+        ...(communityContext ? { community_context: communityContext } : {}),
+        ...(measuredRow?.payload?.artifact
+          ? {
+              latest_metrics: {
+                artifact: measuredRow.payload.artifact,
+                result: measuredRow.payload.result,
+                evidence: measuredRow.evidence ?? [],
+              },
+            }
+          : {}),
+      };
+
+      const sourcesList = Array.isArray((contextRow.snapshot as { sources?: unknown[] })?.sources)
+        ? ((contextRow.snapshot as { sources: { source_id: string; version: number }[] }).sources)
+        : [];
+
+      const reqBody = {
+        schema_version: '1.0.0',
+        job_id: jobId,
+        workspace_id: workspaceId,
+        operation: 'strategy.generate',
+        input_version: 1,
+        trace_id: `community-target-sync:${jobId}`,
+        context_snapshot_id: contextRow.snapshot_id,
+        approved_source_versions: sourcesList.map((s) => ({ source_id: s.source_id, version: s.version })),
+        ...(isSynthetic ? { synthetic: true } : {}),
+        constraints: { human_approval_required: true, timeout_seconds: 120 },
+        payload: jobPayload,
+      };
+
+      const postRes = await fetch(`${aiBaseUrl}/internal/v1/runs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(reqBody),
+        signal: AbortSignal.timeout(45_000),
+      });
+
+      if (postRes.ok) {
+        let runStatus = (await postRes.json()) as {
+          run_id: string;
+          status: string;
+          result?: {
+            result?: Record<string, unknown>;
+            evidence?: unknown[];
+            artifact?: Record<string, unknown>;
+            model_version?: string;
+            prompt_version?: string;
+          };
+          provider_calls?: number;
+        };
+        const pollDeadline = Date.now() + 45_000;
+        while ((runStatus.status === 'queued' || runStatus.status === 'running') && Date.now() < pollDeadline) {
+          await new Promise((r) => setTimeout(r, 400));
+          const getRes = await fetch(`${aiBaseUrl}/internal/v1/runs/${runStatus.run_id}`, {
+            headers,
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!getRes.ok) break;
+          runStatus = (await getRes.json()) as typeof runStatus;
+        }
+
+        if (runStatus.status === 'completed' && runStatus.result?.artifact && runStatus.result?.result) {
+          const artifact = runStatus.result.artifact as {
+            artifact_id: string;
+            workspace_id: string;
+            version: number;
+            content_hash: string;
+            context_snapshot_id: string;
+            role: string;
+          };
+          const output = runStatus.result.result;
+          const evidence = runStatus.result.evidence ?? [];
+          const expectedHash = sha256Hex(canonicalJson({ result: output, evidence }));
+          if (expectedHash === artifact.content_hash && artifact.workspace_id === workspaceId) {
+            const title =
+              (output as { selected_opportunity?: { topic?: string }; objective?: string }).selected_opportunity?.topic ||
+              (output as { objective?: string }).objective ||
+              'Growth Lead Community Target Plan';
+            await this.pool.query(
+              `INSERT INTO content_artifacts
+                 (id, workspace_id, version, content_hash, context_snapshot_id, role, operation, artifact_type, title, storage, payload, evidence)
+               VALUES ($1, $2, $3, $4, $5, 'growth_lead', 'strategy.generate', 'ai_result', $6, 'ai_run_store', $7::jsonb, $8::jsonb)
+               ON CONFLICT (id) DO NOTHING`,
+              [
+                artifact.artifact_id,
+                workspaceId,
+                artifact.version,
+                expectedHash,
+                contextRow.snapshot_id,
+                String(title).slice(0, 250),
+                JSON.stringify({
+                  artifact,
+                  result: output,
+                  run_metadata: {
+                    run_id: runStatus.run_id,
+                    model_version: runStatus.result.model_version ?? '',
+                    prompt_version: runStatus.result.prompt_version ?? '',
+                    provider_calls: runStatus.provider_calls ?? 0,
+                  },
+                }),
+                JSON.stringify(evidence),
+              ],
+            );
+            const checked = planSchema.safeParse(output);
+            if (checked.success) {
+              const applied = await applyCommunityGrowthPlan(this.pool, checked.data, artifact.artifact_id, {
+                forceOverrideManual: options.forceOverrideManual ?? true,
+              });
+              const refreshed = await this.getCommunitySettings(workspaceId);
+              return {
+                applied: applied.applied,
+                reason: applied.reason,
+                artifact_id: artifact.artifact_id,
+                week1_target: refreshed.week1_target,
+                week2_target: refreshed.week2_target,
+                week3_target: refreshed.week3_target,
+                week4_target: refreshed.week4_target,
+                daily_invite_limit: refreshed.daily_invite_limit,
+                target_source: refreshed.target_source,
+                target_rationale: refreshed.target_rationale,
+              };
+            }
+          }
+        }
+      }
+    }
+
+    const refreshed = await this.getCommunitySettings(workspaceId);
+    return {
+      applied: false,
+      reason: 'GROWTH_LEAD_RUN_UNAVAILABLE',
+      artifact_id: refreshed.strategy_artifact_id,
+      week1_target: refreshed.week1_target,
+      week2_target: refreshed.week2_target,
+      week3_target: refreshed.week3_target,
+      week4_target: refreshed.week4_target,
+      daily_invite_limit: refreshed.daily_invite_limit,
+      target_source: refreshed.target_source,
+      target_rationale: refreshed.target_rationale,
+    };
   }
 
   async getHubData(workspaceId: string) {
@@ -2210,6 +3907,50 @@ export class CommunityHubService {
     const baseMonthVn = nowVn.getUTCMonth();
     const baseDayVn = nowVn.getUTCDate();
 
+    const postMetricsRows = (
+      await this.pool
+        .query<{
+          id: string;
+          source_id: string | null;
+          channel: 'group' | 'fanpage';
+          external_post_key: string;
+          post_title: string;
+          post_url: string | null;
+          likes_count: number;
+          comments_count: number;
+          shares_count: number;
+          sync_source: string;
+          published_at: Date | null;
+          last_synced_at: Date;
+        }>(
+          `SELECT id, source_id, channel, external_post_key, post_title, post_url,
+                  likes_count, comments_count, shares_count, sync_source, published_at, last_synced_at
+             FROM community_post_metrics
+            WHERE workspace_id = $1
+            ORDER BY last_synced_at DESC, published_at DESC NULLS LAST`,
+          [workspaceId],
+        )
+        .catch(() => ({ rows: [] }))
+    ).rows;
+
+    const metricsBySource = new Map<
+      string,
+      { group?: (typeof postMetricsRows)[number]; fanpage?: (typeof postMetricsRows)[number] }
+    >();
+    const metricsByUrl = new Map<string, (typeof postMetricsRows)[number]>();
+    for (const pm of postMetricsRows) {
+      if (pm.source_id) {
+        const entry = metricsBySource.get(pm.source_id) ?? {};
+        if (pm.channel === 'group' && !entry.group) entry.group = pm;
+        if (pm.channel === 'fanpage' && !entry.fanpage) entry.fanpage = pm;
+        metricsBySource.set(pm.source_id, entry);
+      }
+      const norm = this.normalizePostUrlKey(pm.post_url);
+      if (norm && !metricsByUrl.has(norm)) {
+        metricsByUrl.set(norm, pm);
+      }
+    }
+
     const calendarUsedImages = new Set<string>();
     let fallbackOffsetDays = 0;
 
@@ -2347,6 +4088,24 @@ export class CommunityHubService {
               ? `Chưa đăng Group (mới đăng Fanpage cũ ${formatted.short})`
               : `Sẵn sàng đăng Group`;
 
+      const sourceMetrics = metricsBySource.get(source.id);
+      const groupMetric =
+        sourceMetrics?.group ?? (groupPostUrl ? metricsByUrl.get(this.normalizePostUrlKey(groupPostUrl)) : undefined);
+      const pageMetric =
+        sourceMetrics?.fanpage ?? (fanpagePostUrl ? metricsByUrl.get(this.normalizePostUrlKey(fanpagePostUrl)) : undefined);
+      const groupLikes = Number(groupMetric?.likes_count ?? 0);
+      const groupComments = Number(groupMetric?.comments_count ?? 0);
+      const groupShares = Number(groupMetric?.shares_count ?? 0);
+      const pageLikes = Number(pageMetric?.likes_count ?? 0);
+      const pageComments = Number(pageMetric?.comments_count ?? 0);
+      const pageShares = Number(pageMetric?.shares_count ?? 0);
+      const totalItemLikes = groupLikes + pageLikes;
+      const totalItemComments = groupComments + pageComments;
+      const totalItemShares = groupShares + pageShares;
+      const lastMetricSync = [groupMetric?.last_synced_at, pageMetric?.last_synced_at]
+        .filter((d): d is Date => Boolean(d))
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+
       return {
         day_index: index + 1,
         day_label: dayLabel,
@@ -2396,6 +4155,19 @@ export class CommunityHubService {
         facebook_post_url: targetMode === 'fanpage' ? fanpagePostUrl : groupPostUrl ?? fanpagePostUrl,
         unique_topic_verified: true,
         unique_image_verified: isUniqueImage,
+        engagement: {
+          likes: totalItemLikes,
+          comments: totalItemComments,
+          shares: totalItemShares,
+          total_engagement: totalItemLikes + totalItemComments + totalItemShares,
+          group_likes: groupLikes,
+          group_comments: groupComments,
+          group_shares: groupShares,
+          page_likes: pageLikes,
+          page_comments: pageComments,
+          page_shares: pageShares,
+          last_synced_at: lastMetricSync ? new Date(lastMetricSync).toISOString() : null,
+        },
       };
     });
 
@@ -2406,25 +4178,158 @@ export class CommunityHubService {
     const manualProspects = members.filter((m) => m.external_ref.startsWith('manual:')).length;
     const fallbackGroupCount = Math.max(settings.group_member_count ?? 5, realIdentifiedPeople);
 
-    const [pageStats, groupStats, ragStats] = await Promise.all([
-      this.fetchRealPageStats(),
-      this.fetchRealGroupStats(settings.group_url, fallbackGroupCount, workspaceId),
-      this.pool.query<{
-        approved_sources: number;
-        total_chunks: number;
-        embedded_chunks: number;
-        inbound_messages: number;
-        grounded_replies: number;
-      }>(
-        `SELECT
-           (SELECT count(*)::int FROM sources WHERE workspace_id = $1 AND status = 'approved' AND deleted_at IS NULL) AS approved_sources,
-           (SELECT count(*)::int FROM source_chunks WHERE workspace_id = $1) AS total_chunks,
-           (SELECT count(*)::int FROM source_chunks WHERE workspace_id = $1 AND embedding IS NOT NULL) AS embedded_chunks,
-           (SELECT count(*)::int FROM community_messages WHERE workspace_id = $1) AS inbound_messages,
-           (SELECT count(*)::int FROM content_artifacts WHERE workspace_id = $1 AND operation = 'community.response') AS grounded_replies`,
-        [workspaceId],
-      ),
-    ]);
+    const [
+      pageStats,
+      groupStats,
+      ragStats,
+      snapshotQueryRes,
+      inviteSummaryRes,
+      inviteLogsRes,
+      messageSummaryRes,
+      recentCommentsRes,
+      engagementSnapshotQueryRes,
+    ] = await Promise.all([
+        this.fetchRealPageStats(),
+        this.fetchRealGroupStats(settings.group_url, fallbackGroupCount, workspaceId),
+        this.pool.query<{
+          approved_sources: number;
+          total_chunks: number;
+          embedded_chunks: number;
+          inbound_messages: number;
+          grounded_replies: number;
+        }>(
+          `SELECT
+             (SELECT count(*)::int FROM sources WHERE workspace_id = $1 AND status = 'approved' AND deleted_at IS NULL) AS approved_sources,
+             (SELECT count(*)::int FROM source_chunks WHERE workspace_id = $1) AS total_chunks,
+             (SELECT count(*)::int FROM source_chunks WHERE workspace_id = $1 AND embedding IS NOT NULL) AS embedded_chunks,
+             (SELECT count(*)::int FROM community_messages WHERE workspace_id = $1) AS inbound_messages,
+             (SELECT count(*)::int FROM content_artifacts WHERE workspace_id = $1 AND operation = 'community.response') AS grounded_replies`,
+          [workspaceId],
+        ),
+        this.pool
+          .query<{
+            id: string;
+            group_member_count: number;
+            page_followers_count: number | null;
+            identified_prospects_count: number;
+            invites_sent_count: number;
+            replies_sent_count: number;
+            campaign_week: number;
+            captured_at: Date;
+          }>(
+            `SELECT id, group_member_count, page_followers_count, identified_prospects_count,
+                    invites_sent_count, replies_sent_count, campaign_week, captured_at
+               FROM community_member_snapshots
+              WHERE workspace_id = $1
+              ORDER BY captured_at ASC
+              LIMIT 60`,
+            [workspaceId],
+          )
+          .catch(() => ({ rows: [] })),
+        this.pool
+          .query<{ sent_today: number; sent_7d: number; sent_total: number }>(
+            `SELECT
+               count(*) FILTER (WHERE status = 'invited' AND invited_at >= (date_trunc('day', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh'))::int AS sent_today,
+               count(*) FILTER (WHERE status = 'invited' AND invited_at >= NOW() - INTERVAL '7 days')::int AS sent_7d,
+               count(*) FILTER (WHERE status = 'invited')::int AS sent_total
+             FROM community_invite_logs
+             WHERE workspace_id = $1`,
+            [workspaceId],
+          )
+          .catch(() => ({ rows: [] })),
+        this.pool
+          .query<{
+            id: string;
+            target_ref: string;
+            display_name: string;
+            channel: string;
+            status: string;
+            detail: string | null;
+            invited_at: Date;
+          }>(
+            `SELECT id, target_ref, display_name, channel, status, detail, invited_at
+               FROM community_invite_logs
+              WHERE workspace_id = $1
+              ORDER BY invited_at DESC
+              LIMIT 25`,
+            [workspaceId],
+          )
+          .catch(() => ({ rows: [] })),
+        this.pool
+          .query<{
+            comments_received_count: number;
+            comments_replied_count: number;
+            messages_received_count: number;
+            messages_replied_count: number;
+            pending_questions_count: number;
+          }>(
+            `SELECT
+               count(*) FILTER (WHERE platform = 'facebook_comment')::int AS comments_received_count,
+               count(*) FILTER (WHERE platform = 'facebook_comment' AND status = 'replied')::int AS comments_replied_count,
+               count(*) FILTER (WHERE platform IN ('facebook_message', 'telegram_message'))::int AS messages_received_count,
+               count(*) FILTER (WHERE platform IN ('facebook_message', 'telegram_message') AND status = 'replied')::int AS messages_replied_count,
+               count(*) FILTER (WHERE status IN ('received', 'queued'))::int AS pending_questions_count
+             FROM community_messages
+             WHERE workspace_id = $1`,
+            [workspaceId],
+          )
+          .catch(() => ({ rows: [] })),
+        this.pool
+          .query<{
+            id: string;
+            platform: string;
+            external_id: string | null;
+            author_name: string;
+            author_contact: string | null;
+            content: string;
+            post_url: string | null;
+            status: string;
+            metadata: Record<string, unknown> | null;
+            received_at: Date;
+            updated_at: Date;
+            rag_reply_text: string | null;
+            reply_artifact_id: string | null;
+          }>(
+            `SELECT m.id, m.platform, m.external_id, m.author_name, m.author_contact, m.content,
+                    m.post_url, m.status, m.metadata, m.received_at, m.updated_at,
+                    COALESCE(a.payload->'result'->>'reply', m.metadata->>'reply_text') AS rag_reply_text,
+                    a.id AS reply_artifact_id
+               FROM community_messages m
+               LEFT JOIN workflow_tasks t ON t.id = m.task_id
+               LEFT JOIN content_artifacts a ON a.id = t.result_ref
+              WHERE m.workspace_id = $1
+              ORDER BY m.received_at DESC
+              LIMIT 30`,
+            [workspaceId],
+          )
+          .catch(() => ({ rows: [] })),
+        this.pool
+          .query<{
+            id: string;
+            total_posts_tracked: number;
+            total_likes: number;
+            total_comments: number;
+            total_shares: number;
+            group_likes: number;
+            group_comments: number;
+            group_shares: number;
+            page_likes: number;
+            page_comments: number;
+            page_shares: number;
+            group_members: number;
+            captured_at: Date;
+          }>(
+            `SELECT id, total_posts_tracked, total_likes, total_comments, total_shares,
+                    group_likes, group_comments, group_shares, page_likes, page_comments,
+                    page_shares, group_members, captured_at
+               FROM community_post_metric_snapshots
+              WHERE workspace_id = $1
+              ORDER BY captured_at ASC
+              LIMIT 60`,
+            [workspaceId],
+          )
+          .catch(() => ({ rows: [] })),
+      ]);
 
     if (groupStats.live_description) {
       settings.positioning = groupStats.live_description;
@@ -2434,12 +4339,65 @@ export class CommunityHubService {
     const realGroupMembers = groupStats.member_count ?? fallbackGroupCount;
     const realCommunityMembers = Math.max(realGroupMembers, realFollowers);
 
+    await this.captureMemberSnapshot(workspaceId, {
+      groupMemberCount: realGroupMembers,
+      pageFollowersCount: pageStats.followers_count,
+      identifiedProspectsCount: realIdentifiedPeople,
+    });
+
+    const snapshotRows = snapshotQueryRes.rows;
+    const earliestW1Snapshot = snapshotRows.find((s) => s.campaign_week === 1) ?? snapshotRows[0];
+    const currentCampaignWeek = currentVietnamCampaignWeek();
+    const week1BaselineMembers = earliestW1Snapshot?.group_member_count ?? realGroupMembers;
+
+    const inviteStatsRow = inviteSummaryRes.rows[0] ?? { sent_today: 0, sent_7d: 0, sent_total: 0 };
+    const dailyInviteLimit = clampDailyInviteLimit(settings.daily_invite_limit, 12);
+    const invitesSentToday = Number(inviteStatsRow.sent_today ?? 0);
+    const invitesRemainingToday = Math.max(0, dailyInviteLimit - invitesSentToday);
+    const invitesSent7d = Number(inviteStatsRow.sent_7d ?? 0);
+    const invitesSentTotal = Number(inviteStatsRow.sent_total ?? 0);
+
+    const msgSummaryRow = messageSummaryRes.rows[0] ?? {
+      comments_received_count: 0,
+      comments_replied_count: 0,
+      messages_received_count: 0,
+      messages_replied_count: 0,
+      pending_questions_count: 0,
+    };
+
+    const recentComments = recentCommentsRes.rows.map((row) => {
+      const meta = (row.metadata && typeof row.metadata === 'object' ? row.metadata : {}) as Record<string, unknown>;
+      const commentSource =
+        row.platform === 'facebook_comment'
+          ? meta.comment_source === 'group'
+            ? 'group_comment'
+            : 'page_comment'
+          : row.platform === 'telegram_message'
+            ? 'telegram'
+            : 'messenger';
+      return {
+        id: row.id,
+        platform: row.platform,
+        source_channel: commentSource,
+        external_id: row.external_id,
+        author_name: row.author_name,
+        content: row.content,
+        post_url: row.post_url || (typeof meta.permalink_url === 'string' ? meta.permalink_url : null),
+        status: row.status,
+        rag_reply_text: row.rag_reply_text,
+        reply_artifact_id: row.reply_artifact_id,
+        invite_sent: meta.private_invite_sent === true,
+        received_at: row.received_at,
+        updated_at: row.updated_at,
+      };
+    });
+
     const w1Target = settings.week1_target;
     const w2Target = settings.week2_target;
     const w3Target = settings.week3_target;
     const w4Target = settings.week4_target;
 
-    const week1Count = realCommunityMembers;
+    const week1Count = currentCampaignWeek <= 1 ? realCommunityMembers : week1BaselineMembers;
     const totalMatchedCount = realCommunityMembers;
     const campaignStatus = (target: number, previousTarget: number) =>
       realCommunityMembers >= target ? 'completed_target' : realCommunityMembers >= previousTarget ? 'active_campaign' : 'scheduled';
@@ -2462,6 +4420,11 @@ export class CommunityHubService {
           })`,
       );
 
+    const planWeek = (w: number) =>
+      Array.isArray(settings.weekly_targets_json)
+        ? settings.weekly_targets_json.find((item) => item && item.week === w)
+        : undefined;
+
     const weeklyCampaigns = [
       {
         week: 1,
@@ -2470,13 +4433,13 @@ export class CommunityHubService {
         target_members: w1Target,
         current_members: week1Count,
         status: campaignStatus(w1Target, 0),
-        theme: 'Đón thành viên đầu tiên, Chỗ ở ngắn hạn, Sim/eSIM, Ứng dụng thiết yếu & Thủ tục Tạm trú',
+        theme: planWeek(1)?.focus ?? 'Đón thành viên đầu tiên, Chỗ ở ngắn hạn, Sim/eSIM, Ứng dụng thiết yếu & Thủ tục Tạm trú',
         target_trends: ['Thuê căn hộ & Chỗ ở', 'eSIM & Ứng dụng thiết yếu', 'Khai báo tạm trú', 'Bảo hiểm & An toàn'],
-        responsible_agents: 'Growth Lead (Lập kế hoạch) • SEO & Content Agent (Bài viết cẩm nang) • Community Agent (Đăng Group & Mời khách từ Messenger)',
+        responsible_agents: 'Growth Lead (Đề xuất & Áp dụng KPI) • SEO & Content Agent (Bài viết cẩm nang) • Community Agent (Đăng Group, Trả lời Comment & Mời khách)',
         tactics: [
-          `[02/11 – 08/11/2026] Đã đạt ${week1Count}/${w1Target} thành viên thật trong Group "${settings.community_name}" và ghi nhận ${realIdentifiedPeople} khách hàng thật nhắn tin trên Fanpage "${settings.page_name}"`,
+          `[02/11 – 08/11/2026] Đạt ${week1Count}/${w1Target} thành viên thật trong Group "${settings.community_name}" và ghi nhận ${realIdentifiedPeople} người tương tác trên Fanpage/Group`,
           `[Đích đăng chính: Group Facebook] Đã đăng ${publishedGroupCount} bài trực tiếp vào Group "${settings.community_name}" (và ${publishedFanpageCount} bài lịch sử trên Fanpage cũ)`,
-          `[Hàng ngày] Community Agent tự động trả lời tin nhắn khách hàng bằng bộ RAG (${ragStats.rows[0]?.total_chunks ?? 430} đoạn trích dẫn đã duyệt) và gửi link mời vào Group`,
+          planWeek(1)?.channel_tactic ?? `[Hàng ngày] Community Agent tự động trả lời bình luận/tin nhắn bằng bộ RAG (${ragStats.rows[0]?.total_chunks ?? 430} đoạn trích dẫn) và gửi lời mời vào Group`,
         ],
       },
       {
@@ -2486,13 +4449,13 @@ export class CommunityHubService {
         target_members: w2Target,
         current_members: totalMatchedCount,
         status: campaignStatus(w2Target, w1Target),
-        theme: 'Sân bay nhập cảnh, Thời hạn Hộ chiếu, Vé khứ hồi, Rút tiền mặt/ATM & Chi phí mỗi ngày',
+        theme: planWeek(2)?.focus ?? 'Sân bay nhập cảnh, Thời hạn Hộ chiếu, Vé khứ hồi, Rút tiền mặt/ATM & Chi phí mỗi ngày',
         target_trends: ['Sân bay Hà Nội/Đà Nẵng/TP.HCM', 'Hộ chiếu & Vé khứ hồi', 'Ngân hàng & VietQR', 'Ngân sách mỗi ngày'],
-        responsible_agents: 'Growth Lead (Lịch 09/11–15/11) • SEO & Content Agent (Bài mới lúc 09:00 sáng mỗi ngày) • Community Bot (Đăng thẳng Group)',
+        responsible_agents: 'Growth Lead (Đề xuất & Áp dụng KPI) • SEO & Content Agent (Bài mới lúc 09:00 sáng) • Community Agent (Trả lời comment + Mời FB an toàn)',
         tactics: [
           `[09/11 – 15/11/2026 lúc 09:00 sáng] Đăng đều đặn 1 bài mới/ngày vào Group Cộng đồng theo đúng lịch ngày tháng cụ thể (${weekItems(2).length} chủ đề trong tuần + ảnh độc nhất)`,
-          `[09/11 – 15/11/2026] Community Agent tự động phân loại khách nhắn tin theo 4 nhóm nhu cầu (Nhập cảnh, Lưu trú, Ngân hàng/VietQR, Chi phí) và mời vào "${settings.community_name}"`,
-          '[Thứ Tư 11/11 & Thứ Bảy 14/11/2026] Mở 2 chủ đề thảo luận thực tế trong Group về so sánh chi phí sống và cách thanh toán VietQR/ATM cho người mới',
+          planWeek(2)?.channel_tactic ?? `[An toàn ${dailyInviteLimit} lời mời/ngày] Tự động gửi lời mời tham gia Group qua nút Mời FB & Messenger/Private Reply cho người hỏi liên quan`,
+          '[Tự động hóa Comment RAG] Tự động quét comment Fanpage & Group, trả lời chuẩn trích dẫn và gắn lời mời tham gia Group',
         ],
       },
       {
@@ -2502,13 +4465,13 @@ export class CommunityHubService {
         target_members: w3Target,
         current_members: totalMatchedCount,
         status: campaignStatus(w3Target, w2Target),
-        theme: 'Di chuyển Tàu/Xe/Máy bay, Thời điểm đẹp nhất du lịch, Cách tìm Địa chỉ Ngõ/Hẻm & Thủ tục E-Visa 2026',
+        theme: planWeek(3)?.focus ?? 'Di chuyển Tàu/Xe/Máy bay, Thời điểm đẹp nhất du lịch, Cách tìm Địa chỉ Ngõ/Hẻm & Thủ tục E-Visa 2026',
         target_trends: ['Phương tiện di chuyển', 'Thời tiết & Mùa du lịch', 'Địa chỉ ngõ/hẻm Việt Nam', 'Hướng dẫn E-Visa 2026'],
-        responsible_agents: 'Growth Lead (Lịch 16/11–22/11) • SEO & Content Agent (Bài mới lúc 09:00 sáng) • Community Agent (Kết nối thành viên cũ giải đáp thành viên mới)',
+        responsible_agents: 'Growth Lead (Lịch 16/11–22/11) • SEO & Content Agent (Bài mới lúc 09:00 sáng) • Community Agent (Trả lời Comment & Kết nối thành viên)',
         tactics: [
           `[16/11 – 22/11/2026 lúc 09:00 sáng] Xuất bản ${weekItems(3).length} bài chuyên sâu vào Group về di chuyển nội địa, mùa đẹp nhất đi Đà Nẵng/Hà Nội/Phú Quốc và thủ tục E-Visa chuẩn 2026`,
-          '[Thứ Năm 19/11/2026] Tổ chức phiên Hỏi - Đáp (Q&A) trực tiếp trên Group giữa các thành viên đã có kinh nghiệm sống tại Đà Nẵng với thành viên mới',
-          '[Chủ Nhật 22/11/2026] Tổng hợp các câu hỏi thực tế từ Messenger trong tuần để bổ sung vào chủ đề thảo luận chung của Group',
+          planWeek(3)?.channel_tactic ?? '[Tương tác Q&A] Tự động trả lời comment trên bài Group & Fanpage, dẫn link cẩm nang Pilot có CTA mời tham gia Group',
+          '[Chủ Nhật 22/11/2026] Tổng hợp các câu hỏi thực tế từ Messenger & Comment trong tuần để bổ sung vào chủ đề thảo luận chung của Group',
         ],
       },
       {
@@ -2518,13 +4481,13 @@ export class CommunityHubService {
         target_members: w4Target,
         current_members: totalMatchedCount,
         status: campaignStatus(w4Target, w3Target),
-        theme: 'Hoàn thiện Hành trang Chuyển đến Việt Nam, Chỗ ở 2 Tuần Đầu, Góc Làm việc Từ xa & Sự kiện Kết nối',
+        theme: planWeek(4)?.focus ?? 'Hoàn thiện Hành trang Chuyển đến Việt Nam, Chỗ ở 2 Tuần Đầu, Góc Làm việc Từ xa & Sự kiện Kết nối',
         target_trends: ['Hành lý chuyển đến VN', 'Chỗ ở 2 tuần đầu', 'Góc làm việc Remote Work', 'Offline/Online Meetup'],
-        responsible_agents: `Growth Lead & Performance Agent (Đo lường & Mở vòng học mới) • Content & Community Agent (Hoàn tất ${dailyCalendar.length}/${dailyCalendar.length} chủ đề)`,
+        responsible_agents: `Growth Lead & Performance Agent (Đo lường & Tự cập nhật KPI mới) • Content & Community Agent (Hoàn tất ${dailyCalendar.length}/${dailyCalendar.length} chủ đề)`,
         tactics: [
           `[23/11 – 30/11/2026 lúc 09:00 sáng] Xuất bản ${weekItems(4).length} bài cuối Tháng 11 và nối tiếp chuỗi sang đầu Tháng 12/2026 (${dailyCalendar.length} chủ đề, ${duplicationRatePct}% trùng ảnh)`,
-          '[Thứ Sáu 27/11/2026] Mở cuộc bình chọn (Community Poll) trên Group để thành viên chọn chủ đề ưu tiên cho Tháng 12/2026 (Lễ hội cuối năm & Giáng sinh)',
-          '[Chủ Nhật 29/11/2026] Performance Agent & Growth Lead tổng kết chỉ số tăng trưởng Tháng 11/2026 và kích hoạt kế hoạch Tháng 12/2026',
+          planWeek(4)?.channel_tactic ?? '[Cộng đồng tự vận hành] Duy trì nhịp mời an toàn & trả lời comment tự động từ RAG để giữ tương tác bền vững',
+          '[Chủ Nhật 29/11/2026] Performance Agent & Growth Lead tổng kết chỉ số tăng trưởng Tháng 11/2026 và tự động áp dụng mục tiêu tháng mới',
         ],
       },
     ];
@@ -2534,41 +4497,41 @@ export class CommunityHubService {
         week_number: 1,
         week_label: 'Tuần 1 (02/11/2026 00:00 – 08/11/2026 23:59)',
         date_range: '02/11/2026 00:00 – 08/11/2026 23:59',
-        member_target: `Mục tiêu: ${w1Target} thành viên (Thực tế đạt: ${week1Count}/${w1Target} — ✓ Đạt chỉ tiêu)`,
-        pillar_theme: 'Khởi chạy Cộng đồng, Cẩm nang Thiết yếu, Thuê nhà, eSIM, Đi chợ, Bảo hiểm & Tạm trú',
+        member_target: `Mục tiêu: ${w1Target} thành viên (Thực tế đạt: ${week1Count}/${w1Target} — ${week1Count >= w1Target ? '✓ Đạt chỉ tiêu' : '⏳ Đang theo dõi'})`,
+        pillar_theme: planWeek(1)?.focus ?? 'Khởi chạy Cộng đồng, Cẩm nang Thiết yếu, Thuê nhà, eSIM, Đi chợ, Bảo hiểm & Tạm trú',
         responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Group Bot',
         planned_topics: formatWeekTopics(weekItems(1)),
-        interactive_format: 'Chào mừng thành viên đầu tiên + Trả lời tự động khách hàng qua Messenger RAG và mời vào Group',
+        interactive_format: planWeek(1)?.channel_tactic ?? 'Chào mừng thành viên đầu tiên + Trả lời tự động khách hàng qua Messenger/Comment RAG và mời vào Group',
       },
       {
         week_number: 2,
         week_label: 'Tuần 2 (09/11/2026 00:00 – 15/11/2026 23:59)',
         date_range: '09/11/2026 00:00 – 15/11/2026 23:59',
-        member_target: `Mục tiêu: ${w2Target} thành viên (Hiện tại: ${totalMatchedCount}/${w2Target} — Đang chạy chiến dịch)`,
-        pillar_theme: 'Sân bay Nhập cảnh, Thời hạn Hộ chiếu, Vé khứ hồi, Tiền mặt/ATM, Chi phí Mỗi ngày & Mở Tài khoản Ngân hàng',
+        member_target: `Mục tiêu: ${w2Target} thành viên (Hiện tại: ${totalMatchedCount}/${w2Target} — ${totalMatchedCount >= w2Target ? '✓ Đạt chỉ tiêu' : 'Đang chạy chiến dịch'})`,
+        pillar_theme: planWeek(2)?.focus ?? 'Sân bay Nhập cảnh, Thời hạn Hộ chiếu, Vé khứ hồi, Tiền mặt/ATM, Chi phí Mỗi ngày & Mở Tài khoản Ngân hàng',
         responsible_agents: 'Growth Lead (Phân lịch 09/11–15/11) → SEO Agent → Content Agent (Đăng Group 09:00 sáng) → Community Agent',
         planned_topics: formatWeekTopics(weekItems(2)),
-        interactive_format: 'Mỗi bài đăng thẳng Group lúc 09:00 sáng kèm câu hỏi thảo luận mở + Gửi lời mời vào Group cho khách nhắn tin',
+        interactive_format: planWeek(2)?.channel_tactic ?? `Mỗi bài đăng Group lúc 09:00 sáng + Trả lời comment tự động RAG & Mời FB tối đa ${dailyInviteLimit} người/ngày`,
       },
       {
         week_number: 3,
         week_label: 'Tuần 3 (16/11/2026 00:00 – 22/11/2026 23:59)',
         date_range: '16/11/2026 00:00 – 22/11/2026 23:59',
         member_target: `Mục tiêu: ${w3Target} thành viên (Mở rộng tương tác đời sống địa phương)`,
-        pillar_theme: 'Thời điểm Đẹp nhất đến VN, Cách Tìm Địa chỉ Ngõ/Hẻm & Trọn bộ Thủ tục E-Visa Chính thức 2026',
+        pillar_theme: planWeek(3)?.focus ?? 'Thời điểm Đẹp nhất đến VN, Cách Tìm Địa chỉ Ngõ/Hẻm & Trọn bộ Thủ tục E-Visa Chính thức 2026',
         responsible_agents: 'Growth Lead (Phân lịch 16/11–22/11) → SEO Agent → Content Agent (Đăng Group 09:00 sáng) → Community Agent',
         planned_topics: formatWeekTopics(weekItems(3)),
-        interactive_format: 'Thảo luận tình huống thực tế trên Group về tìm địa chỉ ngõ/hẻm, đi tàu hỏa/máy bay nội địa và kiểm tra trang E-Visa chính thức',
+        interactive_format: planWeek(3)?.channel_tactic ?? 'Thảo luận tình huống thực tế trên Group & Tự động trả lời comment hỏi thủ tục/e-visa bằng nguồn RAG',
       },
       {
         week_number: 4,
         week_label: 'Tuần 4 (23/11/2026 00:00 – 30/11/2026 23:59)',
         date_range: '23/11/2026 00:00 – 30/11/2026 23:59',
         member_target: `Mục tiêu: ${w4Target} thành viên (Cộng đồng tự vận hành & Kết nối bền vững)`,
-        pillar_theme: 'Chuẩn bị Hành lý Chuyển đến VN, Chọn Khu vực Ở 2 Tuần Đầu & Thiết lập Góc Làm việc Từ xa (Remote Work)',
+        pillar_theme: planWeek(4)?.focus ?? 'Chuẩn bị Hành lý Chuyển đến VN, Chọn Khu vực Ở 2 Tuần Đầu & Thiết lập Góc Làm việc Từ xa (Remote Work)',
         responsible_agents: 'Growth Lead → SEO Agent → Content Agent → Community Group Bot → Performance Agent (Đánh giá KPI cuối tháng)',
         planned_topics: formatWeekTopics(weekItems(4)),
-        interactive_format: 'Bình chọn chủ đề Tháng 12/2026 + Vinh danh thành viên chia sẻ kinh nghiệm hữu ích nhất trong Group',
+        interactive_format: planWeek(4)?.channel_tactic ?? 'Bình chọn chủ đề Tháng 12/2026 + Vinh danh thành viên chia sẻ kinh nghiệm hữu ích nhất trong Group',
       },
     ];
 
@@ -2669,6 +4632,50 @@ export class CommunityHubService {
       grounded_replies: 6,
     };
 
+    const totalPostLikes = postMetricsRows.reduce((s, r) => s + Number(r.likes_count || 0), 0);
+    const totalPostComments = postMetricsRows.reduce((s, r) => s + Number(r.comments_count || 0), 0);
+    const totalPostShares = postMetricsRows.reduce((s, r) => s + Number(r.shares_count || 0), 0);
+    const totalPostEngagement = totalPostLikes + totalPostComments + totalPostShares;
+    const trackedPostsCount = postMetricsRows.length;
+    const avgEngagementPerPost =
+      trackedPostsCount > 0 ? Math.round((totalPostEngagement / trackedPostsCount) * 10) / 10 : 0;
+
+    const groupPostLikes = postMetricsRows
+      .filter((r) => r.channel === 'group')
+      .reduce((s, r) => s + Number(r.likes_count || 0), 0);
+    const groupPostComments = postMetricsRows
+      .filter((r) => r.channel === 'group')
+      .reduce((s, r) => s + Number(r.comments_count || 0), 0);
+    const groupPostShares = postMetricsRows
+      .filter((r) => r.channel === 'group')
+      .reduce((s, r) => s + Number(r.shares_count || 0), 0);
+    const fanpagePostLikes = postMetricsRows
+      .filter((r) => r.channel === 'fanpage')
+      .reduce((s, r) => s + Number(r.likes_count || 0), 0);
+    const fanpagePostComments = postMetricsRows
+      .filter((r) => r.channel === 'fanpage')
+      .reduce((s, r) => s + Number(r.comments_count || 0), 0);
+    const fanpagePostShares = postMetricsRows
+      .filter((r) => r.channel === 'fanpage')
+      .reduce((s, r) => s + Number(r.shares_count || 0), 0);
+
+    const engSnapshots = engagementSnapshotQueryRes.rows;
+    const firstEngSnap = engSnapshots[0];
+    const latestEngSnap = engSnapshots[engSnapshots.length - 1];
+    const firstMemberSnap = snapshotRows[0];
+    const latestMemberSnap = snapshotRows[snapshotRows.length - 1];
+    const memberGrowthDelta =
+      firstMemberSnap && latestMemberSnap
+        ? latestMemberSnap.group_member_count - firstMemberSnap.group_member_count
+        : 0;
+    const engagementGrowthDelta =
+      firstEngSnap && latestEngSnap
+        ? latestEngSnap.total_likes +
+          latestEngSnap.total_comments +
+          latestEngSnap.total_shares -
+          (firstEngSnap.total_likes + firstEngSnap.total_comments + firstEngSnap.total_shares)
+        : 0;
+
     return {
       synced_at: new Date().toISOString(),
       group: {
@@ -2681,6 +4688,31 @@ export class CommunityHubService {
         page_url: settings.page_url,
         connected_fanpage_id: settings.connected_fanpage_id,
         positioning: settings.positioning,
+        target_source: settings.target_source,
+        strategy_artifact_id: settings.strategy_artifact_id,
+        strategy_plan_id: settings.strategy_plan_id,
+        target_rationale: settings.target_rationale,
+        target_updated_at: settings.target_updated_at,
+        weekly_targets_json: settings.weekly_targets_json,
+        auto_reply_comments: settings.auto_reply_comments,
+        auto_invite_enabled: settings.auto_invite_enabled,
+        daily_invite_limit: dailyInviteLimit,
+        last_comment_sync_at: settings.last_comment_sync_at,
+        last_group_comment_sync_at: settings.last_group_comment_sync_at,
+        last_post_stats_sync_at: settings.last_post_stats_sync_at,
+        fb_admin_name: settings.fb_admin_name,
+        last_invite_run_at: settings.last_invite_run_at,
+      },
+      growth_lead_targets: {
+        target_source: settings.target_source,
+        strategy_artifact_id: settings.strategy_artifact_id,
+        strategy_plan_id: settings.strategy_plan_id,
+        rationale: settings.target_rationale,
+        updated_at: settings.target_updated_at,
+        weekly_targets: settings.weekly_targets_json,
+        auto_reply_comments: settings.auto_reply_comments,
+        auto_invite_enabled: settings.auto_invite_enabled,
+        daily_invite_limit: dailyInviteLimit,
       },
       stats: {
         total_matched_members: totalMatchedCount,
@@ -2689,12 +4721,24 @@ export class CommunityHubService {
         real_page_likes: pageStats.fan_count,
         real_identified_people: realIdentifiedPeople,
         manual_prospects: manualProspects,
+        current_campaign_week: currentCampaignWeek,
+        week1_baseline_members: week1BaselineMembers,
         week1_target: w1Target,
         week1_achieved: week1Count,
         week2_target: w2Target,
         week2_progress: totalMatchedCount,
         week3_target: w3Target,
         week4_target: w4Target,
+        daily_invite_limit: dailyInviteLimit,
+        invites_sent_today: invitesSentToday,
+        invites_remaining_today: invitesRemainingToday,
+        invites_sent_7d: invitesSent7d,
+        invites_sent_total: invitesSentTotal,
+        comments_received_count: msgSummaryRow.comments_received_count,
+        comments_replied_count: msgSummaryRow.comments_replied_count,
+        messages_received_count: msgSummaryRow.messages_received_count,
+        messages_replied_count: msgSummaryRow.messages_replied_count,
+        pending_questions_count: msgSummaryRow.pending_questions_count,
         active_discussions: discussions.length,
         total_approved_playbook_topics: uniqueSources.length,
         published_topics_count: publishedTopicsCount,
@@ -2706,6 +4750,20 @@ export class CommunityHubService {
         fresh_unposted_topics: dailyCalendar.filter((d) => d.status !== 'published').length,
         approved_unique_images: all30Assets.length,
         duplication_rate_pct: duplicationRatePct,
+        total_post_likes: totalPostLikes,
+        total_post_comments: totalPostComments,
+        total_post_shares: totalPostShares,
+        total_post_engagement: totalPostEngagement,
+        tracked_posts_count: trackedPostsCount,
+        avg_engagement_per_post: avgEngagementPerPost,
+        group_post_likes: groupPostLikes,
+        group_post_comments: groupPostComments,
+        group_post_shares: groupPostShares,
+        fanpage_post_likes: fanpagePostLikes,
+        fanpage_post_comments: fanpagePostComments,
+        fanpage_post_shares: fanpagePostShares,
+        member_growth_delta: memberGrowthDelta,
+        engagement_growth_delta: engagementGrowthDelta,
       },
       architecture_info: {
         agent_roles: [
@@ -2714,7 +4772,7 @@ export class CommunityHubService {
             agent_name: '1. Growth Lead Agent',
             operations: ['strategy.generate', 'opportunity.score', 'brief.generate'],
             responsibility:
-              'Chịu trách nhiệm LẬP KẾ HOẠCH CHIẾN DỊCH & LỊCH ĐĂNG BÀI (chọn chủ đề từ Research Agent, đặt mục tiêu KPI từng tuần và phân bổ lịch đăng cụ thể theo ngày/tuần/tháng).',
+              'Chịu trách nhiệm LẬP KẾ HOẠCH CHIẾN DỊCH, ĐỀ XUẤT & TỰ ĐỘNG ÁP DỤNG MỤC TIÊU TĂNG TRƯỞNG CỘNG ĐỒNG TỪNG TUẦN (dựa trên số liệu Group/Page/Lượt mời thật) và phân bổ lịch đăng cụ thể theo ngày/tuần/tháng.',
           },
           {
             agent_id: 'seo',
@@ -2735,27 +4793,61 @@ export class CommunityHubService {
             agent_name: '4. Community Manager Agent',
             operations: ['community.response', 'community.hub'],
             responsibility:
-              'Chịu trách nhiệm TƯƠNG TÁC & PHÁT TRIỂN THÀNH VIÊN CỘNG ĐỒNG: tự động trả lời tin nhắn/bình luận của khách hàng bằng bộ RAG có sẵn, gắn câu hỏi thảo luận mở vào bài đăng Group, nhận diện khách hàng cùng mối quan tâm từ Messenger Fanpage và gửi lời mời tham gia Group Facebook.',
+              'Chịu trách nhiệm TƯƠNG TÁC & MỜI THÀNH VIÊN AN TOÀN: tự động quét và trả lời bình luận trên Fanpage & Group bằng bộ RAG có sẵn, gửi lời mời vào Group thật (nút Mời Facebook & Private Reply/Messenger link, giới hạn an toàn 10–15/ngày) chứ không tự ý thêm người dùng.',
           },
         ],
         rag_reply_mechanism: {
-          mode: 'Tự động hóa hoàn toàn dựa trên bộ RAG có sẵn (RAG-Grounded Auto-Reply)',
+          mode: 'Tự động hóa hoàn toàn dựa trên bộ RAG có sẵn (RAG-Grounded Auto-Reply cho Messenger & Comment)',
           approved_sources_count: ragRow.approved_sources,
           total_chunks_count: ragRow.total_chunks,
           embedded_chunks_count: ragRow.embedded_chunks,
           inbound_messages_count: ragRow.inbound_messages,
           grounded_replies_count: ragRow.grounded_replies,
           steps: [
-            `Bước 1 — Thu nhận tin nhắn thật (Webhook & Live Sync): Khi user nhắn tin vào Fanpage "${settings.page_name}", hệ thống lưu vào bảng community_messages và tự động tạo task "community.response".`,
+            `Bước 1 — Thu nhận Messenger & Bình luận thật (Webhook + Graph Polling + Group Bot): Khi user nhắn tin hoặc bình luận trên Fanpage "${settings.page_name}" và Group "${settings.community_name}", hệ thống lưu vào bảng community_messages và tạo task "community.response".`,
             `Bước 2 — Truy xuất bộ RAG có sẵn (services/ai/src/rag/retrieval.py): Hệ thống đối chiếu câu hỏi của user với ${ragRow.total_chunks} đoạn văn bản (source_chunks) đã tích hợp trong bộ RAG bằng Vector Embedding (Cosine Similarity ≥ 0.5) kết hợp khớp từ khóa tiếng Việt/Anh để lấy ra Top 3 đoạn dẫn chứng chuẩn xác nhất.`,
             'Bước 3 — Sinh câu trả lời bám sát RAG & Kiểm duyệt chống bịa đặt (services/ai/src/agents/community/pipeline.py): Mô hình Gemini tổng hợp câu trả lời tự động NHƯNG bắt buộc chỉ dùng thông tin có trong các đoạn trích dẫn RAG vừa tìm được (kèm mã trích dẫn source_id & chunk_id). Nếu câu hỏi nằm ngoài dữ liệu RAG có sẵn, hệ thống tự động chặn lại (escalation_required = true) để chuyển cho người thật duyệt chứ tuyệt đối không tự bịa.',
-            'Bước 4 — Tự động gửi phản hồi qua Messenger (CommunityReplyRunner.ts): Ngay khi câu trả lời vượt qua kiểm tra trích dẫn RAG (isAutoApprovable), hệ thống tự động gửi phản hồi trực tiếp tới Messenger của khách hàng kèm link mời vào Group.',
+            `Bước 4 — Tự động trả lời & Gửi lời mời thật an toàn (CommunityReplyRunner.ts & FacebookGroupBot.ts): Khi vượt qua kiểm tra trích dẫn, hệ thống tự động trả lời Messenger / bình luận bài Fanpage & Group, đồng thời gửi lời mời tham gia Group chính thức trên Facebook (tối đa ${dailyInviteLimit} người/ngày).`,
           ],
         },
       },
       weekly_campaigns: weeklyCampaigns,
       matched_members: members,
       discussions,
+      recent_comments: recentComments,
+      recent_invite_logs: inviteLogsRes.rows,
+      snapshots: snapshotRows,
+      post_metrics: postMetricsRows.map((pm) => ({
+        id: pm.id,
+        source_id: pm.source_id,
+        channel: pm.channel,
+        external_post_key: pm.external_post_key,
+        post_title: pm.post_title,
+        post_url: pm.post_url,
+        likes_count: Number(pm.likes_count || 0),
+        comments_count: Number(pm.comments_count || 0),
+        shares_count: Number(pm.shares_count || 0),
+        total_engagement:
+          Number(pm.likes_count || 0) + Number(pm.comments_count || 0) + Number(pm.shares_count || 0),
+        sync_source: pm.sync_source,
+        published_at: pm.published_at ? new Date(pm.published_at).toISOString() : null,
+        last_synced_at: new Date(pm.last_synced_at).toISOString(),
+      })),
+      engagement_snapshots: engSnapshots.map((es) => ({
+        id: es.id,
+        total_posts_tracked: Number(es.total_posts_tracked || 0),
+        total_likes: Number(es.total_likes || 0),
+        total_comments: Number(es.total_comments || 0),
+        total_shares: Number(es.total_shares || 0),
+        group_likes: Number(es.group_likes || 0),
+        group_comments: Number(es.group_comments || 0),
+        group_shares: Number(es.group_shares || 0),
+        page_likes: Number(es.page_likes || 0),
+        page_comments: Number(es.page_comments || 0),
+        page_shares: Number(es.page_shares || 0),
+        group_members: Number(es.group_members || 0),
+        captured_at: new Date(es.captured_at).toISOString(),
+      })),
       calendar: {
         daily: dailyCalendar,
         weekly: weeklyCalendar,
@@ -3862,18 +5954,64 @@ export class CommunityHubService {
     };
   }
 
+  private inspectGroupBotSessionFileSafe(filePath: string): {
+    usingPageProfile: boolean;
+    accountIdMask?: string;
+  } {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const parsed = JSON.parse(raw) as {
+        cookies?: Array<{ name?: string; value?: string; domain?: string; expires?: number }>;
+      };
+      const nowSec = Math.floor(Date.now() / 1000);
+      const fbCookies = (parsed.cookies ?? []).filter(
+        (c) =>
+          typeof c?.domain === 'string' &&
+          c.domain.toLowerCase().includes('facebook.com') &&
+          (!c.expires || c.expires < 0 || c.expires > nowSec),
+      );
+      const cUser = fbCookies.find((c) => c.name === 'c_user')?.value?.trim() || '';
+      const iUser = fbCookies.find((c) => c.name === 'i_user')?.value?.trim() || '';
+      const activeId = iUser || cUser;
+      const accountIdMask = activeId.length >= 4 ? `***${activeId.slice(-4)}` : activeId ? '***' : undefined;
+      return {
+        usingPageProfile: Boolean(iUser && iUser !== cUser),
+        ...(accountIdMask ? { accountIdMask } : {}),
+      };
+    } catch {
+      return { usingPageProfile: false };
+    }
+  }
+
   /**
    * Fast synchronous check for whether a saved Edge Group Bot session file or FB_ADMIN_COOKIE exists.
    * Never exposes local filesystem paths or secret cookie contents.
    */
   async getGroupBotSessionStatus(): Promise<GroupBotSessionStatus> {
+    const loginInProgress = Boolean(
+      activeLoginChild && activeLoginChild.exitCode === null && !activeLoginChild.killed,
+    );
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
     if (session.exists) {
-      return { isLoggedIn: true, sessionSource: 'file' };
+      const meta = this.inspectGroupBotSessionFileSafe(session.filePath);
+      return {
+        isLoggedIn: true,
+        sessionSource: 'file',
+        ...(loginInProgress ? { loginInProgress: true } : {}),
+        ...(meta.usingPageProfile ? { usingPageProfile: true } : {}),
+        ...(meta.accountIdMask ? { accountIdMask: meta.accountIdMask } : {}),
+      };
     }
     if (process.env.FB_ADMIN_COOKIE?.trim()) {
-      return { isLoggedIn: true, sessionSource: 'cookie' };
+      return {
+        isLoggedIn: true,
+        sessionSource: 'cookie',
+        ...(loginInProgress ? { loginInProgress: true } : {}),
+      };
+    }
+    if (loginInProgress) {
+      return { isLoggedIn: false, sessionSource: 'none', loginInProgress: true };
     }
     return { isLoggedIn: false, sessionSource: 'none' };
   }
@@ -3881,12 +6019,13 @@ export class CommunityHubService {
   /**
    * Verifies live Group Bot session validity via Playwright Edge script (`check`).
    */
-  async verifyGroupBotSession(): Promise<GroupBotSessionStatus> {
+  async verifyGroupBotSession(workspaceId?: string): Promise<GroupBotSessionStatus> {
     const syncStatus = await this.getGroupBotSessionStatus();
     if (!syncStatus.isLoggedIn) {
       return {
         isLoggedIn: false,
         sessionSource: 'none',
+        ...(syncStatus.loginInProgress ? { loginInProgress: true } : {}),
         detail:
           'Chưa phát hiện tệp phiên đăng nhập .fb-session.json hoặc FB_ADMIN_COOKIE. Hãy bấm "Mở Edge Đăng nhập Group Bot (1 lần)".',
       };
@@ -3896,7 +6035,7 @@ export class CommunityHubService {
     const session = resolveGroupBotSessionFile(workerDir);
     const runner = resolveGroupBotRunner(workerDir);
 
-    return await new Promise((resolve) => {
+    const verified = await new Promise<GroupBotSessionStatus>((resolve) => {
       const child = spawn(runner.command, [...runner.prefixArgs, 'check'], {
         cwd: workerDir,
         env: { ...process.env, FB_SESSION_FILE: session.filePath },
@@ -3945,6 +6084,15 @@ export class CommunityHubService {
         clearTimeout(timer);
         const parsed = parseGroupBotResultLine(stdout);
         const isLoggedIn = Boolean(parsed?.isLoggedIn ?? (code === 0));
+        const usingPageProfile =
+          typeof parsed?.usingPageProfile === 'boolean'
+            ? parsed.usingPageProfile
+            : syncStatus.usingPageProfile;
+        const accountIdMask =
+          typeof parsed?.accountIdMask === 'string' && parsed.accountIdMask
+            ? parsed.accountIdMask
+            : syncStatus.accountIdMask;
+        const adminName = sanitizeFbAdminName(typeof parsed?.adminName === 'string' ? parsed.adminName : null);
         const detail =
           typeof parsed?.detail === 'string' && parsed.detail.trim()
             ? parsed.detail.trim()
@@ -3954,17 +6102,62 @@ export class CommunityHubService {
         resolve({
           isLoggedIn,
           sessionSource: isLoggedIn ? syncStatus.sessionSource : 'none',
+          ...(usingPageProfile ? { usingPageProfile: true } : {}),
+          ...(accountIdMask ? { accountIdMask } : {}),
+          ...(adminName ? { adminName } : {}),
           detail,
         });
       });
     });
+
+    if (workspaceId && verified.isLoggedIn) {
+      if (verified.adminName) {
+        await this.pool
+          .query('UPDATE community_hub_settings SET fb_admin_name = $2 WHERE workspace_id = $1', [
+            workspaceId,
+            verified.adminName.slice(0, 250),
+          ])
+          .catch(() => {});
+      } else {
+        const existingRow = await this.pool
+          .query<{ fb_admin_name: string | null }>(
+            'SELECT fb_admin_name FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1',
+            [workspaceId],
+          )
+          .catch(() => ({ rows: [] as { fb_admin_name: string | null }[] }));
+        const current = existingRow.rows[0]?.fb_admin_name;
+        if (current && !sanitizeFbAdminName(current)) {
+          await this.pool
+            .query('UPDATE community_hub_settings SET fb_admin_name = NULL WHERE workspace_id = $1', [workspaceId])
+            .catch(() => {});
+        }
+      }
+    }
+
+    return verified;
   }
 
   /**
    * Launches a single visible Microsoft Edge window so the admin can log into Facebook once
-   * and save `.fb-session.json` for automated Group posting.
+   * (or switch to another FB account / Page Profile) and save `.fb-session.json` cleanly.
+   * Non-destructive: keeps the existing working `.fb-session.json` intact until a new session is committed.
    */
-  async launchGroupBotLogin(workspaceId?: string): Promise<{ started: boolean; alreadyRunning?: boolean; message: string }> {
+  async launchGroupBotLogin(
+    workspaceId?: string,
+    options: { fresh?: boolean; waitForConfirm?: boolean } = {},
+  ): Promise<{
+    started: boolean;
+    alreadyRunning?: boolean;
+    loginInProgress?: boolean;
+    cliFallbackCommand?: string;
+    message: string;
+  }> {
+    const isFresh = Boolean(options.fresh);
+    const waitForConfirm = options.waitForConfirm !== false;
+    const cliFallbackCommand = isFresh
+      ? 'npm.cmd --prefix apps/worker run group-bot:switch'
+      : 'npm.cmd --prefix apps/worker run group-bot:login';
+
     let groupUrl = 'https://www.facebook.com/groups/1134282109069209';
     if (workspaceId) {
       try {
@@ -3997,7 +6190,47 @@ export class CommunityHubService {
         );
       });
 
-    if (activeLoginChild && activeLoginChild.exitCode === null && !activeLoginChild.killed) {
+    const killExistingLoginEdge = async () => {
+      if (activeLoginSignalFile) {
+        try {
+          if (fs.existsSync(activeLoginSignalFile)) fs.unlinkSync(activeLoginSignalFile);
+        } catch {}
+        activeLoginSignalFile = null;
+      }
+      if (process.platform === 'win32') {
+        await runEncodedPowerShell(`
+$ErrorActionPreference = 'SilentlyContinue'
+Get-CimInstance Win32_Process | Where-Object {
+  ($_.Name -eq 'msedge.exe' -and $_.CommandLine -like '*playwright*') -or
+  ($_.Name -eq 'node.exe' -and $_.CommandLine -like '*runFacebookGroupBot*login*')
+} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+`);
+      }
+      if (activeLoginChild) {
+        try {
+          activeLoginChild.kill();
+        } catch {}
+        activeLoginChild = null;
+      }
+    };
+
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+
+    if (isFresh) {
+      await killExistingLoginEdge();
+      // Preserve existing working `.fb-session.json` (Playwright `--fresh` ignores it cleanly and
+      // writes `.pending.tmp` first, committing over `.fb-session.json` ONLY after verified login).
+      const explicitSession = Boolean(process.env.FB_SESSION_FILE?.trim());
+      const pendingCandidatesToClear = explicitSession
+        ? [`${session.filePath}.pending.tmp`]
+        : [`${session.filePath}.pending.tmp`, path.resolve(workerDir, '.fb-session.json.pending.tmp')];
+      for (const candidate of pendingCandidatesToClear) {
+        try {
+          if (candidate && fs.existsSync(candidate)) fs.unlinkSync(candidate);
+        } catch {}
+      }
+    } else if (activeLoginChild && activeLoginChild.exitCode === null && !activeLoginChild.killed) {
       if (process.platform === 'win32') {
         const focusResult = await runEncodedPowerShell(`
 $ErrorActionPreference = 'SilentlyContinue'
@@ -4005,12 +6238,16 @@ Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class WinFocusExisting {
+  [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int dwProcessId);
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   public static void BringFront(IntPtr hWnd) {
+    AllowSetForegroundWindow(-1);
     if (IsIconic(hWnd)) { ShowWindowAsync(hWnd, 9); } else { ShowWindowAsync(hWnd, 5); }
+    BringWindowToTop(hWnd);
     SetWindowPos(hWnd, new IntPtr(-1), 0, 0, 0, 0, 0x0003);
     SetWindowPos(hWnd, new IntPtr(-2), 0, 0, 0, 0, 0x0003);
     SetForegroundWindow(hWnd);
@@ -4031,36 +6268,48 @@ if ($found) { 'FOCUSED' } else { 'NONE' }
           return {
             started: true,
             alreadyRunning: true,
+            loginInProgress: true,
+            cliFallbackCommand,
             message:
-              'Cửa sổ Microsoft Edge đăng nhập Group Bot đang mở — hệ thống vừa đưa cửa sổ đó lên phía trước. Vui lòng hoàn tất đăng nhập Facebook rồi bấm "Kiểm tra phiên Group Bot".',
+              'Cửa sổ Microsoft Edge đăng nhập Group Bot đang mở — hệ thống vừa đưa cửa sổ đó lên phía trước. Hãy đăng nhập & chuyển sang Trang/Tài khoản Quản trị viên trên Edge rồi bấm "✅ Đã đổi xong trên Edge — Lưu & Đóng Edge" (hoặc đóng cửa sổ Edge).',
           };
         }
-        // Stale/invisible child without a real Edge window: clean up so user gets a fresh visible window
-        await runEncodedPowerShell(`
-$ErrorActionPreference = 'SilentlyContinue'
-Get-CimInstance Win32_Process | Where-Object {
-  ($_.Name -eq 'msedge.exe' -and $_.CommandLine -like '*playwright*') -or
-  ($_.Name -eq 'node.exe' -and $_.CommandLine -like '*runFacebookGroupBot*login*')
-} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-`);
-        try {
-          activeLoginChild.kill();
-        } catch {}
-        activeLoginChild = null;
+        await killExistingLoginEdge();
       } else {
         return {
           started: true,
           alreadyRunning: true,
+          loginInProgress: true,
+          cliFallbackCommand,
           message:
-            'Cửa sổ Microsoft Edge đăng nhập Group Bot đang mở sẵn. Vui lòng hoàn tất đăng nhập Facebook trên cửa sổ đó rồi quay lại bấm "Kiểm tra phiên Group Bot".',
+            'Cửa sổ Microsoft Edge đăng nhập Group Bot đang mở sẵn. Hãy hoàn tất đăng nhập / chuyển trang cá nhân trên Edge rồi bấm "✅ Đã đổi xong trên Edge — Lưu & Đóng Edge".',
         };
       }
     }
 
-    const workerDir = resolveWorkerDir();
-    const session = resolveGroupBotSessionFile(workerDir);
+    const prevFingerprint = readSessionFileFingerprint(session.filePath);
+    const attempt: LoginAttemptTracker = {
+      mode: isFresh ? 'switch' : 'login',
+      workspaceId,
+      sessionFilePath: session.filePath,
+      startedAtMs: Date.now(),
+      previousMtimeMs: prevFingerprint.mtimeMs,
+      previousHash: prevFingerprint.hash,
+      dbAdminUpdated: false,
+    };
+    activeLoginAttempt = attempt;
+
     const runner = resolveGroupBotRunner(workerDir);
+    const signalFile = waitForConfirm
+      ? path.join(os.tmpdir(), `fb-login-done-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}.sig`)
+      : '';
+    activeLoginSignalFile = signalFile || null;
+
     const runnerArgs = [...runner.prefixArgs, 'login', '--group-url', groupUrl];
+    if (isFresh) runnerArgs.push('--fresh');
+    if (waitForConfirm && signalFile) {
+      runnerArgs.push('--wait-confirm', '--signal-file', signalFile);
+    }
 
     return await new Promise((resolve) => {
       let resolved = false;
@@ -4080,7 +6329,7 @@ Get-CimInstance Win32_Process | Where-Object {
         const quotedArgs = runnerArgs.map((a) => psQ(winQ(a))).join(', ');
 
         // Launch Playwright via Start-Process -WindowStyle Minimized so Edge never inherits
-        // SW_HIDE from the background API service (:4000), then bring Edge to the foreground.
+        // SW_HIDE from the background API service (:4000), then restore & focus Edge cleanly.
         const psScript = `
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -4089,19 +6338,23 @@ Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class WinFocusLaunch {
+  [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int dwProcessId);
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   public static void BringFront(IntPtr hWnd) {
+    AllowSetForegroundWindow(-1);
     if (IsIconic(hWnd)) { ShowWindowAsync(hWnd, 9); } else { ShowWindowAsync(hWnd, 5); }
+    BringWindowToTop(hWnd);
     SetWindowPos(hWnd, new IntPtr(-1), 0, 0, 0, 0, 0x0003);
     SetWindowPos(hWnd, new IntPtr(-2), 0, 0, 0, 0, 0x0003);
     SetForegroundWindow(hWnd);
   }
 }
 "@
-for ($i = 0; $i -lt 32; $i++) {
+for ($i = 0; $i -lt 48; $i++) {
   if ($p.HasExited) { break }
   $focused = $false
   $edges = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'msedge.exe' -and $_.CommandLine -like '*playwright*' }
@@ -4173,6 +6426,12 @@ exit $p.ExitCode
 
       const clearActive = () => {
         if (activeLoginChild === child) activeLoginChild = null;
+        if (signalFile && activeLoginSignalFile === signalFile) {
+          try {
+            if (fs.existsSync(signalFile)) fs.unlinkSync(signalFile);
+          } catch {}
+          activeLoginSignalFile = null;
+        }
       };
 
       child.once('error', (err) => {
@@ -4183,7 +6442,8 @@ exit $p.ExitCode
           resolved = true;
           resolve({
             started: false,
-            message: `Không mở được cửa sổ Microsoft Edge để đăng nhập Group Bot: ${err.message}`,
+            cliFallbackCommand,
+            message: `Không mở được cửa sổ Microsoft Edge để đăng nhập Group Bot: ${err.message}. Bạn có thể mở PowerShell thường và chạy: ${cliFallbackCommand}`,
           });
         }
       });
@@ -4192,19 +6452,41 @@ exit $p.ExitCode
         clearTimeout(startupTimer);
         clearActive();
         cleanupTempLogs();
+        const parsed = parseGroupBotResultLine(outBuf);
+        if (code === 0 && parsed?.success) {
+          const parsedAdminName = sanitizeFbAdminName(
+            typeof parsed.adminName === 'string' ? parsed.adminName : null,
+          );
+          if (workspaceId && this.pool && typeof this.pool.query === 'function') {
+            this.pool
+              .query('UPDATE community_hub_settings SET fb_admin_name = $2 WHERE workspace_id = $1', [
+                workspaceId,
+                parsedAdminName ? parsedAdminName.slice(0, 250) : null,
+              ])
+              .catch(() => {});
+            attempt.dbAdminUpdated = true;
+          }
+          if (activeLoginAttempt === attempt) {
+            activeLoginAttempt = null;
+          }
+        }
         if (!resolved) {
           resolved = true;
-          const parsed = parseGroupBotResultLine(outBuf);
           if (code === 0 && parsed?.success) {
             resolve({
               started: true,
+              cliFallbackCommand,
               message: String(parsed.message || 'Đã lưu phiên đăng nhập Quản trị viên Group Bot thành công!'),
             });
           } else {
             resolve({
               started: false,
+              cliFallbackCommand,
               message: String(
-                parsed?.message || errBuf.trim() || outBuf.trim() || 'Cửa sổ đăng nhập Edge đóng trước khi hoàn tất.',
+                parsed?.message ||
+                  errBuf.trim() ||
+                  outBuf.trim() ||
+                  `Cửa sổ đăng nhập Edge đóng trước khi hoàn tất. Bạn có thể chạy trực tiếp: ${cliFallbackCommand}`,
               ),
             });
           }
@@ -4216,12 +6498,99 @@ exit $p.ExitCode
           resolved = true;
           resolve({
             started: true,
-            message:
-              'Đã mở cửa sổ Microsoft Edge để đăng nhập Quản trị viên Facebook (1 lần duy nhất)! Hãy đăng nhập tài khoản Facebook của bạn trên cửa sổ Edge vừa bật lên — trang này sẽ tự động cập nhật trạng thái Sẵn sàng sau khi bạn đăng nhập xong.',
+            loginInProgress: true,
+            cliFallbackCommand,
+            message: isFresh
+              ? `Đã mở cửa sổ Microsoft Edge sạch để đổi tài khoản (phiên cũ vẫn được giữ an toàn cho tới khi bạn lưu mới). Hãy đăng nhập hoặc bấm "Chuyển trang cá nhân" trên Edge rồi bấm "✅ Đã đổi xong trên Edge — Lưu & Đóng Edge". (Nếu Edge chưa hiện trên màn hình do server chạy trong phiên nền, hãy chạy trong PowerShell: ${cliFallbackCommand})`
+              : `Đã mở cửa sổ Microsoft Edge! Hãy đăng nhập và chuyển đúng tài khoản/Trang quản trị viên Group trên Edge — cửa sổ sẽ giữ mở để bạn thao tác, sau đó bấm "✅ Đã đổi xong trên Edge — Lưu & Đóng Edge" (hoặc tự đóng Edge). (Nếu Edge chưa hiện trên màn hình, chạy: ${cliFallbackCommand})`,
           });
         }
       }, 600);
     });
+  }
+
+  /**
+   * Starts a clean Edge login window so the admin can switch to another Facebook account or
+   * switch Facebook Profile/Page without losing the current `.fb-session.json` prematurely.
+   */
+  async switchGroupBotAccount(workspaceId?: string) {
+    return this.launchGroupBotLogin(workspaceId, { fresh: true, waitForConfirm: true });
+  }
+
+  /**
+   * Signals the open interactive login Edge window to commit the latest session cookies to
+   * `.fb-session.json` and close gracefully, returning the verified session status.
+   */
+  async completeGroupBotLogin(workspaceId?: string): Promise<{
+    completed: boolean;
+    session: GroupBotSessionStatus;
+    cliFallbackCommand?: string;
+    message: string;
+  }> {
+    const attemptSnapshot = activeLoginAttempt;
+    if (activeLoginSignalFile) {
+      try {
+        fs.writeFileSync(activeLoginSignalFile, 'done', 'utf8');
+      } catch {
+        // Ignore if signal file could not be written
+      }
+    }
+
+    const deadline = Date.now() + 7000;
+    while (Date.now() < deadline) {
+      const stillRunning = Boolean(
+        activeLoginChild && activeLoginChild.exitCode === null && !activeLoginChild.killed,
+      );
+      if (!stillRunning) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+
+    const workerDir = resolveWorkerDir();
+    const sessionFile = resolveGroupBotSessionFile(workerDir);
+    const session = await this.getGroupBotSessionStatus();
+    const fallbackCmd =
+      attemptSnapshot?.mode === 'switch'
+        ? 'npm.cmd --prefix apps/worker run group-bot:switch'
+        : 'npm.cmd --prefix apps/worker run group-bot:login';
+
+    if (session.isLoggedIn && !session.loginInProgress) {
+      if (attemptSnapshot?.mode === 'switch' && !hasNewSessionSinceAttempt(attemptSnapshot, sessionFile.filePath)) {
+        return {
+          completed: false,
+          session,
+          cliFallbackCommand: fallbackCmd,
+          message:
+            'Chưa phát hiện phiên mới được lưu từ cửa sổ Edge vừa mở (phiên cũ vẫn được giữ nguyên an toàn). Nếu không thấy cửa sổ Edge trên màn hình, hãy chạy lệnh "npm.cmd --prefix apps/worker run group-bot:switch" trong PowerShell, đăng nhập xong rồi đóng Edge.',
+        };
+      }
+
+      if (attemptSnapshot && !attemptSnapshot.dbAdminUpdated && workspaceId && this.pool && typeof this.pool.query === 'function') {
+        await this.pool
+          .query('UPDATE community_hub_settings SET fb_admin_name = NULL WHERE workspace_id = $1', [workspaceId])
+          .catch(() => {});
+      }
+      if (activeLoginAttempt === attemptSnapshot) {
+        activeLoginAttempt = null;
+      }
+
+      const profileDesc = session.usingPageProfile
+        ? `Page Profile (${session.accountIdMask ?? '***'})`
+        : `Tài khoản (${session.accountIdMask ?? 'đã lưu'})`;
+      return {
+        completed: true,
+        session,
+        message: `Đã lưu phiên Group Bot mới thành công [${profileDesc}] và đóng cửa sổ Edge an toàn.`,
+      };
+    }
+
+    return {
+      completed: false,
+      session,
+      cliFallbackCommand: fallbackCmd,
+      message: session.loginInProgress
+        ? 'Cửa sổ Edge vẫn đang xử lý đóng và lưu cookie. Vui lòng đợi vài giây hoặc tự đóng cửa sổ Edge sau khi đăng nhập xong.'
+        : 'Chưa thấy phiên Facebook đã đăng nhập trong .fb-session.json. Hãy mở lại Edge hoặc chạy lệnh PowerShell: "npm.cmd --prefix apps/worker run group-bot:switch".',
+    };
   }
 
   /**

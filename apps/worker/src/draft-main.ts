@@ -83,6 +83,24 @@ async function main() {
       void publishing.runOnce().then(result => { if (result !== 'idle') console.log('[publishing-outbox]', result); })
         .catch(error => console.error('[publishing-outbox]', (error as Error).message)).finally(() => { publishBusy = false; });
     }, 3000));
+
+    let communityAutopilotBusy = false;
+    const triggerCommunityAutopilot = () => {
+      if (communityAutopilotBusy) return;
+      communityAutopilotBusy = true;
+      void fetch(`${apiBase}/internal/community/autopilot`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(150_000),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`community autopilot HTTP ${res.status}`);
+          runReplies();
+        })
+        .catch((error) => console.error('[community-autopilot]', (error as Error).message))
+        .finally(() => { communityAutopilotBusy = false; });
+    };
+    timers.push(setTimeout(triggerCommunityAutopilot, 15_000), setInterval(triggerCommunityAutopilot, 180_000));
   }
   const stop = () => { timers.forEach(clearInterval); void pool.end().finally(() => process.exit(0)); };
   process.on('SIGINT', stop); process.on('SIGTERM', stop);

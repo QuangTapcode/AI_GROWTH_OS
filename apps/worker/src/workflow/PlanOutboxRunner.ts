@@ -80,6 +80,180 @@ export async function customerSignals(pool: Pool, workspaceId: string, until: Da
     ) asked GROUP BY signal ORDER BY max(at) DESC LIMIT 15`, [workspaceId, until])).rows.map((row) => row.signal);
 }
 
+function currentVietnamCampaignWeekWorker(now: Date = new Date()): number {
+  const vnTime = new Date(now.getTime() + 7 * 3600_000);
+  const targetMs = Date.UTC(vnTime.getUTCFullYear(), vnTime.getUTCMonth(), vnTime.getUTCDate());
+  if (targetMs < Date.UTC(2026, 10, 9)) return 1;
+  if (targetMs < Date.UTC(2026, 10, 16)) return 2;
+  if (targetMs < Date.UTC(2026, 10, 23)) return 3;
+  return 4;
+}
+
+async function loadCommunityContextForGrowthLead(pool: Pool, workspaceId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const settings = (
+      await pool.query<{
+        community_name: string | null;
+        group_member_count: number | null;
+        auto_reply_comments: boolean | null;
+        auto_invite_enabled: boolean | null;
+        daily_invite_limit: number | null;
+      }>(
+        `SELECT community_name, group_member_count, auto_reply_comments, auto_invite_enabled, daily_invite_limit
+           FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1`,
+        [workspaceId],
+      )
+    ).rows[0];
+    if (!settings) return null;
+
+    const latestSnap = (
+      await pool.query<{ group_member_count: number; page_followers_count: number | null }>(
+        `SELECT group_member_count, page_followers_count FROM community_member_snapshots
+          WHERE workspace_id = $1 ORDER BY captured_at DESC LIMIT 1`,
+        [workspaceId],
+      )
+    ).rows[0];
+    const w1Snap = (
+      await pool.query<{ group_member_count: number }>(
+        `SELECT group_member_count FROM community_member_snapshots
+          WHERE workspace_id = $1 AND campaign_week = 1 ORDER BY captured_at ASC LIMIT 1`,
+        [workspaceId],
+      )
+    ).rows[0];
+    const stats = (
+      await pool.query<{ prospects: number; invites_7d: number; replies_7d: number; pending: number }>(
+        `SELECT
+           (SELECT count(*)::int FROM community_hub_members WHERE workspace_id = $1 AND external_ref LIKE 'fb:%') AS prospects,
+           (SELECT count(*)::int FROM community_invite_logs WHERE workspace_id = $1 AND status = 'invited' AND invited_at >= NOW() - INTERVAL '7 days') AS invites_7d,
+           (SELECT count(*)::int FROM community_messages WHERE workspace_id = $1 AND status = 'replied' AND updated_at >= NOW() - INTERVAL '7 days') AS replies_7d,
+           (SELECT count(*)::int FROM community_messages WHERE workspace_id = $1 AND status IN ('received', 'queued')) AS pending`,
+        [workspaceId],
+      )
+    ).rows[0];
+
+    const dailyCap = Math.max(10, Math.min(15, Math.round(settings.daily_invite_limit ?? 12)));
+    return {
+      group_name: settings.community_name ?? undefined,
+      current_members: Math.max(0, latestSnap?.group_member_count ?? settings.group_member_count ?? 5),
+      week1_baseline_members: w1Snap?.group_member_count ?? settings.group_member_count ?? 5,
+      page_followers: latestSnap?.page_followers_count ?? null,
+      identified_prospects: stats?.prospects ?? 0,
+      invites_sent_7d: stats?.invites_7d ?? 0,
+      comments_replied_7d: stats?.replies_7d ?? 0,
+      pending_questions: stats?.pending ?? 0,
+      current_campaign_week: currentVietnamCampaignWeekWorker(),
+      daily_invite_cap: dailyCap,
+      auto_reply_comments: settings.auto_reply_comments !== false,
+      auto_invite_enabled: settings.auto_invite_enabled !== false,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function tryAutoApplyCommunityPlan(
+  pool: Pool,
+  workspaceId: string,
+  artifactId: string,
+  output: Record<string, unknown>,
+): Promise<void> {
+  const cgp = output.community_growth_plan as {
+    source?: string;
+    week1_target?: number;
+    week2_target?: number;
+    week3_target?: number;
+    week4_target?: number;
+    recommended_daily_invite_limit?: number;
+    weekly_targets?: unknown[];
+    rationale?: string;
+    current_members?: number;
+    recommended_auto_reply_comments?: boolean;
+    recommended_auto_invite_enabled?: boolean;
+  } | undefined;
+  if (!cgp || cgp.source !== 'growth_lead_agent') return;
+  if (
+    typeof cgp.week1_target !== 'number' ||
+    typeof cgp.week2_target !== 'number' ||
+    typeof cgp.week3_target !== 'number' ||
+    typeof cgp.week4_target !== 'number'
+  ) {
+    return;
+  }
+  const dailyLimit = Math.max(10, Math.min(15, Math.round(cgp.recommended_daily_invite_limit ?? 12)));
+  const planId = typeof output.plan_id === 'string' ? output.plan_id : null;
+  try {
+    const existing = (
+      await pool.query<{ target_source?: string | null }>(
+        'SELECT target_source FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1',
+        [workspaceId],
+      )
+    ).rows[0];
+    if (!existing) {
+      await pool.query(
+        `INSERT INTO community_hub_settings (
+          workspace_id, community_name, group_url, publish_target, page_name, page_url, positioning,
+          group_member_count, week1_target, week2_target, week3_target, week4_target,
+          target_source, strategy_artifact_id, strategy_plan_id, target_rationale, target_updated_at,
+          weekly_targets_json, auto_reply_comments, auto_invite_enabled, daily_invite_limit
+        ) VALUES (
+          $1, 'Cộng đồng Du lịch & Sống tại Việt Nam', 'https://www.facebook.com/groups/1134282109069209',
+          'group', 'Dịch vụ hỗ trợ du lịch', 'https://www.facebook.com/profile.php?id=61596152213281',
+          'Không gian chia sẻ kinh nghiệm Du lịch & Sống tại Việt Nam.',
+          $2, $3, $4, $5, $6,
+          'growth_lead_agent', $7, $8, $9, NOW(), $10::jsonb, $11, $12, $13
+        ) ON CONFLICT (workspace_id) DO NOTHING`,
+        [
+          workspaceId,
+          Math.max(0, cgp.current_members ?? 5),
+          cgp.week1_target,
+          cgp.week2_target,
+          cgp.week3_target,
+          cgp.week4_target,
+          artifactId,
+          planId,
+          cgp.rationale ?? null,
+          JSON.stringify(cgp.weekly_targets ?? []),
+          cgp.recommended_auto_reply_comments !== false,
+          cgp.recommended_auto_invite_enabled !== false,
+          dailyLimit,
+        ],
+      );
+      return;
+    }
+    if (existing.target_source === 'locked_manual') return;
+    await pool.query(
+      `UPDATE community_hub_settings
+          SET week1_target = $2,
+              week2_target = $3,
+              week3_target = $4,
+              week4_target = $5,
+              daily_invite_limit = $6,
+              target_source = 'growth_lead_agent',
+              strategy_artifact_id = $7,
+              strategy_plan_id = COALESCE($8, strategy_plan_id),
+              target_rationale = $9,
+              weekly_targets_json = $10::jsonb,
+              target_updated_at = NOW(),
+              updated_at = NOW()
+        WHERE workspace_id = $1`,
+      [
+        workspaceId,
+        cgp.week1_target,
+        cgp.week2_target,
+        cgp.week3_target,
+        cgp.week4_target,
+        dailyLimit,
+        artifactId,
+        planId,
+        cgp.rationale ?? null,
+        JSON.stringify(cgp.weekly_targets ?? []),
+      ],
+    );
+  } catch {
+    // community_hub_settings may be absent in isolated worker unit tests
+  }
+}
+
 export class PlanOutboxRunner {
   constructor(private pool: Pool, private ai: AiAdapter) {}
 
@@ -189,6 +363,8 @@ export class PlanOutboxRunner {
           WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='metrics.snapshot'
           ORDER BY (payload->'result'->>'window_end')::timestamptz DESC LIMIT 1`, [claimed.workspace_id, context.snapshot_id])).rows[0];
         if (measured?.payload?.artifact) payload.latest_metrics = { artifact: measured.payload.artifact, result: measured.payload.result, evidence: measured.evidence };
+        const communityContext = await loadCommunityContextForGrowthLead(this.pool, claimed.workspace_id);
+        if (communityContext) payload.community_context = communityContext;
       } else if (task.operation === 'community.response') {
         payload.question = taskInput.question;
         if (Array.isArray(taskInput.history) && taskInput.history.length > 0) {
@@ -293,6 +469,9 @@ export class PlanOutboxRunner {
         await db.query('COMMIT');
       } catch (error) { await db.query('ROLLBACK'); throw error; }
       finally { db.release(); }
+      if (task.operation === 'strategy.generate') {
+        await tryAutoApplyCommunityPlan(this.pool, claimed.workspace_id, artifact.artifact_id, result.output);
+      }
       return { task_id: task.id, artifact, output: result.output, evidence: result.evidence ?? [], model: result.model, run_id: result.run_id, status: 'awaiting_approval' };
     } catch (error) {
       console.error('[plan-outbox]', error);

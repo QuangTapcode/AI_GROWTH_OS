@@ -318,5 +318,133 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
         [workspaceId, taskId],
       );
     });
+
+    it("skips queuing outbox reply for facebook_comment when auto_reply_comments is disabled", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000105";
+      const taskId = "00000000-0000-0000-0000-000000000205";
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return {
+            rows: [
+              {
+                id: artifactId,
+                role: "community",
+                task_id: taskId,
+                payload: {
+                  result: {
+                    status: "draft",
+                    reply: "Bạn có thể xem khu An Thượng ở Đà Nẵng nhé.",
+                    lead_proposal: null,
+                  },
+                },
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_messages WHERE workspace_id = $1 AND task_id = $2")) {
+          return {
+            rows: [
+              {
+                id: "msg-cmt-disabled",
+                platform: "facebook_comment",
+                author_contact: "user-123",
+                author_name: "Ngọc Lan",
+                content: "Khu nào gần biển Mỹ Khê ạ?",
+                metadata: { comment_id: "cmt-555", comment_source: "page", from_name: "Ngọc Lan" },
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_hub_settings WHERE workspace_id = $1")) {
+          return {
+            rows: [
+              {
+                group_url: "https://www.facebook.com/groups/1134282109069209",
+                auto_reply_comments: false,
+                auto_invite_enabled: true,
+                daily_invite_limit: 12,
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_invite_logs")) {
+          return { rows: [{ invited_before: false, today_count: 2 }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO outbox_events"))).toBe(false);
+    });
+
+    it("queues facebook_comment page reply with RAG text + Group invite link & should_private_invite when enabled", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000106";
+      const taskId = "00000000-0000-0000-0000-000000000206";
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return {
+            rows: [
+              {
+                id: artifactId,
+                role: "community",
+                task_id: taskId,
+                payload: {
+                  result: {
+                    status: "draft",
+                    reply: "Khu An Thượng có nhiều căn hộ dịch vụ cách biển 5 phút đi bộ.",
+                    lead_proposal: null,
+                  },
+                },
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_messages WHERE workspace_id = $1 AND task_id = $2")) {
+          return {
+            rows: [
+              {
+                id: "msg-cmt-enabled",
+                platform: "facebook_comment",
+                author_contact: "comment:cmt-777",
+                author_name: "Minh Quân",
+                content: "An Thượng thuê dài hạn có tiện không ạ?",
+                post_url: "https://facebook.com/post/1",
+                metadata: { comment_id: "cmt-777", comment_source: "page", from_name: "Minh Quân" },
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_hub_settings WHERE workspace_id = $1")) {
+          return {
+            rows: [
+              {
+                group_url: "https://www.facebook.com/groups/1134282109069209",
+                auto_reply_comments: true,
+                auto_invite_enabled: true,
+                daily_invite_limit: 12,
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_invite_logs")) {
+          return { rows: [{ invited_before: false, today_count: 1 }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      const outbox = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO outbox_events"));
+      expect(outbox).toBeDefined();
+      const payload = JSON.parse(String(outbox![1][2]));
+      expect(payload).toMatchObject({
+        message_id: "msg-cmt-enabled",
+        platform: "facebook_comment",
+        comment_id: "cmt-777",
+        comment_source: "page",
+        should_private_invite: true,
+        invite_group_url: "https://www.facebook.com/groups/1134282109069209",
+      });
+      expect(payload.text).toContain("https://www.facebook.com/groups/1134282109069209");
+    });
   });
 });

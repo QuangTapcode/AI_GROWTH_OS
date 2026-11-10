@@ -2,6 +2,10 @@ export const SITE_ID = process.env.NEXT_PUBLIC_SITE_ID || "tripc-pilot";
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:4000/v1").replace(/\/$/, "");
 // Public routes live beside /v1 on the API origin.
 export const PUBLIC_BASE = `${API_BASE.replace(/\/v1$/, "")}/public/v1/sites/${SITE_ID}`;
+export const COMMUNITY_GROUP_URL =
+  process.env.NEXT_PUBLIC_COMMUNITY_GROUP_URL || "https://www.facebook.com/groups/1134282109069209";
+export const COMMUNITY_GROUP_NAME =
+  process.env.NEXT_PUBLIC_COMMUNITY_GROUP_NAME || "Cộng đồng Du lịch & Sống tại Việt Nam";
 
 export type PublicPost = {
   title: string;

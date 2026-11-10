@@ -49,3 +49,33 @@ footer { margin-top: 36px; display: flex; justify-content: space-between; gap: 2
 .lead-form .consent { display: flex; gap: 10px; align-items: flex-start; }
 .notice { color: #225a46; }
 .error { color: #9b2c2c; }
+.community-card {
+  margin-top: 32px;
+  background: white;
+  border: 1px solid #c6d4ce;
+  border-radius: 18px;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.article .community-card { max-width: 720px; }
+.community-card-copy h2 { margin: 6px 0 8px; font-size: 20px; }
+.community-card-copy p { margin: 0; }
+.community-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.community-cta-btn:hover { background: #0c5143; }
+@media (max-width: 600px) {
+  .community-card { flex-direction: column; align-items: flex-start; }
+}

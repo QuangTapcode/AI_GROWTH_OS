@@ -1,7 +1,67 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+
+const subscribeNoop = () => () => {};
+const getSwitchFallbackSnapshot = () =>
+  typeof HTMLInputElement !== "undefined" && !("switch" in HTMLInputElement.prototype);
+const getSwitchFallbackServerSnapshot = () => false;
+import Link from "next/link";
 import { apiRequest } from "@/lib/api";
+
+type WeeklyTargetPlanItem = {
+  week: number;
+  label: string;
+  member_target: number;
+  weekly_new_target: number;
+  focus: string;
+  channel_tactic: string;
+};
+
+type RecentCommentItem = {
+  id: string;
+  platform: string;
+  source_channel: string;
+  external_id: string | null;
+  author_name: string;
+  content: string;
+  post_url: string | null;
+  status: string;
+  rag_reply_text: string | null;
+  reply_artifact_id: string | null;
+  invite_sent: boolean;
+  received_at: string;
+  updated_at: string;
+};
+
+type InviteLogItem = {
+  id: string;
+  target_ref: string;
+  display_name: string;
+  channel: string;
+  status: string;
+  detail: string | null;
+  invited_at: string;
+};
+
+type MemberSnapshotItem = {
+  id: string;
+  group_member_count: number;
+  page_followers_count: number | null;
+  identified_prospects_count: number;
+  invites_sent_count: number;
+  replies_sent_count: number;
+  campaign_week: number;
+  captured_at: string;
+};
+
+type SearxngOpportunity = {
+  query: string;
+  title: string;
+  url: string;
+  snippet: string;
+  domain: string;
+};
 
 type WeeklyCampaign = {
   week: number;
@@ -61,6 +121,55 @@ type GroupBotSessionStatus = {
   isLoggedIn: boolean;
   sessionSource: "file" | "cookie" | "none";
   detail?: string;
+  loginInProgress?: boolean;
+  usingPageProfile?: boolean;
+  accountIdMask?: string;
+};
+
+type PostEngagementSummary = {
+  likes: number;
+  comments: number;
+  shares: number;
+  total_engagement: number;
+  group_likes: number;
+  group_comments: number;
+  group_shares: number;
+  page_likes: number;
+  page_comments: number;
+  page_shares: number;
+  last_synced_at: string | null;
+};
+
+type PostMetricItem = {
+  id: string;
+  source_id: string | null;
+  channel: "group" | "fanpage";
+  external_post_key: string;
+  post_title: string;
+  post_url: string | null;
+  likes_count: number;
+  comments_count: number;
+  shares_count: number;
+  total_engagement: number;
+  sync_source: string;
+  published_at: string | null;
+  last_synced_at: string;
+};
+
+type EngagementSnapshotItem = {
+  id: string;
+  total_posts_tracked: number;
+  total_likes: number;
+  total_comments: number;
+  total_shares: number;
+  group_likes: number;
+  group_comments: number;
+  group_shares: number;
+  page_likes: number;
+  page_comments: number;
+  page_shares: number;
+  group_members: number;
+  captured_at: string;
 };
 
 type DailyCalendarItem = {
@@ -110,6 +219,7 @@ type DailyCalendarItem = {
   post_body_preview?: string | null;
   unique_topic_verified: boolean;
   unique_image_verified: boolean;
+  engagement?: PostEngagementSummary;
 };
 
 type WeeklyCalendarItem = {
@@ -161,6 +271,31 @@ type HubResponse = {
     page_url: string;
     connected_fanpage_id: string;
     positioning: string;
+    target_source?: "growth_lead_agent" | "manual" | "locked_manual";
+    strategy_artifact_id?: string | null;
+    strategy_plan_id?: string | null;
+    target_rationale?: string | null;
+    target_updated_at?: string | null;
+    weekly_targets_json?: WeeklyTargetPlanItem[] | null;
+    auto_reply_comments?: boolean;
+    auto_invite_enabled?: boolean;
+    daily_invite_limit?: number;
+    last_comment_sync_at?: string | null;
+    last_group_comment_sync_at?: string | null;
+    last_post_stats_sync_at?: string | null;
+    fb_admin_name?: string | null;
+    last_invite_run_at?: string | null;
+  };
+  growth_lead_targets?: {
+    target_source: "growth_lead_agent" | "manual" | "locked_manual";
+    strategy_artifact_id: string | null;
+    strategy_plan_id: string | null;
+    rationale: string | null;
+    updated_at: string | null;
+    weekly_targets: WeeklyTargetPlanItem[] | null;
+    auto_reply_comments: boolean;
+    auto_invite_enabled: boolean;
+    daily_invite_limit: number;
   };
   stats: {
     total_matched_members: number;
@@ -169,12 +304,24 @@ type HubResponse = {
     real_page_likes: number | null;
     real_identified_people: number;
     manual_prospects: number;
+    current_campaign_week?: number;
+    week1_baseline_members?: number;
     week1_target: number;
     week1_achieved: number;
     week2_target: number;
     week2_progress: number;
     week3_target?: number;
     week4_target?: number;
+    daily_invite_limit?: number;
+    invites_sent_today?: number;
+    invites_remaining_today?: number;
+    invites_sent_7d?: number;
+    invites_sent_total?: number;
+    comments_received_count?: number;
+    comments_replied_count?: number;
+    messages_received_count?: number;
+    messages_replied_count?: number;
+    pending_questions_count?: number;
     active_discussions: number;
     total_approved_playbook_topics: number;
     published_topics_count?: number;
@@ -186,6 +333,20 @@ type HubResponse = {
     fresh_unposted_topics: number;
     approved_unique_images: number;
     duplication_rate_pct: number;
+    total_post_likes?: number;
+    total_post_comments?: number;
+    total_post_shares?: number;
+    total_post_engagement?: number;
+    tracked_posts_count?: number;
+    avg_engagement_per_post?: number;
+    group_post_likes?: number;
+    group_post_comments?: number;
+    group_post_shares?: number;
+    fanpage_post_likes?: number;
+    fanpage_post_comments?: number;
+    fanpage_post_shares?: number;
+    member_growth_delta?: number;
+    engagement_growth_delta?: number;
   };
   architecture_info?: {
     agent_roles: AgentRoleInfo[];
@@ -194,6 +355,11 @@ type HubResponse = {
   weekly_campaigns: WeeklyCampaign[];
   matched_members: MatchedMember[];
   discussions: DiscussionThread[];
+  recent_comments?: RecentCommentItem[];
+  recent_invite_logs?: InviteLogItem[];
+  snapshots?: MemberSnapshotItem[];
+  post_metrics?: PostMetricItem[];
+  engagement_snapshots?: EngagementSnapshotItem[];
   calendar: {
     daily: DailyCalendarItem[];
     weekly: WeeklyCalendarItem[];
@@ -202,6 +368,14 @@ type HubResponse = {
 };
 
 type WeekFilterId = `week${number}`;
+type HubTabId = "calendar" | "published_archive" | "campaigns" | "discussions" | "architecture";
+const HUB_TAB_ORDER: HubTabId[] = [
+  "calendar",
+  "published_archive",
+  "campaigns",
+  "discussions",
+  "architecture",
+];
 
 function buildShareableCardBody(item: DailyCalendarItem): string {
   if (item.post_body_preview && item.post_body_preview.trim()) {
@@ -251,9 +425,8 @@ export default function CommunityGrowthHub({
   const [loading, setLoading] = useState(true);
   const [syncingRealtime, setSyncingRealtime] = useState(false);
   const [lastSyncedDisplay, setLastSyncedDisplay] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<
-    "calendar" | "published_archive" | "campaigns" | "discussions" | "architecture"
-  >("calendar");
+  const [activeTab, setActiveTab] = useState<HubTabId>("calendar");
+  const tabButtonRefs = useRef<Partial<Record<HubTabId, HTMLButtonElement | null>>>({});
   const [calendarView, setCalendarView] = useState<"daily" | "weekly" | "monthly">("daily");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [bannerMessage, setBannerMessage] = useState<string>("");
@@ -263,10 +436,12 @@ export default function CommunityGrowthHub({
     body: string;
     prompt: string;
   } | null>(null);
+  const [bannerScrollId, setBannerScrollId] = useState(0);
   const [editingSettings, setEditingSettings] = useState(false);
   const editingSettingsRef = useRef(editingSettings);
   const bannerRef = useRef<HTMLDivElement | null>(null);
   const loginPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mutatingSettingsRef = useRef(false);
   useEffect(() => {
     editingSettingsRef.current = editingSettings;
   }, [editingSettings]);
@@ -285,9 +460,98 @@ export default function CommunityGrowthHub({
   const [customPublishTarget, setCustomPublishTarget] = useState<PublishTarget>("group");
   const [customGroupMemberCount, setCustomGroupMemberCount] = useState<number>(5);
   const [customWeek1Target, setCustomWeek1Target] = useState<number>(5);
-  const [customWeek2Target, setCustomWeek2Target] = useState<number>(50);
-  const [customWeek3Target, setCustomWeek3Target] = useState<number>(150);
-  const [customWeek4Target, setCustomWeek4Target] = useState<number>(300);
+  const [customWeek2Target, setCustomWeek2Target] = useState<number>(10);
+  const [customWeek3Target, setCustomWeek3Target] = useState<number>(18);
+  const [customWeek4Target, setCustomWeek4Target] = useState<number>(30);
+  const [autoReplyComments, setAutoReplyComments] = useState<boolean>(true);
+  const [autoInviteEnabled, setAutoInviteEnabled] = useState<boolean>(true);
+  const [dailyInviteLimit, setDailyInviteLimit] = useState<number>(12);
+  const [lockManualTargets, setLockManualTargets] = useState<boolean>(false);
+  const [manualTargetsTouched, setManualTargetsTouched] = useState<boolean>(false);
+  const [searxngOpportunities, setSearxngOpportunities] = useState<SearxngOpportunity[]>([]);
+  const [loginWaitingOnEdge, setLoginWaitingOnEdge] = useState<boolean>(false);
+  const [cliFallbackCommand, setCliFallbackCommand] = useState<string>(
+    "npm.cmd --prefix apps/worker run group-bot:switch"
+  );
+  const [copiedCliFallback, setCopiedCliFallback] = useState<boolean>(false);
+  const [commentChannelFilter, setCommentChannelFilter] = useState<"all" | "group_comment" | "page_comment">("all");
+  const [postMetricsChannelFilter, setPostMetricsChannelFilter] = useState<"all" | "group" | "fanpage">("all");
+  const switchFallbackNeeded = useSyncExternalStore(
+    subscribeNoop,
+    getSwitchFallbackSnapshot,
+    getSwitchFallbackServerSnapshot
+  );
+
+  const scrollTabIntoView = useCallback((tabId: HubTabId) => {
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      const btn = tabButtonRefs.current[tabId];
+      if (!btn || typeof btn.scrollIntoView !== "function") return;
+      (
+        btn.scrollIntoView as (
+          options?: ScrollIntoViewOptions & { container?: "all" | "nearest" }
+        ) => void
+      )({
+        block: "nearest",
+        inline: "nearest",
+        container: "nearest",
+      });
+    });
+  }, []);
+
+  const selectHubTab = useCallback(
+    (tabId: HubTabId, scrollTargetId?: string) => {
+      setActiveTab(tabId);
+      scrollTabIntoView(tabId);
+      if (scrollTargetId && typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            const target = document.getElementById(scrollTargetId);
+            if (!target) return;
+            const prefersReducedMotion =
+              typeof window.matchMedia === "function" &&
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            target.scrollIntoView({
+              behavior: prefersReducedMotion ? "auto" : "smooth",
+              block: "start",
+            });
+          });
+        });
+      }
+    },
+    [scrollTabIntoView]
+  );
+
+  const handleTabKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+      let nextIndex: number | null = null;
+      if (e.key === "ArrowRight") {
+        nextIndex = (currentIndex + 1) % HUB_TAB_ORDER.length;
+      } else if (e.key === "ArrowLeft") {
+        nextIndex = (currentIndex - 1 + HUB_TAB_ORDER.length) % HUB_TAB_ORDER.length;
+      } else if (e.key === "Home") {
+        nextIndex = 0;
+      } else if (e.key === "End") {
+        nextIndex = HUB_TAB_ORDER.length - 1;
+      }
+      if (nextIndex === null) return;
+      e.preventDefault();
+      const nextId = HUB_TAB_ORDER[nextIndex];
+      selectHubTab(nextId);
+      tabButtonRefs.current[nextId]?.focus();
+    },
+    [selectHubTab]
+  );
+
+  const handleCopyCliFallback = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(cliFallbackCommand);
+      setCopiedCliFallback(true);
+      setTimeout(() => setCopiedCliFallback(false), 2500);
+    } catch {
+      setCopiedCliFallback(false);
+    }
+  }, [cliFallbackCommand]);
 
   // Form states for adding prospect & creating discussion
   const [prospectName, setProspectName] = useState("");
@@ -421,6 +685,24 @@ export default function CommunityGrowthHub({
     }
   }, []);
 
+  useEffect(() => {
+    if (bannerScrollId === 0 || !bannerMessage || typeof window === "undefined") {
+      return;
+    }
+    const rafId = window.requestAnimationFrame(() => {
+      const el = bannerRef.current;
+      if (!el) return;
+      const prefersReducedMotion =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      el.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "nearest",
+      });
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [bannerScrollId, bannerMessage]);
+
   const showBanner = useCallback(
     (
       tone: "success" | "warning" | "error",
@@ -430,19 +712,7 @@ export default function CommunityGrowthHub({
       setBannerTone(tone);
       setBannerMessage(message);
       setBannerRecovery(recovery);
-      if (typeof window !== "undefined") {
-        window.requestAnimationFrame(() => {
-          const el = bannerRef.current;
-          if (!el) return;
-          const prefersReducedMotion =
-            typeof window.matchMedia === "function" &&
-            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-          el.scrollIntoView({
-            behavior: prefersReducedMotion ? "auto" : "smooth",
-            block: "nearest",
-          });
-        });
-      }
+      setBannerScrollId((prev) => prev + 1);
     },
     []
   );
@@ -454,9 +724,22 @@ export default function CommunityGrowthHub({
     setCustomPublishTarget(res.group.publish_target ?? "group");
     setCustomGroupMemberCount(res.stats.real_group_members ?? res.stats.week1_achieved ?? 5);
     setCustomWeek1Target(res.stats.week1_target || 5);
-    setCustomWeek2Target(res.stats.week2_target || 50);
-    setCustomWeek3Target(res.stats.week3_target || res.weekly_campaigns?.[2]?.target_members || 150);
-    setCustomWeek4Target(res.stats.week4_target || res.weekly_campaigns?.[3]?.target_members || 300);
+    setCustomWeek2Target(res.stats.week2_target || 10);
+    setCustomWeek3Target(res.stats.week3_target || res.weekly_campaigns?.[2]?.target_members || 18);
+    setCustomWeek4Target(res.stats.week4_target || res.weekly_campaigns?.[3]?.target_members || 30);
+    setAutoReplyComments(
+      res.group.auto_reply_comments ?? res.growth_lead_targets?.auto_reply_comments ?? true
+    );
+    setAutoInviteEnabled(
+      res.group.auto_invite_enabled ?? res.growth_lead_targets?.auto_invite_enabled ?? true
+    );
+    setDailyInviteLimit(
+      res.group.daily_invite_limit ?? res.stats.daily_invite_limit ?? 12
+    );
+    setLockManualTargets(
+      (res.group.target_source ?? res.growth_lead_targets?.target_source) === "locked_manual"
+    );
+    setManualTargetsTouched(false);
   }, []);
 
   const syncFromServer = useCallback(
@@ -464,7 +747,7 @@ export default function CommunityGrowthHub({
       try {
         const res = await apiRequest<HubResponse>(`/workspaces/${workspaceId}/community/hub`);
         setHub(res);
-        syncFormFromHub(res, editingSettingsRef.current);
+        syncFormFromHub(res, editingSettingsRef.current || mutatingSettingsRef.current);
         const now = res.synced_at ? new Date(res.synced_at) : new Date();
         setLastSyncedDisplay(now.toLocaleTimeString("vi-VN", { hour12: false }));
         return res;
@@ -524,23 +807,42 @@ export default function CommunityGrowthHub({
 
   async function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
+    mutatingSettingsRef.current = true;
     setBusyAction("save_settings");
     setBannerMessage("");
     setBannerRecovery(null);
     try {
+      const wasLocked =
+        (hub?.group.target_source ?? hub?.growth_lead_targets?.target_source) === "locked_manual";
+      const payloadBody: Record<string, unknown> = {
+        action: "update_settings",
+        community_name: customCommunityName.trim(),
+        group_url: customGroupUrl.trim(),
+        publish_target: customPublishTarget,
+        group_member_count: Number(customGroupMemberCount),
+        auto_reply_comments: autoReplyComments,
+        auto_invite_enabled: autoInviteEnabled,
+        daily_invite_limit: Number(dailyInviteLimit),
+      };
+      if (lockManualTargets) {
+        payloadBody.lock_manual = true;
+        payloadBody.week1_target = Number(customWeek1Target);
+        payloadBody.week2_target = Number(customWeek2Target);
+        payloadBody.week3_target = Number(customWeek3Target);
+        payloadBody.week4_target = Number(customWeek4Target);
+      } else if (manualTargetsTouched) {
+        payloadBody.week1_target = Number(customWeek1Target);
+        payloadBody.week2_target = Number(customWeek2Target);
+        payloadBody.week3_target = Number(customWeek3Target);
+        payloadBody.week4_target = Number(customWeek4Target);
+        if (wasLocked) payloadBody.target_source = "manual";
+      } else if (wasLocked && !lockManualTargets) {
+        payloadBody.target_source = "growth_lead_agent";
+      }
+
       const res = await apiRequest<{ data: HubResponse }>(`/workspaces/${workspaceId}/community/hub`, {
         method: "POST",
-        body: {
-          action: "update_settings",
-          community_name: customCommunityName.trim(),
-          group_url: customGroupUrl.trim(),
-          publish_target: customPublishTarget,
-          group_member_count: Number(customGroupMemberCount),
-          week1_target: Number(customWeek1Target),
-          week2_target: Number(customWeek2Target),
-          week3_target: Number(customWeek3Target),
-          week4_target: Number(customWeek4Target),
-        },
+        body: payloadBody,
       });
       setHub(res.data);
       syncFormFromHub(res.data, false);
@@ -554,7 +856,51 @@ export default function CommunityGrowthHub({
             : "Chỉ Group Cộng đồng";
       showBanner(
         "success",
-        `Đã lưu cấu hình Cộng đồng ("${res.data.group.name}") — Đích đăng mặc định: ${targetLabel} • Mục tiêu 4 tuần: ${res.data.stats.week1_target} → ${res.data.stats.week2_target} → ${res.data.stats.week3_target ?? customWeek3Target} → ${res.data.stats.week4_target ?? customWeek4Target} • Thành viên Group: ${res.data.stats.real_group_members}.`
+        `Đã lưu cấu hình Cộng đồng ("${res.data.group.name}") — Đích đăng: ${targetLabel} • Mục tiêu 4 tuần: ${res.data.stats.week1_target} → ${res.data.stats.week2_target} → ${res.data.stats.week3_target ?? customWeek3Target} → ${res.data.stats.week4_target ?? customWeek4Target} • Quota mời: ${res.data.group.daily_invite_limit ?? dailyInviteLimit} lượt/ngày.`
+      );
+      onUpdated?.();
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      mutatingSettingsRef.current = false;
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSyncGrowthLeadTargets() {
+    setBusyAction("sync_growth_lead_targets");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        sync_result: {
+          applied: boolean;
+          reason?: string;
+          week1_target: number;
+          week2_target: number;
+          week3_target: number;
+          week4_target: number;
+          daily_invite_limit: number;
+          target_rationale: string | null;
+        };
+        data: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: {
+          action: "sync_growth_lead_targets",
+          force_recalculate: true,
+          force_override_manual: true,
+        },
+      });
+      setHub(res.data);
+      syncFormFromHub(res.data, false);
+      setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      showBanner(
+        res.sync_result.applied ? "success" : "warning",
+        res.sync_result.applied
+          ? `🤖 Growth Lead Agent đã phân tích số liệu thực tế & tự động áp dụng mục tiêu mới: Tuần 1 (${res.sync_result.week1_target}) → Tuần 2 (${res.sync_result.week2_target}) → Tuần 3 (${res.sync_result.week3_target}) → Tuần 4 (${res.sync_result.week4_target}) thành viên • Giới hạn mời an toàn: ${res.sync_result.daily_invite_limit} lượt/ngày.`
+          : `⚠️ Không thể áp dụng tự động mục tiêu Growth Lead (${res.sync_result.reason || "locked_manual"}).`
       );
       onUpdated?.();
     } catch (err) {
@@ -564,40 +910,291 @@ export default function CommunityGrowthHub({
     }
   }
 
-  async function handleLaunchGroupBotLogin() {
-    stopLoginPolling();
-    setBusyAction("login_group_bot");
+  async function handleToggleCommunityAutomation(
+    field: "auto_reply_comments" | "auto_invite_enabled",
+    nextVal: boolean
+  ) {
+    const prevVal = field === "auto_reply_comments" ? autoReplyComments : autoInviteEnabled;
+    mutatingSettingsRef.current = true;
+    if (field === "auto_reply_comments") setAutoReplyComments(nextVal);
+    if (field === "auto_invite_enabled") setAutoInviteEnabled(nextVal);
+    setBusyAction(`toggle_${field}`);
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{ data: HubResponse }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: {
+          action: "update_settings",
+          [field]: nextVal,
+        },
+      });
+      setHub(res.data);
+      if (field === "auto_reply_comments") setAutoReplyComments(nextVal);
+      if (field === "auto_invite_enabled") setAutoInviteEnabled(nextVal);
+      setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      showBanner(
+        "success",
+        field === "auto_reply_comments"
+          ? nextVal
+            ? "✅ Đã BẬT chế độ Tự động trả lời Bình luận bằng RAG trên Fanpage & Group."
+            : "⏸️ Đã TẠM TẮT chế độ Tự động trả lời Bình luận (chỉ thu thập để xem trước)."
+          : nextVal
+            ? `✅ Đã BẬT chế độ Tự động gửi Lời mời Tham gia Group an toàn (tối đa ${res.data.group.daily_invite_limit ?? dailyInviteLimit} lượt/ngày).`
+            : "⏸️ Đã TẠM TẮT chế độ Tự động gửi Lời mời Tham gia Group."
+      );
+      onUpdated?.();
+    } catch (err) {
+      if (field === "auto_reply_comments") setAutoReplyComments(prevVal);
+      if (field === "auto_invite_enabled") setAutoInviteEnabled(prevVal);
+      showBanner("error", (err as Error).message);
+    } finally {
+      mutatingSettingsRef.current = false;
+      setBusyAction(null);
+    }
+  }
+
+  async function handleScanComments() {
+    setBusyAction("scan_comments");
     setBannerMessage("");
     setBannerRecovery(null);
     try {
       const res = await apiRequest<{
         status: string;
+        scan_result: {
+          page_ingested: number;
+          group_ingested: number;
+          queued_for_rag: number;
+          auto_reply_comments: boolean;
+          warnings: string[];
+        };
+        data: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "scan_comments", include_group_bot: true },
+      });
+      setHub(res.data);
+      setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      const warnSuffix =
+        res.scan_result.warnings.length > 0
+          ? ` (Lưu ý: ${res.scan_result.warnings.join(" | ")})`
+          : "";
+      showBanner(
+        res.scan_result.warnings.length > 0 ? "warning" : "success",
+        `💬 Đã quét bình luận thật (Fanpage: +${res.scan_result.page_ingested}, Group: +${res.scan_result.group_ingested}) • Đã xếp hàng ${res.scan_result.queued_for_rag} bình luận chờ trả lời RAG${res.scan_result.auto_reply_comments ? " (Auto-Reply ĐANG BẬT)" : " (Auto-Reply đang tắt)"}.${warnSuffix}`
+      );
+      onUpdated?.();
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSendSafeInvites() {
+    setBusyAction("send_safe_invites");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        invite_result: {
+          invited_count: number;
+          remaining_today: number;
+          daily_limit: number;
+          cap_reached: boolean;
+          disabled?: boolean;
+          results: { name: string; channel: string; status: string; detail: string }[];
+        };
+        data: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "send_safe_invites", max_batch: 5, include_native_group_ui: true },
+      });
+      setHub(res.data);
+      setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      if (res.invite_result.disabled) {
+        showBanner(
+          "warning",
+          "⚠️ Chế độ Tự động gửi lời mời vào Group đang TẮT. Hãy bật công tắc 'Tự động mời vào Group' trước khi chạy."
+        );
+      } else if (res.invite_result.cap_reached && res.invite_result.invited_count === 0) {
+        showBanner(
+          "warning",
+          `🛡️ Đã chạm ngưỡng an toàn hôm nay (${res.invite_result.daily_limit}/${res.invite_result.daily_limit} lời mời). Hệ thống tự động nghỉ đến ngày mai để bảo vệ tài khoản khỏi bị Facebook hạn chế.`
+        );
+      } else {
+        const detailSummary =
+          res.invite_result.results
+            .slice(0, 3)
+            .map((r) => `${r.name} [${r.channel}]: ${r.detail}`)
+            .join(" | ") || "Đã đồng bộ nhật ký lời mời";
+        showBanner(
+          res.invite_result.invited_count > 0 ? "success" : "warning",
+          `✉️ Đã gửi ${res.invite_result.invited_count} lời mời tham gia Group an toàn (còn ${res.invite_result.remaining_today}/${res.invite_result.daily_limit} lượt hôm nay). ${detailSummary}`
+        );
+      }
+      onUpdated?.();
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleDiscoverOpportunities() {
+    setBusyAction("discover_opportunities");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        opportunities: SearxngOpportunity[];
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "discover_opportunities" },
+      });
+      setSearxngOpportunities(res.opportunities ?? []);
+      showBanner(
+        (res.opportunities?.length ?? 0) > 0 ? "success" : "warning",
+        (res.opportunities?.length ?? 0) > 0
+          ? `🔍 SearXNG vừa tìm thấy ${res.opportunities.length} chủ đề & thảo luận công khai có người đang hỏi về du lịch/cư trú Việt Nam để mời vào cộng đồng.`
+          : "🔍 Chưa tìm thêm được luồng thảo luận mới từ SearXNG (kiểm tra container SearXNG đang chạy ở cổng 18081)."
+      );
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function startLoginSessionPolling(successVerb: string) {
+    stopLoginPolling();
+    let attempts = 0;
+    loginPollTimerRef.current = setInterval(() => {
+      attempts += 1;
+      void (async () => {
+        const latest = await syncFromServer({ showErrorOnFailure: false });
+        const sess = latest?.group?.group_bot_session;
+        if (sess?.isLoggedIn && !sess?.loginInProgress) {
+          stopLoginPolling();
+          setLoginWaitingOnEdge(false);
+          const profileDesc = sess.usingPageProfile
+            ? `Page Profile (${sess.accountIdMask ?? "***"})`
+            : sess.accountIdMask
+              ? `Tài khoản (${sess.accountIdMask})`
+              : "Phiên Edge";
+          showBanner(
+            "success",
+            `✅ Đã ${successVerb} Facebook Group Bot thành công [${profileDesc}]! Hệ thống sẵn sàng tự động đăng bài và trả lời comment trong Group.`
+          );
+          onUpdated?.();
+        } else if (attempts >= 72) {
+          stopLoginPolling();
+        }
+      })();
+    }, 2500);
+  }
+
+  async function handleLaunchGroupBotLogin() {
+    stopLoginPolling();
+    setBusyAction("login_group_bot");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    setCopiedCliFallback(false);
+    try {
+      const res = await apiRequest<{
+        status: string;
         started: boolean;
         alreadyRunning?: boolean;
+        loginInProgress?: boolean;
+        cliFallbackCommand?: string;
         message: string;
       }>(`/workspaces/${workspaceId}/community/hub`, {
         method: "POST",
-        body: { action: "login_group_bot" },
+        body: { action: "login_group_bot", wait_confirm: true },
       });
+      setCliFallbackCommand(
+        res.cliFallbackCommand || "npm.cmd --prefix apps/worker run group-bot:login"
+      );
       showBanner(res.started ? "warning" : "error", res.message);
       if (res.started) {
-        let attempts = 0;
-        loginPollTimerRef.current = setInterval(() => {
-          attempts += 1;
-          void (async () => {
-            const latest = await syncFromServer({ showErrorOnFailure: false });
-            if (latest?.group?.group_bot_session?.isLoggedIn) {
-              stopLoginPolling();
-              showBanner(
-                "success",
-                "✅ Đã lưu phiên đăng nhập Quản trị viên Facebook Group Bot thành công! Hệ thống sẵn sàng tự động đăng bài vào Group Cộng đồng."
-              );
-              onUpdated?.();
-            } else if (attempts >= 36) {
-              stopLoginPolling();
-            }
-          })();
-        }, 2500);
+        setLoginWaitingOnEdge(true);
+        startLoginSessionPolling("lưu phiên đăng nhập");
+      }
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSwitchGroupBotAccount() {
+    stopLoginPolling();
+    setBusyAction("switch_group_bot_account");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    setCopiedCliFallback(false);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        started: boolean;
+        loginInProgress?: boolean;
+        cliFallbackCommand?: string;
+        message: string;
+        data?: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "switch_group_bot_account" },
+      });
+      if (res.data) {
+        setHub(res.data);
+      }
+      setCliFallbackCommand(
+        res.cliFallbackCommand || "npm.cmd --prefix apps/worker run group-bot:switch"
+      );
+      showBanner(res.started ? "warning" : "error", res.message);
+      if (res.started) {
+        setLoginWaitingOnEdge(true);
+        startLoginSessionPolling("đổi sang tài khoản / Trang Quản trị viên mới cho");
+      }
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleCompleteGroupBotLogin() {
+    setBusyAction("complete_group_bot_login");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        completed: boolean;
+        session: GroupBotSessionStatus;
+        cliFallbackCommand?: string;
+        message: string;
+        data?: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "complete_group_bot_login" },
+      });
+      if (res.cliFallbackCommand) {
+        setCliFallbackCommand(res.cliFallbackCommand);
+      }
+      if (res.data) {
+        setHub(res.data);
+        setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      }
+      if (res.completed) {
+        stopLoginPolling();
+        setLoginWaitingOnEdge(false);
+        showBanner("success", `✅ ${res.message}`);
+        onUpdated?.();
+      } else {
+        showBanner("warning", `⏳ ${res.message}`);
       }
     } catch (err) {
       showBanner("error", (err as Error).message);
@@ -615,6 +1212,9 @@ export default function CommunityGrowthHub({
         status: string;
         isLoggedIn: boolean;
         sessionSource: "file" | "cookie" | "none";
+        usingPageProfile?: boolean;
+        accountIdMask?: string;
+        loginInProgress?: boolean;
         detail?: string;
         data?: HubResponse;
       }>(`/workspaces/${workspaceId}/community/hub`, {
@@ -625,10 +1225,18 @@ export default function CommunityGrowthHub({
         setHub(res.data);
         setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
       }
+      if (!res.loginInProgress) {
+        setLoginWaitingOnEdge(false);
+      }
       if (res.isLoggedIn) {
+        const profileNote = res.usingPageProfile
+          ? ` [Đang dùng Page Profile ${res.accountIdMask ?? ""}]`
+          : res.accountIdMask
+            ? ` [${res.accountIdMask}]`
+            : "";
         showBanner(
           "success",
-          `✅ ${res.detail || "Phiên Quản trị viên Facebook Group Bot đang hoạt động và sẵn sàng tự động đăng bài vào Group!"}`
+          `✅ ${res.detail || "Phiên Quản trị viên Facebook Group Bot đang hoạt động và sẵn sàng tự động đăng bài vào Group!"}${profileNote}`
         );
         onUpdated?.();
       } else {
@@ -637,6 +1245,44 @@ export default function CommunityGrowthHub({
           `⚠️ ${res.detail || "Chưa phát hiện phiên đăng nhập Quản trị viên Facebook Group. Hãy bấm 'Mở Edge Đăng nhập Group Bot (1 lần)'."}`
         );
       }
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSyncPostStats() {
+    setBusyAction("sync_post_stats");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        sync_stats_result: {
+          fanpage_posts_synced: number;
+          group_posts_synced: number;
+          total_likes: number;
+          total_comments: number;
+          total_shares: number;
+          warnings: string[];
+        };
+        data: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "sync_post_stats", include_group_bot: true },
+      });
+      if (res.data) {
+        setHub(res.data);
+        setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      }
+      const r = res.sync_stats_result;
+      const warnSuffix = r.warnings.length > 0 ? ` (${r.warnings.join(" | ")})` : "";
+      showBanner(
+        r.warnings.length > 0 && r.fanpage_posts_synced + r.group_posts_synced === 0 ? "warning" : "success",
+        `📊 Đã đồng bộ thống kê ${r.group_posts_synced} bài Group & ${r.fanpage_posts_synced} bài Fanpage: ${r.total_likes} Likes · ${r.total_comments} Comments · ${r.total_shares} Chia sẻ.${warnSuffix}`
+      );
+      onUpdated?.();
     } catch (err) {
       showBanner("error", (err as Error).message);
     } finally {
@@ -1028,6 +1674,7 @@ export default function CommunityGrowthHub({
 
   const targetMode: PublishTarget = hub.group.publish_target ?? "group";
   const groupBotSession = hub.group.group_bot_session;
+  const isEdgeLoginOpen = loginWaitingOnEdge || Boolean(groupBotSession?.loginInProgress);
   const todayVn = getTodayVnParts();
 
   const publishedGroupCount =
@@ -1230,11 +1877,10 @@ export default function CommunityGrowthHub({
     return (
       <section
         id="published-posts-by-date"
-        aria-label="Mục các bài đã đăng theo ngày tháng năm"
         className="space-y-4 rounded-2xl border-2 border-emerald-300 bg-gradient-to-b from-emerald-50/70 to-white p-4 sm:p-5 shadow-sm"
       >
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-[1_1_420px]">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-md bg-emerald-700 px-2.5 py-0.5 text-xs font-bold text-white">
                 📚 LƯU TRỮ BÀI ĐÃ ĐĂNG (KHÔNG BAO GIỜ ẨN)
@@ -1263,7 +1909,7 @@ export default function CommunityGrowthHub({
                 setArchiveExactDate("");
                 setArchiveSearch("");
               }}
-              className="self-start rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100"
+              className="max-w-full self-start rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100"
             >
               🔄 Xóa lọc ngày đã đăng
             </button>
@@ -1470,7 +2116,7 @@ export default function CommunityGrowthHub({
                           <img
                             src={item.image_url}
                             alt={item.topic_title}
-                            className="h-20 w-24 shrink-0 rounded-lg border border-slate-200 object-cover"
+                            className="block aspect-[6/5] w-24 shrink-0 rounded-lg border border-slate-200 object-cover"
                             loading="lazy"
                           />
                           <div className="min-w-0 flex-1 space-y-1">
@@ -1497,6 +2143,11 @@ export default function CommunityGrowthHub({
                               {isFanpagePub && (
                                 <span className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
                                   📘 Fanpage
+                                </span>
+                              )}
+                              {item.engagement && (item.engagement.total_engagement > 0 || isGroupPub || isFanpagePub) && (
+                                <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-900">
+                                  ❤️ {item.engagement.likes} · 💬 {item.engagement.comments} · ↗️ {item.engagement.shares}
                                 </span>
                               )}
                             </div>
@@ -1571,6 +2222,270 @@ export default function CommunityGrowthHub({
     );
   }
 
+  function renderPostEngagementStatsSection(currentHub: HubResponse) {
+    const allPostMetrics = currentHub.post_metrics ?? [];
+    const filteredPostMetrics = allPostMetrics.filter((m) =>
+      postMetricsChannelFilter === "all" ? true : m.channel === postMetricsChannelFilter
+    );
+    const engSnapshots = currentHub.engagement_snapshots ?? [];
+    const memberDelta = currentHub.stats.member_growth_delta ?? 0;
+    const engagementDelta = currentHub.stats.engagement_growth_delta ?? 0;
+
+    return (
+      <div id="post-engagement-stats-panel" className="min-w-0 space-y-5">
+        {/* Bảng 1: Thống kê Like / Comment / Share từng bài đã đăng */}
+        <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-[1_1_420px]">
+              <div className="community-pill-row gap-2">
+                <span className="rounded-md bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                  📊 THỐNG KÊ TƯƠNG TÁC BÀI ĐÃ ĐĂNG
+                </span>
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold text-slate-800">
+                  ❤️ {currentHub.stats.total_post_likes ?? 0} Likes · 💬 {currentHub.stats.total_post_comments ?? 0} Comments · ↗️ {currentHub.stats.total_post_shares ?? 0} Chia sẻ
+                </span>
+                {currentHub.group.last_post_stats_sync_at && (
+                  <span className="text-[11px] text-slate-500">
+                    Cập nhật: {new Date(currentHub.group.last_post_stats_sync_at).toLocaleString("vi-VN", { hour12: false })}
+                  </span>
+                )}
+              </div>
+              <h3 className="mt-1.5 text-base font-bold text-slate-900">
+                Tổng hợp Thống kê Bài viết đã đăng (Group &amp; Fanpage)
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-600">
+                Theo dõi trực tiếp lượt Thích (Likes/Reactions), Bình luận (Comments) và Chia sẻ (Shares) của từng bài từ Meta Graph API (Fanpage) và Playwright Group Bot (Group).
+              </p>
+            </div>
+            <div className="community-pill-row gap-2">
+              <button
+                type="button"
+                disabled={!canEdit || !!busyAction}
+                onClick={() => void handleSyncPostStats()}
+                className="rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                {busyAction === "sync_post_stats"
+                  ? "Đang đồng bộ Like, Comment, Share…"
+                  : "📊 Đồng bộ Like, Comment, Share"}
+              </button>
+            </div>
+          </div>
+
+          <div className="community-pill-row mt-3 gap-2">
+            {[
+              { id: "all" as const, label: `Tất cả kênh (${allPostMetrics.length})` },
+              {
+                id: "group" as const,
+                label: `👥 Group Cộng đồng (${allPostMetrics.filter((m) => m.channel === "group").length})`,
+              },
+              {
+                id: "fanpage" as const,
+                label: `📘 Fanpage (${allPostMetrics.filter((m) => m.channel === "fanpage").length})`,
+              },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setPostMetricsChannelFilter(tab.id)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                  postMetricsChannelFilter === tab.id
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {filteredPostMetrics.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-600">
+              Chưa có số liệu tương tác nào được đồng bộ trong kênh đã chọn. Hãy bấm &ldquo;📊 Đồng bộ Like, Comment, Share&rdquo; để hệ thống kéo dữ liệu thật từ Facebook.
+            </div>
+          ) : (
+            <div
+              tabIndex={0}
+              role="region"
+              aria-labelledby="post-metrics-table-caption"
+              className="community-table-wrapper mt-4 rounded-lg border border-slate-200"
+            >
+              <table className="community-table min-w-[780px] text-left text-xs">
+                <caption id="post-metrics-table-caption" className="visually-hidden">
+                  Thống kê lượt thích, bình luận và chia sẻ theo từng bài viết đã đăng trên Facebook Group và Fanpage
+                </caption>
+                <thead className="bg-slate-50 uppercase text-slate-500">
+                  <tr>
+                    <th scope="col" className="px-3 py-2.5">
+                      Bài viết &amp; Kênh đăng
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      ❤️ Likes
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      💬 Comments
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      ↗️ Chia sẻ
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Tổng tương tác
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Đồng bộ &amp; Liên kết
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPostMetrics.map((pm) => (
+                    <tr key={pm.id} className="border-t border-slate-100 align-top">
+                      <th scope="row" className="max-w-xs px-3 py-3 font-normal">
+                        <p className="line-clamp-2 font-bold text-slate-900">{pm.post_title}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              pm.channel === "group"
+                                ? "bg-emerald-100 text-emerald-900"
+                                : "bg-blue-100 text-blue-900"
+                            }`}
+                          >
+                            {pm.channel === "group" ? "👥 Facebook Group" : "📘 Fanpage"}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            {pm.published_at
+                              ? new Date(pm.published_at).toLocaleDateString("vi-VN")
+                              : "Đã xuất bản"}
+                          </span>
+                        </div>
+                      </th>
+                      <td data-label="Likes" className="px-3 py-3 font-bold text-rose-700">
+                        {pm.likes_count}
+                      </td>
+                      <td data-label="Comments" className="px-3 py-3 font-bold text-blue-800">
+                        {pm.comments_count}
+                      </td>
+                      <td data-label="Chia sẻ" className="px-3 py-3 font-bold text-emerald-800">
+                        {pm.shares_count}
+                      </td>
+                      <td data-label="Tổng tương tác" className="px-3 py-3">
+                        <span className="rounded-full bg-slate-900 px-2.5 py-0.5 font-bold text-white">
+                          {pm.total_engagement}
+                        </span>
+                      </td>
+                      <td data-label="Đồng bộ & Link" className="px-3 py-3 text-slate-600">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-slate-500">
+                            {new Date(pm.last_synced_at).toLocaleString("vi-VN", { hour12: false })}
+                          </span>
+                          {pm.post_url && (
+                            <a
+                              href={pm.post_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-bold text-blue-700 hover:underline"
+                            >
+                              Mở bài viết ↗
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* Bảng 2: Lịch sử Số liệu Phát triển (Thành viên Group & Tổng Tương tác) */}
+        <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-[1_1_420px]">
+              <div className="community-pill-row gap-2">
+                <span className="rounded-md bg-emerald-700 px-2 py-0.5 text-[11px] font-bold text-white">
+                  📈 SỐ LIỆU PHÁT TRIỂN CỘNG ĐỒNG
+                </span>
+                <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-900">
+                  Biến động thành viên: {memberDelta >= 0 ? `+${memberDelta}` : memberDelta} người • Biến động tương tác: {engagementDelta >= 0 ? `+${engagementDelta}` : engagementDelta}
+                </span>
+              </div>
+              <h3 className="mt-1.5 text-base font-bold text-slate-900">
+                Chuỗi Tăng trưởng Thành viên &amp; Tương tác Theo Thời gian Thực
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-600">
+                Mỗi lần đồng bộ thống kê bài viết hoặc quét Group, hệ thống lưu lại 1 điểm mốc lịch sử để theo dõi tốc độ phát triển cộng đồng.
+              </p>
+            </div>
+          </div>
+
+          {engSnapshots.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-600">
+              Chưa có mốc lịch sử tương tác. Bấm &ldquo;📊 Đồng bộ Like, Comment, Share&rdquo; để ghi nhận điểm mốc đầu tiên.
+            </div>
+          ) : (
+            <div
+              tabIndex={0}
+              role="region"
+              aria-labelledby="growth-snapshots-table-caption"
+              className="community-table-wrapper mt-4 rounded-lg border border-slate-200"
+            >
+              <table className="community-table min-w-[740px] text-left text-xs">
+                <caption id="growth-snapshots-table-caption" className="visually-hidden">
+                  Lịch sử tăng trưởng thành viên cộng đồng và tổng tương tác qua từng lần đồng bộ
+                </caption>
+                <thead className="bg-slate-50 uppercase text-slate-500">
+                  <tr>
+                    <th scope="col" className="px-3 py-2.5">
+                      Thời điểm ghi nhận
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Thành viên Group
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Tổng ❤️ Likes
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Tổng 💬 Comments
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Tổng ↗️ Shares
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Bài đang theo dõi
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...engSnapshots].reverse().map((snap) => (
+                    <tr key={snap.id} className="border-t border-slate-100">
+                      <th scope="row" className="px-3 py-2.5 font-semibold text-slate-900">
+                        {new Date(snap.captured_at).toLocaleString("vi-VN", { hour12: false })}
+                      </th>
+                      <td data-label="Thành viên Group" className="px-3 py-2.5 font-bold text-emerald-800">
+                        {snap.group_members} người
+                      </td>
+                      <td data-label="Tổng Likes" className="px-3 py-2.5 font-bold text-rose-700">
+                        {snap.total_likes} (G: {snap.group_likes} • P: {snap.page_likes})
+                      </td>
+                      <td data-label="Tổng Comments" className="px-3 py-2.5 font-bold text-blue-800">
+                        {snap.total_comments} (G: {snap.group_comments} • P: {snap.page_comments})
+                      </td>
+                      <td data-label="Tổng Shares" className="px-3 py-2.5 font-bold text-indigo-800">
+                        {snap.total_shares} (G: {snap.group_shares} • P: {snap.page_shares})
+                      </td>
+                      <td data-label="Số bài theo dõi" className="px-3 py-2.5 text-slate-700">
+                        {snap.total_posts_tracked} bài
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   const weekEntries =
     hub.calendar.weekly.length > 0
       ? hub.calendar.weekly
@@ -1612,50 +2527,118 @@ export default function CommunityGrowthHub({
     };
   });
 
+  const memberDelta = hub.stats.member_growth_delta ?? 0;
+  const engagementDelta = hub.stats.engagement_growth_delta ?? 0;
+  const currentCampaignWeek = hub.stats.current_campaign_week ?? 2;
+  const currentMembersCount = hub.stats.real_group_members ?? hub.stats.week1_achieved;
+  const w3Target = hub.stats.week3_target ?? 18;
+  const w4Target = hub.stats.week4_target ?? 30;
+  const currentWeekTargetCount =
+    currentCampaignWeek === 1
+      ? hub.stats.week1_target
+      : currentCampaignWeek === 3
+        ? w3Target
+        : currentCampaignWeek === 4
+          ? w4Target
+          : hub.stats.week2_target;
+  const currentWeekProgressCount =
+    currentCampaignWeek === 1 ? hub.stats.week1_achieved : hub.stats.week2_progress;
+  const currentWeekProgressPct = Math.min(
+    100,
+    Math.round((currentWeekProgressCount / Math.max(1, currentWeekTargetCount)) * 100)
+  );
+  const effectiveInviteLimit = hub.stats.daily_invite_limit ?? dailyInviteLimit;
+  const invitesSentToday = hub.stats.invites_sent_today ?? 0;
+  const invitesRemainingToday =
+    hub.stats.invites_remaining_today ?? Math.max(0, effectiveInviteLimit - invitesSentToday);
+
+  const hubTabs: { id: HubTabId; label: string }[] = [
+    { id: "calendar", label: `1. Lịch Đăng bài (${hub.calendar.daily.length})` },
+    { id: "published_archive", label: `2. Bài Đã Đăng & Thống Kê (${primaryPublishedItems.length})` },
+    { id: "campaigns", label: "3. Chiến dịch, Auto-Reply & Mời" },
+    { id: "discussions", label: `4. Thảo luận Cộng đồng (${hub.discussions.length})` },
+    { id: "architecture", label: "5. 4 Agent & Cơ chế RAG" },
+  ];
+
   return (
-    <section className="space-y-6 rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50/40 to-white p-5 sm:p-6 shadow-sm">
-      {/* KHU VỰC 1: HEADER KHOA HỌC — TÁCH BẠCH ĐỊNH DANH, GROUP BOT, THANH CÔNG CỤ & CHỈ SỐ KPI */}
-      <div className="space-y-4 border-b border-blue-100 pb-5">
-        {/* Hàng 1.1: Định danh Cộng đồng, Đích đăng & Trạng thái Group Bot */}
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-full bg-blue-700 px-3 py-1 text-xs font-bold tracking-wide text-white">
-                {targetMode === "fanpage"
-                  ? "📘 Đích đăng: Chỉ Fanpage cũ"
-                  : targetMode === "both"
-                    ? "👥+📘 Đích đăng: Group Cộng đồng & Fanpage"
-                    : "👥 Đích đăng chính: Facebook Group Cộng đồng"}
-              </span>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${
-                  groupBotSession?.isLoggedIn
+    <section className="min-w-0 max-w-full space-y-5 rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50/40 to-white p-5 sm:p-6 shadow-sm">
+      {/* KHU VỰC 1: ĐỊNH DANH CỘNG ĐỒNG, ĐÍCH ĐĂNG & PHIÊN GROUP BOT */}
+      <div className="min-w-0 space-y-4 rounded-xl border border-blue-100 bg-white p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="community-pill-row min-w-0 flex-1 gap-2">
+            <span className="inline-flex items-center rounded-full bg-blue-700 px-3 py-1 text-xs font-bold tracking-wide text-white">
+              {targetMode === "fanpage"
+                ? "📘 Đích đăng: Chỉ Fanpage cũ"
+                : targetMode === "both"
+                  ? "👥+📘 Đích đăng: Group Cộng đồng & Fanpage"
+                  : "👥 Đích đăng chính: Facebook Group Cộng đồng"}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${
+                isEdgeLoginOpen
+                  ? "border-amber-400 bg-amber-50 text-amber-950"
+                  : groupBotSession?.isLoggedIn
                     ? "border-emerald-300 bg-emerald-50 text-emerald-900"
                     : "border-amber-300 bg-amber-50 text-amber-950"
-                }`}
-              >
-                <span aria-hidden="true">{groupBotSession?.isLoggedIn ? "🟢" : "🟡"}</span>
-                {groupBotSession?.isLoggedIn
-                  ? `Group Bot: Đã sẵn sàng (${groupBotSession.sessionSource === "cookie" ? "Cookie" : "Phiên Edge"})`
+              }`}
+            >
+              <span aria-hidden="true">
+                {isEdgeLoginOpen ? "🟡" : groupBotSession?.isLoggedIn ? "🟢" : "🔴"}
+              </span>
+              {isEdgeLoginOpen
+                ? "Group Bot: Đang mở Edge chờ đăng nhập / lưu phiên…"
+                : groupBotSession?.isLoggedIn
+                  ? `Group Bot: Đã sẵn sàng (${
+                      groupBotSession.usingPageProfile
+                        ? "Page Profile"
+                        : groupBotSession.sessionSource === "cookie"
+                          ? "Cookie"
+                          : "Phiên Edge"
+                    }${groupBotSession.accountIdMask ? ` • ${groupBotSession.accountIdMask}` : ""})`
                   : "Group Bot: Chưa đăng nhập phiên Edge"}
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-bold text-emerald-800">
-                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
-                {syncingRealtime
-                  ? "Đang tự động đồng bộ Facebook…"
-                  : `Cập nhật Realtime (15s) • Lúc ${lastSyncedDisplay || "vừa xong"}`}
-              </span>
-            </div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900">{hub.group.name}</h2>
-            <p className="max-w-4xl text-sm leading-relaxed text-slate-600">{hub.group.positioning}</p>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-bold text-emerald-800">
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
+              {syncingRealtime
+                ? "Đang tự động đồng bộ Facebook…"
+                : `Cập nhật Realtime (15s) • Lúc ${lastSyncedDisplay || "vừa xong"}`}
+            </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="community-pill-row gap-2">
+            <button
+              type="button"
+              onClick={() => void fetchHub({ silent: false })}
+              className="inline-flex max-w-full items-center rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+            >
+              🔄 Đồng bộ Ngay
+            </button>
+            <button
+              type="button"
+              aria-expanded={editingSettings}
+              aria-controls="community-settings-panel"
+              onClick={() => setEditingSettings((v) => !v)}
+              className="inline-flex max-w-full items-center rounded-lg border border-blue-600 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100"
+            >
+              🎯 Cấu hình Group &amp; Mục tiêu
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-[1_1_340px] space-y-1.5">
+            <h2 className="break-words text-2xl font-bold tracking-tight text-slate-900">{hub.group.name}</h2>
+            <p className="max-w-4xl break-words [overflow-wrap:anywhere] text-sm leading-relaxed text-slate-600">
+              {hub.group.positioning}
+            </p>
+          </div>
+
+          <div className="community-pill-row gap-2">
             <a
               href={hub.group.group_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center rounded-lg bg-blue-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-800"
+              className="inline-flex max-w-full items-center rounded-lg bg-blue-700 px-3.5 py-2 text-center text-xs font-bold text-white shadow-sm hover:bg-blue-800"
             >
               👥 Mở Group Cộng đồng ↗
             </a>
@@ -1663,99 +2646,55 @@ export default function CommunityGrowthHub({
               href={hub.group.page_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center rounded-lg border border-blue-300 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50"
+              className="inline-flex max-w-full items-center rounded-lg border border-blue-300 bg-white px-3.5 py-2 text-center text-xs font-bold text-blue-800 hover:bg-blue-50"
             >
               📘 Mở Fanpage (Messenger/RAG): {hub.group.page_name} ↗
             </a>
-            <button
-              type="button"
-              onClick={() => void fetchHub({ silent: false })}
-              className="inline-flex items-center rounded-lg border border-emerald-600 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
-            >
-              🔄 Đồng bộ Ngay
-            </button>
           </div>
         </div>
 
-        {/* Hàng 1.2: Thanh Công Cụ Thao Tác Nhanh & Điều phối Group Bot */}
-        <div className="space-y-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+        {/* Điều phối Phiên & Tài khoản Group Bot */}
+        <div className="min-w-0 space-y-2.5 border-t border-slate-100 pt-3 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Thao tác điều hành:
-              </span>
-              <button
-                type="button"
-                aria-expanded={editingSettings}
-                aria-controls="community-settings-panel"
-                onClick={() => setEditingSettings((v) => !v)}
-                className="rounded-lg border border-blue-600 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100"
-              >
-                🎯 Cấu hình Group, Đích đăng & Mục tiêu Tuần
-              </button>
-              <button
-                type="button"
-                disabled={!canEdit || !!busyAction}
-                onClick={() => void handlePublishFreshPost()}
-                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {busyAction === "publish_fresh"
-                  ? "Đang tạo & đăng bài mới…"
-                  : targetMode === "fanpage"
-                    ? "⚡ Đăng ngay 1 bài mới lên Fanpage & Web"
-                    : targetMode === "both"
-                      ? "⚡ Đăng ngay 1 bài mới lên Group & Fanpage"
-                      : "⚡ Đăng ngay 1 bài mới lên Group Cộng đồng"}
-              </button>
-              <button
-                type="button"
-                disabled={!canEdit || !!busyAction}
-                onClick={() => {
-                  const latestDisc = hub.discussions[0];
-                  if (latestDisc) {
-                    void handlePostGroupViaBot(
-                      latestDisc.title,
-                      latestDisc.body,
-                      latestDisc.discussion_prompt,
-                      latestDisc.image_url || undefined
-                    );
-                  } else {
-                    void handlePostGroupViaBot(
-                      "Cẩm nang du lịch và ẩm thực Đà Nẵng",
-                      "Khám phá các món ăn đặc sản địa phương và chia sẻ kinh nghiệm cùng cộng đồng.",
-                      "Bạn thích nhất món ăn nào tại Đà Nẵng?"
-                    );
-                  }
-                }}
-                className="rounded-lg border border-purple-600 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-800 hover:bg-purple-100 disabled:opacity-50"
-              >
-                🤖 Đăng thảo luận vào Group qua Bot
-              </button>
+            <div className="min-w-0 flex-[1_1_420px] space-y-1 leading-relaxed text-slate-600">
+              <p>
+                <b className="text-slate-900">Phiên đăng tự động Group Bot:</b>{" "}
+                {groupBotSession?.isLoggedIn
+                  ? "Đã lưu phiên Quản trị viên — Worker 24/7 và nút Đăng Group dùng trực tiếp phiên này (độc lập với token Fanpage)."
+                  : "Chưa có phiên Quản trị viên Facebook Group Bot (.fb-session.json). Mở Edge 1 lần để đăng nhập tài khoản quản trị viên Group."}
+              </p>
+              {(hub.group.fb_admin_name || groupBotSession?.accountIdMask || groupBotSession?.usingPageProfile) && (
+                <p className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-indigo-900">
+                  <span>👤 Tài khoản đang lưu:</span>
+                  {hub.group.fb_admin_name ? (
+                    <span className="rounded bg-indigo-50 px-2 py-0.5 font-bold text-indigo-950 ring-1 ring-indigo-200">
+                      {hub.group.fb_admin_name}
+                    </span>
+                  ) : !groupBotSession?.usingPageProfile && groupBotSession?.accountIdMask ? (
+                    <span className="rounded bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-950 ring-1 ring-indigo-200">
+                      Phiên Facebook đã xác thực
+                    </span>
+                  ) : null}
+                  {groupBotSession?.usingPageProfile && (
+                    <span className="rounded bg-emerald-50 px-2 py-0.5 font-bold text-emerald-900 ring-1 ring-emerald-200">
+                      Page Profile
+                    </span>
+                  )}
+                  {groupBotSession?.accountIdMask && (
+                    <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-700">
+                      ID: {groupBotSession.accountIdMask}
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setEditingSettings(true)}
-              className="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100"
-            >
-              ✏️ Mục tiêu 4 Tuần: {hub.stats.week1_target} → {hub.stats.week2_target} → {hub.stats.week3_target ?? 150} → {hub.stats.week4_target ?? 300}
-            </button>
-          </div>
-
-          {/* Hàng Group Bot 1-Click Login & Session Verification */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5 text-xs">
-            <p className="text-slate-600">
-              <b className="text-slate-900">Phiên đăng tự động Group Bot:</b>{" "}
-              {groupBotSession?.isLoggedIn
-                ? "Đã lưu phiên Quản trị viên — Worker 24/7 và nút Đăng Group dùng trực tiếp phiên này (không phụ thuộc key Fanpage)."
-                : "Chưa đăng nhập phiên Quản trị viên trên Edge. Đăng bài vào Group Cộng đồng hoạt động ĐỘC LẬP với token Fanpage."}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="community-pill-row gap-2">
               <button
                 type="button"
                 disabled={!canEdit || !!busyAction}
                 onClick={() => void handleLaunchGroupBotLogin()}
-                className="rounded-lg border border-indigo-600 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-900 hover:bg-indigo-100 disabled:opacity-50"
+                className="max-w-full rounded-lg border border-indigo-600 bg-indigo-50 px-3 py-1.5 text-left text-xs font-bold text-indigo-900 hover:bg-indigo-100 disabled:opacity-50"
               >
                 {busyAction === "login_group_bot"
                   ? "Đang mở Microsoft Edge…"
@@ -1763,9 +2702,19 @@ export default function CommunityGrowthHub({
               </button>
               <button
                 type="button"
+                disabled={!canEdit || !!busyAction}
+                onClick={() => void handleSwitchGroupBotAccount()}
+                className="max-w-full rounded-lg border border-amber-600 bg-amber-50 px-3 py-1.5 text-left text-xs font-bold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {busyAction === "switch_group_bot_account"
+                  ? "Đang mở Edge sạch để đổi tài khoản…"
+                  : "🔄 Đổi tài khoản Group Bot"}
+              </button>
+              <button
+                type="button"
                 disabled={!!busyAction}
                 onClick={() => void handleVerifyGroupBotSession()}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                className="max-w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
               >
                 {busyAction === "verify_group_bot"
                   ? "Đang kiểm tra phiên…"
@@ -1773,7 +2722,68 @@ export default function CommunityGrowthHub({
               </button>
             </div>
           </div>
+
+          {isEdgeLoginOpen && (
+            <div className="space-y-3 rounded-xl border-2 border-amber-300 bg-amber-50/95 p-3.5 text-xs text-amber-950">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-[1_1_360px] space-y-1">
+                  <p className="font-bold">
+                    ⏳ Cửa sổ Microsoft Edge đang giữ mở để bạn thao tác đăng nhập / chuyển Trang Quản trị viên Group:
+                  </p>
+                  <p className="leading-relaxed text-amber-900">
+                    Trên cửa sổ Edge vừa mở, hãy đăng nhập đúng tài khoản Facebook (hoặc bấm ảnh đại diện góc phải →{" "}
+                    <b>Chuyển trang cá nhân</b> sang Page Quản trị viên), sau đó bấm nút bên cạnh để lưu{" "}
+                    <code>.fb-session.json</code> và tự động đóng Edge. (Phiên cũ vẫn được giữ an toàn cho đến khi bạn lưu mới.)
+                  </p>
+                </div>
+                <div className="community-pill-row gap-2">
+                  <button
+                    type="button"
+                    disabled={!canEdit || !!busyAction}
+                    onClick={() => void handleCompleteGroupBotLogin()}
+                    className="rounded-lg bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 disabled:opacity-50"
+                  >
+                    {busyAction === "complete_group_bot_login"
+                      ? "Đang lưu phiên & đóng Edge…"
+                      : "✅ Đã đổi xong trên Edge — Lưu & Đóng Edge"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopLoginPolling();
+                      setLoginWaitingOnEdge(false);
+                    }}
+                    className="rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                  >
+                    Đóng bảng chờ
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white/90 px-3 py-2">
+                <div className="min-w-0 flex-[1_1_320px] space-y-1">
+                  <p className="font-bold text-amber-950">
+                    💡 Không thấy cửa sổ Edge hiện lên màn hình?
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-slate-700">
+                    Nếu máy chủ Staging đang chạy từ phiên nền tách biệt, cửa sổ Edge có thể bị Windows giữ ở desktop nền. Hãy mở <b>PowerShell</b> tại thư mục <code>AI_GROWTH_OS</code> và chạy đúng 1 lệnh sau — Edge sẽ mở trực tiếp trên màn hình của bạn và tự đồng bộ về đây:
+                  </p>
+                  <code className="block overflow-x-auto rounded bg-slate-900 px-2.5 py-1.5 font-mono text-[11px] font-semibold text-emerald-300">
+                    {cliFallbackCommand}
+                  </code>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyCliFallback()}
+                  className="shrink-0 rounded-lg border border-indigo-600 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-900 hover:bg-indigo-100"
+                >
+                  {copiedCliFallback ? "✓ Đã copy lệnh" : "📋 Copy lệnh"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
+      </div>
 
         {bannerMessage && (
           <div
@@ -1804,7 +2814,7 @@ export default function CommunityGrowthHub({
               </button>
             </div>
             {bannerRecovery && (
-              <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="community-pill-row gap-2 pt-1">
                 <button
                   type="button"
                   disabled={!canEdit || !!busyAction}
@@ -1813,6 +2823,24 @@ export default function CommunityGrowthHub({
                 >
                   🌐 Mở Edge Đăng nhập Group Bot (1 lần)
                 </button>
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction}
+                  onClick={() => void handleSwitchGroupBotAccount()}
+                  className="rounded-lg border border-amber-600 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  🔄 Đổi tài khoản Group Bot
+                </button>
+                {isEdgeLoginOpen && (
+                  <button
+                    type="button"
+                    disabled={!canEdit || !!busyAction}
+                    onClick={() => void handleCompleteGroupBotLogin()}
+                    className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
+                  >
+                    ✅ Đã đổi xong trên Edge — Lưu &amp; Đóng Edge
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={!!busyAction}
@@ -1832,7 +2860,7 @@ export default function CommunityGrowthHub({
                   }
                   className="rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-50"
                 >
-                  📋 Copy & Mở Group để dán tay ↗
+                  📋 Copy &amp; Mở Group để dán tay ↗
                 </button>
               </div>
             )}
@@ -1943,14 +2971,63 @@ export default function CommunityGrowthHub({
               </div>
             </fieldset>
 
-            <div className="border-t border-slate-200 pt-3">
-              <p className="text-xs font-bold text-slate-900">
-                3. Tùy chỉnh Mục tiêu Thành viên các Tuần & Số Thành viên hiện tại trong Group (Không fix cứng)
+            <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="daily-invite-limit" className="block text-xs font-bold text-slate-900">
+                  3. Giới hạn Lời mời Group An toàn / ngày (10 – 15 lượt)
+                </label>
+                <p className="mt-0.5 text-[11px] text-slate-600">
+                  Giữ ngưỡng tự nhiên 10–15 lời mời/ngày (nút Mời Facebook &amp; Messenger) để tránh bị Facebook checkpoint.
+                </p>
+                <div className="mt-2 flex items-center gap-3">
+                  <input
+                    id="daily-invite-limit"
+                    name="daily_invite_limit"
+                    type="number"
+                    min={10}
+                    max={15}
+                    required
+                    value={dailyInviteLimit}
+                    onChange={(e) => setDailyInviteLimit(Number(e.target.value))}
+                    className="w-24 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
+                  />
+                  <span className="text-xs font-semibold text-slate-700">lời mời thật tối đa / ngày</span>
+                </div>
+              </div>
+              <div className="flex flex-col justify-center gap-1.5 text-xs text-slate-700">
+                <p className="font-bold text-slate-900">Trạng thái Sở hữu Mục tiêu:</p>
+                <p className="text-[11px]">
+                  {hub.group.target_source === "locked_manual"
+                    ? "🔒 Đang khóa theo giá trị chỉnh tay. Bỏ khóa bên dưới hoặc bấm 'Growth Lead Đề xuất & Áp dụng Ngay' để bàn giao lại cho Growth Lead."
+                    : "🤖 Growth Lead Agent đang tự động tính toán và áp dụng mục tiêu tuần từ chỉ số thực tế."}
+                </p>
+              </div>
+            </div>
+
+            <details className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+              <summary className="cursor-pointer text-xs font-bold text-slate-900">
+                ⚙️ Tùy chỉnh &amp; Khóa Mục tiêu Thủ công (Chỉ dùng khi muốn ghi đè đề xuất của Growth Lead)
+              </summary>
+              <p className="mt-2 text-[11px] text-slate-600">
+                Mục tiêu các tuần được <b>Growth Lead Agent</b> tự động đề xuất &amp; áp dụng. Chỉ chỉnh hoặc khóa khi bạn muốn cố định con số riêng.
               </p>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                Bạn có thể tự đặt mục tiêu KPI thành viên cho từng tuần và cập nhật số lượng thành viên hiện tại của Group Facebook.
-              </p>
-              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs">
+                <input
+                  id="lock-manual-targets"
+                  name="lock_manual"
+                  type="checkbox"
+                  checked={lockManualTargets}
+                  onChange={(e) => {
+                    setLockManualTargets(e.target.checked);
+                    setManualTargetsTouched(true);
+                  }}
+                  className="h-4 w-4 cursor-pointer"
+                />
+                <label htmlFor="lock-manual-targets" className="cursor-pointer font-bold text-amber-950">
+                  🔒 Khóa mục tiêu thủ công (không cho Growth Lead tự ghi đè khi chạy chiến lược mới)
+                </label>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <div>
                   <label htmlFor="group-member-count" className="block text-xs font-semibold text-emerald-800">
                     Hiện có trong Group
@@ -1977,8 +3054,11 @@ export default function CommunityGrowthHub({
                     min={1}
                     required
                     value={customWeek1Target}
-                    onChange={(e) => setCustomWeek1Target(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                    onChange={(e) => {
+                      setCustomWeek1Target(Number(e.target.value));
+                      setManualTargetsTouched(true);
+                    }}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
                   />
                 </div>
                 <div>
@@ -1992,8 +3072,11 @@ export default function CommunityGrowthHub({
                     min={1}
                     required
                     value={customWeek2Target}
-                    onChange={(e) => setCustomWeek2Target(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                    onChange={(e) => {
+                      setCustomWeek2Target(Number(e.target.value));
+                      setManualTargetsTouched(true);
+                    }}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
                   />
                 </div>
                 <div>
@@ -2007,8 +3090,11 @@ export default function CommunityGrowthHub({
                     min={1}
                     required
                     value={customWeek3Target}
-                    onChange={(e) => setCustomWeek3Target(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                    onChange={(e) => {
+                      setCustomWeek3Target(Number(e.target.value));
+                      setManualTargetsTouched(true);
+                    }}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
                   />
                 </div>
                 <div>
@@ -2022,12 +3108,15 @@ export default function CommunityGrowthHub({
                     min={1}
                     required
                     value={customWeek4Target}
-                    onChange={(e) => setCustomWeek4Target(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                    onChange={(e) => {
+                      setCustomWeek4Target(Number(e.target.value));
+                      setManualTargetsTouched(true);
+                    }}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
                   />
                 </div>
               </div>
-            </div>
+            </details>
 
             <div className="flex gap-2">
               <button
@@ -2048,170 +3137,377 @@ export default function CommunityGrowthHub({
           </form>
         )}
 
-        {/* Hàng 1.3: 4 Thẻ Chỉ số KPI Thực tế (Grid 4 cột chuẩn khoa học) */}
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-emerald-800">Tuần 1 (02/11 – 08/11/2026)</p>
-              <span className="rounded bg-emerald-200/80 px-2 py-0.5 text-[10px] font-bold text-emerald-950">
-                ✓ Hoàn thành
-              </span>
-            </div>
-            <p className="mt-1.5 text-2xl font-bold text-emerald-900">
-              {hub.stats.week1_achieved}/{hub.stats.week1_target} thành viên
-            </p>
-            <p className="mt-1 text-[11px] font-medium text-emerald-800">
-              Group: {hub.stats.real_group_members ?? hub.stats.week1_achieved} TV • Page: {hub.stats.real_page_followers ?? 0} theo dõi
-            </p>
+        {/* TRUNG TÂM CHỈ SỐ & ĐIỀU KHIỂN CỘNG ĐỒNG (GOM NHÓM THEO CHỨC NĂNG LIÊN QUAN) */}
+        <div className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2
+              id="community-command-center-heading"
+              className="text-sm font-bold uppercase tracking-wider text-slate-800"
+            >
+              Trung tâm Chỉ số &amp; Điều khiển Cộng đồng
+            </h2>
+            <span className="text-xs font-semibold text-slate-600">
+              Tuần hiện tại: <b>Tuần {currentCampaignWeek}</b> • Lộ trình 4 Tuần:{" "}
+              <b>
+                {hub.stats.week1_target} → {hub.stats.week2_target} → {w3Target} → {w4Target}
+              </b>{" "}
+              thành viên
+            </span>
           </div>
 
-          <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-blue-800">Tuần 2 (09/11 – 15/11/2026)</p>
-              <span className="rounded bg-blue-200/80 px-2 py-0.5 text-[10px] font-bold text-blue-950">
-                Đang chạy
-              </span>
-            </div>
-            <p className="mt-1.5 text-2xl font-bold text-blue-900">
-              {hub.stats.week2_progress}/{hub.stats.week2_target} thành viên
-            </p>
-            <p className="mt-1 text-[11px] font-medium text-blue-800">
-              {hub.stats.real_identified_people} khách hàng thật đã nhắn tin qua Messenger
-            </p>
-          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* KHỐI 1: TĂNG TRƯỞNG THÀNH VIÊN & LỘ TRÌNH GROWTH LEAD */}
+            <article className="flex min-w-0 flex-col gap-3 rounded-xl border border-emerald-200 bg-white p-4 shadow-xs">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="min-w-0 text-sm font-bold text-slate-900">
+                  👥 Tăng trưởng Thành viên &amp; Lộ trình
+                </h3>
+                <span
+                  className={`max-w-full rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                    hub.group.target_source === "locked_manual"
+                      ? "bg-amber-100 text-amber-950"
+                      : "bg-indigo-100 text-indigo-900"
+                  }`}
+                >
+                  {hub.group.target_source === "locked_manual" ? "🔒 Thủ công" : "🤖 Growth Lead"}
+                </span>
+              </div>
 
-          <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-purple-800">
-                {targetMode === "fanpage" ? "Trạng thái Xuất bản Fanpage" : "Trạng thái Đăng Group Cộng đồng"}
-              </p>
-              <span className="rounded bg-purple-200/80 px-2 py-0.5 text-[10px] font-bold text-purple-950">
-                {targetMode === "fanpage" ? "Fanpage" : "Group Bot 24/7"}
-              </span>
-            </div>
-            <p className="mt-1.5 text-2xl font-bold text-purple-900">
-              {targetMode === "fanpage"
-                ? `${publishedCount} Đã đăng Page • ${scheduledFilterCount} Hẹn giờ`
-                : `${publishedGroupCount} Đã đăng Group • ${scheduledGroupCount} Hẹn Group`}
-            </p>
-            <p className="mt-1 text-[11px] font-medium text-purple-800">
-              {targetMode === "fanpage"
-                ? `Tổng cộng ${hub.calendar.daily.length} bài có ngày tháng năm & giờ cụ thể`
-                : `${failedGroupCount > 0 ? `⚠ ${failedGroupCount} bài lỗi Group • ` : ""}Fanpage cũ đã đăng trước: ${publishedFanpageCount}/${hub.calendar.daily.length}`}
-            </p>
-          </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2.5">
+                  <div>
+                    <p className="text-xl font-bold text-emerald-950">
+                      {currentMembersCount} thành viên Group{" "}
+                      <span className="text-sm font-bold text-emerald-700">
+                        ({memberDelta >= 0 ? `+${memberDelta}` : memberDelta})
+                      </span>
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-medium text-emerald-900">
+                      Fanpage: <b>{hub.stats.real_page_followers ?? 0}</b> theo dõi
+                    </p>
+                  </div>
+                  <span className="rounded bg-white px-2 py-0.5 text-[11px] font-bold text-emerald-900 ring-1 ring-emerald-200">
+                    Tuần 1: {hub.stats.week1_achieved}/{hub.stats.week1_target}{" "}
+                    {hub.stats.week1_achieved >= hub.stats.week1_target ? "✓ Đạt" : "Đang tăng"}
+                  </span>
+                </div>
 
-          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-amber-900">Kho Chủ đề & Ảnh Chuẩn</p>
-              <span className="rounded bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-950">
-                {hub.stats.duplication_rate_pct === 0
-                  ? "✓ 0% Trùng lặp"
-                  : `⚠ ${hub.stats.duplication_rate_pct}% Trùng lặp`}
-              </span>
-            </div>
-            <p className="mt-1.5 text-2xl font-bold text-amber-900">
-              {hub.stats.total_approved_playbook_topics} chủ đề · {hub.stats.approved_unique_images} ảnh
-            </p>
-            <p className="mt-1 text-[11px] font-medium text-amber-800">
-              Mỗi bài viết gắn 1 ảnh độc nhất & bộ câu hỏi mở
-            </p>
+                <div className="space-y-1 rounded-lg border border-blue-200 bg-blue-50/60 p-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] font-bold text-blue-950">
+                    <span>Tiến độ Tuần {currentCampaignWeek} (Đang chạy)</span>
+                    <span>
+                      {currentWeekProgressCount}/{currentWeekTargetCount} thành viên ({currentWeekProgressPct}%)
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100" aria-hidden="true">
+                    <div
+                      className="h-full rounded-full bg-blue-600 transition-all"
+                      style={{ width: `${currentWeekProgressPct}%` }}
+                    />
+                  </div>
+                  <p className="pt-0.5 text-[11px] font-medium text-blue-900">
+                    Mục tiêu 4 Tuần: <b>{hub.stats.week1_target}</b> → <b>{hub.stats.week2_target}</b> →{" "}
+                    <b>{w3Target}</b> → <b>{w4Target}</b> thành viên
+                  </p>
+                </div>
+
+                {hub.group.target_rationale && (
+                  <p className="break-words rounded-lg border border-indigo-100 bg-indigo-50/60 p-2.5 text-[11px] leading-relaxed text-slate-700">
+                    <b className="text-indigo-950">🤖 Cơ sở Growth Lead:</b> {hub.group.target_rationale}
+                  </p>
+                )}
+              </div>
+
+              <div className="community-pill-row mt-auto gap-2 border-t border-slate-100 pt-3 text-xs">
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction}
+                  onClick={() => void handleSyncGrowthLeadTargets()}
+                  className="max-w-full rounded-lg bg-indigo-700 px-3 py-1.5 text-left text-xs font-bold text-white shadow-xs hover:bg-indigo-800 disabled:opacity-50"
+                >
+                  {busyAction === "sync_growth_lead_targets"
+                    ? "Growth Lead đang tính…"
+                    : "🤖 Growth Lead Đề xuất & Áp dụng Ngay"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectHubTab("campaigns", "campaigns-roadmap-panel")}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                >
+                  📈 Lộ trình 4 Tuần ↓
+                </button>
+                <Link
+                  href="/agents/growth_lead"
+                  className="font-bold text-indigo-800 underline underline-offset-2 hover:text-indigo-950"
+                >
+                  Growth Lead ↗
+                </Link>
+              </div>
+            </article>
+
+            {/* KHỐI 2: BÀI VIẾT, XUẤT BẢN & THỐNG KÊ TƯƠNG TÁC */}
+            <article className="flex min-w-0 flex-col gap-3 rounded-xl border border-rose-200 bg-white p-4 shadow-xs">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="min-w-0 text-sm font-bold text-slate-900">
+                  📊 Bài viết, Xuất bản &amp; Tương tác
+                </h3>
+                <span className="max-w-full rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-900">
+                  {hub.stats.tracked_posts_count ?? 0} bài đang theo dõi
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="rounded-lg border border-purple-200 bg-purple-50/60 p-2.5">
+                  <p className="text-base font-bold text-purple-950">
+                    {targetMode === "fanpage"
+                      ? `${publishedCount} Đã đăng Page • ${scheduledFilterCount} Hẹn giờ`
+                      : `${publishedGroupCount} Đã đăng Group • ${scheduledGroupCount} Hẹn Group`}
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-medium text-purple-900">
+                    {failedGroupCount > 0 && targetMode !== "fanpage" ? (
+                      <span className="font-bold text-rose-700">⚠ {failedGroupCount} bài lỗi Group • </span>
+                    ) : null}
+                    {targetMode === "fanpage"
+                      ? `Tổng ${hub.calendar.daily.length} bài lịch ngày/giờ`
+                      : `Fanpage cũ: ${publishedFanpageCount}/${hub.calendar.daily.length}`}
+                    {" • "}
+                    {hub.stats.total_approved_playbook_topics} chủ đề · {hub.stats.approved_unique_images} ảnh độc nhất (
+                    {hub.stats.duplication_rate_pct}% trùng)
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 rounded-lg border border-rose-200/90 bg-gradient-to-r from-rose-50/60 via-white to-emerald-50/50 p-2.5">
+                  <div className="community-pill-row gap-1.5 font-bold">
+                    <span className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-800">
+                      ❤️ {hub.stats.total_post_likes ?? 0} Likes
+                    </span>
+                    <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-blue-900">
+                      💬 {hub.stats.total_post_comments ?? 0} Comments
+                    </span>
+                    <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-900">
+                      ↗️ {hub.stats.total_post_shares ?? 0} Chia sẻ
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-700">
+                    <span>
+                      TB <b>{hub.stats.avg_engagement_per_post ?? 0}</b> tương tác/bài
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      Biến động: {engagementDelta >= 0 ? `+${engagementDelta}` : engagementDelta}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    <b>Group:</b> {hub.stats.group_post_likes ?? 0}❤️ / {hub.stats.group_post_comments ?? 0}💬 /{" "}
+                    {hub.stats.group_post_shares ?? 0}↗️ <span className="mx-1 text-slate-300">|</span>{" "}
+                    <b>Fanpage:</b> {hub.stats.fanpage_post_likes ?? 0}❤️ / {hub.stats.fanpage_post_comments ?? 0}💬 /{" "}
+                    {hub.stats.fanpage_post_shares ?? 0}↗️
+                  </p>
+                </div>
+              </div>
+
+              <div className="community-pill-row mt-auto gap-2 border-t border-slate-100 pt-3 text-xs">
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction}
+                  onClick={() => void handlePublishFreshPost()}
+                  className="max-w-full rounded-lg bg-emerald-600 px-3 py-1.5 text-left text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {busyAction === "publish_fresh"
+                    ? "Đang đăng bài mới…"
+                    : targetMode === "fanpage"
+                      ? "⚡ Đăng ngay 1 bài mới (Fanpage)"
+                      : targetMode === "both"
+                        ? "⚡ Đăng ngay 1 bài mới (Group + Page)"
+                        : "⚡ Đăng ngay 1 bài mới lên Group"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction}
+                  onClick={() => {
+                    const latestDisc = hub.discussions[0];
+                    if (latestDisc) {
+                      void handlePostGroupViaBot(
+                        latestDisc.title,
+                        latestDisc.body,
+                        latestDisc.discussion_prompt,
+                        latestDisc.image_url || undefined
+                      );
+                    } else {
+                      void handlePostGroupViaBot(
+                        "Cẩm nang du lịch và ẩm thực Đà Nẵng",
+                        "Khám phá các món ăn đặc sản địa phương và chia sẻ kinh nghiệm cùng cộng đồng.",
+                        "Bạn thích nhất món ăn nào tại Đà Nẵng?"
+                      );
+                    }
+                  }}
+                  className="max-w-full rounded-lg border border-purple-600 bg-purple-50 px-2.5 py-1.5 text-left text-xs font-bold text-purple-900 hover:bg-purple-100 disabled:opacity-50"
+                >
+                  🤖 Thảo luận qua Bot
+                </button>
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction}
+                  onClick={() => void handleSyncPostStats()}
+                  className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-rose-700 disabled:opacity-50"
+                >
+                  {busyAction === "sync_post_stats"
+                    ? "Đang đồng bộ…"
+                    : "📊 Đồng bộ Like, Comment, Share"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectHubTab("published_archive", "post-engagement-stats-panel")}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                >
+                  📈 Bảng Thống kê Chi tiết ↓
+                </button>
+              </div>
+            </article>
+
+            {/* KHỐI 3: TỰ ĐỘNG HÓA 24/7 — AUTO-REPLY RAG & MỜI GROUP AN TOÀN */}
+            <article className="community-form flex min-w-0 flex-col gap-3 rounded-xl border border-indigo-200 bg-white p-4 shadow-xs">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="min-w-0 text-sm font-bold text-slate-900">
+                  🤖 Tự động hóa 24/7 (RAG &amp; Mời Group)
+                </h3>
+                <span className="max-w-full rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-950">
+                  {invitesSentToday}/{effectiveInviteLimit} mời hôm nay
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5">
+                  <p className="text-base font-bold text-amber-950">
+                    {hub.stats.comments_replied_count ?? 0} cmt RAG · {hub.stats.invites_sent_7d ?? 0} mời 7 ngày
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-medium text-amber-900">
+                    Đã nhận <b>{hub.stats.comments_received_count ?? 0}</b> bình luận •{" "}
+                    <b>{hub.stats.real_identified_people}</b> người tương tác Fanpage • Còn{" "}
+                    <b>{invitesRemainingToday}</b>/{effectiveInviteLimit} lượt mời an toàn hôm nay
+                  </p>
+                </div>
+
+                <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                  <label
+                    htmlFor="toggle-auto-reply-comments"
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-semibold text-slate-800"
+                  >
+                    <input
+                      id="toggle-auto-reply-comments"
+                      type="checkbox"
+                      disabled={!canEdit || !!busyAction}
+                      checked={autoReplyComments}
+                      onChange={(e) => void handleToggleCommunityAutomation("auto_reply_comments", e.target.checked)}
+                      {...({ switch: "" } as Record<string, string>)}
+                      {...(switchFallbackNeeded
+                        ? {
+                            "data-switch-fallback": "true",
+                            role: "switch",
+                            "aria-checked": autoReplyComments,
+                          }
+                        : {})}
+                    />
+                    <span className="min-w-0 flex-1 break-words">💬 Auto-Reply Comment (RAG)</span>
+                  </label>
+
+                  <label
+                    htmlFor="toggle-auto-invite-enabled"
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-semibold text-slate-800"
+                  >
+                    <input
+                      id="toggle-auto-invite-enabled"
+                      type="checkbox"
+                      disabled={!canEdit || !!busyAction}
+                      checked={autoInviteEnabled}
+                      onChange={(e) => void handleToggleCommunityAutomation("auto_invite_enabled", e.target.checked)}
+                      {...({ switch: "" } as Record<string, string>)}
+                      {...(switchFallbackNeeded
+                        ? {
+                            "data-switch-fallback": "true",
+                            role: "switch",
+                            "aria-checked": autoInviteEnabled,
+                          }
+                        : {})}
+                    />
+                    <span className="min-w-0 flex-1 break-words">✉️ Tự động Mời Group (10–15/ngày)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="community-pill-row mt-auto gap-2 border-t border-slate-100 pt-3 text-xs">
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction}
+                  onClick={() => void handleScanComments()}
+                  className="max-w-full rounded-lg border border-blue-600 bg-white px-3 py-1.5 text-left text-xs font-bold text-blue-800 hover:bg-blue-50 disabled:opacity-50"
+                >
+                  {busyAction === "scan_comments" ? "Đang quét Comment…" : "💬 Quét & Trả lời Comment"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction || !autoInviteEnabled}
+                  onClick={() => void handleSendSafeInvites()}
+                  className="max-w-full rounded-lg border border-emerald-700 bg-emerald-50 px-3 py-1.5 text-left text-xs font-bold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  {busyAction === "send_safe_invites" ? "Đang gửi lời mời…" : "✉️ Mời vào Group An toàn"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectHubTab("campaigns", "comment-invite-automation-panel")}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                >
+                  💬 Hộp thư &amp; Nhật ký Mời ↓
+                </button>
+              </div>
+            </article>
           </div>
         </div>
 
-        {/* Hàng 1.4: Sơ đồ Phối hợp 4 Agent (Trình bày dạng quy trình 4 bước rõ ràng) */}
-        <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-slate-200 bg-slate-50/90 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-            <span className="font-bold text-blue-800">1. Growth Lead Agent</span>
-            <p className="mt-0.5 text-[11px] text-slate-600">
-              Phân lịch cụ thể ngày/tháng/năm & khung giờ đăng cho 4 tuần.
-            </p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-            <span className="font-bold text-emerald-800">2. SEO Worker Agent</span>
-            <p className="mt-0.5 text-[11px] text-slate-600">
-              Soạn bài chuẩn RAG từ nguồn tri thức đã duyệt và xuất bản lên Web.
-            </p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-            <span className="font-bold text-purple-800">3. Content Agent</span>
-            <p className="mt-0.5 text-[11px] text-slate-600">
-              Chọn 1 ảnh độc nhất & đẩy lịch tự động sang Group Cộng đồng (hoặc Fanpage nếu bật).
-            </p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-            <span className="font-bold text-amber-800">4. Community Agent</span>
-            <p className="mt-0.5 text-[11px] text-slate-600">
-              Đăng Group Bot, trả lời tin nhắn Messenger bằng RAG & gửi link mời vào Nhóm.
-            </p>
-          </div>
-        </div>
+      {/* Navigation Tabs (Accessible Single-Row Scrollable Tablist) */}
+      <div
+        role="tablist"
+        aria-label="Các phân hệ điều hành Cộng đồng"
+        className="community-tablist"
+      >
+        {hubTabs.map((tab, idx) => {
+          const isSelected = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              ref={(el) => {
+                tabButtonRefs.current[tab.id] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`community-tab-${tab.id}`}
+              aria-selected={isSelected}
+              tabIndex={isSelected ? 0 : -1}
+              onClick={() => selectHubTab(tab.id)}
+              onKeyDown={(e) => handleTabKeyDown(e, idx)}
+              className="community-tab"
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab("calendar")}
-          className={`rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === "calendar"
-              ? "bg-blue-700 text-white shadow-sm"
-              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-        >
-          1. Lịch Đăng bài Cụ thể theo Ngày / Tháng / Năm & Tuần ({hub.calendar.daily.length} bài)
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("published_archive")}
-          className={`rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === "published_archive"
-              ? "bg-emerald-700 text-white shadow-sm"
-              : "border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
-            }`}
-        >
-          2. 📚 Các Bài Đã Đăng Theo Ngày / Tháng / Năm ({primaryPublishedItems.length} bài)
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("campaigns")}
-          className={`rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === "campaigns"
-              ? "bg-blue-700 text-white shadow-sm"
-              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-        >
-          3. Chiến dịch Thu hút Thành viên ({hub.stats.week1_target} → {hub.stats.week2_target} → {hub.stats.week3_target ?? 150} → {hub.stats.week4_target ?? 300})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("discussions")}
-          className={`rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === "discussions"
-              ? "bg-blue-700 text-white shadow-sm"
-              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-        >
-          4. Thảo luận Cộng đồng ({hub.discussions.length} Chủ đề)
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("architecture")}
-          className={`rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === "architecture"
-              ? "bg-blue-700 text-white shadow-sm"
-              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-        >
-          5. Phân vai 4 Agent & Cơ chế Trả lời Tin nhắn bằng RAG
-        </button>
-      </div>
+      <div
+        role="tabpanel"
+        aria-labelledby={`community-tab-${activeTab}`}
+        className="min-w-0 max-w-full space-y-6"
+      >
 
       {/* TAB 1: CONCRETE DAILY / WEEKLY / MONTHLY EDITORIAL CALENDAR */}
       {activeTab === "calendar" && (
-        <div className="space-y-5">
-          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+        <div className="min-w-0 max-w-full space-y-5">
+          <div className="space-y-3">
             <div>
               <h3 className="text-lg font-bold text-slate-900">
-                Lịch Xuất Bản & Quản Lý Trạng Thái Bài Viết Theo Ngày • Tháng • Năm • Tuần Cụ Thể
+                Lịch Xuất Bản &amp; Quản Lý Trạng Thái Bài Viết Theo Ngày • Tháng • Năm • Tuần Cụ Thể
               </h3>
               <p className="mt-1 text-xs text-slate-600">
-                Toàn bộ <b>{hub.calendar.daily.length} bài viết</b> đều có mốc <b>ngày/tháng/năm & giờ:phút cụ thể</b>:{" "}
+                Toàn bộ <b>{hub.calendar.daily.length} bài viết</b> đều có mốc <b>ngày/tháng/năm &amp; giờ:phút cụ thể</b>:{" "}
                 <span className="font-bold text-emerald-700">
                   ✓ {publishedCount} bài đã đăng {targetMode === "fanpage" ? "Fanpage" : "vào Group"}
                 </span>{" "}
@@ -2235,14 +3531,14 @@ export default function CommunityGrowthHub({
                 ) : null}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="community-pill-row gap-2">
               <button
                 type="button"
                 onClick={() => setCalendarView("daily")}
                 className={`rounded-lg px-3.5 py-2 text-xs font-bold transition ${calendarView === "daily" ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
               >
-                📅 Xem & Lọc Theo Ngày / Tháng / Năm ({hub.calendar.daily.length} Bài)
+                📅 Xem &amp; Lọc Theo Ngày / Tháng / Năm ({hub.calendar.daily.length} Bài)
               </button>
               <button
                 type="button"
@@ -2266,8 +3562,8 @@ export default function CommunityGrowthHub({
           {calendarView === "daily" && (
             <div className="space-y-5">
               {/* Banner Cơ chế Tự động */}
-              <div className="flex flex-col justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 lg:flex-row lg:items-center">
-                <div className="space-y-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4">
+                <div className="min-w-0 flex-[1_1_420px] space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-md bg-indigo-700 px-2.5 py-0.5 text-xs font-bold text-white">
                       Autopilot Worker 24/7
@@ -2312,7 +3608,7 @@ export default function CommunityGrowthHub({
                   type="button"
                   disabled={!canEdit || !!busyAction}
                   onClick={() => void handleScheduleAllPosts()}
-                  className="shrink-0 rounded-lg bg-indigo-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-800 disabled:opacity-50"
+                  className="max-w-full rounded-lg bg-indigo-700 px-3.5 py-2 text-left text-xs font-bold text-white shadow-sm hover:bg-indigo-800 disabled:opacity-50"
                 >
                   {busyAction === "schedule_all"
                     ? "Đang đồng bộ lịch…"
@@ -2699,8 +3995,8 @@ export default function CommunityGrowthHub({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
                       <label htmlFor="filter-page-size" className="font-semibold text-slate-600">
                         Hiển thị:
                       </label>
@@ -2712,7 +4008,7 @@ export default function CommunityGrowthHub({
                           setDailyPageSize(Number(e.target.value));
                           setDailyPage(1);
                         }}
-                        className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800"
+                        className="max-w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800"
                       >
                         <option value={6}>6 bài / trang</option>
                         <option value={9}>9 bài / trang</option>
@@ -2862,11 +4158,11 @@ export default function CommunityGrowthHub({
                           </div>
 
                           {/* VÙNG 2: HÌNH ẢNH ĐỘC NHẤT (Không gắn chữ đè lên ảnh) */}
-                          <div className="h-44 w-full overflow-hidden border-b border-slate-100 bg-slate-100">
+                          <div className="aspect-[16/9] w-full overflow-hidden border-b border-slate-100 bg-slate-100">
                             <img
                               src={item.image_url}
                               alt={item.image_attribution}
-                              className="h-full w-full object-cover"
+                              className="block h-full w-full object-cover"
                             />
                           </div>
 
@@ -3008,6 +4304,30 @@ export default function CommunityGrowthHub({
                             <p className="text-xs leading-relaxed text-slate-600">
                               💬 {item.community_discussion_hook}
                             </p>
+
+                            {item.engagement &&
+                              (item.engagement.total_engagement > 0 || isPublished || isFanpagePublished) && (
+                                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-200/80 bg-rose-50/50 px-2.5 py-1.5 text-[11px] font-bold text-slate-800">
+                                  <span>
+                                    ❤️ {item.engagement.likes} · 💬 {item.engagement.comments} · ↗️{" "}
+                                    {item.engagement.shares}
+                                  </span>
+                                  {(item.engagement.group_likes +
+                                    item.engagement.group_comments +
+                                    item.engagement.group_shares >
+                                    0 ||
+                                    item.engagement.page_likes +
+                                      item.engagement.page_comments +
+                                      item.engagement.page_shares >
+                                      0) && (
+                                    <span className="text-[10px] font-semibold text-slate-600">
+                                      Group: {item.engagement.group_likes}❤️/{item.engagement.group_comments}💬/
+                                      {item.engagement.group_shares}↗️ • Page: {item.engagement.page_likes}❤️/
+                                      {item.engagement.page_comments}💬/{item.engagement.page_shares}↗️
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                           </div>
                         </div>
 
@@ -3461,55 +4781,95 @@ export default function CommunityGrowthHub({
         </div>
       )}
 
-      {/* TAB 2: PUBLISHED POSTS ARCHIVE BY DAY / MONTH / YEAR */}
-      {activeTab === "published_archive" && renderPublishedArchivePanel(hub)}
+      {/* TAB 2: PUBLISHED POSTS ARCHIVE BY DAY / MONTH / YEAR & POST ENGAGEMENT STATS */}
+      {activeTab === "published_archive" && (
+        <div className="min-w-0 max-w-full space-y-6">
+          {renderPublishedArchivePanel(hub)}
+          {renderPostEngagementStatsSection(hub)}
+        </div>
+      )}
 
-      {/* TAB 3: WEEKLY MEMBER ACQUISITION CAMPAIGNS & AUTO-MATCHING */}
+      {/* TAB 3: WEEKLY MEMBER ACQUISITION CAMPAIGNS, GROWTH LEAD TARGETS, COMMENT RAG & SAFE INVITES */}
       {activeTab === "campaigns" && (
-        <div className="space-y-6">
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-bold text-slate-900">
-                Lộ trình Chiến dịch Thu hút Thành viên theo Tuần Cụ thể (02/11/2026 – 30/11/2026)
-              </h3>
-              <button
-                type="button"
-                onClick={() => setEditingSettings(true)}
-                className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
-              >
-                🎯 Tùy chỉnh Mục tiêu các Tuần
-              </button>
+        <div className="min-w-0 max-w-full space-y-6">
+          <div
+            id="campaigns-roadmap-panel"
+            className="min-w-0 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 sm:p-5"
+          >
+            <div className="space-y-2.5">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-md px-2.5 py-0.5 text-xs font-bold ${
+                      hub.group.target_source === "locked_manual"
+                        ? "bg-amber-200 text-amber-950"
+                        : "bg-indigo-700 text-white"
+                    }`}
+                  >
+                    {hub.group.target_source === "locked_manual"
+                      ? "🔒 Mục tiêu Khóa Thủ Công"
+                      : "🤖 Mục tiêu từ Growth Lead Agent (Tự động Áp dụng)"}
+                  </span>
+                  <span className="rounded-md border border-indigo-200 bg-white px-2.5 py-0.5 text-xs font-bold text-indigo-900">
+                    Mục tiêu: {hub.stats.week1_target} → {hub.stats.week2_target} → {hub.stats.week3_target ?? 18} →{" "}
+                    {hub.stats.week4_target ?? 30} thành viên
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Lộ trình Tăng trưởng Cộng đồng 4 Tuần (Growth Lead Đề xuất &amp; Tự Áp dụng)
+                </h3>
+                <p className="text-xs leading-relaxed text-slate-700">
+                  {hub.group.target_rationale ||
+                    `Growth Lead tính mục tiêu tăng dần theo nền ${hub.stats.real_group_members ?? hub.stats.week1_achieved} thành viên hiện có, tỷ lệ tương tác thực tế và ngưỡng mời an toàn ${hub.stats.daily_invite_limit ?? 12} lượt/ngày.`}
+                </p>
+              </div>
+              <div className="community-pill-row gap-2">
+                <button
+                  type="button"
+                  disabled={!canEdit || !!busyAction}
+                  onClick={() => void handleSyncGrowthLeadTargets()}
+                  className="rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-800 disabled:opacity-50"
+                >
+                  {busyAction === "sync_growth_lead_targets"
+                    ? "Growth Lead đang tính…"
+                    : "🤖 Growth Lead Đề xuất & Áp dụng Ngay"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingSettings(true)}
+                  className="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-50"
+                >
+                  ⚙️ Mở Cấu hình &amp; Ghi đè Thủ công
+                </button>
+              </div>
             </div>
-            <p className="mt-1 text-sm text-slate-600">
-              Mỗi tuần đều gắn với mốc ngày tháng thực tế và chỉ tiêu rõ ràng (Tuần 1 [02/11–08/11]: {hub.stats.week1_target} thành viên → Tuần 2 [09/11–15/11]: {hub.stats.week2_target} thành viên → Tuần 3 [16/11–22/11]: {hub.stats.week3_target ?? 150} → Tuần 4 [23/11–30/11]: {hub.stats.week4_target ?? 300}).
-            </p>
+
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {hub.weekly_campaigns.map((c) => {
-                const pct = Math.min(100, Math.round((c.current_members / c.target_members) * 100));
+                const pct = Math.min(100, Math.round((c.current_members / Math.max(1, c.target_members)) * 100));
                 return (
                   <div
                     key={c.week}
-                    className={`rounded-xl border p-4 ${c.status === "completed_target"
+                    className={`rounded-xl border bg-white p-4 ${
+                      c.status === "completed_target"
                         ? "border-emerald-300 bg-emerald-50/40"
                         : c.status === "active_campaign"
                           ? "border-blue-300 bg-blue-50/40 ring-2 ring-blue-200"
-                          : "border-slate-200 bg-white"
-                      }`}
+                          : "border-slate-200"
+                    }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
                       <span className="rounded-md bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">
                         {c.date_range ? `Tuần ${c.week}: ${c.date_range}` : `Tuần ${c.week}`}
                       </span>
-                      <span className="text-xs font-bold text-blue-800">
+                      <span className="whitespace-nowrap text-xs font-bold text-blue-800">
                         Mục tiêu: {c.target_members} người
                       </span>
                     </div>
                     <h4 className="mt-2 text-sm font-bold text-slate-900">{c.title}</h4>
                     <p className="mt-1 text-xs font-medium text-slate-600">Chủ đề trọng tâm: {c.theme}</p>
                     {c.responsible_agents && (
-                      <p className="mt-1 text-[11px] font-semibold text-purple-800">
-                        🤖 {c.responsible_agents}
-                      </p>
+                      <p className="mt-1 text-[11px] font-semibold text-purple-800">🤖 {c.responsible_agents}</p>
                     )}
                     <div className="mt-3">
                       <div className="flex justify-between text-xs font-semibold">
@@ -3529,7 +4889,7 @@ export default function CommunityGrowthHub({
                       {c.target_trends.map((t) => (
                         <span
                           key={t}
-                          className="rounded bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200"
+                          className="rounded bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200"
                         >
                           #{t}
                         </span>
@@ -3549,10 +4909,368 @@ export default function CommunityGrowthHub({
             </div>
           </div>
 
+          {/* COMMENT INBOX, SAFE GROUP INVITES & REAL PROSPECTS */}
+          <div id="comment-invite-automation-panel" className="min-w-0 space-y-6">
+          {/* COMMENT INBOX & RAG AUTO-REPLY */}
+          {(() => {
+            const allComments = hub.recent_comments ?? [];
+            const groupCommentsCount = allComments.filter((c) => c.source_channel === "group_comment").length;
+            const pageCommentsCount = allComments.filter((c) => c.source_channel === "page_comment").length;
+            const filteredComments = allComments.filter((c) =>
+              commentChannelFilter === "all" ? true : c.source_channel === commentChannelFilter
+            );
+            return (
+              <div className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-[1_1_480px]">
+                    <div className="community-pill-row gap-2">
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                          autoReplyComments ? "bg-emerald-700 text-white" : "bg-slate-200 text-slate-800"
+                        }`}
+                      >
+                        {autoReplyComments ? "🤖 Auto-Reply RAG: ĐANG BẬT" : "⏸️ Auto-Reply: ĐANG TẮT"}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-600">
+                        Đã nhận {hub.stats.comments_received_count ?? 0} bình luận • Đã trả lời bằng RAG:{" "}
+                        {hub.stats.comments_replied_count ?? 0}
+                      </span>
+                      {hub.group.last_group_comment_sync_at && (
+                        <span className="text-[11px] text-slate-500">
+                          Quét Group lúc:{" "}
+                          {new Date(hub.group.last_group_comment_sync_at).toLocaleString("vi-VN", {
+                            hour12: false,
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="mt-1.5 text-base font-bold text-slate-900">
+                      Hộp thư Bình luận (Fanpage &amp; Group) &amp; Tự động Trả lời bằng RAG
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-600">
+                      Hệ thống tự động quét bình luận thật từ <b>Facebook Group</b> (Playwright Group Bot) và{" "}
+                      <b>Fanpage</b> (Meta Graph API), sinh câu trả lời chuẩn từ <b>Knowledge Context RAG</b> và tự
+                      động đăng phản hồi công khai + gửi lời mời vào Group khi có nhu cầu phù hợp.
+                    </p>
+                  </div>
+                  <div className="community-pill-row gap-2">
+                    <button
+                      type="button"
+                      disabled={!canEdit || !!busyAction}
+                      onClick={() => void handleScanComments()}
+                      className="rounded-lg bg-blue-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
+                    >
+                      {busyAction === "scan_comments" ? "Đang quét bình luận…" : "💬 Quét & Trả lời Comment RAG"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="community-pill-row mt-3 gap-2">
+                  {[
+                    { id: "all" as const, label: `Tất cả (${allComments.length})` },
+                    { id: "group_comment" as const, label: `👥 Bình luận Group (${groupCommentsCount})` },
+                    { id: "page_comment" as const, label: `📘 Bình luận Fanpage (${pageCommentsCount})` },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setCommentChannelFilter(tab.id)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                        commentChannelFilter === tab.id
+                          ? "bg-slate-900 text-white"
+                          : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {filteredComments.length === 0 ? (
+                  <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-600">
+                    Chưa có bình luận mới từ kênh đang chọn. Bấm &ldquo;💬 Quét &amp; Trả lời Comment RAG&rdquo; để
+                    đồng bộ bình luận mới nhất từ Group &amp; Fanpage.
+                  </div>
+                ) : (
+                  <div
+                    tabIndex={0}
+                    role="region"
+                    aria-labelledby="comments-table-caption"
+                    className="community-table-wrapper mt-4 rounded-lg border border-slate-200"
+                  >
+                    <table className="community-table min-w-[780px] text-left text-xs">
+                      <caption id="comments-table-caption" className="visually-hidden">
+                        Danh sách bình luận gần đây trên Fanpage và Group cùng phản hồi RAG tự động
+                      </caption>
+                      <thead className="bg-slate-50 uppercase text-slate-500">
+                        <tr>
+                          <th scope="col" className="px-3 py-2.5">
+                            Người bình luận &amp; Kênh
+                          </th>
+                          <th scope="col" className="px-3 py-2.5">
+                            Nội dung bình luận thật
+                          </th>
+                          <th scope="col" className="px-3 py-2.5">
+                            Phản hồi RAG tự động
+                          </th>
+                          <th scope="col" className="px-3 py-2.5">
+                            Trạng thái &amp; Mời Group
+                          </th>
+                          <th scope="col" className="px-3 py-2.5">
+                            Nguồn
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredComments.map((cmt) => {
+                          const channelBadge =
+                            cmt.source_channel === "group_comment"
+                              ? "👥 Facebook Group"
+                              : cmt.source_channel === "page_comment"
+                                ? "📘 Facebook Fanpage"
+                                : cmt.source_channel === "telegram"
+                                  ? "✈️ Telegram"
+                                  : "💌 Messenger";
+                          const isReplied = cmt.status === "replied";
+                          const isProcessing = cmt.status === "processing";
+                          const isFailed = cmt.status === "failed";
+                          return (
+                            <tr key={cmt.id} className="border-t border-slate-100 align-top">
+                              <th scope="row" className="px-3 py-3 font-normal">
+                                <p className="font-bold text-slate-900">{cmt.author_name}</p>
+                                <p className="mt-0.5 text-[11px] font-semibold text-slate-600">{channelBadge}</p>
+                                <p className="mt-0.5 text-[10px] text-slate-400">
+                                  {new Date(cmt.received_at).toLocaleString("vi-VN", { hour12: false })}
+                                </p>
+                              </th>
+                              <td data-label="Bình luận" className="max-w-xs px-3 py-3 text-slate-800">
+                                <p className="leading-relaxed">{cmt.content}</p>
+                              </td>
+                              <td data-label="Phản hồi RAG" className="max-w-sm px-3 py-3 text-slate-700">
+                                {cmt.rag_reply_text ? (
+                                  <p className="rounded-md bg-emerald-50/70 p-2 leading-relaxed text-emerald-950">
+                                    {cmt.rag_reply_text}
+                                  </p>
+                                ) : (
+                                  <span className="text-slate-400">Đang chờ xử lý RAG…</span>
+                                )}
+                              </td>
+                              <td data-label="Trạng thái" className="px-3 py-3">
+                                <div className="flex flex-col items-start gap-1">
+                                  <span
+                                    className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                                      isReplied
+                                        ? "bg-emerald-600 text-white"
+                                        : isProcessing
+                                          ? "bg-blue-100 text-blue-900"
+                                          : isFailed
+                                            ? "bg-rose-100 text-rose-900"
+                                            : "bg-amber-100 text-amber-900"
+                                    }`}
+                                  >
+                                    {isReplied
+                                      ? "✓ Đã trả lời công khai"
+                                      : isProcessing
+                                        ? "⏳ Đang gửi phản hồi…"
+                                        : isFailed
+                                          ? "⚠ Lỗi gửi phản hồi"
+                                          : "⏰ Đang xếp hàng RAG"}
+                                  </span>
+                                  {cmt.invite_sent && (
+                                    <span className="rounded bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-900">
+                                      ✉️ Đã gửi lời mời vào Group
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td data-label="Nguồn" className="px-3 py-3">
+                                {cmt.post_url ? (
+                                  <a
+                                    href={cmt.post_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-bold text-blue-700 hover:underline"
+                                  >
+                                    Xem bài ↗
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* SAFE FACEBOOK GROUP INVITE LOGS */}
+          <div className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-[1_1_480px]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                      autoInviteEnabled ? "bg-emerald-700 text-white" : "bg-slate-200 text-slate-800"
+                    }`}
+                  >
+                    {autoInviteEnabled ? "✉️ Tự động Mời Group: ĐANG BẬT" : "⏸️ Tự động Mời: ĐANG TẮT"}
+                  </span>
+                  <span className="rounded-md bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-900">
+                    Quota hôm nay: {hub.stats.invites_sent_today ?? 0} /{" "}
+                    {hub.stats.daily_invite_limit ?? dailyInviteLimit} lời mời an toàn (Tổng:{" "}
+                    {hub.stats.invites_sent_total ?? 0})
+                  </span>
+                </div>
+                <h3 className="mt-1.5 text-base font-bold text-slate-900">
+                  Nhật ký Gửi Lời mời Tham gia Group Chính thức (Không Tự ý Thêm Member)
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Mỗi lời mời đều là <b>lời mời hợp lệ trên Facebook</b> (nút Mời / Invite trong Group hoặc tin nhắn mời qua Messenger / Private Reply) để người dùng chủ động bấm Đồng ý tham gia, giới hạn an toàn{" "}
+                  <b>{hub.stats.daily_invite_limit ?? dailyInviteLimit} lượt/ngày</b>.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!canEdit || !!busyAction || !autoInviteEnabled}
+                onClick={() => void handleSendSafeInvites()}
+                className="rounded-lg bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
+              >
+                {busyAction === "send_safe_invites" ? "Đang gửi lời mời…" : "✉️ Gửi đợt Mời An toàn Ngay"}
+              </button>
+            </div>
+
+            {(hub.recent_invite_logs ?? []).length === 0 ? (
+              <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-600">
+                Chưa có nhật ký lời mời nào được ghi nhận hôm nay. Bấm &ldquo;Gửi đợt Mời An toàn Ngay&rdquo; hoặc bật Auto-Invite để worker tự gửi theo quota ngày.
+              </div>
+            ) : (
+              <div
+                tabIndex={0}
+                role="region"
+                aria-labelledby="invites-table-caption"
+                className="community-table-wrapper mt-4 rounded-lg border border-slate-200"
+              >
+                <table className="community-table min-w-[760px] text-left text-xs">
+                  <caption id="invites-table-caption" className="visually-hidden">
+                    Nhật ký lời mời tham gia Group Facebook an toàn theo ngày
+                  </caption>
+                  <thead className="bg-slate-50 uppercase text-slate-500">
+                    <tr>
+                      <th scope="col" className="px-3 py-2.5">
+                        Người nhận lời mời
+                      </th>
+                      <th scope="col" className="px-3 py-2.5">
+                        Hình thức Lời mời
+                      </th>
+                      <th scope="col" className="px-3 py-2.5">
+                        Trạng thái
+                      </th>
+                      <th scope="col" className="px-3 py-2.5">
+                        Chi tiết thực thi
+                      </th>
+                      <th scope="col" className="px-3 py-2.5">
+                        Thời gian
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(hub.recent_invite_logs ?? []).map((log) => (
+                      <tr key={log.id} className="border-t border-slate-100 align-top">
+                        <th scope="row" className="px-3 py-3 font-bold text-slate-900">
+                          {log.display_name}
+                        </th>
+                        <td data-label="Hình thức" className="px-3 py-3">
+                          <span className="rounded bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-900">
+                            {log.channel === "group_native_invite"
+                              ? "👥 Nút Mời (Invite) Facebook Group"
+                              : log.channel === "page_private_reply_invite"
+                                ? "💬 Private Reply kèm Link Group"
+                                : "💌 Messenger Link Mời Group"}
+                          </span>
+                        </td>
+                        <td data-label="Trạng thái" className="px-3 py-3">
+                          <span
+                            className={`rounded px-2 py-0.5 text-[11px] font-bold ${
+                              log.status === "invited"
+                                ? "bg-emerald-600 text-white"
+                                : log.status === "failed"
+                                  ? "bg-rose-100 text-rose-900"
+                                  : "bg-slate-200 text-slate-800"
+                            }`}
+                          >
+                            {log.status === "invited" ? "✓ Đã gửi lời mời" : log.status}
+                          </span>
+                        </td>
+                        <td data-label="Chi tiết" className="max-w-xs px-3 py-3 text-slate-700">
+                          {log.detail || "Đã ghi nhận chống gửi trùng"}
+                        </td>
+                        <td data-label="Thời gian" className="px-3 py-3 text-slate-500">
+                          {new Date(log.invited_at).toLocaleString("vi-VN", { hour12: false })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* SEARXNG OUTSIDE DEMAND RADAR */}
+          <div className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-[1_1_480px]">
+                <h3 className="text-base font-bold text-slate-900">
+                  Radar Tìm Người &amp; Chủ đề Có Nhu Cầu Ngoài Facebook (SearXNG)
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Quét các câu hỏi du lịch / thuê căn hộ / e-visa Đà Nẵng đang được hỏi công khai để Growth Lead và Community tạo bài giải đáp &amp; thu hút thành viên thật vào Group.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!!busyAction}
+                onClick={() => void handleDiscoverOpportunities()}
+                className="rounded-lg border border-indigo-600 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-900 hover:bg-indigo-100 disabled:opacity-50"
+              >
+                {busyAction === "discover_opportunities"
+                  ? "Đang tìm trên SearXNG…"
+                  : "🔍 Quét Nhu cầu Cộng đồng (SearXNG)"}
+              </button>
+            </div>
+            {searxngOpportunities.length > 0 && (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {searxngOpportunities.map((opp, idx) => (
+                  <article key={`${opp.url}_${idx}`} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="rounded bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
+                        {opp.domain || "web"}
+                      </span>
+                      <a
+                        href={opp.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-blue-700 hover:underline"
+                      >
+                        Mở nguồn ↗
+                      </a>
+                    </div>
+                    <h4 className="mt-1.5 font-bold text-slate-900">{opp.title}</h4>
+                    {opp.snippet && <p className="mt-1 line-clamp-2 text-slate-600">{opp.snippet}</p>}
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* AUTO-MATCH ENGINE RADAR */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+          <div className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-[1_1_480px]">
                 <h3 className="text-base font-bold text-slate-900">
                   Người thật đã tương tác với Fanpage ({hub.stats.real_identified_people} người)
                 </h3>
@@ -3630,26 +5348,46 @@ export default function CommunityGrowthHub({
               </button>
             </form>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[850px] text-left text-xs">
+            <div
+              tabIndex={0}
+              role="region"
+              aria-labelledby="matched-members-caption"
+              className="community-table-wrapper mt-4 rounded-lg border border-slate-200"
+            >
+              <table className="community-table min-w-[850px] text-left text-xs">
+                <caption id="matched-members-caption" className="visually-hidden">
+                  Danh sách người dùng thật đã tương tác và trạng thái mời tham gia Group
+                </caption>
                 <thead className="bg-slate-50 uppercase text-slate-500">
                   <tr>
-                    <th className="px-3 py-2.5">Thành viên & Kênh phát hiện</th>
-                    <th className="px-3 py-2.5">Tín hiệu Nhu cầu / Câu hỏi thực tế</th>
-                    <th className="px-3 py-2.5">Xu hướng & Nhãn sở thích (Auto-Matched)</th>
-                    <th className="px-3 py-2.5">Độ khớp</th>
-                    <th className="px-3 py-2.5">Chiến dịch</th>
-                    <th className="px-3 py-2.5">Trạng thái thật</th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Thành viên &amp; Kênh phát hiện
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Tín hiệu Nhu cầu / Câu hỏi thực tế
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Xu hướng &amp; Nhãn sở thích (Auto-Matched)
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Độ khớp
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Chiến dịch
+                    </th>
+                    <th scope="col" className="px-3 py-2.5">
+                      Trạng thái thật
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {hub.matched_members.map((m) => (
                     <tr key={m.id} className="border-t border-slate-100 align-top">
-                      <td className="px-3 py-3">
+                      <th scope="row" className="px-3 py-3 font-normal">
                         <p className="font-bold text-slate-900">{m.display_name}</p>
                         <p className="mt-0.5 text-[11px] text-slate-500">{m.channel}</p>
-                      </td>
-                      <td className="max-w-xs px-3 py-3 text-slate-700">
+                      </th>
+                      <td data-label="Tín hiệu nhu cầu" className="max-w-xs px-3 py-3 text-slate-700">
                         <p className="line-clamp-2">{m.matched_signal}</p>
                         {m.recommended_topic && (
                           <p className="mt-1 text-[11px] font-medium text-blue-700">
@@ -3657,7 +5395,7 @@ export default function CommunityGrowthHub({
                           </p>
                         )}
                       </td>
-                      <td className="px-3 py-3">
+                      <td data-label="Xu hướng khớp" className="px-3 py-3">
                         <p className="font-semibold text-slate-800">{m.matched_trend}</p>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {(m.interest_tags ?? []).map((tag) => (
@@ -3670,23 +5408,26 @@ export default function CommunityGrowthHub({
                           ))}
                         </div>
                       </td>
-                      <td className="px-3 py-3">
+                      <td data-label="Độ khớp" className="px-3 py-3">
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">
                           {m.affinity_score}%
                         </span>
                       </td>
-                      <td className="px-3 py-3 font-semibold text-slate-700">Tuần {m.campaign_week}</td>
-                      <td className="px-3 py-3">
+                      <td data-label="Chiến dịch" className="px-3 py-3 font-semibold text-slate-700">
+                        Tuần {m.campaign_week}
+                      </td>
+                      <td data-label="Trạng thái" className="px-3 py-3">
                         <div className="flex flex-col items-start gap-1.5">
                           <span
-                            className={`rounded-md px-2 py-1 text-[11px] font-bold ${m.status === "invited_via_messenger"
+                            className={`rounded-md px-2 py-1 text-[11px] font-bold ${
+                              m.status === "invited_via_messenger"
                                 ? "bg-emerald-600 text-white"
                                 : m.status === "outside_24h_window"
                                   ? "bg-slate-200 text-slate-700"
                                   : m.status === "manual_prospect"
                                     ? "bg-slate-200 text-slate-700"
                                     : "bg-amber-100 text-amber-900"
-                              }`}
+                            }`}
                           >
                             {m.status === "invited_via_messenger"
                               ? "✓ Đã gửi link Group qua Messenger"
@@ -3714,14 +5455,15 @@ export default function CommunityGrowthHub({
               </table>
             </div>
           </div>
+          </div>
         </div>
       )}
 
-      {/* TAB 3: COMMUNITY DISCUSSIONS (WITH DEDICATED NON-OVERLAPPING IMAGES) */}
+      {/* TAB 4: COMMUNITY DISCUSSIONS (WITH DEDICATED NON-OVERLAPPING IMAGES) */}
       {activeTab === "discussions" && (
-        <div className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
-            <div className="space-y-4">
+        <div className="min-w-0 max-w-full space-y-6">
+          <div className="min-w-0 grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
+            <div className="min-w-0 space-y-4">
               <h3 className="text-lg font-bold text-slate-900">
                 Bảng Thảo luận Cộng đồng (Sử dụng bộ 5 ảnh thảo luận riêng biệt — 0% trùng ảnh bài đăng)
               </h3>
@@ -3736,8 +5478,8 @@ export default function CommunityGrowthHub({
                     </span>
                   </div>
                   {d.image_url && (
-                    <div className="h-40 w-full overflow-hidden border-b border-slate-100 bg-slate-100">
-                      <img src={d.image_url} alt={d.title} className="h-full w-full object-cover" />
+                    <div className="aspect-[16/9] max-h-48 w-full overflow-hidden border-b border-slate-100 bg-slate-100">
+                      <img src={d.image_url} alt={d.title} className="block h-full w-full object-cover" />
                     </div>
                   )}
                   <div className="p-5">
@@ -3858,9 +5600,9 @@ export default function CommunityGrowthHub({
         </div>
       )}
 
-      {/* TAB 4: MULTI-AGENT ARCHITECTURE & RAG AUTO-REPLY MECHANISM */}
+      {/* TAB 5: MULTI-AGENT ARCHITECTURE & RAG AUTO-REPLY MECHANISM */}
       {activeTab === "architecture" && hub.architecture_info && (
-        <div className="space-y-6">
+        <div className="min-w-0 max-w-full space-y-6">
           <div className="rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
             <h3 className="text-lg font-bold text-slate-900">
               1. Việc phát triển & lên kế hoạch đăng bài thuộc về Agent nào? (Phối hợp 4 Agent chuyên biệt)
@@ -3891,8 +5633,8 @@ export default function CommunityGrowthHub({
           </div>
 
           <div className="rounded-xl border border-emerald-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-[1_1_480px]">
                 <h3 className="text-lg font-bold text-slate-900">
                   2. Cơ chế Trả lời Tin nhắn của User: Tự động hóa dựa trên Bộ RAG có sẵn đã tích hợp
                 </h3>
@@ -3900,7 +5642,7 @@ export default function CommunityGrowthHub({
                   Chế độ vận hành: {hub.architecture_info.rag_reply_mechanism.mode}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2 text-xs font-bold">
+              <div className="community-pill-row gap-2 text-xs font-bold">
                 <span className="rounded-lg bg-emerald-100 px-3 py-1.5 text-emerald-900">
                   📚 {hub.architecture_info.rag_reply_mechanism.approved_sources_count} Tài liệu RAG đã duyệt
                 </span>
@@ -3922,6 +5664,7 @@ export default function CommunityGrowthHub({
           </div>
         </div>
       )}
+      </div>
     </section>
   );
 }

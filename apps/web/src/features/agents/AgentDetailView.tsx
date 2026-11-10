@@ -616,7 +616,19 @@ function AgentPage({ role }: { role: RoleId }) {
         {notice && <p role="status" className="mt-4 text-sm text-blue-800">{notice}</p>}
         {waitingTaskId && <p role="status" className="mt-2 text-sm text-blue-800">{waitingMessage}</p>}
         {chosenResearch && <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-blue-700">Xem Research được bàn giao</summary><ArtifactReviewContent artifact={chosenResearch} /></details>}
-        {role === "growth_lead" && latestArtifact?.operation === "strategy.generate" && <ArtifactReviewContent artifact={latestArtifact} />}
+        {role === "growth_lead" && latestArtifact?.operation === "strategy.generate" && (
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-xs">
+              <span className="font-bold text-emerald-950">
+                🤖 Kế hoạch mục tiêu Group từ Growth Lead được tự động đồng bộ xuống Community Hub
+              </span>
+              <Link href="/agents/community" className="font-bold text-blue-700 hover:underline">
+                Mở Community Hub →
+              </Link>
+            </div>
+            <ArtifactReviewContent artifact={latestArtifact} />
+          </div>
+        )}
       </section>}
       {role === "growth_lead" && data && <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <SectionTitle title="Performance → Learning → Research vòng mới" subtitle="Đóng vòng học từ số liệu first-party. Learning chỉ đề xuất; owner duyệt mới mở vòng Research tiếp theo, tối đa ba vòng và không trùng lặp." />
