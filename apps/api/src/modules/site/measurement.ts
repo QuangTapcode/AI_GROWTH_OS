@@ -3,6 +3,9 @@ import type { Pool } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { siteForWorkspace } from '../../lib/sites';
 import { fetchGscTotals } from '../integrations/liveMetrics';
+import { aggregateProviderMetrics, spendWindowLeads } from '../metrics/aggregate';
+import { socialEvidence } from '../performance/social';
+import { groupMetricEvidence, groupPostEvidence } from '../performance/groups';
 
 const WINDOW_DAYS = 7;
 const NOT_CONNECTED = 'search_console_not_connected';
@@ -23,7 +26,7 @@ export async function baselineMetricArtifact(pool: Pool, workspaceId: string, co
        AND b.payload->'result'->'metric_definitions' = c.payload->'result'->'metric_definitions'
        AND b.payload->'result'->>'timezone' = c.payload->'result'->>'timezone'
        AND b.payload->'result'->>'synthetic' = c.payload->'result'->>'synthetic'
-     ORDER BY (b.payload->'result'->>'window_start')::timestamptz, b.created_at, b.id LIMIT 1`,
+     ORDER BY (b.payload->'result'->>'window_end')::timestamptz DESC, b.created_at DESC, b.id LIMIT 1`,
     [workspaceId, contextSnapshotId, currentId],
   )).rows[0];
   return row?.id as string | undefined;
@@ -42,19 +45,23 @@ export async function baselineMetricArtifact(pool: Pool, workspaceId: string, co
  */
 export async function ensureMeasurementArtifacts(pool: Pool, workspaceId: string, contextSnapshotId: string, maxAgeHours = 1) {
   const fresh = (await pool.query(
-    `SELECT operation, id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2
+    `SELECT operation, id, payload->'result' AS result FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2
        AND operation IN ('metrics.snapshot','lead.aggregate') AND created_at > now() - make_interval(hours => $3)
-     ORDER BY created_at DESC`, [workspaceId, contextSnapshotId, maxAgeHours],
+       AND COALESCE((payload->'result'->>'captured_at')::timestamptz,created_at) >= COALESCE(
+         (SELECT max(s.captured_at) FROM metrics_snapshots s WHERE s.workspace_id=$1 AND s.provider IN ('facebook_page','facebook_group')),
+         '-infinity'::timestamptz)
+     ORDER BY (payload->'result'->>'window_end')::timestamptz DESC NULLS LAST, created_at DESC, id DESC`, [workspaceId, contextSnapshotId, maxAgeHours],
   )).rows;
   const metric = fresh.find((r) => r.operation === 'metrics.snapshot');
-  const leadAgg = fresh.find((r) => r.operation === 'lead.aggregate');
+  const leadAgg = fresh.find((r) => r.operation === 'lead.aggregate' && r.result?.metrics_artifact_id === metric?.id);
   if (metric && leadAgg) return { metrics_artifact_id: metric.id as string, lead_aggregate_id: leadAgg.id as string, created: false };
 
   const end = new Date(Math.floor(Date.now() / 60_000) * 60_000);
   const start = new Date(end.getTime() - WINDOW_DAYS * 86_400_000);
   const { result: metricsResult, counts, measurement } = await measureWindow(pool, workspaceId, start, end);
-  const leadResult = { workspace_id: workspaceId, version: 1, count: counts.leads, synthetic: false };
   const metricsId = await ledgerArtifact(pool, workspaceId, contextSnapshotId, 'metrics.snapshot', 'First-party site metrics', metricsResult, measurement);
+  const leadResult = { workspace_id: workspaceId, version: 1, count: counts.leads, synthetic: false,
+    metrics_artifact_id: metricsId, window_start: metricsResult.window_start, window_end: metricsResult.window_end };
   const leadId = await ledgerArtifact(pool, workspaceId, contextSnapshotId, 'lead.aggregate', 'Lead count (aggregate only)', leadResult,
     { window_start: metricsResult.window_start, window_end: metricsResult.window_end });
   return { metrics_artifact_id: metricsId, lead_aggregate_id: leadId, created: true, counts };
@@ -66,6 +73,7 @@ export function firstPartyMetricDefinitions(workspaceId: string) {
   return {
     qualified_visits: { definition: 'Non-internal sessions viewing a published post and clicking a CTA in the window', unit: 'count', source: 'first_party' as const, scope },
     leads: { definition: 'Non-synthetic lead submissions captured in the window', unit: 'count', source: 'first_party' as const, scope },
+    cvr: { definition: '100 * qualified sessions submitting a non-synthetic site lead after their CTA / qualified sessions', unit: 'percent', source: 'first_party' as const, scope },
   };
 }
 
@@ -94,8 +102,18 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
     `SELECT
        (SELECT count(DISTINCT v.session_id) FROM site_events v WHERE v.workspace_id=$1 AND v.event_type='page_view'
           AND v.content_id IS NOT NULL AND NOT v.internal AND v.occurred_at >= $2 AND v.occurred_at < $3
+          AND ($4::text IS NULL OR v.site_id=$4)
           AND EXISTS (SELECT 1 FROM site_events c WHERE c.workspace_id=v.workspace_id AND c.session_id=v.session_id
-            AND c.event_type='cta_click' AND NOT c.internal AND c.occurred_at >= $2 AND c.occurred_at < $3))::int AS qualified_visits,
+            AND c.site_id=v.site_id AND c.content_id=v.content_id AND c.event_type='cta_click' AND NOT c.internal
+            AND c.occurred_at >= v.occurred_at AND c.occurred_at < $3))::int AS qualified_visits,
+       (SELECT count(DISTINCT v.session_id) FROM site_events v WHERE v.workspace_id=$1 AND v.event_type='page_view'
+          AND v.content_id IS NOT NULL AND NOT v.internal AND v.occurred_at >= $2 AND v.occurred_at < $3
+          AND ($4::text IS NULL OR v.site_id=$4)
+          AND EXISTS (SELECT 1 FROM site_events c WHERE c.workspace_id=v.workspace_id AND c.site_id=v.site_id AND c.content_id=v.content_id
+            AND c.session_id=v.session_id AND c.event_type='cta_click' AND NOT c.internal AND c.occurred_at >= v.occurred_at AND c.occurred_at < $3
+            AND EXISTS (SELECT 1 FROM leads l WHERE l.workspace_id=v.workspace_id AND l.site_id=v.site_id
+              AND l.context->>'visitor_id'=v.session_id AND COALESCE(l.context->>'synthetic','false') <> 'true'
+              AND l.captured_at>=c.occurred_at AND l.captured_at<$3)))::int AS converted_visits,
        (SELECT count(*) FROM site_events WHERE workspace_id=$1 AND event_type='page_view' AND NOT internal
           AND occurred_at >= $2 AND occurred_at < $3)::int AS page_views,
        (SELECT count(*) FROM site_events WHERE workspace_id=$1 AND event_type='page_view' AND internal
@@ -106,11 +124,28 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
     [workspaceId, start, end, site?.site_id ?? null],
   )).rows[0];
   const search = await searchTotals(pool, workspaceId, start, end);
+  const providers = await aggregateProviderMetrics(pool, workspaceId, start, end);
+  const spendLeads = await spendWindowLeads(pool, workspaceId, site?.site_id ?? null, providers.coverage.ad_spend);
+  if (spendLeads !== null && providers.definitions.ad_spend) {
+    providers.coverage.cpl = { ...providers.coverage.ad_spend };
+    providers.definitions.cpl = { definition: 'Meta ad spend / non-synthetic site leads in the same provider-native date window (blended, not attributed)',
+      unit: providers.currency!, source: 'meta_ads',
+      scope: `${providers.definitions.ad_spend.scope}:site:${site?.site_id ?? 'all'}` };
+  } else {
+    providers.unavailable.cpl = 'ALIGNED_SPEND_AND_LEADS_UNAVAILABLE';
+  }
   // Article titles and counts only: never a session, address or person.
-  const articles = (await pool.query<{ slug: string; title: string; page_views: number; cta_clicks: number }>(
+  const articles = (await pool.query<{ slug: string; title: string; page_views: number; cta_clicks: number; leads: number; qualified_visits: number }>(
     `SELECT c.slug, c.title,
         count(*) FILTER (WHERE e.event_type='page_view')::int AS page_views,
-        count(*) FILTER (WHERE e.event_type='cta_click')::int AS cta_clicks
+        count(*) FILTER (WHERE e.event_type='cta_click')::int AS cta_clicks,
+        count(DISTINCT e.session_id) FILTER (WHERE e.event_type='page_view' AND EXISTS (
+          SELECT 1 FROM site_events click WHERE click.workspace_id=e.workspace_id AND click.content_id=e.content_id
+            AND click.session_id=e.session_id AND click.event_type='cta_click' AND NOT click.internal
+            AND click.occurred_at >= e.occurred_at AND click.occurred_at < $3))::int AS qualified_visits,
+        (SELECT count(*)::int FROM leads l WHERE l.workspace_id=c.workspace_id AND l.site_id=c.site_id
+          AND l.context->>'content_slug'=c.slug AND l.captured_at >= $2 AND l.captured_at < $3
+          AND COALESCE(l.context->>'synthetic','false') <> 'true') AS leads
        FROM site_events e JOIN contents c ON c.id=e.content_id AND c.workspace_id=e.workspace_id
       WHERE e.workspace_id=$1 AND NOT e.internal AND e.occurred_at >= $2 AND e.occurred_at < $3 AND c.slug IS NOT NULL
       GROUP BY c.id, c.slug, c.title ORDER BY cta_clicks DESC, page_views DESC, c.slug LIMIT 20`,
@@ -120,7 +155,7 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
     `SELECT COALESCE(NULLIF(trim(utm_source), ''), NULLIF(trim(context->>'source_channel'), ''), NULLIF(trim(context->>'platform'), ''), 'direct') AS utm_source,
             count(*)::int AS leads
        FROM leads
-      WHERE workspace_id=$1 AND ($4::text IS NULL OR site_id=$4 OR site_id IS NULL)
+      WHERE workspace_id=$1 AND ($4::text IS NULL OR site_id=$4)
         AND captured_at >= $2 AND captured_at < $3
         AND COALESCE(context->>'synthetic', 'false') <> 'true'
       GROUP BY 1 ORDER BY 2 DESC`,
@@ -135,16 +170,30 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
       GROUP BY 1`,
     [workspaceId, start, end],
   )).rows;
+  const capturedAt = new Date();
   const result = {
     workspace_id: workspaceId, snapshot_id: randomUUID(), version: 1,
     window_start: start.toISOString(), window_end: end.toISOString(),
     qualified_visits: counts.qualified_visits, leads: counts.leads,
+    converted_visits: counts.converted_visits ?? null,
+    spend_window_leads: spendLeads,
+    ...providers.values,
     impressions: 'impressions' in search ? search.impressions : null, clicks: 'clicks' in search ? search.clicks : null,
     synthetic: false, source: 'first_party',
-    unavailable: 'reason' in search ? { impressions: search.reason, clicks: search.reason } : {},
-    captured_at: new Date().toISOString(), timezone: 'UTC',
-    metric_definitions: firstPartyMetricDefinitions(workspaceId),
+    unavailable: { ...providers.unavailable, ...('reason' in search ? { impressions: search.reason, clicks: search.reason } : {}) },
+    currency: providers.currency ?? null,
+    coverage: { ...providers.coverage, ...('coverage' in search ? Object.fromEntries(['clicks','impressions','ctr'].map(metric => [metric,
+      { ...search.coverage, timezone: 'America/Los_Angeles', status: 'available' }])) : {}) },
+    captured_at: capturedAt.toISOString(), timezone: 'UTC',
+    metric_definitions: { ...firstPartyMetricDefinitions(workspaceId), ...providers.definitions,
+      ...('coverage' in search ? Object.fromEntries(['clicks','impressions','ctr'].map(metric => [metric, {
+        definition: metric === 'ctr' ? '100 * GSC clicks / impressions' : `GSC web ${metric}`, unit: metric === 'ctr' ? 'percent' : 'count',
+        source: 'gsc', scope: `workspace:${workspaceId}:property:${search.coverage.site_url}` }])) : {}) },
     content_metrics: articles,
+    social_posts: [...await socialEvidence(pool, workspaceId, start, end, capturedAt), ...await groupPostEvidence(pool,workspaceId,start,end,capturedAt)].slice(0,20),
+    group_metrics: await groupMetricEvidence(pool,workspaceId,capturedAt),
+    channel_metrics: { leads_by_source: Object.fromEntries(utmRows.map(r => [r.utm_source, r.leads])),
+      published_posts: Object.fromEntries(socialRows.map(r => [r.platform_name, r.published_count])) },
   };
   return { result, counts, measurement: { page_views: counts.page_views, internal_page_views: counts.internal_page_views, site_id: site?.site_id ?? null,
     utm_sources: Object.fromEntries(utmRows.map((r) => [r.utm_source, r.leads])),
@@ -162,9 +211,12 @@ async function searchTotals(pool: Pool, workspaceId: string, start: Date, end: D
     [workspaceId, process.env.GSC_SITE_URL],
   )).rows[0];
   if (!connection) return { reason: NOT_CONNECTED };
-  const from = start.toISOString().slice(0, 10);
   const settled = new Date(Date.now() - SEARCH_SETTLE_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const to = [end.toISOString().slice(0, 10), settled].sort()[0];
+  // A full, settled native-date window, explicitly separate from the first-party timestamp window.
+  const providerEnd = new Date(Date.parse(end.toISOString().slice(0, 10)) - (SEARCH_SETTLE_DAYS + 1) * 86_400_000).toISOString().slice(0, 10);
+  const to = [providerEnd, settled].sort()[0];
+  const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
+  const from = new Date(Date.parse(to) - (days - 1) * 86_400_000).toISOString().slice(0, 10);
   if (from > to) return { reason: 'search_console_data_not_settled' };
   try {
     const totals = await fetchGscTotals(from, to);

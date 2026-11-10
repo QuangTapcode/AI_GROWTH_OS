@@ -118,10 +118,8 @@ async function computeSha256Client(text: string): Promise<string> {
 }
 
 export default function ApprovalView({
-  workspaceId = "ws_tripc_danang",
   workspaceName = "TripC Da Nang",
   userRole = "editor",
-  postId = "post_cm_2026_001",
   initialVersion = 1,
   initialParentSeoVersion = 1,
   initialData,
@@ -141,9 +139,6 @@ export default function ApprovalView({
   const [rejectionNote, setRejectionNote] = useState<string>("");
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [actionNotice, setActionNotice] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
-
-  // 4. Click counter tracking (đảm bảo duyệt <= 3 click)
-  const [clickCount, setClickCount] = useState<number>(0);
 
   // 5. Versioning & Diff State
   const [currentVersion, setCurrentVersion] = useState<number>(initialVersion);
@@ -356,7 +351,6 @@ export default function ApprovalView({
 
   // Hành động 1: Approve (Khóa Hash & Version - CM-26)
   const handleApprove = async () => {
-    setClickCount((prev) => prev + 1);
     if (!canApprove) {
       setActionNotice({
         type: "error",
@@ -388,7 +382,6 @@ export default function ApprovalView({
 
   // Hành động 2: Mở modal Reject
   const handleOpenRejectModal = () => {
-    setClickCount((prev) => prev + 1);
     if (!canApprove) {
       setActionNotice({
         type: "error",
@@ -401,7 +394,6 @@ export default function ApprovalView({
 
   // Hành động 2b: Xác nhận từ chối với lý do
   const handleConfirmReject = () => {
-    setClickCount((prev) => prev + 1);
     setStatus("rejected");
     setShowRejectModal(false);
     const categoryObj = REJECTION_ERROR_CATEGORIES.find((c) => c.id === rejectionCategory);
@@ -422,13 +414,11 @@ export default function ApprovalView({
 
   // Hành động 3: Bật/Tắt chế độ Edit
   const handleToggleEdit = () => {
-    setClickCount((prev) => prev + 1);
     setIsEditing((prev) => !prev);
   };
 
   // Hành động 3b: Lưu bản chỉnh sửa của người (Tạo version mới và lưu Diff)
   const handleSaveEdit = async () => {
-    setClickCount((prev) => prev + 1);
     const newVersionNum = currentVersion + 1;
     const computedHash = await computeSha256Client(editableText);
 
@@ -565,7 +555,6 @@ export default function ApprovalView({
           <button
             onClick={() => {
               setSelectedChannel("facebook");
-              setClickCount((c) => c + 1);
             }}
             className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
               selectedChannel === "facebook"
@@ -582,7 +571,6 @@ export default function ApprovalView({
           <button
             onClick={() => {
               setSelectedChannel("tiktok");
-              setClickCount((c) => c + 1);
             }}
             className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
               selectedChannel === "tiktok"
@@ -682,7 +670,6 @@ export default function ApprovalView({
                         key={sent.sentence_id}
                         onClick={() => {
                           setActiveSentenceId(sent.sentence_id);
-                          setClickCount((c) => c + 1);
                         }}
                         className={`inline-block cursor-pointer px-1.5 py-0.5 rounded transition-all duration-150 mr-1.5 mb-1 ${
                           isSelected

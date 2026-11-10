@@ -2,13 +2,15 @@ import { createSign } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { AppError } from "@/lib/errors";
 import { withTransaction } from "@/lib/db";
-import { upsertConnection } from "@/modules/integrations/repository";
+import { upsertConnection, listConnections } from "@/modules/integrations/repository";
+import { periodSchema, dateInZone } from '../metrics/period';
 
 type Provider = "ga4" | "gsc" | "meta_ads";
 
 export type LiveMetricPoint = {
+  timezone?: string;
   provider: Provider;
-  metric_name: "sessions" | "pageviews" | "search_clicks" | "search_impressions" | "ad_spend";
+  metric_name: "sessions" | "pageviews" | "search_clicks" | "search_impressions" | "ad_spend" | "ad_clicks" | "ad_impressions";
   date: string;
   value: number;
   currency?: string;
@@ -48,6 +50,7 @@ function dateRange(from: string, to: string) {
   assertIsoDate(from, "from");
   assertIsoDate(to, "to");
   if (from > to) throw new AppError(422, "VALIDATION_FAILED", "from must be on or before to");
+  if (!periodSchema.safeParse({ from, to }).success) throw new AppError(422, 'VALIDATION_FAILED', 'Invalid sync period (maximum 366 days)');
   return { from, to };
 }
 
@@ -127,7 +130,7 @@ function toIsoDate(value: string): string {
   return /^\d{8}$/.test(value) ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}` : value;
 }
 
-type Ga4Response = { rows?: Array<{ dimensionValues?: Array<{ value?: string }>; metricValues?: Array<{ value?: string }> }> };
+type Ga4Response = { metadata?: { timeZone?: string }; rows?: Array<{ dimensionValues?: Array<{ value?: string }>; metricValues?: Array<{ value?: string }> }> };
 
 async function fetchGa4(from: string, to: string): Promise<LiveMetricPoint[]> {
   const property = config("GA4_PROPERTY_ID");
@@ -154,8 +157,8 @@ async function fetchGa4(from: string, to: string): Promise<LiveMetricPoint[]> {
     const sessions = Number(row.metricValues?.[0]?.value ?? 0);
     const pageviews = Number(row.metricValues?.[1]?.value ?? 0);
     if (!date || !Number.isFinite(sessions) || !Number.isFinite(pageviews)) continue;
-    points.push({ provider: "ga4", metric_name: "sessions", date, value: sessions, metadata: { source: "ga4.data_api" } });
-    points.push({ provider: "ga4", metric_name: "pageviews", date, value: pageviews, metadata: { source: "ga4.data_api" } });
+    points.push({ provider: "ga4", metric_name: "sessions", date, value: sessions, timezone: response.metadata?.timeZone, metadata: { source: "ga4.data_api" } });
+    points.push({ provider: "ga4", metric_name: "pageviews", date, value: pageviews, timezone: response.metadata?.timeZone, metadata: { source: "ga4.data_api" } });
   }
   return points;
 }
@@ -195,8 +198,8 @@ async function fetchGsc(from: string, to: string): Promise<LiveMetricPoint[]> {
   for (const row of response.rows ?? []) {
     const date = row.keys?.[0] ?? "";
     if (!date || !Number.isFinite(Number(row.clicks)) || !Number.isFinite(Number(row.impressions))) continue;
-    points.push({ provider: "gsc", metric_name: "search_clicks", date, value: Number(row.clicks), metadata: { source: "searchconsole.api", ctr: row.ctr ?? null, position: row.position ?? null } });
-    points.push({ provider: "gsc", metric_name: "search_impressions", date, value: Number(row.impressions), metadata: { source: "searchconsole.api", ctr: row.ctr ?? null, position: row.position ?? null } });
+    points.push({ provider: "gsc", metric_name: "search_clicks", date, value: Number(row.clicks), timezone: 'America/Los_Angeles', metadata: { source: "searchconsole.api", ctr: row.ctr ?? null, position: row.position ?? null } });
+    points.push({ provider: "gsc", metric_name: "search_impressions", date, value: Number(row.impressions), timezone: 'America/Los_Angeles', metadata: { source: "searchconsole.api", ctr: row.ctr ?? null, position: row.position ?? null } });
   }
   return points;
 }
@@ -209,7 +212,7 @@ export async function fetchGscTotals(from: string, to: string): Promise<{ clicks
   return { clicks: sum(points, "search_clicks"), impressions: sum(points, "search_impressions") };
 }
 
-type MetaResponse = { data?: Array<{ date_start?: string; date_stop?: string; spend?: string }> };
+type MetaResponse = { data?: Array<{ date_start?: string; date_stop?: string; spend?: string; clicks?: string; impressions?: string }>; paging?: { next?: string; cursors?: { after?: string } } };
 
 async function fetchMeta(from: string, to: string): Promise<LiveMetricPoint[]> {
   const account = config("META_AD_ACCOUNT_ID");
@@ -217,23 +220,39 @@ async function fetchMeta(from: string, to: string): Promise<LiveMetricPoint[]> {
   if (!account || !token) throw new AppError(422, "INTEGRATION_NOT_CONFIGURED", "META_AD_ACCOUNT_ID and META_ADS_ACCESS_TOKEN are required");
   const version = config("META_GRAPH_API_VERSION") ?? "v20.0";
   const timeRange = encodeURIComponent(JSON.stringify({ since: from, until: to }));
-  const response = await jsonRequest<MetaResponse>(
-    `https://graph.facebook.com/${version}/act_${encodeURIComponent(account.replace(/^act_/, ""))}/insights?fields=date_start,date_stop,spend&time_range=${timeRange}&time_increment=1`,
-    { headers: { accept: "application/json", authorization: `Bearer ${token}` } },
-    "Meta Ads",
-  );
-  return (response.data ?? []).flatMap((row) => {
-    const value = Number(row.spend ?? 0);
-    return row.date_start && Number.isFinite(value)
-      ? [{ provider: "meta_ads" as const, metric_name: "ad_spend" as const, date: row.date_start, value, currency: config("META_AD_CURRENCY") ?? "VND", metadata: { source: "meta.graph_api" } }]
-      : [];
-  });
+  const base = `https://graph.facebook.com/${version}/act_${encodeURIComponent(account.replace(/^act_/, ''))}`;
+  const init = { headers: { accept: 'application/json', authorization: `Bearer ${token}` } };
+  const info = await jsonRequest<{ currency?: string; timezone_name?: string }>(`${base}?fields=currency,timezone_name`, init, 'Meta Ads');
+  if (!info.currency || !info.timezone_name) throw new AppError(502, 'PROVIDER_METADATA_MISSING', 'Meta Ads currency/timezone are required');
+  const points: LiveMetricPoint[] = [], seen = new Set<string>();
+  let after: string | undefined;
+  for (let page = 0; page < 100; page++) {
+    const response = await jsonRequest<MetaResponse>(
+      `${base}/insights?fields=date_start,date_stop,spend,clicks,impressions&time_range=${timeRange}&time_increment=1${after ? `&after=${encodeURIComponent(after)}` : ''}`, init, 'Meta Ads');
+    for (const row of response.data ?? []) {
+      for (const [field, metric] of [['spend', 'ad_spend'], ['clicks', 'ad_clicks'], ['impressions', 'ad_impressions']] as const) {
+        const raw = row[field], value = raw === undefined || raw === null || raw === '' ? NaN : Number(raw);
+        if (row.date_start && Number.isFinite(value) && value >= 0) points.push({ provider: 'meta_ads', metric_name: metric,
+          date: row.date_start, value, currency: info.currency, timezone: info.timezone_name, metadata: { source: 'meta.graph_api' } });
+      }
+    }
+    if (!response.paging?.next) return points;
+    after = response.paging.cursors?.after;
+    if (!after || seen.has(after)) throw new AppError(502, 'INVALID_PROVIDER_PAGINATION', 'Meta Ads returned an invalid cursor');
+    seen.add(after);
+  }
+  throw new AppError(502, 'PROVIDER_PAGINATION_LIMIT', 'Meta Ads response exceeded the pagination limit');
 }
 
 async function insertSnapshots(workspaceId: string, points: LiveMetricPoint[], from: string, to: string): Promise<void> {
   if (points.length === 0) return;
   await withTransaction(async (client) => {
-    const groups = [...new Set(points.map((point) => `${point.provider}:${point.metric_name}`))];
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`metrics:${workspaceId}`]);
+    const groups = [...new Set([
+      ...points.map((point) => `${point.provider}:${point.metric_name}`),
+      // A newly omitted counter must not silently reuse a previous sync's value.
+      ...(points.some(point => point.provider === 'meta_ads') ? ['meta_ads:ad_spend', 'meta_ads:ad_clicks', 'meta_ads:ad_impressions'] : []),
+    ])];
     for (const group of groups) {
       const [provider, metric] = group.split(":");
       await client.query(
@@ -242,11 +261,13 @@ async function insertSnapshots(workspaceId: string, points: LiveMetricPoint[], f
       );
     }
     for (const point of points) {
+      const complete = point.timezone && point.date < dateInZone(new Date(), point.timezone);
       await client.query(
         `INSERT INTO metrics_snapshots
           (workspace_id, provider, metric_name, period_from, period_to, timezone, currency, metric_value, availability, missing_reason, metadata)
-         VALUES ($1,$2,$3,$4::date,$4::date,'Asia/Ho_Chi_Minh',$5,$6,'available',NULL,$7::jsonb)`,
-        [workspaceId, point.provider, point.metric_name, point.date, point.currency ?? "VND", point.value, JSON.stringify({ ...point.metadata, synced_at: new Date().toISOString() })],
+         VALUES ($1,$2,$3,$4::date,$4::date,$8,$5,$6,$9,$10,$7::jsonb)`,
+        [workspaceId, point.provider, point.metric_name, point.date, point.currency ?? "VND", point.value, JSON.stringify({ ...point.metadata, synced_at: new Date().toISOString() }), point.timezone ?? 'unknown',
+          complete ? 'available' : 'partial', complete ? null : point.timezone ? 'DAY_NOT_COMPLETE' : 'TIMEZONE_UNKNOWN'],
       );
     }
   });
@@ -264,6 +285,7 @@ async function insertNoDataSnapshots(workspaceId: string, provider: Provider, me
   const dates = datesBetween(from, to);
   if (!dates.length) return;
   await withTransaction(async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`metrics:${workspaceId}`]);
     for (const metric of metrics) {
       await client.query(
         "DELETE FROM metrics_snapshots WHERE workspace_id=$1 AND provider=$2 AND metric_name=$3 AND period_from BETWEEN $4::date AND $5::date",
@@ -281,7 +303,7 @@ async function insertNoDataSnapshots(workspaceId: string, provider: Provider, me
   });
 }
 
-async function markProviderVerified(workspaceId: string, provider: Provider): Promise<void> {
+async function markProviderVerified(workspaceId: string, provider: Provider, boundAccount: string): Promise<void> {
   const configByProvider: Record<Provider, { accountRef: string | undefined; scopes: string[]; displayName: string }> = {
     ga4: {
       accountRef: config("GA4_PROPERTY_ID"),
@@ -304,7 +326,7 @@ async function markProviderVerified(workspaceId: string, provider: Provider): Pr
   await upsertConnection({
     workspaceId,
     provider,
-    accountRef: entry.accountRef,
+    accountRef: boundAccount,
     displayName: entry.displayName,
     scopes: entry.scopes,
     credentialRef: `${provider}:server-configured`,
@@ -324,22 +346,33 @@ export async function syncLiveMetrics(workspaceId: string, from: string, to: str
     { provider: "meta_ads", configured: Boolean(config("META_ADS_ACCESS_TOKEN") && config("META_AD_ACCOUNT_ID")), run: () => fetchMeta(range.from, range.to) },
   ];
   const allPoints: LiveMetricPoint[] = [];
+  const connections = await listConnections(workspaceId);
+  const accountRefs = { ga4: config('GA4_PROPERTY_ID'), gsc: config('GSC_SITE_URL'), meta_ads: config('META_AD_ACCOUNT_ID') };
+  const normalize = (provider: Provider, value: string) => provider === 'meta_ads' ? value.replace(/^act_/, '') : provider === 'ga4' ? value.replace(/^properties\//, '') : value;
   const results: LiveSyncResult[] = [];
   for (const job of jobs) {
     if (!job.configured) {
       results.push({ provider: job.provider, status: "skipped", points: 0, missing_reason: job.provider === "gsc" ? "PROPERTY_NOT_VERIFIED" : job.provider === "meta_ads" ? "META_ADS_ACCESS_MISSING" : "GOOGLE_CREDENTIALS_NOT_CONFIGURED" });
       continue;
     }
+    // Server credentials may only fetch accounts explicitly bound to this tenant.
+    const account = accountRefs[job.provider]!;
+    const connection = connections.find(c => c.provider === job.provider && c.account_ref && c.status === 'connected' &&
+      normalize(job.provider, c.account_ref) === normalize(job.provider, account));
+    if (!connection?.account_ref) {
+      results.push({ provider: job.provider, status: 'skipped', points: 0, missing_reason: 'WORKSPACE_ACCOUNT_NOT_BOUND' });
+      continue;
+    }
     try {
-      const points = await job.run();
+      const points = (await job.run()).map(point => ({ ...point, metadata: { ...point.metadata, account_ref: connection.account_ref } }));
       allPoints.push(...points);
-      await markProviderVerified(workspaceId, job.provider);
+      await markProviderVerified(workspaceId, job.provider, connection.account_ref);
       if (points.length === 0) {
         const metrics = job.provider === "ga4"
           ? ["sessions", "pageviews"]
           : job.provider === "gsc"
           ? ["search_clicks", "search_impressions"]
-          : ["ad_spend"];
+          : ["ad_spend", "ad_clicks", "ad_impressions"];
         await insertNoDataSnapshots(workspaceId, job.provider, metrics, range.from, range.to);
       }
       results.push({ provider: job.provider, status: points.length ? "synced" : "no_data", points: points.length });

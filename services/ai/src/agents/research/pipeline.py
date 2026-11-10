@@ -327,8 +327,16 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
                                   "movement": movement(s)}
                                  for s in sorted(landscape, key=lambda s: s.rank)[:MAX_LANDSCAPE_IN_PROMPT]],
             "excerpts": []}
-    if payload.lessons and (payload.lessons.promising_titles or payload.lessons.weak_titles):
+    if payload.lessons and (payload.lessons.promising_titles or payload.lessons.weak_titles or payload.lessons.channel_observations):
         base["lessons"] = payload.lessons.model_dump(mode="json")
+        if not payload.lessons.channel_observations:
+            base["lessons"].pop("channel_observations", None)
+    if payload.performance_action:
+        base["performance_investigation"] = {
+            "metric_name": payload.performance_action.metric_name,
+            "reason": payload.performance_action.reason,
+            "instruction": "Investigate this measured change using approved excerpts. It is guidance, not source evidence or proof of causation.",
+        }
     if payload.business_profile.research_strategy:
         strategy = payload.business_profile.research_strategy
         base['editorial_strategy'] = {

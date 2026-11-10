@@ -67,6 +67,15 @@ class LearningLessons(BaseModel):
     model_config = ConfigDict(extra="forbid")
     promising_titles: list[str] = Field(default_factory=list, max_length=5)
     weak_titles: list[str] = Field(default_factory=list, max_length=5)
+    channel_observations: list[str] = Field(default_factory=list, max_length=5)
+
+
+class PerformanceAction(BaseModel):
+    """Owner-approved investigation guidance, never source evidence or a causal claim."""
+    model_config = ConfigDict(extra="forbid")
+    metric_name: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=1, max_length=1000)
+    report_artifact_id: UUID
 
 
 class ResearchPayload(BaseModel):
@@ -84,6 +93,7 @@ class ResearchPayload(BaseModel):
     # Voice-of-customer questions/topics captured from community inbox and leads.
     customer_signals: list[str] = Field(default_factory=list, max_length=20)
     lessons: LearningLessons | None = None
+    performance_action: PerformanceAction | None = None
 
 
 class ResearchIdea(BaseModel):

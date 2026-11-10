@@ -142,7 +142,7 @@ describe.skipIf(process.env.RUN_AUTOMATION_DB !== '1')('agent results on disposa
 
   // GAP-PERF-1: the baseline is stored as a metrics.snapshot too and is newer, so "latest" means the week before. Each round walks back
   // a week: seen in the real ledger on 29/10, reports reached 27/08-03/09 within one evening, and the second round reported zero visits.
-  it.fails('a measurement taken after its baseline still reads the current week', async () => {
+  it('a measurement taken after its baseline still reads the current week', async () => {
     const { ws, ctx } = await newWorkspace();
     const first = await ensureMeasurementArtifacts(db, ws, ctx, 24);
     await ensureBaselineArtifact(db, ws, ctx, first.metrics_artifact_id);

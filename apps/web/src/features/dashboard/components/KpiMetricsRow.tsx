@@ -44,7 +44,7 @@ const METRICS: Array<{ key: string; label: string }> = [
   { key: "sessions", label: "Sessions" },
   { key: "search_clicks", label: "Organic Clicks" },
   { key: "search_impressions", label: "Search Impressions" },
-  { key: "leads_generated", label: "Qualified Leads" },
+  { key: "leads_generated", label: "Leads Captured" },
   { key: "ad_spend", label: "Ad Spend" },
 ];
 
@@ -55,7 +55,7 @@ function formatValue(item: MetricItem): string {
 }
 
 function changeText(current: MetricItem, previous: MetricItem | undefined): { text: string; tone: "up" | "down" | "flat" } | null {
-  if (current.value === null || !previous || previous.availability !== "available" || previous.value === null) return null;
+  if (current.availability !== 'available' || current.value === null || !previous || previous.availability !== "available" || previous.value === null || current.currency !== previous.currency || current.timezone !== previous.timezone) return null;
   if (previous.value === 0) return current.value === 0 ? { text: "0%", tone: "flat" } : null;
   const pct = ((current.value - previous.value) / previous.value) * 100;
   return { text: `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`, tone: pct > 0 ? "up" : pct < 0 ? "down" : "flat" };
@@ -77,7 +77,7 @@ export default function KpiMetricsRow({ report, previous }: KpiMetricsRowProps) 
               className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
             >
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-medium text-slate-600">{label}</span>
+                <span className="text-xs font-medium text-slate-600" title={item.timezone ? `Provider dates in ${item.timezone}` : report.period.timezone}>{label}{item.timezone && <span className="block text-[9px] text-slate-400">{item.timezone}</span>}</span>
                 <div className="w-7 h-7 rounded-lg bg-blue-50/80 flex items-center justify-center">{ICONS[key]}</div>
               </div>
 
@@ -112,7 +112,7 @@ export default function KpiMetricsRow({ report, previous }: KpiMetricsRowProps) 
                     >
                       {item.missing_reason === "NO_DATA_IN_RANGE"
                         ? "No data in range"
-                        : `Not connected · ${humanize((item.missing_reason ?? item.availability).toLowerCase())}`}
+                        : `${humanize(item.availability)} · ${humanize((item.missing_reason ?? 'No data').toLowerCase())}`}
                     </span>
                   )}
                 </div>

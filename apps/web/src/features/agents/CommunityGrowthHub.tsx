@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
 
 type WeeklyCampaign = {
@@ -138,7 +138,8 @@ export default function CommunityGrowthHub({
   onUpdated?: () => void;
 }) {
   const [hub, setHub] = useState<HubResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadedWorkspace, setLoadedWorkspace] = useState<string | null>(null);
+  const loading = loadedWorkspace !== workspaceId;
   const [activeTab, setActiveTab] = useState<"campaigns" | "discussions" | "calendar">("campaigns");
   const [calendarView, setCalendarView] = useState<"daily" | "weekly" | "monthly">("daily");
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -161,7 +162,7 @@ export default function CommunityGrowthHub({
   const [discussionBody, setDiscussionBody] = useState("");
   const [discussionPrompt, setDiscussionPrompt] = useState("");
 
-  function syncFormFromHub(res: HubResponse) {
+  const syncFormFromHub = useCallback((res: HubResponse) => {
     setCustomCommunityName(res.group.name);
     setCustomGroupUrl(res.group.group_url);
     setCustomGroupMemberCount(res.stats.real_group_members ?? res.stats.week1_achieved ?? 2);
@@ -169,24 +170,25 @@ export default function CommunityGrowthHub({
     setCustomWeek2Target(res.stats.week2_target || 50);
     setCustomWeek3Target(res.stats.week3_target || res.weekly_campaigns?.[2]?.target_members || 150);
     setCustomWeek4Target(res.stats.week4_target || res.weekly_campaigns?.[3]?.target_members || 300);
-  }
-
-  async function fetchHub() {
-    setLoading(true);
-    try {
-      const res = await apiRequest<HubResponse>(`/workspaces/${workspaceId}/community/hub`);
-      setHub(res);
-      syncFormFromHub(res);
-    } catch (err) {
-      setBannerMessage((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, []);
 
   useEffect(() => {
-    void fetchHub();
-  }, [workspaceId]);
+    const controller = new AbortController();
+    void apiRequest<HubResponse>(`/workspaces/${workspaceId}/community/hub`, { signal: controller.signal })
+      .then(res => {
+        if (controller.signal.aborted) return;
+        setHub(res);
+        setBannerMessage("");
+        syncFormFromHub(res);
+      })
+      .catch((err: Error) => {
+        if (controller.signal.aborted) return;
+        setHub(null);
+        setBannerMessage(err.message);
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoadedWorkspace(workspaceId); });
+    return () => controller.abort();
+  }, [workspaceId, syncFormFromHub]);
 
   async function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
@@ -353,7 +355,7 @@ export default function CommunityGrowthHub({
     window.open(hub.group.group_url, "_blank", "noopener,noreferrer");
   }
 
-  if (loading && !hub) {
+  if (loading) {
     return (
       <section className="rounded-2xl border border-blue-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold text-blue-800">
@@ -363,7 +365,7 @@ export default function CommunityGrowthHub({
     );
   }
 
-  if (!hub) return null;
+  if (!hub) return <p role="alert" className="text-sm text-red-700">{bannerMessage}</p>;
 
   return (
     <section className="space-y-6 rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50/50 to-white p-6 shadow-sm">

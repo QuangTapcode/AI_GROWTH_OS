@@ -172,6 +172,12 @@ export class PlanOutboxRunner {
         payload.lead_summary = input.lead_summary_artifact_id ? await load(input.lead_summary_artifact_id) : null;
         payload.iteration = input.iteration; payload.max_iterations = input.max_iterations; payload.task_quota = input.task_quota;
       } else if (task.operation === 'research.run') {
+        // Both the current nested envelope and already queued v1 tasks retain the approved proposal.
+        const action = taskInput.performance_action ?? task.payload.performance_action;
+        if (action) payload.performance_action = {
+          metric_name: action.metric_name, reason: action.reason,
+          report_artifact_id: action.report_artifact_id,
+        };
         // A round opened by Learning carries what it observed about past articles.
         if (taskInput.lessons) payload.lessons = taskInput.lessons;
         payload.content_inventory = (await this.pool.query(`SELECT content_id,workspace_id,version,title,evidence_quotes,evidence_chunk_ids FROM (

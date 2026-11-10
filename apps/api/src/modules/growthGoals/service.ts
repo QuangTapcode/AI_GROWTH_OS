@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Pool, PoolClient } from 'pg';
+import { METRIC_NAMES, canonicalMetric } from '../metrics/catalog';
 
 /**
  * The workspace's active growth goal. Knowledge contexts embed it so Research and
@@ -13,7 +14,7 @@ export const goalInputSchema = z.object({
   budget_usd: z.number().min(0).max(1_000_000),
   target_qualified_visits: z.number().int().min(0).nullable().optional(),
   kpis: z.array(z.object({
-    metric_name: z.string().trim().min(1).max(100),
+    metric_name: z.string().trim().transform(canonicalMetric).pipe(z.enum(METRIC_NAMES)),
     baseline_value: z.number().min(0).nullable(),
     target_value: z.number().min(0),
     measurement: z.object({
@@ -36,7 +37,7 @@ export async function activeGoal(db: Db, workspaceId: string) {
   if (!goal) return null;
   const kpis: StoredKpi[] = (await db.query(
     'SELECT metric_name, baseline_value, target_value, current_value, measurement FROM growth_kpis WHERE goal_id=$1 ORDER BY metric_name', [goal.id],
-  )).rows.map((k) => ({ metric_name: k.metric_name, baseline_value: num(k.baseline_value), target_value: num(k.target_value),
+  )).rows.map((k) => ({ metric_name: canonicalMetric(k.metric_name), baseline_value: num(k.baseline_value), target_value: num(k.target_value),
     current_value: num(k.current_value), measurement: k.measurement ?? null }));
   return { ...goal, budget_usd: num(goal.budget_usd), target_traffic_pct: num(goal.target_traffic_pct), kpis };
 }
@@ -74,7 +75,8 @@ export function goalContext(goal: Awaited<ReturnType<typeof activeGoal>>, offers
 }
 
 /** Replace the active goal atomically; the previous one is archived, never deleted. */
-export async function setGoal(pool: Pool, workspaceId: string, input: GoalInput) {
+export async function setGoal(pool: Pool, workspaceId: string, rawInput: z.input<typeof goalInputSchema>) {
+  const input = goalInputSchema.parse(rawInput);
   const db = await pool.connect();
   try {
     await db.query('BEGIN');
