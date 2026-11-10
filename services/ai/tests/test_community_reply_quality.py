@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from test_community_history import Provider
 from conftest import run_job
 from examples.six_role_requests import mock_research_request, request
 from src.app.schemas import Usage
@@ -117,3 +118,17 @@ def test_a_reply_guessing_beyond_the_quotes_goes_to_a_person(make_client):
 def test_common_question_words_missing_from_the_sources_do_not_stop_an_answer(make_client):
     result = ask(make_client, GROUNDED, question="Please help me find good living areas for newcomers, what do you recommend?")
     assert result["reply"] == GROUNDED and result["escalation_required"] is False
+
+
+@pytest.mark.parametrize("opener", [
+    "cảm ơn ad nhiều nha",
+    "bạn là ai vậy? giúp mình gì được?",
+    "giới thiệu cộng đồng facebook giúp mình",
+])
+def test_conversational_openers_get_a_grounded_reply_even_when_similarity_is_low(make_client, opener):
+    job = request(mock_research_request(), "community.response", {"question": opener})
+    body = run_job(make_client(provider=Provider(similarity=0.1, reply=GROUNDED), provider_mode="live"), job)
+    assert body["status"] == "completed", body
+    result = body["result"]["result"]
+    assert result["status"] == "draft" and result["escalation_required"] is False
+    assert result["reply"] == GROUNDED and result["citations"]

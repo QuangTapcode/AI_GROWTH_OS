@@ -126,6 +126,21 @@ type GroupBotSessionStatus = {
   accountIdMask?: string;
 };
 
+type TelegramBotStatus = {
+  configured: boolean;
+  mode: "polling" | "webhook";
+  bot_username: string | null;
+  bot_name: string | null;
+  t_me_url: string | null;
+  webhook_url: string | null;
+  pending_update_count: number;
+  last_error_message: string | null;
+  conversations_count: number;
+  messages_received_count: number;
+  messages_replied_count: number;
+  invites_sent_count: number;
+};
+
 type PostEngagementSummary = {
   likes: number;
   comments: number;
@@ -365,6 +380,7 @@ type HubResponse = {
     weekly: WeeklyCalendarItem[];
     monthly: MonthlyCalendarItem[];
   };
+  telegram_bot?: TelegramBotStatus;
 };
 
 type WeekFilterId = `week${number}`;
@@ -474,7 +490,9 @@ export default function CommunityGrowthHub({
     "npm.cmd --prefix apps/worker run group-bot:switch"
   );
   const [copiedCliFallback, setCopiedCliFallback] = useState<boolean>(false);
-  const [commentChannelFilter, setCommentChannelFilter] = useState<"all" | "group_comment" | "page_comment">("all");
+  const [commentChannelFilter, setCommentChannelFilter] = useState<
+    "all" | "group_comment" | "page_comment" | "telegram" | "messenger"
+  >("all");
   const [postMetricsChannelFilter, setPostMetricsChannelFilter] = useState<"all" | "group" | "fanpage">("all");
   const switchFallbackNeeded = useSyncExternalStore(
     subscribeNoop,
@@ -1061,6 +1079,37 @@ export default function CommunityGrowthHub({
           ? `🔍 SearXNG vừa tìm thấy ${res.opportunities.length} chủ đề & thảo luận công khai có người đang hỏi về du lịch/cư trú Việt Nam để mời vào cộng đồng.`
           : "🔍 Chưa tìm thêm được luồng thảo luận mới từ SearXNG (kiểm tra container SearXNG đang chạy ở cổng 18081)."
       );
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSyncTelegramBot(clearWebhookForPolling = false) {
+    setBusyAction("sync_telegram_bot");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        success: boolean;
+        message: string;
+        telegram_bot?: TelegramBotStatus;
+        data?: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: {
+          action: "sync_telegram_bot",
+          clear_webhook_for_polling: clearWebhookForPolling,
+        },
+      });
+      if (res.data) {
+        setHub(res.data);
+      }
+      setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      showBanner(res.success ? "success" : "warning", `✈️ ${res.message}`);
+      onUpdated?.();
     } catch (err) {
       showBanner("error", (err as Error).message);
     } finally {
@@ -3432,6 +3481,76 @@ export default function CommunityGrowthHub({
                     <span className="min-w-0 flex-1 break-words">✉️ Tự động Mời Group (10–15/ngày)</span>
                   </label>
                 </div>
+
+                <div className="space-y-1.5 rounded-lg border border-sky-200 bg-sky-50/70 p-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="font-bold text-sky-950">✈️ Bot Telegram Tư vấn &amp; Mời Group</span>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        hub.telegram_bot?.configured
+                          ? "border border-emerald-300 bg-emerald-100 text-emerald-900"
+                          : "border border-slate-300 bg-white text-slate-700"
+                      }`}
+                    >
+                      {hub.telegram_bot?.configured
+                        ? `✓ Đã kết nối (${hub.telegram_bot.mode === "webhook" ? "Webhook" : "Polling"})`
+                        : "⚙ Chưa gắn Token"}
+                    </span>
+                  </div>
+                  {hub.telegram_bot?.configured ? (
+                    <>
+                      <p className="text-[11px] text-sky-950">
+                        {hub.telegram_bot.t_me_url ? (
+                          <a
+                            href={hub.telegram_bot.t_me_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-bold text-sky-800 underline underline-offset-2 hover:text-sky-950"
+                          >
+                            @{hub.telegram_bot.bot_username} ↗
+                          </a>
+                        ) : (
+                          <b>{hub.telegram_bot.bot_name || "Telegram Bot"}</b>
+                        )}
+                        {" · "}
+                        <b>{hub.telegram_bot.conversations_count}</b> người chat ·{" "}
+                        <b>{hub.telegram_bot.messages_replied_count}</b>/{hub.telegram_bot.messages_received_count} đã đáp ·{" "}
+                        <b>{hub.telegram_bot.invites_sent_count}</b> mời Group
+                      </p>
+                      {hub.telegram_bot.last_error_message && (
+                        <p className="break-words text-[10px] font-semibold text-rose-700">
+                          ⚠ {hub.telegram_bot.last_error_message}
+                        </p>
+                      )}
+                      <div className="community-pill-row gap-1.5 pt-0.5">
+                        <button
+                          type="button"
+                          disabled={!canEdit || !!busyAction}
+                          onClick={() => void handleSyncTelegramBot(false)}
+                          className="rounded border border-sky-400 bg-white px-2 py-1 text-[11px] font-bold text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+                        >
+                          {busyAction === "sync_telegram_bot" ? "Đang đồng bộ…" : "🔄 Đồng bộ Bot & Lệnh"}
+                        </button>
+                        {hub.telegram_bot.mode === "polling" && hub.telegram_bot.webhook_url && (
+                          <button
+                            type="button"
+                            disabled={!canEdit || !!busyAction}
+                            onClick={() => void handleSyncTelegramBot(true)}
+                            className="rounded border border-amber-400 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            🧹 Gỡ Webhook để chạy Polling
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-[11px] leading-relaxed text-sky-900">
+                      Tạo bot miễn phí tại <b>@BotFather</b> (<code>/newbot</code>), dán{" "}
+                      <code>TELEGRAM_BOT_TOKEN</code> &amp; <code>TELEGRAM_BOT_MODE=polling</code> vào{" "}
+                      <code>apps/api/.env.local</code> rồi khởi động lại server để bot tự chat RAG và mời vào Group Facebook.
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="community-pill-row mt-auto gap-2 border-t border-slate-100 pt-3 text-xs">
@@ -4909,13 +5028,15 @@ export default function CommunityGrowthHub({
             </div>
           </div>
 
-          {/* COMMENT INBOX, SAFE GROUP INVITES & REAL PROSPECTS */}
+          {/* COMMENT & BOT INBOX, SAFE GROUP INVITES & REAL PROSPECTS */}
           <div id="comment-invite-automation-panel" className="min-w-0 space-y-6">
-          {/* COMMENT INBOX & RAG AUTO-REPLY */}
+          {/* COMMENT & BOT INBOX & RAG AUTO-REPLY */}
           {(() => {
             const allComments = hub.recent_comments ?? [];
             const groupCommentsCount = allComments.filter((c) => c.source_channel === "group_comment").length;
             const pageCommentsCount = allComments.filter((c) => c.source_channel === "page_comment").length;
+            const telegramCount = allComments.filter((c) => c.source_channel === "telegram").length;
+            const messengerCount = allComments.filter((c) => c.source_channel === "messenger").length;
             const filteredComments = allComments.filter((c) =>
               commentChannelFilter === "all" ? true : c.source_channel === commentChannelFilter
             );
@@ -4932,8 +5053,7 @@ export default function CommunityGrowthHub({
                         {autoReplyComments ? "🤖 Auto-Reply RAG: ĐANG BẬT" : "⏸️ Auto-Reply: ĐANG TẮT"}
                       </span>
                       <span className="text-xs font-semibold text-slate-600">
-                        Đã nhận {hub.stats.comments_received_count ?? 0} bình luận • Đã trả lời bằng RAG:{" "}
-                        {hub.stats.comments_replied_count ?? 0}
+                        Bình luận: {hub.stats.comments_replied_count ?? 0}/{hub.stats.comments_received_count ?? 0} · Tin nhắn (Telegram/Messenger): {hub.stats.messages_replied_count ?? 0}/{hub.stats.messages_received_count ?? 0}
                       </span>
                       {hub.group.last_group_comment_sync_at && (
                         <span className="text-[11px] text-slate-500">
@@ -4945,12 +5065,12 @@ export default function CommunityGrowthHub({
                       )}
                     </div>
                     <h3 className="mt-1.5 text-base font-bold text-slate-900">
-                      Hộp thư Bình luận (Fanpage &amp; Group) &amp; Tự động Trả lời bằng RAG
+                      Hộp thư Hội thoại Đa kênh (Telegram Bot · Messenger · Fanpage · Group) &amp; Tự động Trả lời RAG
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-600">
-                      Hệ thống tự động quét bình luận thật từ <b>Facebook Group</b> (Playwright Group Bot) và{" "}
-                      <b>Fanpage</b> (Meta Graph API), sinh câu trả lời chuẩn từ <b>Knowledge Context RAG</b> và tự
-                      động đăng phản hồi công khai + gửi lời mời vào Group khi có nhu cầu phù hợp.
+                      Hệ thống tự động tiếp nhận hội thoại thật từ <b>Telegram Bot</b>, <b>Messenger</b>,{" "}
+                      <b>Facebook Group</b> và <b>Fanpage</b>, giữ ngữ cảnh trò chuyện nhiều lượt bằng{" "}
+                      <b>Knowledge Context RAG</b> và tự nhiên giới thiệu người dùng tham gia Cộng đồng Facebook.
                     </p>
                   </div>
                   <div className="community-pill-row gap-2">
@@ -4968,12 +5088,15 @@ export default function CommunityGrowthHub({
                 <div className="community-pill-row mt-3 gap-2">
                   {[
                     { id: "all" as const, label: `Tất cả (${allComments.length})` },
+                    { id: "telegram" as const, label: `✈️ Telegram Bot (${telegramCount})` },
                     { id: "group_comment" as const, label: `👥 Bình luận Group (${groupCommentsCount})` },
                     { id: "page_comment" as const, label: `📘 Bình luận Fanpage (${pageCommentsCount})` },
+                    { id: "messenger" as const, label: `💌 Messenger (${messengerCount})` },
                   ].map((tab) => (
                     <button
                       key={tab.id}
                       type="button"
+                      aria-pressed={commentChannelFilter === tab.id}
                       onClick={() => setCommentChannelFilter(tab.id)}
                       className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                         commentChannelFilter === tab.id
@@ -4988,8 +5111,9 @@ export default function CommunityGrowthHub({
 
                 {filteredComments.length === 0 ? (
                   <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-600">
-                    Chưa có bình luận mới từ kênh đang chọn. Bấm &ldquo;💬 Quét &amp; Trả lời Comment RAG&rdquo; để
-                    đồng bộ bình luận mới nhất từ Group &amp; Fanpage.
+                    {commentChannelFilter === "telegram"
+                      ? "Chưa có hội thoại Telegram mới. Mở bot trên Telegram, gửi /start hoặc nhắn câu hỏi bất kỳ để bot tự động tư vấn bằng RAG và mời vào Group Facebook."
+                      : "Chưa có hội thoại hoặc bình luận mới từ kênh đang chọn. Bấm “💬 Quét & Trả lời Comment RAG” để đồng bộ từ Group & Fanpage, hoặc nhắn tin qua Telegram / Messenger."}
                   </div>
                 ) : (
                   <div
@@ -5000,15 +5124,15 @@ export default function CommunityGrowthHub({
                   >
                     <table className="community-table min-w-[780px] text-left text-xs">
                       <caption id="comments-table-caption" className="visually-hidden">
-                        Danh sách bình luận gần đây trên Fanpage và Group cùng phản hồi RAG tự động
+                        Danh sách hội thoại Telegram, Messenger và bình luận Fanpage/Group cùng phản hồi RAG tự động
                       </caption>
                       <thead className="bg-slate-50 uppercase text-slate-500">
                         <tr>
                           <th scope="col" className="px-3 py-2.5">
-                            Người bình luận &amp; Kênh
+                            Người gửi &amp; Kênh
                           </th>
                           <th scope="col" className="px-3 py-2.5">
-                            Nội dung bình luận thật
+                            Nội dung câu hỏi / bình luận
                           </th>
                           <th scope="col" className="px-3 py-2.5">
                             Phản hồi RAG tự động
@@ -5043,7 +5167,7 @@ export default function CommunityGrowthHub({
                                   {new Date(cmt.received_at).toLocaleString("vi-VN", { hour12: false })}
                                 </p>
                               </th>
-                              <td data-label="Bình luận" className="max-w-xs px-3 py-3 text-slate-800">
+                              <td data-label="Nội dung" className="max-w-xs px-3 py-3 text-slate-800">
                                 <p className="leading-relaxed">{cmt.content}</p>
                               </td>
                               <td data-label="Phản hồi RAG" className="max-w-sm px-3 py-3 text-slate-700">
@@ -5069,7 +5193,11 @@ export default function CommunityGrowthHub({
                                     }`}
                                   >
                                     {isReplied
-                                      ? "✓ Đã trả lời công khai"
+                                      ? cmt.source_channel === "telegram"
+                                        ? "✓ Đã trả lời Telegram"
+                                        : cmt.source_channel === "messenger"
+                                          ? "✓ Đã gửi Messenger"
+                                          : "✓ Đã trả lời công khai"
                                       : isProcessing
                                         ? "⏳ Đang gửi phản hồi…"
                                         : isFailed
@@ -5190,7 +5318,9 @@ export default function CommunityGrowthHub({
                               ? "👥 Nút Mời (Invite) Facebook Group"
                               : log.channel === "page_private_reply_invite"
                                 ? "💬 Private Reply kèm Link Group"
-                                : "💌 Messenger Link Mời Group"}
+                                : log.channel === "telegram_community_invite"
+                                  ? "✈️ Bot Telegram mời vào Group"
+                                  : "💌 Messenger Link Mời Group"}
                           </span>
                         </td>
                         <td data-label="Trạng thái" className="px-3 py-3">

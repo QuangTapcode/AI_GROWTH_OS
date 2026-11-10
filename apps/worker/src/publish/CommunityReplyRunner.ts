@@ -81,16 +81,33 @@ export const sendGroupCommentReply: SendGroupCommentReply = async ({ postUrl, au
   });
 };
 
-export type SendTelegramReply = (chatId: string, text: string, businessConnectionId?: string) => Promise<{ message_id?: string }>;
+export type TelegramInlineKeyboardMarkup = {
+  inline_keyboard: Array<Array<{ text: string; url?: string }>>;
+};
+
+export type SendTelegramReply = (
+  chatId: string,
+  text: string,
+  businessConnectionId?: string,
+  options?: { reply_markup?: TelegramInlineKeyboardMarkup },
+) => Promise<{ message_id?: string }>;
 
 /** Telegram Bot API; with a business connection the reply goes out from the connected account. */
-export const sendTelegramReply: SendTelegramReply = async (chatId, text, businessConnectionId) => {
+export const sendTelegramReply: SendTelegramReply = async (chatId, text, businessConnectionId, options) => {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error('TELEGRAM_NOT_CONFIGURED');
+  const bodyPayload: Record<string, unknown> = {
+    chat_id: chatId,
+    text,
+    business_connection_id: businessConnectionId,
+  };
+  if (options?.reply_markup) {
+    bodyPayload.reply_markup = options.reply_markup;
+  }
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, business_connection_id: businessConnectionId }),
+    body: JSON.stringify(bodyPayload),
     signal: AbortSignal.timeout(15_000),
   });
   const body = await response.json().catch(() => ({})) as { ok?: boolean; error_code?: number; description?: string; result?: { message_id?: number } };
@@ -104,6 +121,8 @@ type CommunityReplyOutboxPayload = {
   text: string;
   platform?: string;
   business_connection_id?: string;
+  reply_markup?: TelegramInlineKeyboardMarkup;
+  should_community_invite?: boolean;
   comment_id?: string;
   comment_source?: 'page' | 'group';
   post_url?: string;
@@ -141,6 +160,8 @@ export class CommunityReplyRunner {
       text,
       platform,
       business_connection_id: businessConnectionId,
+      reply_markup: replyMarkup,
+      should_community_invite: shouldCommunityInvite,
       comment_id: explicitCommentId,
       comment_source: commentSource,
       post_url: postUrl,
@@ -156,7 +177,24 @@ export class CommunityReplyRunner {
       const extraMeta: Record<string, unknown> = {};
 
       if (platform === 'telegram_message') {
-        sent = await this.sendTelegram(recipient, text, businessConnectionId);
+        sent = replyMarkup
+          ? await this.sendTelegram(recipient, text, businessConnectionId, { reply_markup: replyMarkup })
+          : await this.sendTelegram(recipient, text, businessConnectionId);
+        extraMeta.reply_channel = 'telegram_bot';
+        if (shouldCommunityInvite && inviteGroupUrl) {
+          extraMeta.community_invite_sent = true;
+          extraMeta.invite_group_url = inviteGroupUrl;
+          await this.pool.query(
+            `INSERT INTO community_invite_logs (workspace_id, target_ref, display_name, channel, status, detail)
+             VALUES ($1, $2, $3, 'telegram_community_invite', 'invited', $4)`,
+            [
+              event.workspace_id,
+              `tg:${recipient}`.slice(0, 255),
+              (authorName || 'Telegram user').slice(0, 255),
+              `Telegram bot CTA invite (${inviteGroupUrl})`.slice(0, 500),
+            ],
+          ).catch(() => {});
+        }
       } else if (platform === 'facebook_comment') {
         const snippet = questionSnippet ?? commentSnippet;
         const targetCommentId = (explicitCommentId || recipient).replace(/^comment:/, '');

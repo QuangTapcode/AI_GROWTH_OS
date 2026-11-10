@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
+import { TelegramBotRunner } from './publish/TelegramBotRunner';
 import { listLinksWithBrowser } from './workflow/BrowserRenderer';
 import { FirstPartyBlogSync } from './workflow/FirstPartyBlogSync';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
@@ -102,7 +103,17 @@ async function main() {
     };
     timers.push(setTimeout(triggerCommunityAutopilot, 15_000), setInterval(triggerCommunityAutopilot, 180_000));
   }
-  const stop = () => { timers.forEach(clearInterval); void pool.end().finally(() => process.exit(0)); };
+  const telegramBot = new TelegramBotRunner(pool, {
+    onMessageIngested: () => {
+      if (autopilot) triggerTick();
+    },
+  });
+  telegramBot.start();
+  const stop = () => {
+    telegramBot.stop();
+    timers.forEach(clearInterval);
+    void pool.end().finally(() => process.exit(0));
+  };
   process.on('SIGINT', stop); process.on('SIGTERM', stop);
   console.log(autopilot
     ? '[draft-worker] ready; AUTOPILOT: scheduler tick and publishing enabled, governed by workspace automation settings'

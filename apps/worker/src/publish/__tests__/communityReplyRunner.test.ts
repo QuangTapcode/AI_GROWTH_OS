@@ -55,6 +55,31 @@ describe('CommunityReplyRunner', () => {
     expect(sql.some((s) => s.text.includes("status = 'replied'"))).toBe(true);
   });
 
+  it('forwards inline keyboard markup on Telegram reply and records community_invite_logs when invited', async () => {
+    const markup = {
+      inline_keyboard: [[{ text: '👥 Tham gia Cộng đồng trên Facebook', url: 'https://www.facebook.com/groups/1134282109069209' }]],
+    };
+    const telegramEvent = {
+      ...event,
+      payload: {
+        ...event.payload,
+        recipient: '555',
+        platform: 'telegram_message',
+        reply_markup: markup,
+        should_community_invite: true,
+        invite_group_url: 'https://www.facebook.com/groups/1134282109069209',
+        author_name: 'Lan Anh',
+      },
+    };
+    const { pool, sql } = harness(telegramEvent);
+    const telegram = vi.fn(async () => ({ message_id: '77' }));
+    expect(await new CommunityReplyRunner(pool, vi.fn(), telegram).runOnce()).toBe('sent');
+    expect(telegram).toHaveBeenCalledWith('555', 'Street food stalls open every evening.', undefined, { reply_markup: markup });
+    const inviteLog = sql.find((s) => s.text.includes('INSERT INTO community_invite_logs'));
+    expect(inviteLog).toBeTruthy();
+    expect(inviteLog!.params).toEqual(expect.arrayContaining(['ws-1', 'tg:555', 'Lan Anh']));
+  });
+
   it('replies publicly to a Fanpage comment via comment_id (not recipient user_id) and sends Private Reply invite within quota', async () => {
     const commentEvent = {
       id: 'evt-cmt-1',
@@ -243,6 +268,20 @@ describe('sendTelegramReply', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.telegram.org/botbot-token/sendMessage');
     expect(JSON.parse(String(init.body))).toEqual({ chat_id: '555', text: 'Hi', business_connection_id: 'conn-1' });
+  });
+
+  it('includes reply_markup when inline buttons are provided', async () => {
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', 'bot-token');
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 99 } })));
+    vi.stubGlobal('fetch', fetchMock);
+    const replyMarkup = { inline_keyboard: [[{ text: 'Join Group', url: 'https://www.facebook.com/groups/1134282109069209' }]] };
+    expect(await sendTelegramReply('555', 'Welcome', undefined, { reply_markup: replyMarkup })).toEqual({ message_id: '99' });
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      chat_id: '555',
+      text: 'Welcome',
+      reply_markup: replyMarkup,
+    });
   });
 
   it('reports a refusal without the token in the error', async () => {

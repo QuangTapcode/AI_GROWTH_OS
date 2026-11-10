@@ -28,6 +28,7 @@ import { Pool } from 'pg';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
+import { TelegramBotRunner } from './publish/TelegramBotRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
 
 /** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
@@ -97,7 +98,7 @@ async function main(): Promise<void> {
   }, 5_000);
   publishingTimer.unref();
   let automationRunning = false;
-  const automationTimer = setInterval(() => {
+  const triggerAutomationTick = () => {
     if (automationRunning || !process.env.AUTOMATION_INTERNAL_TOKEN || !process.env.API_BASE_URL) return;
     automationRunning = true;
     const base = process.env.API_BASE_URL.replace(/\/v1\/?$/, '').replace(/\/$/, '');
@@ -105,10 +106,16 @@ async function main(): Promise<void> {
       headers: { Authorization: `Bearer ${process.env.AUTOMATION_INTERNAL_TOKEN}` },
       signal: AbortSignal.timeout(25000) }).then(response => {
         if (!response.ok) throw new Error(`Automation scheduler HTTP ${response.status}`);
+        runReplies();
       }).catch(error => console.error('[automation]', (error as Error).message))
       .finally(() => { automationRunning = false; });
-  }, 30000);
+  };
+  const automationTimer = setInterval(triggerAutomationTick, 30000);
   automationTimer.unref();
+  const telegramBot = new TelegramBotRunner(planPool, {
+    onMessageIngested: triggerAutomationTick,
+  });
+  telegramBot.start();
   // Wire DbWorkflowStore (MY-03): verify Postgres connection at startup.
   workflowStore = new DbWorkflowStore();
   try {
@@ -170,7 +177,10 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     if (stopping) return;
     stopping = true;
+    telegramBot.stop();
     clearInterval(sweep);
+    clearInterval(replyTimer);
+    clearInterval(ingestTimer);
     clearInterval(planTimer);
     clearInterval(publishingTimer);
     clearInterval(automationTimer);

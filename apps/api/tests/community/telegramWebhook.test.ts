@@ -33,9 +33,43 @@ describe('Telegram webhook', () => {
       JSON.stringify({ business_connection_id: 'conn-1' })]);
   });
 
+  it('welcomes /start and queues an instant interactive intro with Facebook community button', async () => {
+    const { POST } = await import('../../src/app/v1/webhooks/telegram/route');
+    query.mockImplementation((sql: string) => {
+      if (String(sql).includes('INSERT INTO community_messages')) return { rows: [{ id: 'msg-start-1' }], rowCount: 1 };
+      return { rows: [], rowCount: 1 };
+    });
+    const res = await POST(request({ update_id: 20, message: privateMessage({ text: '/start', from: { id: 555, is_bot: false, first_name: 'Linh', last_name: 'Tran', username: 'linh_danang' } }) }) as never);
+    expect(res.status).toBe(200);
+    expect(inserts()).toHaveLength(1);
+    const outbox = query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO outbox_events'));
+    expect(outbox).toHaveLength(1);
+    const payload = JSON.parse(String(outbox[0][1][2]));
+    expect(payload.reply_markup?.inline_keyboard?.[0]?.[0]?.url).toContain('facebook.com/groups/');
+    expect(payload.should_community_invite).toBe(true);
+  });
+
+  it('responds to /community command with the Facebook Group link & CTA button', async () => {
+    const { POST } = await import('../../src/app/v1/webhooks/telegram/route');
+    query.mockImplementation((sql: string) => {
+      if (String(sql).includes('INSERT INTO community_messages')) return { rows: [{ id: 'msg-comm-1' }], rowCount: 1 };
+      if (String(sql).includes('FROM community_hub_settings')) {
+        return { rows: [{ community_name: 'Cộng đồng TripC Đà Nẵng', group_url: 'https://www.facebook.com/groups/custom999' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    const res = await POST(request({ update_id: 21, message: privateMessage({ text: '/community' }) }) as never);
+    expect(res.status).toBe(200);
+    const outbox = query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO outbox_events'));
+    expect(outbox).toHaveLength(1);
+    const payload = JSON.parse(String(outbox[0][1][2]));
+    expect(payload.text).toContain('https://www.facebook.com/groups/custom999');
+    expect(payload.reply_markup?.inline_keyboard?.[0]?.[0]?.url).toBe('https://www.facebook.com/groups/custom999');
+  });
+
   it.each([
     ['the connected account writing to a customer', { business_message: privateMessage({ business_connection_id: 'conn-1', from: { id: 999, first_name: 'Owner' } }) }],
-    ['the automatic /start command', { message: privateMessage({ text: '/start' }) }],
+    ['an unknown slash command', { message: privateMessage({ text: '/unknowncmd' }) }],
     ['a group message', { message: privateMessage({ chat: { id: -100, type: 'supergroup' } }) }],
     ['another bot', { message: privateMessage({ from: { id: 555, is_bot: true, first_name: 'Bot' } }) }],
     ['a message without text', { message: privateMessage({ text: undefined }) }],

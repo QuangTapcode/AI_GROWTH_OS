@@ -1228,5 +1228,64 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
     const settings = await service.getCommunitySettings(WORKSPACE_ID);
     expect(settings.fb_admin_name).toBeNull();
   });
+
+  it('getTelegramBotStatus & syncTelegramBot expose safe bot metadata & counters without leaking TELEGRAM_BOT_TOKEN', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("platform = 'telegram_message'") && sql.includes('conversations_count')) {
+        return {
+          rows: [{ conversations_count: 4, messages_received_count: 11, messages_replied_count: 9, invites_sent_count: 3 }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const service = new CommunityHubService({ query, connect: vi.fn() } as unknown as Pool);
+
+    const unconfigured = await service.getTelegramBotStatus(WORKSPACE_ID);
+    expect(unconfigured).toMatchObject({
+      configured: false,
+      bot_username: null,
+      t_me_url: null,
+      conversations_count: 4,
+      messages_received_count: 11,
+      messages_replied_count: 9,
+      invites_sent_count: 3,
+    });
+
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', '123456:SUPER_SECRET_BOT_TOKEN');
+    vi.stubEnv('TELEGRAM_BOT_MODE', 'polling');
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/getMe')) {
+        return new Response(JSON.stringify({ ok: true, result: { username: 'tripc_helper_bot', first_name: 'TripC Buddy' } }));
+      }
+      if (url.endsWith('/getWebhookInfo')) {
+        return new Response(JSON.stringify({ ok: true, result: { url: '', pending_update_count: 0 } }));
+      }
+      if (url.endsWith('/setMyCommands') || url.endsWith('/deleteWebhook')) {
+        return new Response(JSON.stringify({ ok: true, result: true }));
+      }
+      return new Response(JSON.stringify({ ok: true }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const synced = await service.syncTelegramBot(WORKSPACE_ID);
+      expect(synced.success).toBe(true);
+      expect(synced.telegram_bot).toMatchObject({
+        configured: true,
+        mode: 'polling',
+        bot_username: 'tripc_helper_bot',
+        bot_name: 'TripC Buddy',
+        t_me_url: 'https://t.me/tripc_helper_bot',
+        conversations_count: 4,
+        invites_sent_count: 3,
+      });
+      expect(JSON.stringify(synced)).not.toContain('SUPER_SECRET_BOT_TOKEN');
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
 });
 

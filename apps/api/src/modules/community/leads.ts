@@ -1,5 +1,11 @@
 import type { PoolClient } from 'pg';
 import { createHash, randomUUID } from 'node:crypto';
+import {
+  composeTelegramRagReply,
+  DEFAULT_COMMUNITY_NAME,
+  DEFAULT_FACEBOOK_GROUP_URL,
+  isExplicitCommunityInquiry,
+} from './telegram';
 
 interface LeadProposal {
   intent?: string;
@@ -42,6 +48,7 @@ async function queueDirectReply(
   result: { reply?: string; status?: string; escalation_required?: boolean; missing_facts?: string[]; lead_proposal?: unknown },
 ) {
   let settings: {
+    community_name?: string | null;
     group_url?: string | null;
     auto_reply_comments?: boolean | null;
     auto_invite_enabled?: boolean | null;
@@ -49,29 +56,38 @@ async function queueDirectReply(
   } | undefined;
   let alreadyInvited = false;
   let todayInviteCount = 0;
+  let recentTelegramInvite = false;
 
   try {
     await client.query('SAVEPOINT sp_queue_direct_settings');
     settings = (
       await client.query<{
+        community_name?: string | null;
         group_url?: string | null;
         auto_reply_comments?: boolean | null;
         auto_invite_enabled?: boolean | null;
         daily_invite_limit?: number | null;
       }>(
-        `SELECT group_url, auto_reply_comments, auto_invite_enabled, daily_invite_limit
+        `SELECT community_name, group_url, auto_reply_comments, auto_invite_enabled, daily_invite_limit
            FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1`,
         [workspaceId],
       )
     ).rows[0];
     if (message.author_contact) {
       const logRes = (
-        await client.query<{ invited_before: boolean; today_count: number }>(
+        await client.query<{ invited_before: boolean; recent_telegram_invite?: boolean; today_count: number }>(
           `SELECT
              EXISTS (
                SELECT 1 FROM community_invite_logs
                 WHERE workspace_id = $1 AND target_ref = $2 AND status = 'invited'
              ) AS invited_before,
+             EXISTS (
+               SELECT 1 FROM community_invite_logs
+                WHERE workspace_id = $1 AND target_ref IN ($2, 'tg:' || $2)
+                  AND channel = 'telegram_community_invite'
+                  AND status = 'invited'
+                  AND invited_at >= NOW() - INTERVAL '24 hours'
+             ) AS recent_telegram_invite,
              (
                SELECT count(*)::int FROM community_invite_logs
                 WHERE workspace_id = $1 AND status = 'invited' AND invited_at >= CURRENT_DATE
@@ -80,22 +96,25 @@ async function queueDirectReply(
         )
       ).rows[0];
       alreadyInvited = Boolean(logRes?.invited_before);
+      recentTelegramInvite = Boolean(logRes?.recent_telegram_invite);
       todayInviteCount = Number(logRes?.today_count ?? 0);
     }
     await client.query('RELEASE SAVEPOINT sp_queue_direct_settings');
   } catch {
-    await client.query('ROLLBACK TO SAVEPOINT sp_queue_direct_settings').catch(() => {});
+    await client.query('ROLLBACK TO SAVEPOINT sp_queue_direct_settings').catch(() => { });
   }
 
   if (message.platform === 'facebook_comment' && settings?.auto_reply_comments === false) {
     return;
   }
 
-  const groupUrl = settings?.group_url?.trim() || 'https://www.facebook.com/groups/1134282109069209';
+  const communityName = settings?.community_name?.trim() || DEFAULT_COMMUNITY_NAME;
+  const groupUrl = settings?.group_url?.trim() || DEFAULT_FACEBOOK_GROUP_URL;
   const dailyCap = Math.max(10, Math.min(15, Number(settings?.daily_invite_limit ?? 12)));
   const canInviteToday = settings?.auto_invite_enabled !== false && !alreadyInvited && todayInviteCount < dailyCap;
 
   const isComment = message.platform === 'facebook_comment';
+  const isTelegram = message.platform === 'telegram_message';
   const commentSource = message.metadata?.comment_source === 'group' ? 'group' : 'page';
   const commentId = message.metadata?.comment_id;
   const recipient = message.author_contact || (isComment && commentId ? `comment:${commentId}` : null);
@@ -103,7 +122,7 @@ async function queueDirectReply(
   let text = result.reply?.trim();
   const groupFallback = `Chào bạn! Cảm ơn bạn đã bình luận và chia sẻ trong Cộng đồng. Hiện tại cẩm nang TripC đang cập nhật thêm thông tin chi tiết về chủ đề này — các thành viên và quản trị viên sẽ hỗ trợ thêm cho bạn ngay bên dưới nhé!`;
   const pageFallback = `Chào bạn! Cảm ơn bạn đã liên hệ TripC. Hiện tại cẩm nang của chúng tôi đang liên tục cập nhật thêm dữ liệu về chủ đề này. Bạn có thể tham gia thảo luận cùng người dân địa phương và cộng đồng tại nhóm Facebook của chúng tôi: ${groupUrl} để nhận được gợi ý nhanh nhất nhé!`;
-  if (!text || text.includes("The verified information needed for this question is unavailable") || text.includes("A human needs to review it")) {
+  if (!isTelegram && (!text || text.includes("The verified information needed for this question is unavailable") || text.includes("A human needs to review it"))) {
     text = isComment && commentSource === 'group' ? groupFallback : pageFallback;
   }
 
@@ -115,9 +134,28 @@ async function queueDirectReply(
     return;
   }
 
-  // Only on Fanpage comments do we attach an invite link to join the Facebook Group; users in Group are already members.
-  let outboxText = text;
-  if (isComment && commentSource === 'page' && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
+  let outboxText = text ?? '';
+  let telegramExtras: Record<string, unknown> = {};
+  if (isTelegram) {
+    const explicitCommunityAsk = isExplicitCommunityInquiry(message.content);
+    const shouldCommunityInvite = explicitCommunityAsk || (settings?.auto_invite_enabled !== false && !recentTelegramInvite);
+    const composed = composeTelegramRagReply({
+      question: message.content,
+      ragReply: result.reply,
+      communityName,
+      groupUrl,
+      includeCommunityInvite: shouldCommunityInvite,
+    });
+    outboxText = composed.text;
+    telegramExtras = {
+      ...(composed.reply_markup ? { reply_markup: composed.reply_markup } : {}),
+      should_community_invite: composed.invitedViaCta,
+      invite_group_url: composed.inviteGroupUrl,
+      community_name: communityName,
+      author_name: message.metadata?.from_name || message.author_name || null,
+    };
+  } else if (isComment && commentSource === 'page' && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
+    // Only on Fanpage comments do we attach an invite link to join the Facebook Group; users in Group are already members.
     outboxText = `${outboxText}\n\n👉 Mời bạn tham gia Cộng đồng Du lịch & Sống tại Việt Nam để hỏi đáp thêm kinh nghiệm thực tế: ${groupUrl}`;
   }
 
@@ -132,6 +170,7 @@ async function queueDirectReply(
         text: outboxText,
         platform: message.platform,
         business_connection_id: message.metadata?.business_connection_id,
+        ...telegramExtras,
         ...(isComment ? {
           comment_id: commentId,
           comment_source: commentSource,
@@ -270,7 +309,7 @@ export async function persistCommunityLead(
     // Direct messages become 'replied' only after the worker has actually sent the reply.
     await client.query(
       direct
-        ?`UPDATE community_messages SET lead_id = $3, updated_at = NOW() WHERE workspace_id = $1 AND id = $2`
+        ? `UPDATE community_messages SET lead_id = $3, updated_at = NOW() WHERE workspace_id = $1 AND id = $2`
         : `UPDATE community_messages SET lead_id = $3, status = 'replied', updated_at = NOW() WHERE workspace_id = $1 AND id = $2`,
       [workspaceId, msgRow.id, savedLeadId],
     );

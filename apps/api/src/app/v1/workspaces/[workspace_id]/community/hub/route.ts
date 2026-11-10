@@ -179,6 +179,18 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
       return NextResponse.json({ status: 'bot_verified', ...botStatus, data });
     }
 
+    if (action === 'sync_telegram_bot') {
+      const tgResult = await service.syncTelegramBot(params.workspace_id, {
+        clearWebhookForPolling: body.clear_webhook_for_polling === true,
+      });
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({
+        status: tgResult.success ? 'telegram_synced' : 'telegram_not_configured',
+        ...tgResult,
+        data,
+      });
+    }
+
     if (action === 'login_group_bot') {
       const login = await service.launchGroupBotLogin(params.workspace_id, {
         fresh: body.fresh === true,

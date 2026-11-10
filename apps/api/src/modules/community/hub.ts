@@ -4188,6 +4188,7 @@ export class CommunityHubService {
       messageSummaryRes,
       recentCommentsRes,
       engagementSnapshotQueryRes,
+      telegramBotStatus,
     ] = await Promise.all([
         this.fetchRealPageStats(),
         this.fetchRealGroupStats(settings.group_url, fallbackGroupCount, workspaceId),
@@ -4329,6 +4330,7 @@ export class CommunityHubService {
             [workspaceId],
           )
           .catch(() => ({ rows: [] })),
+        this.getTelegramBotStatus(workspaceId),
       ]);
 
     if (groupStats.live_description) {
@@ -4797,20 +4799,21 @@ export class CommunityHubService {
           },
         ],
         rag_reply_mechanism: {
-          mode: 'Tự động hóa hoàn toàn dựa trên bộ RAG có sẵn (RAG-Grounded Auto-Reply cho Messenger & Comment)',
+          mode: 'Tự động hóa hoàn toàn dựa trên bộ RAG có sẵn (RAG-Grounded Auto-Reply cho Telegram Bot, Messenger & Comment)',
           approved_sources_count: ragRow.approved_sources,
           total_chunks_count: ragRow.total_chunks,
           embedded_chunks_count: ragRow.embedded_chunks,
           inbound_messages_count: ragRow.inbound_messages,
           grounded_replies_count: ragRow.grounded_replies,
           steps: [
-            `Bước 1 — Thu nhận Messenger & Bình luận thật (Webhook + Graph Polling + Group Bot): Khi user nhắn tin hoặc bình luận trên Fanpage "${settings.page_name}" và Group "${settings.community_name}", hệ thống lưu vào bảng community_messages và tạo task "community.response".`,
+            `Bước 1 — Thu nhận hội thoại thật (Telegram Bot + Messenger Webhook + Graph Polling + Group Bot): Khi người dùng chat với Bot Telegram, nhắn Messenger cho Fanpage "${settings.page_name}" hoặc bình luận trên Group "${settings.community_name}", hệ thống lưu ngữ cảnh hội thoại (tối đa 6 lượt gần nhất) vào bảng community_messages và tạo task "community.response".`,
             `Bước 2 — Truy xuất bộ RAG có sẵn (services/ai/src/rag/retrieval.py): Hệ thống đối chiếu câu hỏi của user với ${ragRow.total_chunks} đoạn văn bản (source_chunks) đã tích hợp trong bộ RAG bằng Vector Embedding (Cosine Similarity ≥ 0.5) kết hợp khớp từ khóa tiếng Việt/Anh để lấy ra Top 3 đoạn dẫn chứng chuẩn xác nhất.`,
-            'Bước 3 — Sinh câu trả lời bám sát RAG & Kiểm duyệt chống bịa đặt (services/ai/src/agents/community/pipeline.py): Mô hình Gemini tổng hợp câu trả lời tự động NHƯNG bắt buộc chỉ dùng thông tin có trong các đoạn trích dẫn RAG vừa tìm được (kèm mã trích dẫn source_id & chunk_id). Nếu câu hỏi nằm ngoài dữ liệu RAG có sẵn, hệ thống tự động chặn lại (escalation_required = true) để chuyển cho người thật duyệt chứ tuyệt đối không tự bịa.',
-            `Bước 4 — Tự động trả lời & Gửi lời mời thật an toàn (CommunityReplyRunner.ts & FacebookGroupBot.ts): Khi vượt qua kiểm tra trích dẫn, hệ thống tự động trả lời Messenger / bình luận bài Fanpage & Group, đồng thời gửi lời mời tham gia Group chính thức trên Facebook (tối đa ${dailyInviteLimit} người/ngày).`,
+            'Bước 3 — Sinh câu trả lời bám sát RAG & Kiểm duyệt chống bịa đặt (services/ai/src/agents/community/pipeline.py): Mô hình Gemini tổng hợp câu trả lời tự nhiên NHƯNG bắt buộc chỉ dùng thông tin có trong các đoạn trích dẫn RAG vừa tìm được (kèm mã trích dẫn source_id & chunk_id). Nếu câu hỏi nằm ngoài dữ liệu RAG có sẵn, hệ thống phản hồi khéo léo hoặc chuyển người duyệt chứ tuyệt đối không tự bịa.',
+            `Bước 4 — Tự động trả lời & Giới thiệu Cộng đồng Facebook (CommunityReplyRunner.ts & TelegramBotRunner.ts): Bot Telegram & Messenger tự động trả lời, đính kèm lời mời tự nhiên + nút bấm trực tiếp "Tham gia Cộng đồng trên Facebook" (giãn cách 24h trên Telegram, tối đa ${dailyInviteLimit} người/ngày trên Facebook).`,
           ],
         },
       },
+      telegram_bot: telegramBotStatus,
       weekly_campaigns: weeklyCampaigns,
       matched_members: members,
       discussions,
@@ -6014,6 +6017,175 @@ export class CommunityHubService {
       return { isLoggedIn: false, sessionSource: 'none', loginInProgress: true };
     }
     return { isLoggedIn: false, sessionSource: 'none' };
+  }
+
+  /**
+   * Server-side Telegram Bot status & conversation metrics (never exposes TELEGRAM_BOT_TOKEN).
+   */
+  async getTelegramBotStatus(workspaceId: string): Promise<{
+    configured: boolean;
+    mode: 'polling' | 'webhook';
+    bot_username: string | null;
+    bot_name: string | null;
+    t_me_url: string | null;
+    webhook_url: string | null;
+    pending_update_count: number;
+    last_error_message: string | null;
+    conversations_count: number;
+    messages_received_count: number;
+    messages_replied_count: number;
+    invites_sent_count: number;
+  }> {
+    const token = process.env.TELEGRAM_BOT_TOKEN?.trim() ?? '';
+    const mode: 'polling' | 'webhook' =
+      process.env.TELEGRAM_BOT_MODE?.trim().toLowerCase() === 'webhook' ? 'webhook' : 'polling';
+
+    const statsRow = (
+      await this.pool
+        .query<{
+          conversations_count: number;
+          messages_received_count: number;
+          messages_replied_count: number;
+          invites_sent_count: number;
+        }>(
+          `SELECT
+             (SELECT count(DISTINCT author_contact)::int FROM community_messages WHERE workspace_id = $1 AND platform = 'telegram_message' AND author_contact IS NOT NULL) AS conversations_count,
+             (SELECT count(*)::int FROM community_messages WHERE workspace_id = $1 AND platform = 'telegram_message') AS messages_received_count,
+             (SELECT count(*)::int FROM community_messages WHERE workspace_id = $1 AND platform = 'telegram_message' AND status = 'replied') AS messages_replied_count,
+             (SELECT count(*)::int FROM community_invite_logs WHERE workspace_id = $1 AND channel = 'telegram_community_invite' AND status = 'invited') AS invites_sent_count`,
+          [workspaceId],
+        )
+        .catch(() => ({
+          rows: [] as Array<{
+            conversations_count: number;
+            messages_received_count: number;
+            messages_replied_count: number;
+            invites_sent_count: number;
+          }>,
+        }))
+    ).rows[0];
+
+    let botUsername: string | null = null;
+    let botName: string | null = null;
+    let webhookUrl: string | null = null;
+    let pendingUpdateCount = 0;
+    let lastErrorMessage: string | null = null;
+
+    if (token) {
+      const scrub = (msg: string) => msg.replaceAll(token, '[REDACTED]').slice(0, 240);
+      try {
+        const [meRes, whRes] = await Promise.all([
+          fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(3000) }),
+          fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`, { signal: AbortSignal.timeout(3000) }),
+        ]);
+        const meJson = (await meRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          description?: string;
+          result?: { username?: string; first_name?: string };
+        };
+        if (meRes.ok && meJson.ok && meJson.result) {
+          botUsername = meJson.result.username ?? null;
+          botName = meJson.result.first_name ?? null;
+        } else if (meJson.description) {
+          lastErrorMessage = scrub(meJson.description);
+        }
+        const whJson = (await whRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          result?: { url?: string; pending_update_count?: number; last_error_message?: string };
+        };
+        if (whRes.ok && whJson.ok && whJson.result) {
+          webhookUrl = whJson.result.url?.trim() || null;
+          pendingUpdateCount = Number(whJson.result.pending_update_count ?? 0);
+          if (!lastErrorMessage && whJson.result.last_error_message) {
+            lastErrorMessage = scrub(whJson.result.last_error_message);
+          }
+        }
+      } catch (err) {
+        lastErrorMessage = scrub((err as Error).message || 'Telegram API unreachable');
+      }
+    }
+
+    return {
+      configured: Boolean(token),
+      mode,
+      bot_username: botUsername,
+      bot_name: botName,
+      t_me_url: botUsername ? `https://t.me/${botUsername}` : null,
+      webhook_url: webhookUrl,
+      pending_update_count: pendingUpdateCount,
+      last_error_message: lastErrorMessage,
+      conversations_count: Number(statsRow?.conversations_count ?? 0),
+      messages_received_count: Number(statsRow?.messages_received_count ?? 0),
+      messages_replied_count: Number(statsRow?.messages_replied_count ?? 0),
+      invites_sent_count: Number(statsRow?.invites_sent_count ?? 0),
+    };
+  }
+
+  /**
+   * Registers bot menu commands (`/start`, `/community`, `/help`) and optionally clears an active
+   * webhook so local Long Polling can run without 409 Conflict.
+   */
+  async syncTelegramBot(
+    workspaceId: string,
+    options: { clearWebhookForPolling?: boolean } = {},
+  ) {
+    const token = process.env.TELEGRAM_BOT_TOKEN?.trim() ?? '';
+    if (!token) {
+      return {
+        success: false,
+        message: 'Chưa cấu hình TELEGRAM_BOT_TOKEN trong apps/api/.env.local. Hãy tạo bot qua @BotFather rồi dán token vào env.',
+        telegram_bot: await this.getTelegramBotStatus(workspaceId),
+      };
+    }
+
+    const scrub = (msg: string) => msg.replaceAll(token, '[REDACTED]').slice(0, 240);
+    const commands = [
+      { command: 'start', description: 'Bắt đầu trò chuyện & nhận tư vấn du lịch' },
+      { command: 'community', description: 'Nhận link tham gia Cộng đồng Facebook TripC' },
+      { command: 'help', description: 'Xem hướng dẫn & chủ đề bot có thể hỗ trợ' },
+    ];
+
+    try {
+      const cmdRes = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ commands }),
+        signal: AbortSignal.timeout(5000),
+      });
+      const cmdJson = (await cmdRes.json().catch(() => ({}))) as { ok?: boolean; description?: string };
+      if (!cmdRes.ok || !cmdJson.ok) {
+        return {
+          success: false,
+          message: `Telegram từ chối setMyCommands: ${scrub(cmdJson.description ?? `HTTP ${cmdRes.status}`)}`,
+          telegram_bot: await this.getTelegramBotStatus(workspaceId),
+        };
+      }
+
+      const mode = process.env.TELEGRAM_BOT_MODE?.trim().toLowerCase() === 'webhook' ? 'webhook' : 'polling';
+      if (options.clearWebhookForPolling || mode === 'polling') {
+        await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ drop_pending_updates: false }),
+          signal: AbortSignal.timeout(5000),
+        }).catch(() => {});
+      }
+
+      const status = await this.getTelegramBotStatus(workspaceId);
+      return {
+        success: Boolean(status.bot_username),
+        message: status.bot_username
+          ? `Đã đồng bộ Bot @${status.bot_username} (chế độ ${status.mode === 'polling' ? 'Long Polling' : 'Webhook'}) và menu lệnh /start, /community, /help.`
+          : `Đã kiểm tra kết nối Telegram${status.last_error_message ? `: ${status.last_error_message}` : '.'}`,
+        telegram_bot: status,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: `Không thể kết nối Telegram API: ${scrub((err as Error).message)}`,
+        telegram_bot: await this.getTelegramBotStatus(workspaceId),
+      };
+    }
   }
 
   /**

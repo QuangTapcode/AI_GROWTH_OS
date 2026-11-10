@@ -30,7 +30,7 @@ function Read-EnvValue([string]$path, [string]$name) {
 $env:INTEGRATION_MODE = if ($value = Read-EnvValue $apiEnv 'INTEGRATION_MODE') { $value } else { 'fake' }
 # Publishing secrets stay server-side, but both API and worker need the same
 # runtime values. Never echo these variables to logs or the UI.
-foreach ($name in @('FACEBOOK_PAGE_ID','FACEBOOK_PAGE_ACCESS_TOKEN','TELEGRAM_BOT_TOKEN','TIKTOK_ACCESS_TOKEN','TIKTOK_OPEN_ID','TIKTOK_DIRECT_POST_ENABLED','TIKTOK_API_BASE_URL')) {
+foreach ($name in @('FACEBOOK_PAGE_ID','FACEBOOK_PAGE_ACCESS_TOKEN','TELEGRAM_BOT_TOKEN','TELEGRAM_BOT_MODE','TELEGRAM_WEBHOOK_SECRET','TELEGRAM_WEBHOOK_WORKSPACE_ID','TIKTOK_ACCESS_TOKEN','TIKTOK_OPEN_ID','TIKTOK_DIRECT_POST_ENABLED','TIKTOK_API_BASE_URL')) {
   Set-Item -Path ("Env:" + $name) -Value (Read-EnvValue $apiEnv $name)
 }
 $env:AI_PROVIDER_MODE = 'live' # HTTP adapter in either mode

@@ -49,6 +49,9 @@ export class CommunityService {
       );
       const snapshotId = contextRes.rows[0]?.snapshot_id;
       if (snapshotId) {
+        const history = input.author_contact
+          ? await conversationHistory(this.pool, workspaceId, input.platform, input.author_contact, message.id).catch(() => [])
+          : [];
         const taskId = randomUUID();
         await enqueueAiTask(this.pool, workspaceId, actorId, {
           task_id: taskId,
@@ -56,6 +59,7 @@ export class CommunityService {
           input: {
             operation: 'community.response',
             question: input.content,
+            ...(history.length > 0 ? { history } : {}),
           },
         });
 
@@ -117,11 +121,14 @@ export class CommunityService {
 /** A reply counts only once it was sent: a draft nobody sent was never said to this person. */
 async function conversationHistory(pool: Pool, workspaceId: string, platform: string, contact: string, messageId: string) {
   const prior = (await pool.query<{ content: string; reply: string | null }>(
-    `SELECT m.content, CASE WHEN m.status = 'replied' THEN a.payload->'result'->>'reply' END AS reply
+    `SELECT m.content,
+            CASE WHEN m.status = 'replied'
+                 THEN COALESCE(a.payload->'result'->>'reply', m.metadata->>'reply_text')
+            END AS reply
        FROM community_messages m
        LEFT JOIN content_artifacts a ON a.workspace_id = m.workspace_id AND a.task_id = m.task_id
       WHERE m.workspace_id = $1 AND m.platform = $2 AND m.author_contact = $3 AND m.id <> $4
-      ORDER BY m.received_at DESC LIMIT 3`,
+      ORDER BY m.received_at DESC LIMIT 6`,
     [workspaceId, platform, contact, messageId],
   )).rows;
   return prior.reverse().map((row) => ({
