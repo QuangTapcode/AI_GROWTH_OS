@@ -1,0 +1,78 @@
+name: Performance data integrity
+on:
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'apps/worker/**'
+      - 'apps/web/**'
+      - 'apps/pilot/**'
+      - 'services/ai/**'
+      - 'database/**'
+      - 'contracts/**'
+      - 'qa/performance/**'
+      - '.github/workflows/performance.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: performance_test
+          POSTGRES_PASSWORD: performance_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d performance_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      PERFORMANCE_TEST_DATABASE_URL: postgres://postgres:performance_test@127.0.0.1:5432/performance_test
+      INTEGRATION_MODE: fake
+      LLM_PROVIDER_MODE: fake
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: astral-sh/setup-uv@v5
+      - run: npm ci
+        working-directory: apps/api
+      - run: npm ci
+        working-directory: apps/worker
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm ci
+        working-directory: apps/pilot
+      - run: npm run lint
+        working-directory: apps/api
+      - run: npm run lint
+        working-directory: apps/web
+      - run: npm run lint
+        working-directory: apps/pilot
+      - run: npm run typecheck
+        working-directory: apps/api
+      - run: npm run typecheck
+        working-directory: apps/worker
+      - run: npm run typecheck
+        working-directory: apps/web
+      - run: npm run typecheck
+        working-directory: apps/pilot
+      - run: npm test -- tests/performance tests/reports tests/site/site.test.ts tests/site/searchMeasurement.test.ts tests/site/contentMetrics.pg.test.ts tests/campaignPlans/automation.test.ts tests/growthGoals/goal.test.ts tests/integrations/liveMetricsErrors.test.ts tests/integrations/performanceBinding.test.ts
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgres://postgres:performance_test@127.0.0.1:5432/performance_test
+          RUN_AUTOMATION_DB: '1'
+      - run: npm test -- tests/metricsSync.test.ts tests/facebookGroup.test.ts tests/groupMetricsScheduler.test.ts tests/operationsRouting.test.ts tests/researchInputs.test.ts src/events/__tests__/feedbackEventScheduler.test.ts
+        working-directory: apps/worker
+      - run: uv run --project services/ai python -m pytest services/ai/tests/test_kpi_baseline.py services/ai/tests/test_performance_integrity.py services/ai/tests/test_performance_content.py services/ai/tests/test_performance_social.py services/ai/tests/test_learning_signal.py services/ai/tests/test_six_roles.py services/ai/tests/test_research.py -q -p no:cacheprovider
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npx playwright test --config=playwright.performance.config.ts
+        working-directory: apps/web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: performance-browser-traces
+          path: apps/web/test-results/

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDate, timezoneSchema } from '../metrics/period';
 
 /**
  * W1-MY-04 — Public lead submission contract (POST /public/v1/sites/{site_id}/leads).
@@ -22,6 +23,7 @@ export const leadContextSchema = z
     utm_medium: z.string().trim().max(128).optional(),
     utm_campaign: z.string().trim().max(128).optional(),
     utm_content: z.string().trim().max(128).optional(),
+    content_slug: z.string().regex(/^[a-z0-9-]{1,160}$/).optional(),
   })
   // không strict: UTM/context có thể mở rộng phía FE mà không chặn contract
   .strip();
@@ -59,6 +61,10 @@ export const updateLeadBodySchema = z
 export type UpdateLeadBody = z.infer<typeof updateLeadBodySchema>;
 
 export const listLeadsQuerySchema = z.object({
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+  timezone: timezoneSchema.optional(),
+  exclude_synthetic: z.enum(['true', 'false']).optional(),
   lead_status: leadStatusSchema.optional(),
   lead_owner: z.string().uuid("lead_owner must be a valid UUID format").optional(),
   search: z.string().optional(),

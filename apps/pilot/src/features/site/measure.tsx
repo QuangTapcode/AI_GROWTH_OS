@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useRef, type FormEvent } from "react";
 import { COMMUNITY_GROUP_NAME, COMMUNITY_GROUP_URL, PUBLIC_BASE } from "@/lib/site";
+import { requestAssignment, exposeAssignment, currentAssignment, type Assignment } from './experiment';
 
 /** Anonymous per-tab session id; no cookie, no personal data. */
 function sessionId(): string {
@@ -17,10 +18,31 @@ function sessionId(): string {
 }
 
 function send(eventType: "page_view" | "cta_click", slug: string | null) {
-  const body = JSON.stringify({ event_type: eventType, session_id: sessionId(), path: location.pathname,
+  let eventId = crypto.randomUUID();
+  if (eventType === 'page_view') {
+    try {
+      const key = `tripc_page_event:${location.pathname}`, existing = JSON.parse(sessionStorage.getItem(key) ?? 'null');
+      if (existing?.id && Date.now() - existing.at < 30 * 60_000) eventId = existing.id;
+      else sessionStorage.setItem(key, JSON.stringify({ id: eventId, at: Date.now() }));
+    } catch { /* Storage is optional; server still deduplicates page views by session and path. */ }
+  }
+  const body = JSON.stringify({ event_id: eventId, attribution: attribution(), event_type: eventType, session_id: sessionId(), path: location.pathname,
     content_slug: slug, referrer: document.referrer || null });
   fetch(`${PUBLIC_BASE}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true })
     .catch(() => undefined);
+}
+
+/** Last tagged campaign in this tab; direct navigation preserves it. Never stores contact details. */
+function attribution(): Record<string, string> {
+  const params = new URLSearchParams(location.search), values: Record<string, string> = {};
+  for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content']) {
+    const value = params.get(key);
+    if (value) values[key] = value.slice(0, 128);
+  }
+  try {
+    if (Object.keys(values).length) sessionStorage.setItem('tripc_attribution', JSON.stringify(values));
+    return Object.keys(values).length ? values : JSON.parse(sessionStorage.getItem('tripc_attribution') ?? '{}');
+  } catch { return values; }
 }
 
 export function PageView({ slug }: { slug: string | null }) {
@@ -28,31 +50,53 @@ export function PageView({ slug }: { slug: string | null }) {
   return null;
 }
 
-export function CtaButton({ slug, label }: { slug: string; label: string }) {
-  return <button type="button" className="cta" onClick={() => {
+export function CtaButton({ slug, label }: { slug: string | null; label: string }) {
+  const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    let active = true;
+    requestAssignment(slug).then(value => { if (active) setAssignment(value); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [slug]);
+  useEffect(() => {
+    if (!assignment || !button.current) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        void exposeAssignment(slug, assignment).catch(() => undefined);
+        observer.disconnect();
+      }
+    }, { threshold: 0.5 });
+    observer.observe(button.current);
+    return () => observer.disconnect();
+  }, [slug, assignment]);
+  return <button ref={button} type="button" className="cta" onClick={() => {
     send("cta_click", slug);
     document.getElementById("request")?.scrollIntoView({ behavior: "smooth" });
-  }}>{label}</button>;
+  }}>{assignment?.cta ?? label}</button>;
 }
 
 type State = "idle" | "sending" | "sent" | "error";
 
-export function LeadForm({ topic }: { topic: string }) {
+export function LeadForm({ topic, slug }: { topic: string; slug?: string }) {
   const [state, setState] = useState<State>("idle");
   const [message, setMessage] = useState("");
+  const submission = useRef<{ key: string; payload: string } | null>(null);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setState("sending");
     try {
+      const payload = JSON.stringify({
+        name: String(form.get('name') ?? ''), email: String(form.get('email') ?? ''), interest_topic: topic.slice(0, 64),
+        consent: { accepted: form.get('consent') === 'on', policy_version: 'pilot-2026-10' },
+        context: { visitor_id: sessionId(), ...(slug ? { content_slug: slug } : {}),
+          ...(currentAssignment(slug) ? { assignment_id: currentAssignment(slug)!.assignment_id } : {}), ...attribution() },
+      });
+      if (!submission.current || submission.current.payload !== payload) submission.current = { key: crypto.randomUUID(), payload };
       const response = await fetch(`${PUBLIC_BASE}/leads`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-        body: JSON.stringify({
-          name: String(form.get("name") ?? ""), email: String(form.get("email") ?? ""), interest_topic: topic.slice(0, 64),
-          consent: { accepted: form.get("consent") === "on", policy_version: "pilot-2026-10" },
-          context: { visitor_id: sessionId() },
-        }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": submission.current.key },
+        body: submission.current.payload,
       });
       if (!response.ok) throw new Error(String(response.status));
       setState("sent");

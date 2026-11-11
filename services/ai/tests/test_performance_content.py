@@ -25,7 +25,7 @@ def report(client, content_metrics=ARTICLES):
 def test_the_report_says_which_articles_were_read_and_acted_on(client):
     _, out = report(client)
     result = out["result"]
-    assert result["content_metrics"] == ARTICLES
+    assert result["content_metrics"] == [{**article, "qualified_visits": None, "leads": None} for article in ARTICLES]
     assert any("Street Food in Da Nang" in line and "40" in line and "6" in line for line in result["observations"])
 
 

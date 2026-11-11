@@ -79,6 +79,9 @@ describe('first-party measurement', () => {
     expect(metrics.artifact.content_hash).toBe(sha256Hex(canonicalJson({ result: metrics.result, evidence: [] })));
     expect(metrics.measurement.internal_page_views).toBe(3);
     const leads = JSON.parse(inserts[1][6] as string);
-    expect(Object.keys(leads.result).sort()).toEqual(['count', 'synthetic', 'version', 'workspace_id']);
+    expect(Object.keys(leads.result).sort()).toEqual(['count', 'metrics_artifact_id', 'synthetic', 'version', 'window_end', 'window_start', 'workspace_id']);
+    expect(leads.result.metrics_artifact_id).toBe(metrics.artifact.artifact_id);
+    expect(leads.result.window_start).toBe(metrics.result.window_start);
+    expect(leads.result.window_end).toBe(metrics.result.window_end);
   });
 });

@@ -588,7 +588,7 @@ export async function tickAutomation(
       if (task.operation === "research.run" && task.artifact_payload.result?.status === "ready_for_handoff") {
         // First-party measurement (site events + leads) pinned to this context for Growth Lead, Performance and Learning;
         // taken before the strategy task exists, so the plan can see it.
-        await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
+        const measured = await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
         const child = await enqueue(`strategy:${task.id}`, {
           operation: "strategy.generate",
           research_artifact_id: task.result_ref,
@@ -601,12 +601,7 @@ export async function tickAutomation(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, child.task_id],
         );
-        const metric = (
-          await pool.query(
-            "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='metrics.snapshot' ORDER BY created_at DESC LIMIT 1",
-            [workspaceId, context.snapshot_id],
-          )
-        ).rows[0];
+        const metric = { id: measured.metrics_artifact_id };
         const baseline = metric ? await ensureBaselineArtifact(pool, workspaceId, context.snapshot_id, metric.id) : undefined;
         const report = await enqueue(`performance:${child.task_id}`, {
           operation: "analytics.report",
@@ -642,11 +637,10 @@ export async function tickAutomation(
         const iteration = await learningRoundsThisCycle(pool, workspaceId, context.snapshot_id);
         if (iteration < MAX_LEARNING_ROUNDS &&
             !(await measurementAlreadyLearned(pool, workspaceId, context.snapshot_id, task.payload?.input?.metrics_artifact_id))) {
-          await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
           const leads = (
             await pool.query(
-              "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='lead.aggregate' ORDER BY created_at DESC LIMIT 1",
-              [workspaceId, context.snapshot_id],
+              "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='lead.aggregate' AND payload->'result'->>'metrics_artifact_id'=$3 ORDER BY created_at DESC LIMIT 1",
+              [workspaceId, context.snapshot_id, task.payload?.input?.metrics_artifact_id],
             )
           ).rows[0];
           await enqueue(`learning:${task.id}`, {
