@@ -359,6 +359,10 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             raise APIError(404, "RUN_NOT_FOUND", "Run not found")
         return respond(row, 200)
 
+    # Standalone AI Image Generation Router
+    from ..agents.image_generation.router import image_generation_router
+    app.include_router(image_generation_router)
+
     return app
 
 
