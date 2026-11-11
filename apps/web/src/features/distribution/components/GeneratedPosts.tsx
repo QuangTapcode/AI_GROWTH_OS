@@ -65,8 +65,12 @@ function publishState(artifact: ContentArtifact, props: Props): { label: string;
       : { label: "Chưa đăng: ô \"Tự đăng bài SEO lên website\" đang tắt. Đây là bản nháp để xem.", tone: "bg-amber-50 text-amber-900" };
   }
   const job = props.jobs.filter((j) => j.artifact_id === artifact.id).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  const isGroupJob = job?.platform_name === "facebook_group";
-  const targetLabel = isGroupJob ? "Facebook Group" : "Facebook";
+  const targetLabel =
+    job?.platform_name === "facebook_group"
+      ? "Facebook Group"
+      : job?.platform_name === "tiktok"
+        ? "TikTok"
+        : "Facebook";
   if (job?.status === "published") return { label: `Đã đăng ${targetLabel}${job.external_post_id ? ` · ${job.external_post_id}` : ""}`, tone: "bg-emerald-50 text-emerald-800" };
   if (job?.status === "failed") return { label: `Đăng ${targetLabel} lỗi: ${job.error_message ?? "không rõ"}. Bản nháp vẫn dùng được để đăng tay.`, tone: "bg-rose-50 text-rose-800" };
   if (job) return { label: `Đang chờ đăng ${targetLabel}`, tone: "bg-blue-50 text-blue-800" };

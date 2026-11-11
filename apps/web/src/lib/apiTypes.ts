@@ -266,12 +266,72 @@ export interface PublishingJob {
   utm_url: string | null;
   external_post_id: string | null;
   error_message: string | null;
+  media_url?: string | null;
+  media_type?: string | null;
+  custom_caption?: string | null;
+  tiktok_video_id?: string | null;
   created_by: string | null;
   created_at: string;
   content_title: string;
   artifact_version: number | null;
   platform_name: string;
   channel_name: string | null;
+}
+
+export type TikTokPrivacyLevel =
+  | "SELF_ONLY"
+  | "PUBLIC_TO_EVERYONE"
+  | "MUTUAL_FOLLOW_FRIENDS"
+  | "FOLLOWER_OF_CREATOR";
+
+export interface TikTokConnectionSummary {
+  connected: boolean;
+  expired: boolean;
+  open_id: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  scopes: string[];
+  expires_at: string | null;
+  refresh_expires_at: string | null;
+  sandbox_privacy_default: TikTokPrivacyLevel;
+}
+
+export interface TikTokVideo {
+  id: string;
+  workspace_id: string;
+  title: string;
+  caption: string;
+  hashtags: string[];
+  source_artifact_id: string | null;
+  video_source_type: "file_upload" | "url";
+  file_size_bytes: number | null;
+  media_url: string | null;
+  privacy_level: TikTokPrivacyLevel | string;
+  is_aigc: boolean;
+  status: "ready" | "scheduled" | "publishing" | "published" | "failed" | string;
+  artifact_id: string | null;
+  publishing_job_id: string | null;
+  tiktok_publish_id: string | null;
+  error_message: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  job_status?: string | null;
+  job_scheduled_for?: string | null;
+  job_published_at?: string | null;
+  job_external_post_id?: string | null;
+  job_error_message?: string | null;
+}
+
+export interface TikTokVideosResponse {
+  connection: TikTokConnectionSummary;
+  items: TikTokVideo[];
+}
+
+export interface TikTokAuthUrlResponse {
+  url: string;
+  redirect_uri: string;
+  scopes: string[];
 }
 
 export interface MetricSeries {

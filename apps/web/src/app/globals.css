@@ -383,3 +383,41 @@ body { margin: 0; color: var(--text-primary); background: var(--main-bg); font-f
 .animate-float-reverse {
   animation: floatReverse 6s ease-in-out infinite;
 }
+
+/* TikTok Studio form validation (after interaction) & semantic native <progress> */
+.tiktok-input:is(:user-invalid, [aria-invalid="true"]) {
+  border-color: #d93025;
+  background-color: #fef2f2;
+}
+
+.tiktok-input:focus-visible {
+  outline: 3px solid var(--brand-color, #1D4ED8);
+  outline-offset: 2px;
+}
+
+.tiktok-progress {
+  appearance: none;
+  border: 0 solid;
+  overflow: clip;
+  width: 100%;
+  height: 0.625rem;
+  border-radius: 1e5px;
+  background: #e2e8f0;
+  box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.1);
+}
+
+.tiktok-progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+.tiktok-progress::-webkit-progress-value {
+  background: #0f172a;
+  border-radius: 1e5px;
+  transition: inline-size 0.25s ease;
+}
+
+.tiktok-progress::-moz-progress-bar {
+  background: #0f172a;
+  border-radius: 1e5px;
+  transition: inline-size 0.25s ease;
+}
