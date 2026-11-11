@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { IntegrationProvider, MissingReason, MetricAvailability } from './types';
 import { INTEGRATION_MATRIX, matrixFor } from './matrix';
 import { getConnection } from './repository';
+import { getTikTokConnectionSummary } from './tiktok';
 
 export function resolveGroupBotSessionCandidates(): string[] {
   const explicit = process.env.FB_SESSION_FILE?.trim();
@@ -144,6 +145,33 @@ export async function getWorkspaceConnectionStatus(workspaceId: string, provider
       };
     }
     return base;
+  }
+  if (provider === 'tiktok') {
+    try {
+      const summary = await getTikTokConnectionSummary(workspaceId);
+      if (summary.connected) {
+        return {
+          ...base,
+          status: 'connected',
+          missing_reason: null,
+          property_ref: summary.display_name || summary.open_id,
+          scopes: summary.scopes,
+          capabilities: base.capabilities.map((capability) => ({ capability: capability.capability, status: 'connected' })),
+        };
+      }
+      if (summary.expired) {
+        return {
+          ...base,
+          status: 'error',
+          missing_reason: 'TIKTOK_ACCOUNT_NOT_CONNECTED',
+          property_ref: summary.display_name || summary.open_id,
+          scopes: summary.scopes,
+          capabilities: base.capabilities.map((capability) => ({ capability: capability.capability, status: 'error' })),
+        };
+      }
+    } catch {
+      // Ignore DB lookup errors in isolated stub/unit-test environments without Postgres
+    }
   }
   if (!connection) return base;
   const effectiveStatus = connection.status === 'connected' && !connection.verified_at
