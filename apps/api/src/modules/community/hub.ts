@@ -2624,7 +2624,7 @@ export class CommunityHubService {
     if (options.includeGroupBot !== false) {
       const workerDir = resolveWorkerDir();
       const session = resolveGroupBotSessionFile(workerDir);
-      const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+      const hasSession = this.hasValidGroupBotSession(session);
       if (hasSession) {
         const recentGroupPosts = (
           await this.pool.query<{ facebook_post_url: string }>(
@@ -2749,7 +2749,7 @@ export class CommunityHubService {
     const settings = await this.getCommunitySettings(workspaceId);
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
-    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = this.hasValidGroupBotSession(session);
     if (!hasSession) {
       return { ingested: 0, scanned_posts: 0, skipped: 'FACEBOOK_GROUP_SESSION_MISSING' };
     }
@@ -3057,7 +3057,7 @@ export class CommunityHubService {
     if (options.includeNativeGroupUi !== false && remaining > 0) {
       const workerDir = resolveWorkerDir();
       const session = resolveGroupBotSessionFile(workerDir);
-      const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+      const hasSession = this.hasValidGroupBotSession(session);
       if (hasSession) {
         const alreadyInvitedNames = new Set(
           (
@@ -5958,6 +5958,7 @@ export class CommunityHubService {
   }
 
   private inspectGroupBotSessionFileSafe(filePath: string): {
+    hasAuthCookies: boolean;
     usingPageProfile: boolean;
     accountIdMask?: string;
   } {
@@ -5969,25 +5970,36 @@ export class CommunityHubService {
       const nowSec = Math.floor(Date.now() / 1000);
       const fbCookies = (parsed.cookies ?? []).filter(
         (c) =>
-          typeof c?.domain === 'string' &&
-          c.domain.toLowerCase().includes('facebook.com') &&
+          (!c?.domain || c.domain.toLowerCase().includes('facebook.com')) &&
           (!c.expires || c.expires < 0 || c.expires > nowSec),
       );
       const cUser = fbCookies.find((c) => c.name === 'c_user')?.value?.trim() || '';
+      const xs = fbCookies.find((c) => c.name === 'xs')?.value?.trim() || '';
       const iUser = fbCookies.find((c) => c.name === 'i_user')?.value?.trim() || '';
+      const hasAuthCookies = Boolean(cUser && xs);
       const activeId = iUser || cUser;
-      const accountIdMask = activeId.length >= 4 ? `***${activeId.slice(-4)}` : activeId ? '***' : undefined;
+      const accountIdMask =
+        hasAuthCookies && activeId ? (activeId.length >= 4 ? `***${activeId.slice(-4)}` : '***') : undefined;
       return {
-        usingPageProfile: Boolean(iUser && iUser !== cUser),
+        hasAuthCookies,
+        usingPageProfile: hasAuthCookies && Boolean(iUser && iUser !== cUser),
         ...(accountIdMask ? { accountIdMask } : {}),
       };
     } catch {
-      return { usingPageProfile: false };
+      return { hasAuthCookies: false, usingPageProfile: false };
     }
   }
 
+  private hasValidGroupBotSession(session: { exists: boolean; filePath: string }): boolean {
+    if (session.exists && this.inspectGroupBotSessionFileSafe(session.filePath).hasAuthCookies) {
+      return true;
+    }
+    return Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+  }
+
   /**
-   * Fast synchronous check for whether a saved Edge Group Bot session file or FB_ADMIN_COOKIE exists.
+   * Fast synchronous check for whether a saved Edge Group Bot session file or FB_ADMIN_COOKIE exists
+   * with active authentication cookies (`c_user` + `xs`).
    * Never exposes local filesystem paths or secret cookie contents.
    */
   async getGroupBotSessionStatus(): Promise<GroupBotSessionStatus> {
@@ -5998,13 +6010,15 @@ export class CommunityHubService {
     const session = resolveGroupBotSessionFile(workerDir);
     if (session.exists) {
       const meta = this.inspectGroupBotSessionFileSafe(session.filePath);
-      return {
-        isLoggedIn: true,
-        sessionSource: 'file',
-        ...(loginInProgress ? { loginInProgress: true } : {}),
-        ...(meta.usingPageProfile ? { usingPageProfile: true } : {}),
-        ...(meta.accountIdMask ? { accountIdMask: meta.accountIdMask } : {}),
-      };
+      if (meta.hasAuthCookies) {
+        return {
+          isLoggedIn: true,
+          sessionSource: 'file',
+          ...(loginInProgress ? { loginInProgress: true } : {}),
+          ...(meta.usingPageProfile ? { usingPageProfile: true } : {}),
+          ...(meta.accountIdMask ? { accountIdMask: meta.accountIdMask } : {}),
+        };
+      }
     }
     if (process.env.FB_ADMIN_COOKIE?.trim()) {
       return {
@@ -6791,7 +6805,7 @@ exit $p.ExitCode
     const settings = await this.ensureSchemaAndContext(workspaceId);
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
-    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = this.hasValidGroupBotSession(session);
 
     const upsertGroupPostRecord = async (record: {
       status: 'published' | 'failed';
@@ -7000,7 +7014,7 @@ exit $p.ExitCode
     const settings = await this.ensureSchemaAndContext(workspaceId);
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
-    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = this.hasValidGroupBotSession(session);
 
     let existingRow: {
       id: string;

@@ -207,5 +207,75 @@ describe('FacebookGroupBot & FacebookGroupPublisher', () => {
     );
     expect(FacebookGroupBot.sanitizeAccountDisplayName('Commenting as TripC Support')).toBe('TripC Support');
   });
+
+  it('fail-closed với FACEBOOK_GROUP_SESSION_MISSING khi .fb-session.json chỉ có cookie ẩn danh (thiếu c_user/xs) hoặc cookie đã hết hạn', async () => {
+    const anonSessionFile = path.join(
+      os.tmpdir(),
+      `vitest-anon-fb-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`,
+    );
+    tempFiles.push(anonSessionFile);
+    delete process.env.FB_ADMIN_COOKIE;
+    process.env.FB_SESSION_FILE = anonSessionFile;
+
+    fs.writeFileSync(
+      anonSessionFile,
+      JSON.stringify({
+        cookies: [
+          { name: 'datr', value: 'anon-datr', domain: '.facebook.com' },
+          { name: 'sb', value: 'anon-sb', domain: '.facebook.com' },
+          { name: 'fr', value: 'anon-fr', domain: '.facebook.com' },
+        ],
+      }),
+      'utf8',
+    );
+
+    const meta = FacebookGroupBot.getSessionStatusSync(anonSessionFile);
+    expect(meta.fileExists).toBe(true);
+    expect(meta.hasAuthCookies).toBe(false);
+    expect(meta.ready).toBe(false);
+    expect(FacebookGroupBot.hasSavedSession(anonSessionFile)).toBe(false);
+
+    const bot = new FacebookGroupBot(anonSessionFile);
+    const check = await bot.checkSession();
+    expect(check.isLoggedIn).toBe(false);
+
+    await expect(
+      bot.postToGroup({
+        groupUrl: 'https://www.facebook.com/groups/1134282109069209',
+        title: 'Test',
+        body: 'Test body',
+      }),
+    ).rejects.toThrow('FACEBOOK_GROUP_SESSION_MISSING');
+    await expect(
+      bot.scanGroupComments({ groupUrl: 'https://www.facebook.com/groups/1134282109069209' }),
+    ).rejects.toThrow('FACEBOOK_GROUP_SESSION_MISSING');
+    await expect(
+      bot.deleteGroupPost({ groupUrl: 'https://www.facebook.com/groups/1134282109069209', titleSnippet: 'Test' }),
+    ).rejects.toThrow('FACEBOOK_GROUP_SESSION_MISSING');
+    await expect(
+      bot.replyToGroupComment({
+        postUrl: 'https://www.facebook.com/groups/1134282109069209/posts/123',
+        replyText: 'Trả lời test',
+      }),
+    ).rejects.toThrow('FACEBOOK_GROUP_SESSION_MISSING');
+    await expect(
+      bot.sendNativeGroupInvites({ groupUrl: 'https://www.facebook.com/groups/1134282109069209', maxInvites: 3 }),
+    ).rejects.toThrow('FACEBOOK_GROUP_SESSION_MISSING');
+
+    // Expired c_user/xs must also fail closed
+    const pastExp = Math.floor(Date.now() / 1000) - 3600;
+    fs.writeFileSync(
+      anonSessionFile,
+      JSON.stringify({
+        cookies: [
+          { name: 'c_user', value: '10001122334455', domain: '.facebook.com', expires: pastExp },
+          { name: 'xs', value: 'expired-xs', domain: '.facebook.com', expires: pastExp },
+        ],
+      }),
+      'utf8',
+    );
+    expect(FacebookGroupBot.getSessionStatusSync(anonSessionFile).hasAuthCookies).toBe(false);
+    expect(FacebookGroupBot.hasSavedSession(anonSessionFile)).toBe(false);
+  });
 });
 

@@ -1287,5 +1287,32 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
       vi.unstubAllEnvs();
     }
   });
+
+  it('getGroupBotSessionStatus & hasGroupBotSessionSync return logged-out when .fb-session.json lacks c_user/xs', async () => {
+    const { hasGroupBotSessionSync } = await import('../../src/modules/integrations/stubs');
+    const tmpSession = path.join(os.tmpdir(), `vitest-anon-session-${Date.now()}.json`);
+    process.env.FB_SESSION_FILE = tmpSession;
+    try {
+      fs.writeFileSync(
+        tmpSession,
+        JSON.stringify({
+          cookies: [
+            { name: 'datr', value: 'anon-datr', domain: '.facebook.com' },
+            { name: 'sb', value: 'anon-sb', domain: '.facebook.com' },
+            { name: 'fr', value: 'anon-fr', domain: '.facebook.com' },
+          ],
+        }),
+        'utf8',
+      );
+      expect(hasGroupBotSessionSync()).toBe(false);
+      const service = new CommunityHubService({ query: vi.fn(), connect: vi.fn() } as unknown as Pool);
+      const status = await service.getGroupBotSessionStatus();
+      expect(status).toEqual({ isLoggedIn: false, sessionSource: 'none' });
+    } finally {
+      try {
+        if (fs.existsSync(tmpSession)) fs.unlinkSync(tmpSession);
+      } catch {}
+    }
+  });
 });
 
