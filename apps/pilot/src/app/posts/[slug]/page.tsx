@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getPost, listPosts } from "@/lib/site";
 import { relatedPosts } from "@/lib/related";
 import { ArticleBody, parseArticle } from "@/features/site/article";
-import { CtaButton, LeadForm, PageView } from "@/features/site/measure";
+import { CommunityGroupCard, CtaButton, LeadForm, PageView } from "@/features/site/measure";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +44,7 @@ export default async function PostPage({ params }: Params) {
         <h2 id="request-title">{label}</h2>
         <LeadForm topic={post.title} />
       </section>
+      <CommunityGroupCard slug={post.slug} />
     </main>
   );
 }

@@ -168,9 +168,12 @@ if ((process.env.INTEGRATION_MODE || 'fake') === 'production') {
     ? new FacebookPagePublisher(pageId, pageToken)
     : new UnavailablePublisher('Facebook', 'FACEBOOK_PAGE_PERMISSION_MISSING'));
   const groupId = process.env.FACEBOOK_GROUP_ID;
-  defaultRegistry.register('FacebookGroup', groupId && pageToken
-    ? new FacebookGroupPublisher(groupId, pageToken)
-    : new UnavailablePublisher('FacebookGroup', 'FACEBOOK_GROUP_PERMISSION_MISSING'));
+  if (groupId && pageToken) {
+    defaultRegistry.register('FacebookGroup', new FacebookGroupPublisher(groupId, pageToken));
+  } else {
+    // Register FacebookGroupPublisher dynamically so newly saved .fb-session.json works without restarting the worker
+    defaultRegistry.register('FacebookGroup', new FacebookGroupPublisher());
+  }
   const tiktokToken = process.env.TIKTOK_ACCESS_TOKEN;
   defaultRegistry.register('TikTok', tiktokToken
     ? new TikTokPublisher(tiktokToken, process.env.TIKTOK_OPEN_ID)

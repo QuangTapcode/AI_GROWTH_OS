@@ -33,6 +33,7 @@ const CHANNEL_ROUTE: Record<string, ChannelRoute> = {
   Website: { provider: 'website_cms', capability: 'publish_cms_post' },
   Newsletter: { provider: 'website_cms', capability: 'publish_cms_post' },
   Facebook: { provider: 'facebook_page', capability: 'publish_page_post' },
+  FacebookGroup: { provider: 'facebook_group', capability: 'publish_group_post' },
   TikTok: { provider: 'tiktok', capability: 'publish_tiktok_video' },
   Instagram: { provider: 'instagram_business', capability: 'publish_ig_media' },
 };

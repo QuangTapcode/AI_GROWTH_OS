@@ -10,7 +10,7 @@
 | Model thử nghiệm | qwen3:4b-instruct; embeddinggemma:latest hiện có, pin digest và eval trước dùng thật |
 | Model fallback | qwen2.5:3b-instruct-q4_K_M đang có; chỉ dùng sau eval, không giả cùng chất lượng |
 | Concurrency | Một job AI tổng đang chạy, một active job/workspace; embedding và generation không chạy đồng thời trên GPU |
-| Context | 4096 tokens; input gồm system/schema/evidence <=2800, output <=1024 |
+| Context | 5120 tokens; input gồm system/schema/evidence <=2800, output <=2048 (06/11: nới từ 4096/1024 vì bài SEO có trích dẫn bị cắt ở 1024 token, xem test `test_the_model_has_room_for_a_cited_article_of_good_length`) |
 | Calls/attempts | Tối đa hai LLM calls/job, bao gồm retry/repair; không reset khi worker restart |
 | LLM timeout | HTTP 240s; job execution 600s; queue wait 900s |
 | Embedding | Chunk <=512 tokens, batch <=8; HTTP 120s, job execution 300s, tổng hai attempts |

@@ -244,7 +244,7 @@ export interface IntegrationsResponse {
 export interface Channel {
   id: string;
   workspace_id: string;
-  platform_name: "website" | "facebook" | "instagram" | "linkedin" | "email";
+  platform_name: "website" | "facebook" | "facebook_group" | "tiktok" | "instagram" | "linkedin" | "email";
   channel_identifier: string | null;
   display_name: string | null;
   created_at: string;

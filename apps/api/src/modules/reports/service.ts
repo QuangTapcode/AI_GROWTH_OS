@@ -3,6 +3,7 @@ import { AppError } from '../../lib/errors';
 import { globalLeadRepo } from '../../lib/public-service';
 import { query as dbQuery } from '../../lib/db';
 import { METRIC_PROVIDER, dailySnapshots } from '../metrics/service';
+import { facebookPageConfigured, getFacebookPageKpis } from './facebookPage';
 import type {
   ReportQuery,
   ReportQueryInput,
@@ -176,6 +177,11 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
     }
   } catch {
     // DB không sẵn sàng (test in-memory): giữ số liệu hiện có
+  }
+
+  // Fanpage đã kết nối (token server-side): số liệu đọc trực tiếp từ Graph API.
+  if (facebookPageConfigured(workspaceId)) {
+    Object.assign(kpis, await getFacebookPageKpis(fromDate, toDate));
   }
 
   return {

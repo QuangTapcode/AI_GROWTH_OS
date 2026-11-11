@@ -429,4 +429,131 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
     assert.equal(claimedIds.size, 2, '2 Worker phải xử lý 2 event khác nhau nhờ SKIP LOCKED');
     assert.equal(publisher.publishCalls, 2, 'Mỗi job chỉ được xuất bản đúng 1 lần duy nhất');
   });
+
+  it('6. Khi community_hub_settings.publish_target = "group", Outbox chặn job Fanpage với PUBLISH_TARGET_GROUP_ONLY', async () => {
+    let publishCalled = 0;
+    const mockFbPublisher = new TrackableMockPublisher('Facebook', 'success');
+    mockFbPublisher.publish = async () => {
+      publishCalled++;
+      return { success: true };
+    };
+    let failedReason = '';
+
+    const mockPool = {
+      query: async (sql: string, params: any[] = []) => {
+        if (sql.includes('candidate AS')) {
+          return { rows: [{ id: 'evt_guard_1', payload: { job_id: 'job_guard_1' }, retry_count: 1 }] };
+        }
+        if (sql.includes('FROM publishing_jobs j')) {
+          return {
+            rows: [
+              {
+                id: 'job_guard_1',
+                workspace_id: 'ws_1',
+                content_id: 'c_1',
+                approval_id: 'appr_1',
+                scheduled_for: new Date(Date.now() - 1000).toISOString(),
+                status: 'scheduled',
+                mode: 'live',
+                body_markdown: 'Bài đăng test',
+                content_title: 'Test Group Guard',
+                artifact_id: 'art_1',
+                artifact_version: 1,
+                ...approvedArtifact('Bài đăng test'),
+                platform_name: 'facebook',
+                channel_identifier: 'page_1',
+                utm_url: null,
+                approval_status: 'approved',
+                external_post_id: null,
+              },
+            ],
+          };
+        }
+        if (sql.includes('SELECT publish_target FROM community_hub_settings')) {
+          return { rows: [{ publish_target: 'group' }] };
+        }
+        if (sql.includes("UPDATE publishing_jobs SET status = 'failed'")) {
+          failedReason = String(params[1] ?? '');
+          return { rows: [] };
+        }
+        return { rows: [] };
+      },
+    };
+
+    const outcome = await new PublishingOutboxRunner(
+      mockPool as any,
+      new Map([['Facebook', mockFbPublisher]]) as any,
+    ).runOnce();
+
+    assert.equal(outcome, 'failed');
+    assert.equal(publishCalled, 0, 'KHÔNG được gọi FacebookPagePublisher khi workspace ở chế độ Group-only');
+    assert.match(failedReason, /PUBLISH_TARGET_GROUP_ONLY/);
+  });
+
+  it('7. Job facebook_group gửi payload.result.facebook.text qua FacebookGroup và đồng bộ community_group_posts', async () => {
+    let capturedBody = '';
+    let groupPostSynced = false;
+    const mockGroupPublisher = {
+      channel: 'FacebookGroup' as const,
+      async publish(req: CmsPublishRequest): Promise<CmsPublishResult> {
+        capturedBody = req.bodyMarkdown;
+        return {
+          success: true,
+          externalPostId: '9988776655',
+          publishedUrl: 'https://www.facebook.com/groups/1134282109069209/posts/9988776655',
+          publishedAt: new Date(),
+        };
+      },
+      async reconcile(): Promise<CmsPublishResult> {
+        return { success: false };
+      },
+    };
+
+    const mockPool = {
+      query: async (sql: string) => {
+        if (sql.includes('candidate AS')) {
+          return { rows: [{ id: 'evt_grp_1', payload: { job_id: 'job_grp_1' }, retry_count: 1 }] };
+        }
+        if (sql.includes('FROM publishing_jobs j')) {
+          return {
+            rows: [
+              {
+                id: 'job_grp_1',
+                workspace_id: 'ws_1',
+                content_id: 'c_grp_1',
+                approval_id: 'appr_grp_1',
+                scheduled_for: new Date(Date.now() - 1000).toISOString(),
+                status: 'scheduled',
+                mode: 'live',
+                body_markdown: null,
+                content_title: 'Group Post Title',
+                artifact_id: 'art_grp_1',
+                artifact_version: 1,
+                ...approvedArtifact('Nội dung dành riêng cho Facebook Group'),
+                platform_name: 'facebook_group',
+                channel_identifier: '1134282109069209',
+                utm_url: 'https://www.facebook.com/groups/1134282109069209',
+                approval_status: 'approved',
+                external_post_id: null,
+              },
+            ],
+          };
+        }
+        if (sql.includes('INSERT INTO community_group_posts')) {
+          groupPostSynced = true;
+          return { rows: [] };
+        }
+        return { rows: [] };
+      },
+    };
+
+    const outcome = await new PublishingOutboxRunner(
+      mockPool as any,
+      new Map([['FacebookGroup', mockGroupPublisher]]) as any,
+    ).runOnce();
+
+    assert.equal(outcome, 'published');
+    assert.equal(capturedBody, 'Nội dung dành riêng cho Facebook Group');
+    assert.equal(groupPostSynced, true);
+  });
 });

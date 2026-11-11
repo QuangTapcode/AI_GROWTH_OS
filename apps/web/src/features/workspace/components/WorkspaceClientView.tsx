@@ -211,7 +211,8 @@ function ProfileCard({ profile, canEdit, onSaved }: { profile: BusinessProfile; 
 const PROVIDER_LABELS: Record<string, string> = {
   ga4: "Google Analytics 4",
   gsc: "Google Search Console",
-  facebook_page: "Facebook Page",
+  facebook_group: "Facebook Group (Cộng đồng)",
+  facebook_page: "Facebook Page (Messenger & RAG)",
   instagram_business: "Instagram Business",
   meta_ads: "Meta Ads",
   website_cms: "Website CMS",

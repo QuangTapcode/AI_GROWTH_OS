@@ -38,6 +38,7 @@ class MetricsData(BaseModel):
     unavailable: dict[Literal["impressions", "clicks"], str] = Field(default_factory=dict, max_length=2)
     source: str | None = Field(default=None, max_length=50)
     content_metrics: list[ContentMetric] = Field(default_factory=list, max_length=20)
+    community_metrics: dict[str, int | float | str | bool | None] | None = None
 
     @model_validator(mode="after")
     def valid_window(self):

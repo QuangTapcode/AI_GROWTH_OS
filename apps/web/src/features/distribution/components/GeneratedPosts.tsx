@@ -14,13 +14,15 @@ type Props = {
   jobs: PublishingJob[];
   sitePosts: SitePost[];
   facebook: { connected: boolean; reason: string | null };
+  facebookGroup?: { connected: boolean; reason: string | null };
   websiteAutoPublish: boolean;
 };
 
-const MAX_POSTS = 8;
+const PAGE_SIZE = 10;
 const FACEBOOK_REASONS: Record<string, string> = {
   FACEBOOK_PAGE_PERMISSION_MISSING: "Meta đang chặn hoặc token Page thiếu quyền đăng bài",
-  INTEGRATION_NOT_CONNECTED: "chưa kết nối Facebook Page",
+  FACEBOOK_GROUP_SESSION_MISSING: "chưa đăng nhập Group Bot (.fb-session.json)",
+  INTEGRATION_NOT_CONNECTED: "chưa kết nối kênh Facebook",
 };
 
 const obj = (value: unknown): Record<string, unknown> =>
@@ -63,12 +65,17 @@ function publishState(artifact: ContentArtifact, props: Props): { label: string;
       : { label: "Chưa đăng: ô \"Tự đăng bài SEO lên website\" đang tắt. Đây là bản nháp để xem.", tone: "bg-amber-50 text-amber-900" };
   }
   const job = props.jobs.filter((j) => j.artifact_id === artifact.id).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  if (job?.status === "published") return { label: `Đã đăng Facebook${job.external_post_id ? ` · ${job.external_post_id}` : ""}`, tone: "bg-emerald-50 text-emerald-800" };
-  if (job?.status === "failed") return { label: `Đăng Facebook lỗi: ${job.error_message ?? "không rõ"}. Bản nháp vẫn dùng được để đăng tay.`, tone: "bg-rose-50 text-rose-800" };
-  if (job) return { label: "Đang chờ đăng Facebook", tone: "bg-blue-50 text-blue-800" };
+  const isGroupJob = job?.platform_name === "facebook_group";
+  const targetLabel = isGroupJob ? "Facebook Group" : "Facebook";
+  if (job?.status === "published") return { label: `Đã đăng ${targetLabel}${job.external_post_id ? ` · ${job.external_post_id}` : ""}`, tone: "bg-emerald-50 text-emerald-800" };
+  if (job?.status === "failed") return { label: `Đăng ${targetLabel} lỗi: ${job.error_message ?? "không rõ"}. Bản nháp vẫn dùng được để đăng tay.`, tone: "bg-rose-50 text-rose-800" };
+  if (job) return { label: `Đang chờ đăng ${targetLabel}`, tone: "bg-blue-50 text-blue-800" };
+  if (props.facebookGroup?.connected) {
+    return { label: "Chưa đăng Facebook Group", tone: "bg-slate-100 text-slate-700" };
+  }
   return props.facebook.connected
     ? { label: "Chưa đăng Facebook", tone: "bg-slate-100 text-slate-700" }
-    : { label: `Chưa đăng: ${FACEBOOK_REASONS[props.facebook.reason ?? ""] ?? "Facebook chưa kết nối được"}. Đây là bản nháp để xem và đăng tay.`, tone: "bg-amber-50 text-amber-900" };
+    : { label: `Chưa đăng: ${FACEBOOK_REASONS[props.facebookGroup?.reason ?? props.facebook.reason ?? ""] ?? "Facebook Group / Page chưa kết nối được"}. Đây là bản nháp để xem và đăng tay.`, tone: "bg-amber-50 text-amber-900" };
 }
 
 function TikTokScript({ script }: { script: Record<string, unknown> }) {
@@ -110,6 +117,16 @@ function PostCard({ artifact, props }: { artifact: ContentArtifact; props: Props
   const isArticle = artifact.role === "seo";
   const body = isArticle ? text(result.body_markdown) : text(obj(result.facebook).text) || text(result.caption);
   const copyText = isArticle ? [text(result.title), "", body].join("\n") : body;
+  const firstImageAsset = Array.isArray(result.image_assets) ? obj(result.image_assets[0]) : {};
+  const previewImage = text(obj(result.generated_image).url)
+    ? obj(result.generated_image)
+    : text(firstImageAsset.url)
+      ? {
+          url: text(firstImageAsset.url),
+          alt_text: text(firstImageAsset.attribution) || text(result.alt_text) || "Ảnh minh họa bài đăng Cộng đồng",
+          synthetic: firstImageAsset.synthetic === true,
+        }
+      : {};
   const approval = latestApproval(artifact.id, props.approvals)?.status;
   const state = publishState(artifact, props);
 
@@ -154,28 +171,176 @@ function PostCard({ artifact, props }: { artifact: ContentArtifact; props: Props
         )}
       </div>
       {!isArticle && <TikTokScript script={obj(result.tiktok)} />}
-      {!isArticle && <GeneratedImagePreview image={obj(result.generated_image)} />}
-      {!isArticle && <ImageSuggestion suggestion={obj(result.image_suggestion)} />}
+      {!isArticle && <GeneratedImagePreview image={previewImage} />}
+      {!isArticle && !text(previewImage.url) && <ImageSuggestion suggestion={obj(result.image_suggestion)} />}
     </li>
   );
 }
 
+function isArtifactPublished(artifact: ContentArtifact, props: Props): boolean {
+  if (artifact.role === "seo") {
+    return props.sitePosts.some((p) => p.artifact_id === artifact.id);
+  }
+  return props.jobs.some((j) => j.artifact_id === artifact.id && j.status === "published");
+}
+
+function getArtifactDateIsoVn(artifact: ContentArtifact, props: Props): string {
+  const pubJob = props.jobs
+    .filter((j) => j.artifact_id === artifact.id && j.status === "published" && j.published_at)
+    .sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""))[0];
+  const sitePost = artifact.role === "seo" ? props.sitePosts.find((p) => p.artifact_id === artifact.id) : undefined;
+  const raw = pubJob?.published_at || sitePost?.published_at || artifact.created_at;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const vn = new Date(parsed.getTime() + 7 * 3600_000);
+  return `${vn.getUTCFullYear()}-${String(vn.getUTCMonth() + 1).padStart(2, "0")}-${String(vn.getUTCDate()).padStart(2, "0")}`;
+}
+
 /** Articles and Facebook posts the agents produced, readable even when no channel could publish them. */
 export default function GeneratedPosts(props: Props) {
-  const posts = props.artifacts
-    .filter((a) => (a.operation === "seo.local_draft" || a.operation === "content.repurpose") && obj(a.payload.result).synthetic !== true)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, MAX_POSTS);
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "unpublished">("all");
+  const [dateFilter, setDateFilter] = useState<string>("");
+  const [page, setPage] = useState<number>(1);
+
+  const allPosts = props.artifacts
+    .filter(
+      (a) =>
+        (a.operation === "seo.local_draft" ||
+          a.operation === "content.repurpose" ||
+          a.operation === "content.generate") &&
+        obj(a.payload.result).synthetic !== true,
+    )
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  const publishedTotal = allPosts.filter((a) => isArtifactPublished(a, props)).length;
+  const unpublishedTotal = allPosts.length - publishedTotal;
+
+  const filteredPosts = allPosts.filter((a) => {
+    const pub = isArtifactPublished(a, props);
+    if (statusFilter === "published" && !pub) return false;
+    if (statusFilter === "unpublished" && pub) return false;
+    if (dateFilter && getArtifactDateIsoVn(a, props) !== dateFilter) return false;
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  const posts = filteredPosts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs">
-      <h2 className="text-sm font-bold text-slate-900">Bài viết đã tạo</h2>
-      <p className="mb-4 mt-0.5 text-[11px] text-slate-500">
-        Bài website và bài Facebook mới nhất do agent tạo, kể cả khi chưa đăng được lên kênh nào. Mỗi bài ghi rõ đã đăng hay chưa và lý do.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">
+            Bài viết đã tạo &amp; đã đăng ({allPosts.length} bài)
+          </h2>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            Hiển thị đầy đủ bài website và bài Facebook (không ẩn bài đã đăng). Lọc theo trạng thái hoặc Ngày / Tháng / Năm cụ thể.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("all");
+              setPage(1);
+            }}
+            className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+              statusFilter === "all" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            Tất cả ({allPosts.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("published");
+              setPage(1);
+            }}
+            className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+              statusFilter === "published"
+                ? "bg-emerald-700 text-white"
+                : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+            }`}
+          >
+            ✓ Đã đăng ({publishedTotal})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("unpublished");
+              setPage(1);
+            }}
+            className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+              statusFilter === "unpublished"
+                ? "bg-blue-700 text-white"
+                : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            ⏰ Chưa đăng / Hẹn ({unpublishedTotal})
+          </button>
+          <input
+            type="date"
+            aria-label="Lọc bài viết theo ngày tháng năm"
+            value={dateFilter}
+            onChange={(e) => {
+              setDateFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-800"
+          />
+          {dateFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                setDateFilter("");
+                setPage(1);
+              }}
+              className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700"
+            >
+              Xóa ngày
+            </button>
+          )}
+        </div>
+      </div>
+
       {posts.length === 0 ? (
-        <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Chưa có bài nào. Bài sẽ xuất hiện sau khi SEO và Content chạy xong.</p>
+        <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+          Không có bài viết nào khớp với bộ lọc hiện tại.
+        </p>
       ) : (
-        <ul className="space-y-4">{posts.map((a) => <PostCard key={a.id} artifact={a} props={props} />)}</ul>
+        <>
+          <ul className="mt-4 space-y-4">
+            {posts.map((a) => (
+              <PostCard key={a.id} artifact={a} props={props} />
+            ))}
+          </ul>
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-600">
+              <span>
+                Trang <b>{currentPage}</b> / <b>{totalPages}</b> ({filteredPosts.length} bài)
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                >
+                  ‹ Trước
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                >
+                  Sau ›
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

@@ -272,3 +272,72 @@ def test_a_reached_target_is_reported_and_the_plan_maintains(client):
 def test_without_a_measurement_the_plan_keeps_the_plain_score_and_says_so(client):
     plan = kpi_plan(client, None)
     assert plan["priority"] is None and plan["kpi_progress"] == []
+
+
+def test_growth_lead_proposes_progressive_community_targets_from_real_context(client):
+    request = request_for(client)
+    request["operation"] = "strategy.generate"
+    request["payload"]["community_context"] = {
+        "group_name": "Cộng đồng Du lịch & Sống tại Việt Nam",
+        "current_members": 7,
+        "week1_baseline_members": 5,
+        "page_followers": 24,
+        "identified_prospects": 10,
+        "invites_sent_7d": 4,
+        "comments_replied_7d": 3,
+        "pending_questions": 2,
+        "current_campaign_week": 2,
+        "daily_invite_cap": 12,
+        "auto_reply_comments": True,
+        "auto_invite_enabled": True,
+    }
+    first = run_job(client, request)["result"]
+    assert run_job(client, request)["result"] == first  # idempotent
+    cgp = first["result"]["community_growth_plan"]
+    assert cgp is not None
+    assert cgp["source"] == "growth_lead_agent"
+    assert cgp["auto_apply"] is True
+    assert 10 <= cgp["recommended_daily_invite_limit"] <= 15
+    assert cgp["week1_target"] == 5
+    assert 10 <= cgp["week2_target"] <= 20
+    assert cgp["week1_target"] < cgp["week2_target"] < cgp["week3_target"] < cgp["week4_target"]
+    assert len(cgp["weekly_targets"]) == 4
+    assert cgp["pacing_status"] in {"ahead", "on_track", "behind", "baseline"}
+
+
+def test_growth_lead_can_compute_community_targets_from_metrics_artifact(client):
+    from examples.six_role_requests import aggregate
+    request = request_for(client)
+    request["operation"] = "strategy.generate"
+    request["payload"]["latest_metrics"] = aggregate(
+        request,
+        {
+            "workspace_id": request["workspace_id"],
+            "snapshot_id": str(uuid4()),
+            "version": 1,
+            "window_start": "2026-10-01T00:00:00Z",
+            "window_end": "2026-10-08T00:00:00Z",
+            "qualified_visits": 10,
+            "leads": 2,
+            "clicks": 15,
+            "impressions": 200,
+            "synthetic": True,
+            "community_metrics": {
+                "group_name": "TripC Vietnam Community",
+                "group_member_count": 7,
+                "week1_baseline_members": 7,
+                "identified_prospects": 6,
+                "invites_sent_7d": 0,
+                "comments_replied_7d": 1,
+                "campaign_week": 2,
+                "daily_invite_limit": 12,
+            },
+        },
+        role="performance",
+    )
+    plan = run_job(client, request)["result"]["result"]
+    cgp = plan["community_growth_plan"]
+    assert cgp is not None
+    assert cgp["current_members"] == 7
+    assert cgp["week1_target"] == 7
+    assert cgp["week2_target"] >= 12

@@ -16,6 +16,11 @@ PROMPT_VERSION = "community-v3"
 PROMPT_FILE = Path(__file__).resolve().parents[3] / f"prompts/{PROMPT_VERSION}.md"
 SYSTEM_PROMPT = PROMPT_FILE.read_text(encoding="utf-8")
 HANDOFF_REPLY = "The verified information needed for this question is unavailable. A human needs to review it."
+VIETNAMESE_HELPFUL_FALLBACK = (
+    "Chào bạn! Cảm ơn bạn đã liên hệ TripC. Hiện tại cẩm nang của chúng tôi đang liên tục cập nhật thêm "
+    "thông tin chi tiết về chủ đề này. Bạn có thể tham gia thảo luận cùng người dân địa phương và cộng đồng "
+    "tại nhóm Facebook của chúng tôi: https://www.facebook.com/groups/1134282109069209 để nhận được gợi ý nhanh nhất nhé!"
+)
 # Words of asking, not subjects: a source need not contain them to answer.
 QUESTION_WORDS = {"please", "help", "find", "good", "best", "recommend", "suggest", "explain", "tell", "know", "need", "want",
                   "looking", "look", "where", "what", "which", "when", "there", "can", "could", "would", "should", "like",
@@ -45,6 +50,25 @@ _GREETING_WORDS = {"hi", "hello", "hey", "chao", "morning", "afternoon", "evenin
 _AROUND_A_GREETING = {"xin", "good", "there", "shop", "ad", "admin", "ban", "baj", "banj", "oi", "team", "tripc", "anh", "chi", "em", "minh"}
 _VIETNAMESE_GREETING = {"chao", "xin", "ban", "baj", "banj", "oi", "anh", "chi", "em", "alo", "minh", "toi", "du", "lich"}
 _VIETNAMESE_INQUIRY_WORDS = {"toi", "minh", "muon", "di", "du", "lich", "tu", "van", "ho", "tro", "cho", "hoi", "da", "nang", "phu", "quoc", "hoi", "an", "visa", "evisa"}
+_CONVERSATIONAL_SIGNAL_WORDS = {
+    "cam", "thank", "thanks", "bot", "ly", "giup", "help",
+    "cong", "dong", "group", "nhom", "community", "facebook", "fb",
+    "kenh", "telegram", "goi", "info", "information", "gioi", "thieu",
+    "chao", "hi", "hello", "hey", "morning", "afternoon", "evening", "alo",
+    "khoe", "ten", "tuvan",
+}
+_CONVERSATIONAL_FILLER_WORDS = {
+    "xin", "ban", "baj", "banj", "oi", "ad", "admin", "shop", "team", "tripc",
+    "minh", "toi", "tui", "t", "m", "em", "anh", "chi", "on", "nhieu", "lam",
+    "nha", "nhe", "nhi", "a", "ne", "day", "luon", "roi",
+    "la", "ai", "gi", "vay", "the", "nao", "sao", "duoc", "khong", "ko", "k",
+    "co", "cho", "voi", "cung", "nhau", "chung", "ta", "ve", "di", "du", "lich",
+    "muon", "tim", "hieu", "them", "hoi", "tham", "tu", "van", "ho", "tro",
+    "noi", "tro", "chuyen", "moi", "nguoi", "can", "ke", "nghe",
+    "you", "your", "are", "who", "what", "how", "me", "please", "chat", "talk",
+    "about", "more", "join", "tell", "for", "good", "there", "very", "much",
+    "so", "nice", "great", "ok", "okay", "vui", "long", "ten", "khoe",
+}
 _VIETNAMESE_LETTER = re.compile(r"[\u00C0-\u1EF9]")
 # Whole words: "possible" is not "ib", "different" is not "rent", and a restaurant or a review asks for no home or price.
 LEAD_INTENT = re.compile(
@@ -65,7 +89,7 @@ def unicode_terms(text: str) -> set[str]:
 
 
 def plain_words(text: str) -> set[str]:
-    plain = "".join(c for c in unicodedata.normalize("NFD", text.casefold()) if unicodedata.category(c) != "Mn")
+    plain = "".join(c for c in unicodedata.normalize("NFD", text.casefold()) if unicodedata.category(c) != "Mn").replace("đ", "d")
     return set(_UNICODE_WORD.findall(plain))
 
 
@@ -77,6 +101,12 @@ def is_greeting(text: str) -> bool:
     if {"du", "lich"} <= words and words <= _VIETNAMESE_INQUIRY_WORDS | _GREETING_WORDS | _AROUND_A_GREETING:
         return True
     return False
+
+
+def is_conversational_opener(text: str) -> bool:
+    """Conversational openers (thanks, bot identity, general help, community intro) with no ungrounded domain nouns."""
+    words = plain_words(text)
+    return bool(words) and bool(words & _CONVERSATIONAL_SIGNAL_WORDS) and words <= _CONVERSATIONAL_SIGNAL_WORDS | _CONVERSATIONAL_FILLER_WORDS
 
 
 def is_vietnamese_question(text: str) -> bool:
@@ -184,8 +214,8 @@ async def run_community(ctx):
     if (ctx.settings.provider_mode != "fake" and len(similarity) == len(chunks)
             and all(meaning < MIN_RELATED_SIMILARITY for meaning, *_ in scored)):
         selected = []
-    # A greeting or Vietnamese travel inquiry asks nothing an English keyword filter must block.
-    if not selected and (is_greeting(p.question) or is_vietnamese_question(p.question)):
+    # A greeting or safe conversational opener (no ungrounded domain nouns) lets the model welcome and introduce topics.
+    if not selected and (is_greeting(p.question) or (not sensitive and is_conversational_opener(p.question))):
         selected = [(s, c) for _, _, s, c in scored[:3]]
     missing = [f"verified_fact:{fact.key}" for fact in sensitive]
     evidence = []
@@ -193,7 +223,7 @@ async def run_community(ctx):
     if sensitive or not selected:
         if not selected:
             missing.append("grounded_answer")
-        reply = HANDOFF_REPLY
+        reply = VIETNAMESE_HELPFUL_FALLBACK if is_vietnamese_question(p.question) else HANDOFF_REPLY
     else:
         evidence = [
             EvidenceRef(
@@ -226,8 +256,8 @@ async def run_community(ctx):
         if is_greeting(p.question) and welcome_needed(reply, p.question):
             reply = welcome(p.question)
         if not reply:
-            # Better a person answers than the customer reading "the provided information has no mention...".
-            reply, evidence = HANDOFF_REPLY, []
+            # Better a polite fallback or community handoff than the customer reading internal error.
+            reply, evidence = (VIETNAMESE_HELPFUL_FALLBACK if is_vietnamese_question(p.question) else HANDOFF_REPLY), []
             missing.append("grounded_answer")
 
     intent = LEAD_INTENT.search(p.question)

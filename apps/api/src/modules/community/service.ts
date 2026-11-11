@@ -49,6 +49,9 @@ export class CommunityService {
       );
       const snapshotId = contextRes.rows[0]?.snapshot_id;
       if (snapshotId) {
+        const history = input.author_contact
+          ? await conversationHistory(this.pool, workspaceId, input.platform, input.author_contact, message.id).catch(() => [])
+          : [];
         const taskId = randomUUID();
         await enqueueAiTask(this.pool, workspaceId, actorId, {
           task_id: taskId,
@@ -56,6 +59,7 @@ export class CommunityService {
           input: {
             operation: 'community.response',
             question: input.content,
+            ...(history.length > 0 ? { history } : {}),
           },
         });
 
@@ -117,11 +121,14 @@ export class CommunityService {
 /** A reply counts only once it was sent: a draft nobody sent was never said to this person. */
 async function conversationHistory(pool: Pool, workspaceId: string, platform: string, contact: string, messageId: string) {
   const prior = (await pool.query<{ content: string; reply: string | null }>(
-    `SELECT m.content, CASE WHEN m.status = 'replied' THEN a.payload->'result'->>'reply' END AS reply
+    `SELECT m.content,
+            CASE WHEN m.status = 'replied'
+                 THEN COALESCE(a.payload->'result'->>'reply', m.metadata->>'reply_text')
+            END AS reply
        FROM community_messages m
        LEFT JOIN content_artifacts a ON a.workspace_id = m.workspace_id AND a.task_id = m.task_id
       WHERE m.workspace_id = $1 AND m.platform = $2 AND m.author_contact = $3 AND m.id <> $4
-      ORDER BY m.received_at DESC LIMIT 3`,
+      ORDER BY m.received_at DESC LIMIT 6`,
     [workspaceId, platform, contact, messageId],
   )).rows;
   return prior.reverse().map((row) => ({
@@ -137,6 +144,21 @@ export async function processReceivedCommunityMessages(
   snapshotId: string,
   limit = 10,
 ): Promise<number> {
+  let autoReplyComments = true;
+  try {
+    const sRow = (
+      await pool.query<{ auto_reply_comments?: boolean | null }>(
+        `SELECT auto_reply_comments FROM community_hub_settings WHERE workspace_id = $1 LIMIT 1`,
+        [workspaceId],
+      )
+    ).rows[0];
+    if (sRow?.auto_reply_comments === false) {
+      autoReplyComments = false;
+    }
+  } catch {
+    // Settings table may not exist in minimal unit fixtures; default to enabled.
+  }
+
   const pending = (
     await pool.query<{ id: string; content: string; platform: string; author_contact: string | null }>(
       `SELECT id, content, platform, author_contact FROM community_messages
@@ -148,6 +170,7 @@ export async function processReceivedCommunityMessages(
 
   let enqueued = 0;
   for (const msg of pending) {
+    if (msg.platform === 'facebook_comment' && !autoReplyComments) continue;
     const history = msg.author_contact ? await conversationHistory(pool, workspaceId, msg.platform, msg.author_contact, msg.id) : [];
     const taskId = randomUUID();
     await enqueueAiTask(pool, workspaceId, actorId, {

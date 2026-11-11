@@ -90,4 +90,23 @@ describe('GatewayRecheckClient (MY-05)', () => {
     expect(res.authorized).toBe(false);
     expect(res.denialReason).toContain('UNSUPPORTED_CHANNEL');
   });
+
+  it('FacebookGroup map tới provider=facebook_group & capability=publish_group_post', async () => {
+    process.env['API_BASE_URL'] = 'http://api.test/';
+    process.env['WORKER_GATEWAY_TOKEN'] = 'tok-group';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, audit_id: 'a2', status: 'authorized' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await createGatewayCheck()!({ ...req, channel: 'FacebookGroup' });
+    expect(res.authorized).toBe(true);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      provider: 'facebook_group',
+      capability: 'publish_group_post',
+      action_type: 'publish',
+    });
+  });
 });

@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { siteForWorkspace } from '../../lib/sites';
 import { fetchGscTotals } from '../integrations/liveMetrics';
+import { loadCommunityGrowthContext } from '../community/targets';
 
 const WINDOW_DAYS = 7;
 const NOT_CONNECTED = 'search_console_not_connected';
@@ -135,6 +136,7 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
       GROUP BY 1`,
     [workspaceId, start, end],
   )).rows;
+  const communityCtx = await loadCommunityGrowthContext(pool, workspaceId);
   const result = {
     workspace_id: workspaceId, snapshot_id: randomUUID(), version: 1,
     window_start: start.toISOString(), window_end: end.toISOString(),
@@ -145,6 +147,22 @@ async function measureWindow(pool: Pool, workspaceId: string, start: Date, end: 
     captured_at: new Date().toISOString(), timezone: 'UTC',
     metric_definitions: firstPartyMetricDefinitions(workspaceId),
     content_metrics: articles,
+    ...(communityCtx ? {
+      community_metrics: {
+        group_name: communityCtx.group_name ?? null,
+        group_member_count: communityCtx.current_members,
+        week1_baseline_members: communityCtx.week1_baseline_members,
+        page_followers_count: communityCtx.page_followers,
+        identified_prospects: communityCtx.identified_prospects,
+        invites_sent_7d: communityCtx.invites_sent_7d,
+        comments_replied_7d: communityCtx.comments_replied_7d,
+        pending_questions: communityCtx.pending_questions,
+        campaign_week: communityCtx.current_campaign_week,
+        daily_invite_limit: communityCtx.daily_invite_cap,
+        auto_reply_comments: communityCtx.auto_reply_comments,
+        auto_invite_enabled: communityCtx.auto_invite_enabled,
+      },
+    } : {}),
   };
   return { result, counts, measurement: { page_views: counts.page_views, internal_page_views: counts.internal_page_views, site_id: site?.site_id ?? null,
     utm_sources: Object.fromEntries(utmRows.map((r) => [r.utm_source, r.leads])),

@@ -6,7 +6,11 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+import base64
+import binascii
+import struct
+
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 SCHEMA_VERSION = "1.0.0"
@@ -26,7 +30,7 @@ class JobConstraints(BaseModel):
     language: str = "en"
     max_cost_usd: float = Field(default=0, ge=0)
     timeout_seconds: int = Field(default=120, gt=0)
-    max_output_tokens: int = Field(default=1024, gt=0, le=1024)
+    max_output_tokens: int = Field(default=2048, gt=0, le=2048)
     # Optional tighter cap than AI_MAX_PROVIDER_CALLS; never raises the service cap.
     max_provider_calls: int | None = Field(default=None, ge=1)
     human_approval_required: bool = True
@@ -157,7 +161,7 @@ class RunStatus(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok"]
     service: str
-    provider_mode: Literal["fake", "live", "gemini"]
+    provider_mode: Literal["fake", "live", "gemini", "hybrid"]
     model: str
     embedding_model: str
     schema_version: str = SCHEMA_VERSION
@@ -243,6 +247,8 @@ class SnapshotChunk(BaseModel):
     )
     page: int | None = Field(default=None, ge=1)
     url: str | None = Field(default=None, max_length=2000)
+    # A list of floats, or "f16:<base64 of little-endian float16>" from the worker: as JSON numbers the
+    # stored vectors of a 1,300-chunk corpus made a 9.8 MB request, over the request limit.
     embedding: list[float] | None = None
     chunk_index: int | None = Field(default=None, ge=0)
     model: str | None = Field(default=None, max_length=50)
@@ -250,6 +256,19 @@ class SnapshotChunk(BaseModel):
     source_id: UUID | None = None
     source_version: int | None = Field(default=None, ge=1)
     created_at: datetime | None = None
+
+    @field_validator("embedding", mode="before")
+    @classmethod
+    def _decode_packed_embedding(cls, value: Any) -> Any:
+        if isinstance(value, str) and value.startswith("f16:"):
+            try:
+                raw = base64.b64decode(value[4:], validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise ValueError("embedding is not valid base64") from exc
+            if len(raw) % 2:
+                raise ValueError("float16 embedding has an odd byte length")
+            return list(struct.unpack(f"<{len(raw) // 2}e", raw))
+        return value
 
 
 class SnapshotSource(BaseModel):

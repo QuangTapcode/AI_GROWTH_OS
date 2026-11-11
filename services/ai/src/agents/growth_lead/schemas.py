@@ -10,6 +10,50 @@ from ..contracts import ArtifactInput
 from ..research.schemas import ResearchBrief, ResearchFinding
 
 
+class CommunityContextInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    group_name: str | None = Field(default=None, max_length=200)
+    current_members: int = Field(ge=0, le=10000000)
+    week1_baseline_members: int | None = Field(default=None, ge=0, le=10000000)
+    page_followers: int | None = Field(default=None, ge=0, le=10000000)
+    identified_prospects: int = Field(default=0, ge=0, le=1000000)
+    invites_sent_7d: int = Field(default=0, ge=0, le=100000)
+    comments_replied_7d: int = Field(default=0, ge=0, le=100000)
+    pending_questions: int = Field(default=0, ge=0, le=100000)
+    current_campaign_week: int = Field(default=1, ge=1, le=52)
+    daily_invite_cap: int = Field(default=12, ge=1, le=20)
+    auto_reply_comments: bool = True
+    auto_invite_enabled: bool = True
+
+
+class WeeklyCommunityTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    week: int = Field(ge=1, le=4)
+    label: str = Field(min_length=1, max_length=120)
+    member_target: int = Field(ge=1, le=10000000)
+    weekly_new_target: int = Field(ge=0, le=1000000)
+    focus: str = Field(min_length=1, max_length=300)
+    channel_tactic: str = Field(min_length=1, max_length=300)
+
+
+class CommunityGrowthPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source: Literal["growth_lead_agent"] = "growth_lead_agent"
+    auto_apply: Literal[True] = True
+    current_members: int = Field(ge=0)
+    pacing_status: Literal["ahead", "on_track", "behind", "baseline"]
+    recommended_daily_invite_limit: int = Field(ge=10, le=15)
+    recommended_auto_reply_comments: bool = True
+    recommended_auto_invite_enabled: bool = True
+    week1_target: int = Field(ge=1)
+    week2_target: int = Field(ge=1)
+    week3_target: int = Field(ge=1)
+    week4_target: int = Field(ge=1)
+    weekly_targets: list[WeeklyCommunityTarget] = Field(min_length=4, max_length=4)
+    rationale: str = Field(min_length=1, max_length=1000)
+    focus_channels: list[str] = Field(min_length=1, max_length=6)
+
+
 class GrowthLeadPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
     workspace_id: UUID
@@ -23,6 +67,7 @@ class GrowthLeadPayload(BaseModel):
     # Latest measured snapshot: what it shows decides whether this plan goes for reach or for conversion.
     latest_metrics: ArtifactInput | None = None
     score_factors: dict[Literal["demand", "business_relevance", "growth_potential", "content_gap", "freshness", "conversion_potential"], float | None] = Field(default_factory=dict)
+    community_context: CommunityContextInput | None = None
 
 
 class OpportunitySelection(BaseModel):
@@ -84,3 +129,4 @@ class CampaignPlan(BaseModel):
     kpi_progress: list[dict] = Field(default_factory=list, max_length=5)
     priority: dict | None = None
     strategy_alignment: dict | None = None
+    community_growth_plan: CommunityGrowthPlan | None = None

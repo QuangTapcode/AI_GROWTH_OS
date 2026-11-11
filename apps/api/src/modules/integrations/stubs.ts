@@ -1,6 +1,22 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { IntegrationProvider, MissingReason, MetricAvailability } from './types';
 import { INTEGRATION_MATRIX, matrixFor } from './matrix';
 import { getConnection } from './repository';
+
+export function resolveGroupBotSessionCandidates(): string[] {
+  return [
+    process.env.FB_SESSION_FILE?.trim(),
+    path.resolve(process.cwd(), '../worker/.fb-session.json'),
+    path.resolve(process.cwd(), 'apps/worker/.fb-session.json'),
+    path.resolve(__dirname, '../../../../worker/.fb-session.json'),
+  ].filter(Boolean) as string[];
+}
+
+export function hasGroupBotSessionSync(): boolean {
+  if (process.env.FB_ADMIN_COOKIE?.trim()) return true;
+  return resolveGroupBotSessionCandidates().some((p) => fs.existsSync(p));
+}
 
 type FacebookProbe = { checkedAt: number; status: 'connected' | 'error'; name?: string };
 const facebookProbes = new Map<string, FacebookProbe>();
@@ -90,6 +106,22 @@ export async function getWorkspaceConnectionStatus(workspaceId: string, provider
         capabilities: base.capabilities.map((capability) => ({ capability: capability.capability, status: probe.status })),
       };
     }
+  }
+  if (!connection && provider === 'facebook_group') {
+    const mode = process.env.INTEGRATION_MODE ?? 'fake';
+    if (mode === 'production') {
+      const ready = hasGroupBotSessionSync();
+      const groupStatus: IntegrationConnectionStatus['status'] = ready ? 'connected' : 'not_connected';
+      return {
+        ...base,
+        status: groupStatus,
+        missing_reason: ready ? null : 'FACEBOOK_GROUP_SESSION_MISSING',
+        property_ref: '1134282109069209',
+        scopes: ready ? ['group_admin_session'] : [],
+        capabilities: base.capabilities.map((capability) => ({ capability: capability.capability, status: groupStatus })),
+      };
+    }
+    return base;
   }
   if (!connection) return base;
   const effectiveStatus = connection.status === 'connected' && !connection.verified_at
@@ -194,7 +226,7 @@ export function supportMatrix(): typeof INTEGRATION_MATRIX {
 export type ChannelMode = 'live' | 'manual';
 
 export interface ChannelDecision {
-  channel: 'website' | 'facebook' | 'tiktok' | 'instagram';
+  channel: 'website' | 'facebook' | 'facebook_group' | 'tiktok' | 'instagram';
   provider: IntegrationProvider;
   mode: ChannelMode;
   /** Nhãn hiển thị trên social pack khi mode=manual */
@@ -232,6 +264,7 @@ export function socialChannelDecision(input: {
   };
   return [
     decide('website', 'website_cms', 'publish_cms_post', 'CMS_NOT_PUBLISHED'),
+    decide('facebook_group', 'facebook_group', 'publish_group_post', 'FACEBOOK_GROUP_SESSION_MISSING'),
     decide('facebook', 'facebook_page', 'publish_page_post', 'FACEBOOK_PAGE_PERMISSION_MISSING'),
     decide('tiktok', 'tiktok', 'publish_tiktok_video', 'TIKTOK_ACCOUNT_NOT_CONNECTED'),
     decide('instagram', 'instagram_business', 'publish_ig_media', 'INSTAGRAM_ACCOUNT_NOT_LINKED'),

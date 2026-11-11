@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { PUBLIC_BASE } from "@/lib/site";
+import { COMMUNITY_GROUP_NAME, COMMUNITY_GROUP_URL, PUBLIC_BASE } from "@/lib/site";
 
 /** Anonymous per-tab session id; no cookie, no personal data. */
 function sessionId(): string {
@@ -69,4 +69,35 @@ export function LeadForm({ topic }: { topic: string }) {
     <button type="submit" disabled={state === "sending"}>{state === "sending" ? "Sending…" : "Send request"}</button>
     {state === "error" && <p className="error" role="alert">{message}</p>}
   </form>;
+}
+
+export function CommunityGroupCard({
+  slug,
+  groupUrl = COMMUNITY_GROUP_URL,
+  groupName = COMMUNITY_GROUP_NAME,
+}: {
+  slug: string | null;
+  groupUrl?: string;
+  groupName?: string;
+}) {
+  return (
+    <aside className="community-card" aria-labelledby="community-group-cta-title">
+      <div className="community-card-copy">
+        <p className="eyebrow">Facebook Community</p>
+        <h2 id="community-group-cta-title">{groupName}</h2>
+        <p className="muted">
+          Ask local questions about housing, eSIMs, visas, and daily life in Vietnam, and connect directly with fellow newcomers.
+        </p>
+      </div>
+      <a
+        href={groupUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="community-cta-btn"
+        onClick={() => send("cta_click", slug)}
+      >
+        Join Facebook Group ↗
+      </a>
+    </aside>
+  );
 }

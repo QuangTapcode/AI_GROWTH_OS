@@ -2,6 +2,9 @@ use_default_settings:
   engines:
     keep_only:
       - duckduckgo
+      - bing
+      - mojeek
+      - startpage
 
 general:
   instance_name: AI Growth OS local

@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
+import { TelegramBotRunner } from './publish/TelegramBotRunner';
 import { listLinksWithBrowser } from './workflow/BrowserRenderer';
 import { FirstPartyBlogSync } from './workflow/FirstPartyBlogSync';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
@@ -44,6 +45,14 @@ async function main() {
       .catch(error => console.error('[draft-ingest]', error.message)).finally(() => { ingestBusy = false; });
   }, 5000)];
 
+  // New first-party articles become Research sources in draft mode too: importing a source publishes nothing.
+  const blogSync = new FirstPartyBlogSync(pool, listLinksWithBrowser);
+  const syncBlog = () => void blogSync.runOnce()
+    .then((result) => { if (result.imported) console.log('[blog-sync] imported', result.imported); })
+    .catch((error) => console.error('[blog-sync]', (error as Error).message));
+  syncBlog();
+  timers.push(setInterval(syncBlog, Number(process.env.BLOG_SYNC_HOURS ?? 6) * 3_600_000));
+
   const autopilot = process.env.AUTOPILOT !== '0';
   if (autopilot) {
     const apiBase = (process.env.API_BASE_URL || 'http://127.0.0.1:4000').replace(/\/v1\/?$/, '').replace(/\/$/, '');
@@ -59,12 +68,6 @@ async function main() {
         .catch((error) => console.error('[community-reply]', (error as Error).message)).finally(() => { replyBusy = false; });
     };
     timers.push(setInterval(runReplies, 2000));
-    const blogSync = new FirstPartyBlogSync(pool, listLinksWithBrowser);
-    const syncBlog = () => void blogSync.runOnce()
-      .then((result) => { if (result.imported) console.log('[blog-sync] imported', result.imported); })
-      .catch((error) => console.error('[blog-sync]', (error as Error).message));
-    syncBlog();
-    timers.push(setInterval(syncBlog, Number(process.env.BLOG_SYNC_HOURS ?? 6) * 3_600_000));
     let tickBusy = false, publishBusy = false;
     triggerTick = () => {
       if (tickBusy) return;
@@ -81,8 +84,36 @@ async function main() {
       void publishing.runOnce().then(result => { if (result !== 'idle') console.log('[publishing-outbox]', result); })
         .catch(error => console.error('[publishing-outbox]', (error as Error).message)).finally(() => { publishBusy = false; });
     }, 3000));
+
+    let communityAutopilotBusy = false;
+    const triggerCommunityAutopilot = () => {
+      if (communityAutopilotBusy) return;
+      communityAutopilotBusy = true;
+      void fetch(`${apiBase}/internal/community/autopilot`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(150_000),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`community autopilot HTTP ${res.status}`);
+          runReplies();
+        })
+        .catch((error) => console.error('[community-autopilot]', (error as Error).message))
+        .finally(() => { communityAutopilotBusy = false; });
+    };
+    timers.push(setTimeout(triggerCommunityAutopilot, 15_000), setInterval(triggerCommunityAutopilot, 180_000));
   }
-  const stop = () => { timers.forEach(clearInterval); void pool.end().finally(() => process.exit(0)); };
+  const telegramBot = new TelegramBotRunner(pool, {
+    onMessageIngested: () => {
+      if (autopilot) triggerTick();
+    },
+  });
+  telegramBot.start();
+  const stop = () => {
+    telegramBot.stop();
+    timers.forEach(clearInterval);
+    void pool.end().finally(() => process.exit(0));
+  };
   process.on('SIGINT', stop); process.on('SIGTERM', stop);
   console.log(autopilot
     ? '[draft-worker] ready; AUTOPILOT: scheduler tick and publishing enabled, governed by workspace automation settings'

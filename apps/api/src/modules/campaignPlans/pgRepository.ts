@@ -5,7 +5,9 @@ import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { validateTaskGraph } from '../tasks/dag';
 import type { ArtifactRef, CampaignPlan } from './schemas';
+import { planSchema } from './schemas';
 import { PlanError, type AcceptedPlan, type PlanContext, type PlanRepository, type StoredArtifact } from './service';
+import { applyCommunityGrowthPlan } from '../community/targets';
 
 type Db = Pool | PoolClient;
 const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
@@ -65,6 +67,12 @@ export class PgPlanRepository implements PlanRepository {
         op, title, JSON.stringify({ artifact: ref, result: item.result }), JSON.stringify(item.evidence)]);
     const existing = await this.loadArtifact(ref.workspace_id, ref.artifact_id);
     if (!existing || !same({ ref: existing.ref, result: existing.result, evidence: existing.evidence }, { ref: item.ref, result: item.result, evidence: item.evidence })) throw new PlanError('ARTIFACT_CONFLICT', 'Artifact IDs are immutable', 409);
+    if (ref.role === 'growth_lead' && res?.community_growth_plan) {
+      const checkedPlan = planSchema.safeParse(item.result);
+      if (checkedPlan.success) {
+        await applyCommunityGrowthPlan(this.pool, checkedPlan.data, ref.artifact_id).catch(() => {});
+      }
+    }
   }
 
   async loadArtifact(workspaceId: string, artifactId: string): Promise<StoredArtifact | undefined> {
@@ -122,6 +130,9 @@ export class PgPlanRepository implements PlanRepository {
       const record: AcceptedPlan = { plan, task_states: Object.fromEntries(plan.tasks.map(t => [t.task_id, t.depends_on.length ? 'blocked' : 'ready'])),
         outbox: plan.tasks.filter(t => !t.depends_on.length).map(t => ({ task_id: t.task_id, operation: t.operation })) };
       await db.query('INSERT INTO campaign_plan_acceptances(workspace_id,plan_id,input_version,plan,record) VALUES($1,$2,$3,$4,$5)', [plan.workspace_id, plan.plan_id, plan.input_version, JSON.stringify(plan), JSON.stringify(record)]);
+      if (plan.community_growth_plan) {
+        await applyCommunityGrowthPlan(db, plan, null, { inTransaction: true });
+      }
       await db.query('COMMIT');
       return { record, deduplicated: false };
     } catch (error) { await db.query('ROLLBACK'); throw error; }

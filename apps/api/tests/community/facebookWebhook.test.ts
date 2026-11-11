@@ -44,4 +44,54 @@ describe('Facebook webhook', () => {
     expect((await POST(signed(event({ mid: 'm_3', text: 'Hi' }), 'forged') as never)).status).toBe(401);
     expect(query).not.toHaveBeenCalled();
   });
+
+  it('queues a signed Page comment change as facebook_comment and ignores self-comments from the Page', async () => {
+    query.mockResolvedValue({ rows: [], rowCount: 1 });
+    const { POST } = await import('../../src/app/v1/webhooks/facebook/route');
+    const commentBody = JSON.stringify({
+      object: 'page',
+      entry: [
+        {
+          id: 'page-1',
+          changes: [
+            {
+              field: 'feed',
+              value: {
+                item: 'comment',
+                verb: 'add',
+                comment_id: 'c_100',
+                post_id: 'page-1_555',
+                permalink_url: 'https://www.facebook.com/page-1/posts/555?comment_id=c_100',
+                message: 'Xin hỏi thuê căn hộ ở An Thượng tầm giá nào ạ?',
+                from: { id: 'user-88', name: 'Minh Anh' },
+              },
+            },
+            {
+              field: 'feed',
+              value: {
+                item: 'comment',
+                verb: 'add',
+                comment_id: 'c_self',
+                message: 'Cảm ơn bạn đã quan tâm!',
+                from: { id: 'page-1', name: 'Dịch vụ hỗ trợ du lịch' },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const res = await POST(signed(commentBody) as never);
+    expect(res.status).toBe(200);
+    const inserts = query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO community_messages'));
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0][1]).toEqual(
+      expect.arrayContaining([
+        '10000000-0000-4000-8000-000000000001',
+        'c_100',
+        'Minh Anh',
+        'user-88',
+        'Xin hỏi thuê căn hộ ở An Thượng tầm giá nào ạ?',
+      ]),
+    );
+  });
 });

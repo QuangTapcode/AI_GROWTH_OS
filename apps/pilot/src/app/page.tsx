@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listPosts } from "@/lib/site";
-import { PageView } from "@/features/site/measure";
+import { CommunityGroupCard, PageView } from "@/features/site/measure";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,7 @@ export default async function HomePage() {
           {post.meta.description && <p className="muted">{post.meta.description}</p>}
         </li>)}</ul> : <p className="muted">No guides are published yet.</p>}
       </section>
+      <CommunityGroupCard slug={null} />
       <footer className="muted"><span>© TripC</span></footer>
     </main>
   );

@@ -265,19 +265,19 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
             lead_proposal: { intent: "request_information", status: "proposed", contact: {} } } } }] };
         }
         if (sql.includes("platform IN ('facebook_message', 'telegram_message')")) {
-          return { rows: [{ id: "msg-tg", platform: "telegram_message", author_contact: "555", metadata: { business_connection_id: "conn-1" } }] };
+          return { rows: [{ id: "msg-tg", platform: "telegram_message", author_contact: "-100555", metadata: { business_connection_id: "conn-1", chat_type: "supergroup", reply_to_message_id: 78 } }] };
         }
         if (sql.includes("SELECT id, author_name, author_contact, content FROM community_messages")) {
-          return { rows: [{ id: "msg-tg", author_name: "Telegram user", author_contact: "555", content: "Street food?" }] };
+          return { rows: [{ id: "msg-tg", author_name: "Telegram user", author_contact: "-100555", content: "Street food?" }] };
         }
         if (sql.includes("INSERT INTO leads")) return { rows: [{ lead_id: "lead-tg" }] };
         return { rows: [], rowCount: 1 };
       });
       await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
       const outbox = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO outbox_events"))!;
-      expect(JSON.parse(outbox[1][2])).toMatchObject({ message_id: "msg-tg", recipient: "555", platform: "telegram_message", business_connection_id: "conn-1" });
+      expect(JSON.parse(outbox[1][2])).toMatchObject({ message_id: "msg-tg", recipient: "-100555", platform: "telegram_message", business_connection_id: "conn-1", reply_to_message_id: 78 });
       const lead = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO leads"))!;
-      expect(lead[1]).not.toContain("555");
+      expect(lead[1]).not.toContain("-100555");
       expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'replied'"))).toBe(false);
     });
 
@@ -317,6 +317,190 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
         expect.stringContaining("UPDATE community_messages SET status = 'replied'"),
         [workspaceId, taskId],
       );
+    });
+
+    it("skips queuing outbox reply for facebook_comment when auto_reply_comments is disabled", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000105";
+      const taskId = "00000000-0000-0000-0000-000000000205";
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return {
+            rows: [
+              {
+                id: artifactId,
+                role: "community",
+                task_id: taskId,
+                payload: {
+                  result: {
+                    status: "draft",
+                    reply: "Bạn có thể xem khu An Thượng ở Đà Nẵng nhé.",
+                    lead_proposal: null,
+                  },
+                },
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_messages WHERE workspace_id = $1 AND task_id = $2")) {
+          return {
+            rows: [
+              {
+                id: "msg-cmt-disabled",
+                platform: "facebook_comment",
+                author_contact: "user-123",
+                author_name: "Ngọc Lan",
+                content: "Khu nào gần biển Mỹ Khê ạ?",
+                metadata: { comment_id: "cmt-555", comment_source: "page", from_name: "Ngọc Lan" },
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_hub_settings WHERE workspace_id = $1")) {
+          return {
+            rows: [
+              {
+                group_url: "https://www.facebook.com/groups/1134282109069209",
+                auto_reply_comments: false,
+                auto_invite_enabled: true,
+                daily_invite_limit: 12,
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_invite_logs")) {
+          return { rows: [{ invited_before: false, today_count: 2 }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO outbox_events"))).toBe(false);
+    });
+
+    it("queues facebook_comment page reply with RAG text + Group invite link & should_private_invite when enabled", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000106";
+      const taskId = "00000000-0000-0000-0000-000000000206";
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return {
+            rows: [
+              {
+                id: artifactId,
+                role: "community",
+                task_id: taskId,
+                payload: {
+                  result: {
+                    status: "draft",
+                    reply: "Khu An Thượng có nhiều căn hộ dịch vụ cách biển 5 phút đi bộ.",
+                    lead_proposal: null,
+                  },
+                },
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_messages WHERE workspace_id = $1 AND task_id = $2")) {
+          return {
+            rows: [
+              {
+                id: "msg-cmt-enabled",
+                platform: "facebook_comment",
+                author_contact: "comment:cmt-777",
+                author_name: "Minh Quân",
+                content: "An Thượng thuê dài hạn có tiện không ạ?",
+                post_url: "https://facebook.com/post/1",
+                metadata: { comment_id: "cmt-777", comment_source: "page", from_name: "Minh Quân" },
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_hub_settings WHERE workspace_id = $1")) {
+          return {
+            rows: [
+              {
+                group_url: "https://www.facebook.com/groups/1134282109069209",
+                auto_reply_comments: true,
+                auto_invite_enabled: true,
+                daily_invite_limit: 12,
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM community_invite_logs")) {
+          return { rows: [{ invited_before: false, today_count: 1 }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      const outbox = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO outbox_events"));
+      expect(outbox).toBeDefined();
+      const payload = JSON.parse(String(outbox![1][2]));
+      expect(payload).toMatchObject({
+        message_id: "msg-cmt-enabled",
+        platform: "facebook_comment",
+        comment_id: "cmt-777",
+        comment_source: "page",
+        should_private_invite: true,
+        invite_group_url: "https://www.facebook.com/groups/1134282109069209",
+      });
+      expect(payload.text).toContain("https://www.facebook.com/groups/1134282109069209");
+    });
+
+    it("attaches Facebook community CTA + inline keyboard to Telegram replies once per 24h cooldown", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000107";
+      const taskId = "00000000-0000-0000-0000-000000000207";
+      let recentInvite = false;
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return {
+            rows: [{
+              id: artifactId,
+              role: "community",
+              task_id: taskId,
+              payload: { result: { status: "draft", reply: "Bãi biển Mỹ Khê rất gần khu An Thượng.", lead_proposal: null } },
+            }],
+          };
+        }
+        if (sql.includes("FROM community_messages WHERE workspace_id = $1 AND task_id = $2")) {
+          return {
+            rows: [{
+              id: "msg-tg-cta",
+              platform: "telegram_message",
+              author_contact: "555",
+              author_name: "Minh",
+              content: "Ở Đà Nẵng khu nào gần biển vậy bạn?",
+              metadata: {},
+            }],
+          };
+        }
+        if (sql.includes("FROM community_hub_settings WHERE workspace_id = $1")) {
+          return {
+            rows: [{
+              community_name: "Cộng đồng TripC Đà Nẵng",
+              group_url: "https://www.facebook.com/groups/1134282109069209",
+              auto_invite_enabled: true,
+            }],
+          };
+        }
+        if (sql.includes("FROM community_invite_logs")) {
+          return { rows: [{ invited_before: recentInvite, recent_telegram_invite: recentInvite, today_count: 1 }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      const firstOutbox = JSON.parse(String(clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO outbox_events"))![1][2]));
+      expect(firstOutbox.should_community_invite).toBe(true);
+      expect(firstOutbox.text).toContain("https://www.facebook.com/groups/1134282109069209");
+      expect(firstOutbox.reply_markup?.inline_keyboard?.[0]?.[0]?.url).toBe("https://www.facebook.com/groups/1134282109069209");
+
+      recentInvite = true;
+      clientQuery.mockClear();
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      const secondOutbox = JSON.parse(String(clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO outbox_events"))![1][2]));
+      expect(secondOutbox.should_community_invite).toBe(false);
+      expect(secondOutbox.text).toBe("Bãi biển Mỹ Khê rất gần khu An Thượng.");
     });
   });
 });
