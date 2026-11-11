@@ -30,6 +30,7 @@ test("the sitemap lists every post on the public address, and is empty without o
   const posts = [post("street-food", "Street Food")];
   assert.deepEqual(sitemapEntries(posts, { SITE_INDEXABLE: "true", NEXT_PUBLIC_SITE_URL: "https://guide.tripc.ai/" }), [
     { url: "https://guide.tripc.ai/", lastModified: undefined },
+    { url: "https://guide.tripc.ai/vi/", lastModified: undefined },
     { url: "https://guide.tripc.ai/posts/street-food", lastModified: "2026-11-01T00:00:00Z" },
   ]);
   assert.deepEqual(sitemapEntries(posts, { SITE_INDEXABLE: "true" }), []);

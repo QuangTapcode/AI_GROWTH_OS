@@ -3,6 +3,9 @@
 import { useEffect, useState, useRef, type FormEvent } from "react";
 import { PUBLIC_BASE } from "@/lib/site";
 import { requestAssignment, exposeAssignment, currentAssignment, type Assignment } from './experiment';
+import Link from 'next/link';
+import { copy,privacyPath,type Locale } from '@/lib/locale';
+import { analyticsEvent } from '@/lib/analytics';
 
 /** Anonymous per-tab session id; no cookie, no personal data. */
 function sessionId(): string {
@@ -18,6 +21,7 @@ function sessionId(): string {
 }
 
 function send(eventType: "page_view" | "cta_click", slug: string | null) {
+  if(eventType==='cta_click')analyticsEvent('cta_click',slug);
   let eventId = crypto.randomUUID();
   if (eventType === 'page_view') {
     try {
@@ -71,25 +75,31 @@ export function CtaButton({ slug, label }: { slug: string | null; label: string 
   }, [slug, assignment]);
   return <button ref={button} type="button" className="cta" onClick={() => {
     send("cta_click", slug);
-    document.getElementById("request")?.scrollIntoView({ behavior: "smooth" });
+    const request=document.getElementById("request");
+    request?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth' });
+    request?.querySelector<HTMLInputElement>('input')?.focus({preventScroll:true});
   }}>{assignment?.cta ?? label}</button>;
 }
 
 type State = "idle" | "sending" | "sent" | "error";
 
-export function LeadForm({ topic, slug }: { topic: string; slug?: string }) {
+export function LeadForm({ topic, slug,locale='en',allowTopicChoice=false,inquiry }: { topic: string; slug?: string;locale?:Locale;allowTopicChoice?:boolean;inquiry?:string }) {
+  const t=copy[locale];
   const [state, setState] = useState<State>("idle");
   const [message, setMessage] = useState("");
   const submission = useRef<{ key: string; payload: string } | null>(null);
+  const inFlight=useRef(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if(inFlight.current)return;
+    inFlight.current=true;
     const form = new FormData(event.currentTarget);
     setState("sending");
     try {
       const payload = JSON.stringify({
-        name: String(form.get('name') ?? ''), email: String(form.get('email') ?? ''), interest_topic: topic.slice(0, 64),
+        name: String(form.get('name') ?? '').trim(), email: String(form.get('email') ?? '').trim(), interest_topic: String(form.get('interest_topic')??topic).slice(0, 64),
         consent: { accepted: form.get('consent') === 'on', policy_version: 'pilot-2026-10' },
-        context: { visitor_id: sessionId(), ...(slug ? { content_slug: slug } : {}),
+        context: { visitor_id: sessionId(), ...(inquiry ? {inquiry:inquiry.slice(0,2000)} : {}), ...(slug ? { content_slug: slug } : {}),
           ...(currentAssignment(slug) ? { assignment_id: currentAssignment(slug)!.assignment_id } : {}), ...attribution() },
       });
       if (!submission.current || submission.current.payload !== payload) submission.current = { key: crypto.randomUUID(), payload };
@@ -97,20 +107,24 @@ export function LeadForm({ topic, slug }: { topic: string; slug?: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": submission.current.key },
         body: submission.current.payload,
+        signal:AbortSignal.timeout(15000),
       });
-      if (!response.ok) throw new Error(String(response.status));
+      if (!response.ok) throw new Error(response.status===429?'rate_limit':'failed');
       setState("sent");
-    } catch {
+      analyticsEvent('generate_lead',slug??null);
+    } catch(error) {
       setState("error");
-      setMessage("We could not send your request. Please check your details and try again.");
-    }
+      setMessage(error instanceof Error&&error.message==='rate_limit'?t.rateLimit:t.error);
+    }finally{inFlight.current=false;}
   }
-  if (state === "sent") return <p className="notice" role="status">Thanks — TripC will reply to your email.</p>;
-  return <form className="lead-form" onSubmit={submit}>
-    <label>Name<input name="name" required maxLength={120} autoComplete="name" /></label>
-    <label>Email<input name="email" type="email" required autoComplete="email" /></label>
-    <label className="consent"><input name="consent" type="checkbox" required /> I agree that TripC may contact me about this request.</label>
-    <button type="submit" disabled={state === "sending"}>{state === "sending" ? "Sending…" : "Send request"}</button>
+  if (state === "sent") return <div className="form-success"><span aria-hidden="true">✓</span><p className="notice" role="status">{t.sent}</p><button className="button button-outline" onClick={()=>{submission.current=null;setState('idle');}}>{t.another}</button></div>;
+  return <form className="lead-form" onSubmit={submit} aria-busy={state==='sending'}>
+    <label>{t.name}<input name="name" required pattern=".*\S.*" maxLength={120} autoComplete="name" placeholder={locale==='vi'?'Tên của bạn':'Your name'} disabled={state==='sending'}/></label>
+    <label>{t.email}<input name="email" type="email" required maxLength={254} autoComplete="email" placeholder="you@example.com" disabled={state==='sending'}/></label>
+    {allowTopicChoice&&<label>{t.interest}<select name="interest_topic" defaultValue={topic} disabled={state==='sending'}><option value="General information">{locale==='vi'?'Thông tin chung':'A little guidance'}</option>{(['housing','work','life','travel'] as const).map(key=><option key={key} value={copy.en[key]}>{t[key]}</option>)}</select></label>}
+    <label className="consent"><input name="consent" type="checkbox" required disabled={state==='sending'}/> {t.consent}</label>
+    <p className="form-privacy"><Link href={privacyPath(locale)}>{t.privacy}</Link></p>
+    <button className="button form-submit" type="submit" disabled={state === "sending"}>{state === "sending" ? t.sending : t.send}<span aria-hidden="true">↗</span></button>
     {state === "error" && <p className="error" role="alert">{message}</p>}
   </form>;
 }

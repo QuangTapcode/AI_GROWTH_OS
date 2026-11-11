@@ -24,6 +24,7 @@ export const leadContextSchema = z
     utm_campaign: z.string().trim().max(128).optional(),
     utm_content: z.string().trim().max(128).optional(),
     content_slug: z.string().regex(/^[a-z0-9-]{1,160}$/).optional(),
+    inquiry: z.string().trim().max(2000).optional(),
   })
   // không strict: UTM/context có thể mở rộng phía FE mà không chặn contract
   .strip();

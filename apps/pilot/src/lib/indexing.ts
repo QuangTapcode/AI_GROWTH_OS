@@ -6,7 +6,7 @@ function isIndexable(env: Env): boolean {
 }
 
 function publicUrl(env: Env): string | null {
-  return env.NEXT_PUBLIC_SITE_URL ? env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "") : null;
+  try{const url=new URL(env.NEXT_PUBLIC_SITE_URL??'');return /^https?:$/.test(url.protocol)&&!url.username&&!url.password?url.origin:null;}catch{return null;}
 }
 
 export function metaRobots(env: Env) {
@@ -25,6 +25,7 @@ export function sitemapEntries(posts: { slug: string; published_at: string }[], 
   if (!url || !isIndexable(env)) return [];
   return [
     { url: `${url}/`, lastModified: undefined as string | undefined },
+    { url: `${url}/vi/`, lastModified: undefined as string | undefined },
     ...posts.map((post) => ({ url: `${url}/posts/${post.slug}`, lastModified: post.published_at as string | undefined })),
   ];
 }
