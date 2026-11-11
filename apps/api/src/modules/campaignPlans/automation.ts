@@ -47,8 +47,8 @@ export function isAutoApprovable(row: AutoArtifactRow) {
     missing[0] === "verified_lead_owner_and_consent" &&
     Boolean(result.lead_proposal);
   if (row.role === "community") {
-    // Community responses to customer inquiries are auto-approved to ensure prompt replies
-    return result.synthetic !== true;
+    // Community responses to customer inquiries are auto-approved when grounded to ensure prompt, factual replies
+    return result.synthetic !== true && hasGrounding && !missing.includes("grounded_answer");
   }
   // An AI illustration always goes past a person: code checks lettering, not what the image shows.
   return result.synthetic !== true && !result.generated_image && hasGrounding &&
