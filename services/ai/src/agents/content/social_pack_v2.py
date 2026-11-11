@@ -15,8 +15,9 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-ChannelType = Literal["facebook", "tiktok"]
+ChannelType = Literal["facebook", "tiktok", "facebook_group"]
 SocialPackStatusType = Literal["draft", "needs_assets", "insufficient_data"]
+GroupPostFormatType = Literal["case_study", "debate_discussion", "checklist_guide", "storytelling"]
 SentenceType = Literal["factual", "hook", "cta"]
 EntailmentStatusType = Literal["supported", "partial", "unsupported", "contradicted", "unverifiable"]
 AssetSourceType = Literal["real_asset", "ai_generated"]
@@ -134,8 +135,10 @@ class SocialPack(BaseModel):
     workspace_id: str = Field(min_length=1, max_length=100, description="Định danh tenant cách ly dữ liệu")
     parent_content_id: str = Field(min_length=1, max_length=100, description="Khóa ngoại trỏ đến article_id của SEO Worker")
     parent_version: int = Field(ge=1, description="Số phiên bản của bài viết SEO nguồn")
-    channels: list[ChannelType] = Field(min_length=1, description="Danh sách kênh phân phối mục tiêu: facebook, tiktok")
+    channels: list[ChannelType] = Field(min_length=1, description="Danh sách kênh phân phối mục tiêu: facebook, tiktok, facebook_group")
     caption: str = Field(min_length=1, max_length=5000, description="Nội dung caption bài đăng")
+    group_post_format: GroupPostFormatType | None = Field(default=None, description="Định dạng bài viết Group: case_study, debate_discussion, checklist_guide, storytelling")
+    discussion_prompt: str | None = Field(default=None, description="Câu hỏi gợi mở thảo luận cuối bài Group")
     cta: CTAObject = Field(description="Lời kêu gọi hành động chuẩn hóa")
     extracted_facts: list[FactItem] = Field(default_factory=list, description="Danh sách facts có ID duy nhất")
     sentence_fact_map: list[SentenceMap] = Field(default_factory=list, description="Ánh xạ từng câu với fact ID")
@@ -152,10 +155,10 @@ class SocialPack(BaseModel):
     @model_validator(mode="after")
     def validate_social_pack_integrity(self) -> SocialPack:
         # 1. Ràng buộc kênh phân phối (channels)
-        valid_channels = {"facebook", "tiktok"}
+        valid_channels = {"facebook", "tiktok", "facebook_group"}
         for ch in self.channels:
             if ch not in valid_channels:
-                raise ValueError(f"Kênh '{ch}' không hợp lệ. Chỉ chấp nhận 'facebook' hoặc 'tiktok'.")
+                raise ValueError(f"Kênh '{ch}' không hợp lệ. Chỉ chấp nhận 'facebook', 'tiktok' hoặc 'facebook_group'.")
 
         # 2. Ràng buộc trạng thái (status)
         valid_statuses = {"draft", "needs_assets", "insufficient_data"}
@@ -228,6 +231,8 @@ def compute_content_hash(pack: SocialPack | dict[str, Any]) -> str:
         "parent_version": int(data.get("parent_version", 1)),
         "channels": channels,
         "caption": str(data.get("caption", "")),
+        "group_post_format": data.get("group_post_format"),
+        "discussion_prompt": data.get("discussion_prompt"),
         "cta": data.get("cta", {}),
         "extracted_facts": data.get("extracted_facts", []),
         "sentence_fact_map": data.get("sentence_fact_map", []),
@@ -283,8 +288,11 @@ class ContentRepurposeRequest(BaseModel):
     parent_content_id: str = Field(min_length=1, max_length=100, description="article_id của bài viết SEO")
     parent_version: int = Field(ge=1, description="Phiên bản bài viết SEO")
     source_article: dict[str, Any] = Field(description="Dữ liệu bài viết SEO nguồn")
-    target_channel: ChannelType = Field(description="Kênh mục tiêu tái chế: facebook hoặc tiktok")
-    format_style: Literal["standard_post", "story", "carousel", "short_script"] = Field(
+    target_channel: ChannelType = Field(description="Kênh mục tiêu tái chế: facebook, tiktok hoặc facebook_group")
+    format_style: Literal[
+        "standard_post", "story", "carousel", "short_script",
+        "case_study", "debate_discussion", "checklist_guide", "storytelling"
+    ] = Field(
         default="standard_post",
         description="Định dạng tái chế chuyên biệt"
     )

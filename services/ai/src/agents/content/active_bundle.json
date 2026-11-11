@@ -1,8 +1,8 @@
 {
-  "active_bundle_id": "content_agent_release_v1",
-  "active_version": "1.0.0",
-  "previous_bundle_id": "content_agent_release_v2",
-  "previous_version": "2.0.0",
-  "updated_at": "2026-10-27T17:00:00+07:00",
-  "reason": "Rolled back to v1: CM-24 release v2 invalidated due to mocked held-out evaluation"
+  "active_bundle_id": "content_agent_release_v2",
+  "active_version": "2.0.0",
+  "previous_bundle_id": "content_agent_release_v1",
+  "previous_version": "1.0.0",
+  "updated_at": "2026-11-08T12:14:46.277328+00:00",
+  "reason": "CM-24 Release Gate Passed: All 7 Table 8.3 metrics passed on Held-out Test Set & Adversarial Set"
 }

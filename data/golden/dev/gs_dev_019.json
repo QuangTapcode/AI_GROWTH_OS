@@ -75,24 +75,92 @@
   },
   "annotation": {
     "annotator_a": {
-      "annotator_name": "Chuyên viên A",
-      "status": null,
-      "edited_caption": "",
-      "edited_sentence_fact_map": [],
-      "violations_found": [],
-      "notes": ""
+      "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+      "status": "FAIL",
+      "edited_caption": "Khám phá những trải nghiệm tiện nghi thực tế và không gian lưu trú hiện đại.\n\n• Chợ Cồn nằm ở góc giao lộ Hùng Vương và Ông Ích Khiêm, mở cửa từ 7h00 đến 19h00 hàng ngày.\n• Quán mì Quảng số 1 đường Hải Phòng hoạt động theo công thức gia truyền từ năm 1985.\n• Mức giá cà phê muối tại khu vực này dao động từ 25.000 đến 35.000 VNĐ mỗi ly.\n\nGọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.\n\n#TripCDaNang #CanHoDaNang #KhongGianSong #Workation",
+      "edited_sentence_fact_map": [
+        {
+          "sentence_index": 0,
+          "sentence_type": "hook",
+          "fact_id": "NONE"
+        },
+        {
+          "sentence_index": 1,
+          "sentence_type": "factual",
+          "fact_id": [
+            "f01"
+          ]
+        },
+        {
+          "sentence_index": 2,
+          "sentence_type": "factual",
+          "fact_id": [
+            "f02"
+          ]
+        },
+        {
+          "sentence_index": 3,
+          "sentence_type": "factual",
+          "fact_id": [
+            "f03"
+          ]
+        },
+        {
+          "sentence_index": 4,
+          "sentence_type": "cta",
+          "fact_id": "SYSTEM_CTA"
+        }
+      ],
+      "violations_found": [
+        "ERR_03"
+      ],
+      "notes": "Câu mở đầu chứa từ trọn vẹn có xu hướng phóng đại cam kết trải nghiệm.",
+      "score": 65.0
     },
     "annotator_b": {
-      "annotator_name": "Chuyên viên B",
-      "status": null,
+      "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+      "status": "PASS",
       "edited_caption": "",
-      "edited_sentence_fact_map": [],
+      "edited_sentence_fact_map": [
+        {
+          "sentence_index": 0,
+          "sentence_type": "hook",
+          "fact_id": "NONE"
+        },
+        {
+          "sentence_index": 1,
+          "sentence_type": "factual",
+          "fact_id": [
+            "f01"
+          ]
+        },
+        {
+          "sentence_index": 2,
+          "sentence_type": "factual",
+          "fact_id": [
+            "f02"
+          ]
+        },
+        {
+          "sentence_index": 3,
+          "sentence_type": "factual",
+          "fact_id": [
+            "f03"
+          ]
+        },
+        {
+          "sentence_index": 4,
+          "sentence_type": "cta",
+          "fact_id": "SYSTEM_CTA"
+        }
+      ],
       "violations_found": [],
-      "notes": ""
+      "notes": "Từ trọn vẹn mang tính biểu cảm Brand Voice, không vi phạm khẳng định thuộc tính sản phẩm.",
+      "score": 94.0
     },
     "adjudication": {
-      "final_decision": null,
-      "notes": ""
+      "final_decision": "PASS",
+      "notes": "Content Lead hòa giải: Từ trọn vẹn thuộc Brand Voice cho phép, không phải cam kết tính năng tuyệt đối. Thống nhất chốt PASS."
     }
   }
 }

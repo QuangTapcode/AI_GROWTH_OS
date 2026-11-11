@@ -325,6 +325,8 @@ function toPublishChannel(platform: string): PublishChannel | null {
   const map: Record<string, PublishChannel> = {
     website: 'Website',
     facebook: 'Facebook',
+    facebook_group: 'FacebookGroup',
+    facebookgroup: 'FacebookGroup',
     tiktok: 'TikTok',
     instagram: 'Instagram',
     email: 'Newsletter',

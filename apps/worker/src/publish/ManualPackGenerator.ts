@@ -12,7 +12,7 @@ export interface ManualPackFile {
 }
 
 export interface ManualPack {
-  channel: 'Facebook' | 'TikTok' | 'Instagram';
+  channel: 'Facebook' | 'FacebookGroup' | 'TikTok' | 'Instagram';
   contentId: string;
   workspaceId: string;
   title: string;
@@ -49,7 +49,7 @@ export function generateManualPack(
     isAiGenerated?: boolean;
     cta?: string;
   },
-  channel: 'Facebook' | 'TikTok' | 'Instagram'
+  channel: 'Facebook' | 'FacebookGroup' | 'TikTok' | 'Instagram'
 ): ManualPack {
   const workspaceId = job.workspaceId ?? job.workspace_id ?? 'unknown';
   const utmSource = job.utmSource || 'social';
@@ -62,7 +62,7 @@ export function generateManualPack(
   // Chuẩn bị caption hoàn chỉnh có nhãn AI theo chính sách nếu cần
   let caption = rawBody.trim();
   if (isAiGenerated) {
-    if (channel === 'Facebook') {
+    if (channel === 'Facebook' || channel === 'FacebookGroup') {
       if (!caption.includes('[Ảnh tạo bởi AI]')) {
         caption += '\n\n[Ảnh tạo bởi AI]\n#AIgenerated #ImaginedWithAI';
       }
@@ -75,7 +75,18 @@ export function generateManualPack(
 
   // Hướng dẫn chi tiết từng bước cho từng kênh
   const instructions: string[] = [];
-  if (channel === 'Facebook') {
+  if (channel === 'FacebookGroup') {
+    instructions.push(`1. Mở Facebook Group mục tiêu với tư cách Quản trị viên (Admin hoặc Fanpage liên kết).`);
+    instructions.push(`2. Chọn 'Viết bài' (Write something) và dán nội dung từ file caption.txt.`);
+    if (job.mediaUrl) {
+      instructions.push(`3. Tải ảnh từ đường dẫn trong file media_urls.txt và đính kèm vào bài viết.`);
+    }
+    if (isAiGenerated) {
+      instructions.push(`4. QUAN TRỌNG: Đảm bảo nhãn minh bạch [Ảnh tạo bởi AI] được giữ nguyên trong bài viết theo chính sách của Meta.`);
+    }
+    instructions.push(`5. Kiểm tra câu hỏi thảo luận cuối bài và bấm 'Đăng' (Post).`);
+    instructions.push(`6. Sao chép URL bài viết trong Group và cập nhật lại external_post_id vào hệ thống.`);
+  } else if (channel === 'Facebook') {
     instructions.push(`1. Mở Meta Business Suite hoặc Fanpage quản trị của workspace ${workspaceId}.`);
     instructions.push(`2. Chọn 'Tạo bài viết' (Create Post) và dán toàn bộ nội dung từ file caption.txt.`);
     if (job.mediaUrl) {

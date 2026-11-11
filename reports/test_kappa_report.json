@@ -1,0 +1,39 @@
+{
+  "total_evaluated_samples": 20,
+  "target_threshold": 0.85,
+  "cohen_kappa": 0.875,
+  "observed_agreement_po": 0.95,
+  "expected_agreement_pe": 0.6,
+  "is_passed": true,
+  "decision": "ACCEPT - CHỐT GOLDEN SET",
+  "confusion_matrix": {
+    "fail": {
+      "fail": 5,
+      "pass": 1
+    },
+    "pass": {
+      "fail": 0,
+      "pass": 14
+    }
+  },
+  "sentence_type_eval": {
+    "total_sentences": 112,
+    "cohen_kappa": 1.0,
+    "observed_agreement_po": 1.0,
+    "expected_agreement_pe": 0.477
+  },
+  "conflicts_count": 1,
+  "conflicts": [
+    {
+      "sample_id": "gs_test_019",
+      "rater_a_status": "FAIL",
+      "rater_b_status": "PASS",
+      "rater_a_violations": [
+        "ERR_03"
+      ],
+      "rater_b_violations": [],
+      "rater_a_notes": "Câu mở đầu chứa từ trọn vẹn có xu hướng phóng đại cam kết trải nghiệm.",
+      "rater_b_notes": "Từ trọn vẹn mang tính biểu cảm Brand Voice, không vi phạm khẳng định thuộc tính sản phẩm."
+    }
+  ]
+}

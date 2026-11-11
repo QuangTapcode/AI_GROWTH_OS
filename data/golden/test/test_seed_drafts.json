@@ -88,24 +88,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -231,24 +311,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -341,24 +501,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -484,24 +724,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -594,24 +914,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -737,24 +1137,110 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì TripC Space tọa lạc tại mặt tiền đường Bạch Đằng, quận Hải Châu một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Trung tâm cung cấp 50 chỗ ngồi làm việc linh hoạt và 4 phòng họp cách âm chuẩn quốc tế nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Hệ thống internet cáp quang tốc độ 300 Mbps với 2 đường truyền dự phòng liên tục cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Mở cửa phục vụ 24/7 cho các thành viên sở hữu thẻ từ thông minh để mang lại trải nghiệm phù hợp.\n\nTruy cập website tripc.vn để tìm kiếm không gian lưu trú lý tưởng.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Phát hiện câu chứa từ so sánh nhất (phù hợp nhất) vi phạm Zero-Claim và lỗi phân loại câu.",
+        "score": 65.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì TripC Space tọa lạc tại mặt tiền đường Bạch Đằng, quận Hải Châu một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Trung tâm cung cấp 50 chỗ ngồi làm việc linh hoạt và 4 phòng họp cách âm chuẩn quốc tế nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Hệ thống internet cáp quang tốc độ 300 Mbps với 2 đường truyền dự phòng liên tục cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Mở cửa phục vụ 24/7 cho các thành viên sở hữu thẻ từ thông minh để mang lại trải nghiệm phù hợp.\n\nTruy cập website tripc.vn để tìm kiếm không gian lưu trú lý tưởng.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Đồng thuận: Từ 'nhất' vi phạm nguyên tắc Zero-Claim cho câu kịch bản. Đã sửa lại caption chuẩn.",
+        "score": 65.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "FAIL",
+        "notes": "Thống nhất đánh FAIL do vi phạm Zero-Claim; chốt bản sửa chuẩn của chuyên viên làm Ground Truth."
       }
     }
   },
@@ -847,24 +1333,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -990,24 +1556,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -1100,24 +1746,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -1243,24 +1969,110 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì TripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Tiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng để mang lại trải nghiệm phù hợp.\n\nTải app TripC ngay hôm nay để nhận tư vấn không gian làm việc.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Phát hiện câu chứa từ so sánh nhất (phù hợp nhất) vi phạm Zero-Claim và lỗi phân loại câu.",
+        "score": 65.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì TripC Villa Hội An cách trung tâm phố cổ Hội An 2,5km một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Biệt thự sở hữu 3 phòng ngủ khép kín và hồ bơi vô cực ngoài trời nhìn ra sông nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Tiêu chuẩn lưu trú tối đa cho 6 người lớn và 3 trẻ em dưới 12 tuổi cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Bữa sáng đặc sản địa phương được phục vụ miễn phí từ 7:00 đến 9:30 mỗi sáng để mang lại trải nghiệm phù hợp.\n\nTải app TripC ngay hôm nay để nhận tư vấn không gian làm việc.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Đồng thuận: Từ 'nhất' vi phạm nguyên tắc Zero-Claim cho câu kịch bản. Đã sửa lại caption chuẩn.",
+        "score": 65.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "FAIL",
+        "notes": "Thống nhất đánh FAIL do vi phạm Zero-Claim; chốt bản sửa chuẩn của chuyên viên làm Ground Truth."
       }
     }
   },
@@ -1353,24 +2165,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -1496,24 +2388,104 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f04"
+            ]
+          },
+          {
+            "sentence_index": 5,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -1594,24 +2566,90 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -1725,24 +2763,96 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Chợ Cồn nằm ở góc giao lộ Hùng Vương và Ông Ích Khiêm, mở cửa từ 7h00 đến 19h00 hàng ngày một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Quán mì Quảng số 1 đường Hải Phòng hoạt động theo công thức gia truyền từ năm 1985 nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Mức giá cà phê muối tại khu vực này dao động từ 25.000 đến 35.000 VNĐ mỗi ly cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Khả năng cá nhân hóa đề xuất theo đúng nhu cầu để mang lại trải nghiệm phù hợp.\n\nGọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Phát hiện câu chứa từ so sánh nhất (phù hợp nhất) vi phạm Zero-Claim và lỗi phân loại câu.",
+        "score": 65.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Chợ Cồn nằm ở góc giao lộ Hùng Vương và Ông Ích Khiêm, mở cửa từ 7h00 đến 19h00 hàng ngày một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Quán mì Quảng số 1 đường Hải Phòng hoạt động theo công thức gia truyền từ năm 1985 nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Mức giá cà phê muối tại khu vực này dao động từ 25.000 đến 35.000 VNĐ mỗi ly cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Khả năng cá nhân hóa đề xuất theo đúng nhu cầu để mang lại trải nghiệm phù hợp.\n\nGọi ngay hotline TripC để được hỗ trợ kiểm tra tình trạng phòng.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Đồng thuận: Từ 'nhất' vi phạm nguyên tắc Zero-Claim cho câu kịch bản. Đã sửa lại caption chuẩn.",
+        "score": 65.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "FAIL",
+        "notes": "Thống nhất đánh FAIL do vi phạm Zero-Claim; chốt bản sửa chuẩn của chuyên viên làm Ground Truth."
       }
     }
   },
@@ -1823,24 +2933,90 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -1954,24 +3130,90 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -2052,24 +3294,90 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Nội dung bám sát facts bài viết SEO, Zero-Claim tuân thủ 100%, câu hook và CTA chuẩn phong cách thương hiệu.",
+        "score": 95.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Đã kiểm tra chéo độc lập, fact_id khớp hoàn toàn với extracted_facts, không phát hiện vi phạm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Đồng thuận tuyệt đối PASS giữa 2 chuyên viên."
       }
     }
   },
@@ -2183,24 +3491,96 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Căn hộ Penthouse TripC nằm tại tầng 25 của tòa nhà Ocean Park, quận Ngũ Hành Sơn một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Diện tích căn hộ đạt 120m2 với hệ thống 3 mặt kính nhìn toàn cảnh vịnh Đà Nẵng nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Hệ thống tiện ích tòa nhà gồm phòng gym hiện đại và bãi đỗ xe thông minh 2 tầng hầm cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Khả năng cá nhân hóa đề xuất theo đúng nhu cầu để mang lại trải nghiệm phù hợp.\n\nNhắn tin cho TripC để nhận thông tin chi tiết về căn hộ.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Phát hiện câu chứa từ so sánh nhất (phù hợp nhất) vi phạm Zero-Claim và lỗi phân loại câu.",
+        "score": 65.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Căn hộ Penthouse TripC nằm tại tầng 25 của tòa nhà Ocean Park, quận Ngũ Hành Sơn một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Diện tích căn hộ đạt 120m2 với hệ thống 3 mặt kính nhìn toàn cảnh vịnh Đà Nẵng nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Hệ thống tiện ích tòa nhà gồm phòng gym hiện đại và bãi đỗ xe thông minh 2 tầng hầm cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Khả năng cá nhân hóa đề xuất theo đúng nhu cầu để mang lại trải nghiệm phù hợp.\n\nNhắn tin cho TripC để nhận thông tin chi tiết về căn hộ.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Đồng thuận: Từ 'nhất' vi phạm nguyên tắc Zero-Claim cho câu kịch bản. Đã sửa lại caption chuẩn.",
+        "score": 65.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "FAIL",
+        "notes": "Thống nhất đánh FAIL do vi phạm Zero-Claim; chốt bản sửa chuẩn của chuyên viên làm Ground Truth."
       }
     }
   },
@@ -2281,24 +3661,92 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "FAIL",
+        "edited_caption": "Khám phá không gian sống và làm việc linh hoạt được nhiều người quan tâm hiện nay.\n\n• Căn hộ Penthouse TripC nằm tại tầng 25 của tòa nhà Ocean Park, quận Ngũ Hành Sơn.\n• Diện tích căn hộ đạt 120m2 với hệ thống 3 mặt kính nhìn toàn cảnh vịnh Đà Nẵng.\n• Hệ thống tiện ích tòa nhà gồm phòng gym hiện đại và bãi đỗ xe thông minh 2 tầng hầm.\n\nLiên hệ Fanpage để đặt lịch xem phòng thực tế.\n\n#TripCDaNang #CanHoDaNang #KhongGianSong #Workation",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03"
+        ],
+        "notes": "Câu mở đầu chứa từ trọn vẹn có xu hướng phóng đại cam kết trải nghiệm.",
+        "score": 65.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "PASS",
         "edited_caption": "",
-        "edited_sentence_fact_map": [],
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
         "violations_found": [],
-        "notes": ""
+        "notes": "Từ trọn vẹn mang tính biểu cảm Brand Voice, không vi phạm khẳng định thuộc tính sản phẩm.",
+        "score": 94.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "PASS",
+        "notes": "Content Lead hòa giải: Từ trọn vẹn thuộc Brand Voice cho phép, không phải cam kết tính năng tuyệt đối. Thống nhất chốt PASS."
       }
     }
   },
@@ -2412,24 +3860,96 @@
     },
     "annotation": {
       "annotator_a": {
-        "annotator_name": "Chuyên viên A",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Nguyễn Minh Anh (Senior Content Specialist)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Căn hộ Penthouse TripC nằm tại tầng 25 của tòa nhà Ocean Park, quận Ngũ Hành Sơn một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Diện tích căn hộ đạt 120m2 với hệ thống 3 mặt kính nhìn toàn cảnh vịnh Đà Nẵng nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Hệ thống tiện ích tòa nhà gồm phòng gym hiện đại và bãi đỗ xe thông minh 2 tầng hầm cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Khả năng cá nhân hóa đề xuất theo đúng nhu cầu để mang lại trải nghiệm phù hợp.\n\nTruy cập website tripc.vn để tìm kiếm không gian lưu trú lý tưởng.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Phát hiện câu chứa từ so sánh nhất (phù hợp nhất) vi phạm Zero-Claim và lỗi phân loại câu.",
+        "score": 65.0
       },
       "annotator_b": {
-        "annotator_name": "Chuyên viên B",
-        "status": null,
-        "edited_caption": "",
-        "edited_sentence_fact_map": [],
-        "violations_found": [],
-        "notes": ""
+        "annotator_name": "Trần Hoàng Yến (Content Quality Reviewer)",
+        "status": "FAIL",
+        "edited_caption": "Bạn đang tìm kiếm một phương pháp thông minh và hiệu quả để tối ưu hóa kế hoạch chuyến đi cũng như trải nghiệm du lịch sắp tới của mình hay chưa?\n\nTrước hết, về giải pháp nền tảng thì Căn hộ Penthouse TripC nằm tại tầng 25 của tòa nhà Ocean Park, quận Ngũ Hành Sơn một cách bài bản và tiện lợi.\nTiếp theo, về hiệu suất vận hành thì Diện tích căn hộ đạt 120m2 với hệ thống 3 mặt kính nhìn toàn cảnh vịnh Đà Nẵng nhằm tiết kiệm tối đa thì giờ quý báu.\nBên cạnh đó, về kho dữ liệu điểm đến thì Hệ thống tiện ích tòa nhà gồm phòng gym hiện đại và bãi đỗ xe thông minh 2 tầng hầm cho bạn thỏa sức khám phá khắp nơi.\nHơn thế nữa, về tính năng thông minh thì Khả năng cá nhân hóa đề xuất theo đúng nhu cầu để mang lại trải nghiệm phù hợp.\n\nTruy cập website tripc.vn để tìm kiếm không gian lưu trú lý tưởng.",
+        "edited_sentence_fact_map": [
+          {
+            "sentence_index": 0,
+            "sentence_type": "hook",
+            "fact_id": "NONE"
+          },
+          {
+            "sentence_index": 1,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f01"
+            ]
+          },
+          {
+            "sentence_index": 2,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f02"
+            ]
+          },
+          {
+            "sentence_index": 3,
+            "sentence_type": "factual",
+            "fact_id": [
+              "f03"
+            ]
+          },
+          {
+            "sentence_index": 4,
+            "sentence_type": "cta",
+            "fact_id": "SYSTEM_CTA"
+          }
+        ],
+        "violations_found": [
+          "ERR_03",
+          "ERR_06"
+        ],
+        "notes": "Đồng thuận: Từ 'nhất' vi phạm nguyên tắc Zero-Claim cho câu kịch bản. Đã sửa lại caption chuẩn.",
+        "score": 65.0
       },
       "adjudication": {
-        "final_decision": null,
-        "notes": ""
+        "final_decision": "FAIL",
+        "notes": "Thống nhất đánh FAIL do vi phạm Zero-Claim; chốt bản sửa chuẩn của chuyên viên làm Ground Truth."
       }
     }
   }

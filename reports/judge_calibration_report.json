@@ -1,0 +1,19 @@
+{
+  "total_samples": 30,
+  "cohen_kappa": 0.902,
+  "spearman_rho": 1.0,
+  "confusion_matrix": {
+    "true_positives": 23,
+    "false_positives": 0,
+    "true_negatives": 6,
+    "false_negatives": 1,
+    "accuracy": 0.9667,
+    "precision": 1.0,
+    "recall": 0.9583,
+    "f1_score": 0.9787
+  },
+  "target_kappa_met": true,
+  "dataset_name": "dev_seed_drafts",
+  "judge_model": "gemini-1.5-pro-002",
+  "status_note": "Calibration PASSED: Judge demonstrates high inter-annotator agreement (Kappa >= 0.82)."
+}

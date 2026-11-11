@@ -8,9 +8,10 @@
 
 import type { PublishJob } from '../jobs/JobState';
 import { FacebookPagePublisher } from './FacebookPagePublisher';
+import { FacebookGroupPublisher } from './FacebookGroupPublisher';
 import { TikTokPublisher } from './TikTokPublisher';
 
-export type PublishChannel = 'Website' | 'Facebook' | 'TikTok' | 'Instagram' | 'Newsletter';
+export type PublishChannel = 'Website' | 'Facebook' | 'FacebookGroup' | 'TikTok' | 'Instagram' | 'Newsletter';
 
 export interface CmsPublishRequest {
   contentId: string;
@@ -166,6 +167,10 @@ if ((process.env.INTEGRATION_MODE || 'fake') === 'production') {
   defaultRegistry.register('Facebook', pageId && pageToken
     ? new FacebookPagePublisher(pageId, pageToken)
     : new UnavailablePublisher('Facebook', 'FACEBOOK_PAGE_PERMISSION_MISSING'));
+  const groupId = process.env.FACEBOOK_GROUP_ID;
+  defaultRegistry.register('FacebookGroup', groupId && pageToken
+    ? new FacebookGroupPublisher(groupId, pageToken)
+    : new UnavailablePublisher('FacebookGroup', 'FACEBOOK_GROUP_PERMISSION_MISSING'));
   const tiktokToken = process.env.TIKTOK_ACCESS_TOKEN;
   defaultRegistry.register('TikTok', tiktokToken
     ? new TikTokPublisher(tiktokToken, process.env.TIKTOK_OPEN_ID)
@@ -174,6 +179,7 @@ if ((process.env.INTEGRATION_MODE || 'fake') === 'production') {
   // Register mock publishers for local deterministic tests only.
   defaultRegistry.register('Website', new MockCmsPublisher('Website', 'success'));
   defaultRegistry.register('Facebook', new MockCmsPublisher('Facebook', 'success'));
+  defaultRegistry.register('FacebookGroup', new MockCmsPublisher('FacebookGroup', 'success'));
   defaultRegistry.register('TikTok', new MockCmsPublisher('TikTok', 'success'));
   defaultRegistry.register('Instagram', new MockCmsPublisher('Instagram', 'success'));
   defaultRegistry.register('Newsletter', new MockCmsPublisher('Newsletter', 'success'));

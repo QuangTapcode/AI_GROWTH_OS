@@ -196,6 +196,20 @@
           "maxLength": 50,
           "title": "Source Type",
           "type": "string"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Đường dẫn nguồn của fact trích từ citation",
+          "title": "Source Url"
         }
       },
       "required": [
@@ -285,343 +299,10 @@
       ],
       "title": "SentenceMap",
       "type": "object"
-    },
-    "ContentGenerateRequest": {
-      "title": "ContentGenerateRequest",
-      "type": "object",
-      "properties": {
-        "workspace_id": {
-          "description": "Định danh tenant bắt buộc",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Workspace Id",
-          "type": "string"
-        },
-        "parent_content_id": {
-          "description": "article_id của bài viết SEO",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Parent Content Id",
-          "type": "string"
-        },
-        "parent_version": {
-          "description": "Phiên bản bài viết SEO",
-          "minimum": 1,
-          "title": "Parent Version",
-          "type": "integer"
-        },
-        "source_article": {
-          "additionalProperties": true,
-          "description": "Dữ liệu bài viết SEO nguồn",
-          "title": "Source Article",
-          "type": "object"
-        },
-        "channels": {
-          "items": {
-            "enum": [
-              "facebook",
-              "tiktok"
-            ],
-            "type": "string"
-          },
-          "minItems": 1,
-          "title": "Channels",
-          "type": "array"
-        },
-        "cta": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/CTAObject"
-            },
-            {
-              "type": "string"
-            }
-          ],
-          "description": "Lời kêu gọi hành động mong muốn",
-          "title": "Cta"
-        },
-        "brand_voice": {
-          "anyOf": [
-            {
-              "maxLength": 500,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Giọng điệu thương hiệu",
-          "title": "Brand Voice"
-        },
-        "allow_ai_image": {
-          "default": true,
-          "description": "Cho phép sinh ảnh AI minh họa nếu thiếu ảnh thật",
-          "title": "Allow Ai Image",
-          "type": "boolean"
-        },
-        "available_real_assets": {
-          "description": "Kho ảnh thật approved sẵn có",
-          "items": {
-            "$ref": "#/$defs/AssetV2"
-          },
-          "title": "Available Real Assets",
-          "type": "array"
-        }
-      },
-      "required": [
-        "workspace_id",
-        "parent_content_id",
-        "parent_version",
-        "source_article",
-        "cta"
-      ],
-      "additionalProperties": false
-    },
-    "ContentGenerateResponse": {
-      "title": "ContentGenerateResponse",
-      "type": "object",
-      "properties": {
-        "social_pack": {
-          "$ref": "#/$defs/SocialPack",
-          "description": "Gói nội dung mạng xã hội được sinh"
-        },
-        "status": {
-          "description": "Trạng thái gói nội dung",
-          "enum": [
-            "draft",
-            "needs_assets",
-            "insufficient_data"
-          ],
-          "title": "Status",
-          "type": "string"
-        },
-        "warnings": {
-          "description": "Cảnh báo kỹ thuật nếu có",
-          "items": {
-            "type": "string"
-          },
-          "title": "Warnings",
-          "type": "array"
-        }
-      },
-      "required": [
-        "social_pack",
-        "status"
-      ],
-      "additionalProperties": false
-    },
-    "ContentRepurposeRequest": {
-      "title": "ContentRepurposeRequest",
-      "type": "object",
-      "properties": {
-        "workspace_id": {
-          "description": "Định danh tenant bắt buộc",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Workspace Id",
-          "type": "string"
-        },
-        "parent_content_id": {
-          "description": "article_id của bài viết SEO",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Parent Content Id",
-          "type": "string"
-        },
-        "parent_version": {
-          "description": "Phiên bản bài viết SEO",
-          "minimum": 1,
-          "title": "Parent Version",
-          "type": "integer"
-        },
-        "source_article": {
-          "additionalProperties": true,
-          "description": "Dữ liệu bài viết SEO nguồn",
-          "title": "Source Article",
-          "type": "object"
-        },
-        "target_channel": {
-          "description": "Kênh mục tiêu tái chế: facebook hoặc tiktok",
-          "enum": [
-            "facebook",
-            "tiktok"
-          ],
-          "title": "Target Channel",
-          "type": "string"
-        },
-        "format_style": {
-          "default": "standard_post",
-          "description": "Định dạng tái chế chuyên biệt",
-          "enum": [
-            "standard_post",
-            "story",
-            "carousel",
-            "short_script"
-          ],
-          "title": "Format Style",
-          "type": "string"
-        },
-        "cta": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/CTAObject"
-            },
-            {
-              "type": "string"
-            }
-          ],
-          "description": "Lời kêu gọi hành động",
-          "title": "Cta"
-        },
-        "image_assets": {
-          "description": "Ảnh đính kèm",
-          "items": {
-            "$ref": "#/$defs/AssetV2"
-          },
-          "title": "Image Assets",
-          "type": "array"
-        }
-      },
-      "required": [
-        "workspace_id",
-        "parent_content_id",
-        "parent_version",
-        "source_article",
-        "target_channel",
-        "cta"
-      ],
-      "additionalProperties": false
-    },
-    "ContentRepurposeResponse": {
-      "title": "ContentRepurposeResponse",
-      "type": "object",
-      "properties": {
-        "social_pack": {
-          "$ref": "#/$defs/SocialPack",
-          "description": "Gói nội dung mạng xã hội đã tái chế"
-        },
-        "target_channel": {
-          "description": "Kênh mục tiêu đã tái chế",
-          "enum": [
-            "facebook",
-            "tiktok"
-          ],
-          "title": "Target Channel",
-          "type": "string"
-        },
-        "status": {
-          "description": "Trạng thái hoàn thành",
-          "enum": [
-            "draft",
-            "needs_assets",
-            "insufficient_data"
-          ],
-          "title": "Status",
-          "type": "string"
-        }
-      },
-      "required": [
-        "social_pack",
-        "target_channel",
-        "status"
-      ],
-      "additionalProperties": false
-    },
-    "ContentQualityCheckRequest": {
-      "title": "ContentQualityCheckRequest",
-      "type": "object",
-      "properties": {
-        "workspace_id": {
-          "description": "Định danh tenant bắt buộc",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Workspace Id",
-          "type": "string"
-        },
-        "social_pack": {
-          "$ref": "#/$defs/SocialPack",
-          "description": "Gói nội dung cần thẩm định chất lượng"
-        },
-        "facts": {
-          "description": "Danh sách facts để kiểm tra đối chiếu",
-          "items": {
-            "$ref": "#/$defs/FactItem"
-          },
-          "title": "Facts",
-          "type": "array"
-        },
-        "rubric_criteria": {
-          "description": "Tiêu chí chấm điểm cụ thể",
-          "items": {
-            "type": "string"
-          },
-          "title": "Rubric Criteria",
-          "type": "array"
-        }
-      },
-      "required": [
-        "workspace_id",
-        "social_pack"
-      ],
-      "additionalProperties": false
-    },
-    "ContentQualityCheckResponse": {
-      "title": "ContentQualityCheckResponse",
-      "type": "object",
-      "properties": {
-        "passed": {
-          "description": "Đạt yêu cầu xuất bản hay không",
-          "title": "Passed",
-          "type": "boolean"
-        },
-        "score": {
-          "description": "Điểm đánh giá chất lượng (thang 100)",
-          "maximum": 100.0,
-          "minimum": 0.0,
-          "title": "Score",
-          "type": "number"
-        },
-        "attribution_rate": {
-          "description": "Tỷ lệ quy kết sự thật (1.0 = 100%)",
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Attribution Rate",
-          "type": "number"
-        },
-        "zero_claim_compliant": {
-          "description": "Tuân thủ Zero-Claim cho Hook/CTA",
-          "title": "Zero Claim Compliant",
-          "type": "boolean"
-        },
-        "issues": {
-          "description": "Danh sách lỗi phát hiện",
-          "items": {
-            "type": "string"
-          },
-          "title": "Issues",
-          "type": "array"
-        },
-        "suggested_fixes": {
-          "description": "Gợi ý sửa đổi cho Reflection Loop",
-          "items": {
-            "type": "string"
-          },
-          "title": "Suggested Fixes",
-          "type": "array"
-        }
-      },
-      "required": [
-        "passed",
-        "score",
-        "attribution_rate",
-        "zero_claim_compliant"
-      ],
-      "additionalProperties": false
     }
   },
   "additionalProperties": false,
-  "description": "Frozen SocialPack v2.0 schema & operation contracts for Agent #4: Content Marketing",
+  "description": "Schema SocialPack v2.0 theo chuẩn thiết kế Agent Content Marketing.",
   "properties": {
     "pack_id": {
       "description": "Mã định danh SocialPack",
@@ -651,11 +332,12 @@
       "type": "integer"
     },
     "channels": {
-      "description": "Danh sách kênh phân phối mục tiêu: facebook, tiktok",
+      "description": "Danh sách kênh phân phối mục tiêu: facebook, tiktok, facebook_group",
       "items": {
         "enum": [
           "facebook",
-          "tiktok"
+          "tiktok",
+          "facebook_group"
         ],
         "type": "string"
       },
@@ -669,6 +351,38 @@
       "minLength": 1,
       "title": "Caption",
       "type": "string"
+    },
+    "group_post_format": {
+      "anyOf": [
+        {
+          "enum": [
+            "case_study",
+            "debate_discussion",
+            "checklist_guide",
+            "storytelling"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Định dạng bài viết Group: case_study, debate_discussion, checklist_guide, storytelling",
+      "title": "Group Post Format"
+    },
+    "discussion_prompt": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Câu hỏi gợi mở thảo luận cuối bài Group",
+      "title": "Discussion Prompt"
     },
     "cta": {
       "$ref": "#/$defs/CTAObject",
@@ -736,7 +450,7 @@
         }
       ],
       "default": null,
-      "description": "Mã bundle immutable của Agent đã sinh ra SocialPack",
+      "description": "Mã bundle immutable của Agent đã sinh ra SocialPack (VD: content_agent_release_v2)",
       "title": "Bundle Id"
     },
     "content_hash": {
@@ -786,8 +500,6 @@
     "caption",
     "cta"
   ],
-  "title": "SocialPackV2",
-  "type": "object",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "2.0"
+  "title": "SocialPack",
+  "type": "object"
 }
