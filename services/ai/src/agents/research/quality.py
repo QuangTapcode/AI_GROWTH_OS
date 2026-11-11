@@ -1,7 +1,7 @@
 """Conservative lexical checks; semantic audience/offer fit still needs review."""
 from ...rag.retrieval import terms
 
-GENERIC = {"explore", "topic", "supplied", "target", "audience", "understand", "options", "decision", "information", "confirm", "offer", "preparing", "campaign", "guide", "local", "living", "tripc"}
+GENERIC = {"explore", "topic", "supplied", "target", "audience", "understand", "options", "decision", "information", "need", "needs", "confirm", "offer", "preparing", "campaign", "guide", "local", "living", "tripc"}
 
 
 def concepts(text):

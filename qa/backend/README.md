@@ -24,3 +24,5 @@ Lệnh `test` chạy toàn bộ unit/contract tests backend hiện có trong `ap
 ## Worker và contract
 
 Test worker nằm tại `apps/worker/tests/`; contract/schema và ví dụ chuẩn nằm trong `contracts/`. Các suite QA backend chuyên biệt hiện có được giữ tại `qa/tester-2/` và `qa/QQ_test/`; chưa di chuyển để giữ nguyên cấu hình và các tham chiếu hiện có.
+
+Suite automation HTTP bằng pytest, độc lập với các Vitest test ở trên, nằm trong [backend-pytest](../backend-pytest/README.md). Suite này áp dụng EP, BVA, decision table và state transition trên login/CORS API.

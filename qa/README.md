@@ -24,6 +24,9 @@ npm.cmd --prefix apps/web run lint
 npm.cmd --prefix apps/web run typecheck
 ```
 
+Automation backend bằng pytest, áp dụng EP/BVA/Decision Table/State Transition:
+[qa/backend-pytest](backend-pytest/README.md). Cần API local đang chạy; xem hướng dẫn cài và lệnh chạy trong README của suite.
+
 E2E tích hợp web/API của app: `npm.cmd --prefix apps/web run test:e2e`. Chi tiết suite độc lập nằm trong [Frontend QA](frontend/README.md).
 
 ## Làm độc lập

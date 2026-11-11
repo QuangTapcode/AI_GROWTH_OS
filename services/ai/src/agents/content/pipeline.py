@@ -191,6 +191,8 @@ async def generated_image(ctx, p, suggestion, alt_text):
 def validate_content(job, p, settings):
     problems = validate_context(job, p) + artifact_problems(job, p.source_article, "seo")
     problems += evidence_problems(job, p.snapshot, p.source_article.evidence)
+    if any(channel not in {"facebook", "tiktok"} for channel in p.target_channels):
+        problems.append(("INVALID_CHANNELS", "Only facebook and tiktok are supported"))
     if any(a.workspace_id != job.workspace_id for a in p.assets):
         problems.append(("TENANT_SCOPE_VIOLATION", "Foreign image asset"))
     return problems
