@@ -15,7 +15,10 @@ const RANGES = [7, 30, 90] as const;
 const DAY_MS = 86_400_000;
 
 function periodRange(days: number, offsetPeriods = 0) {
-  const end = new Date(Date.now() - offsetPeriods * days * DAY_MS);
+  const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const part = (name: string) => parts.find(p => p.type === name)!.value;
+  const today = Date.parse(`${part('year')}-${part('month')}-${part('day')}T00:00:00Z`);
+  const end = new Date(today - offsetPeriods * days * DAY_MS);
   return { from: toIsoDate(new Date(end.getTime() - (days - 1) * DAY_MS)), to: toIsoDate(end) };
 }
 
@@ -36,10 +39,13 @@ function GrowthResultsContent() {
       growthApi.getReport(workspace.id, range, signal),
       growthApi.getReport(workspace.id, periodRange(rangeDays, 1), signal),
       growthApi.getMetricSeries(workspace.id, "sessions", range, signal),
-      growthApi.listLeads(workspace.id, signal),
+      growthApi.listLeads(workspace.id, signal, range),
       growthApi.listPublishingJobs(workspace.id, signal),
     ]);
-    return { report, previous, sessions, leads: leads.items, jobs: jobs.items };
+    return { report, previous, sessions, leads: leads.items, leadTotal: leads.total, jobs: jobs.items.filter(j => {
+      const date = j.published_at ? new Date(j.published_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }) : '';
+      return date >= range.from && date <= range.to;
+    }) };
   });
 
   const published = data?.jobs.filter((j) => j.status === "published") ?? [];
@@ -82,7 +88,7 @@ function GrowthResultsContent() {
               <p className="text-[11px] text-slate-400 mt-0.5 mb-3">
                 {data.sessions.from} → {data.sessions.to} · source: {data.sessions.provider.toUpperCase()}
               </p>
-              {data.sessions.availability === "available" ? (
+              {data.sessions.points.some(p => p.value !== null) ? (
                 <DailyBarChart series={data.sessions} height={220} />
               ) : (
                 <div className="h-[220px] rounded-xl border border-dashed border-slate-200 bg-slate-50/60 flex flex-col items-center justify-center text-center px-6">
@@ -96,7 +102,7 @@ function GrowthResultsContent() {
 
             <section className="xl:col-span-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
               <div>
-                <h2 className="text-sm font-bold text-slate-900">Leads by interest</h2>
+                <h2 className="text-sm font-bold text-slate-900">Leads by interest (latest {data.leads.length} in period)</h2>
                 <ul className="mt-3 space-y-2">
                   {[...leadsByTopic.entries()].map(([topic, count]) => (
                     <li key={topic} className="flex items-center gap-3 text-xs">
@@ -127,7 +133,7 @@ function GrowthResultsContent() {
           <section className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div className="p-6 pb-3">
               <h2 className="text-sm font-bold text-slate-900">Leads</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">{data.leads.length} leads from the pilot site form (all time)</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Showing {data.leads.length} of {data.leadTotal} leads · {data.report.period.from} → {data.report.period.to}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">

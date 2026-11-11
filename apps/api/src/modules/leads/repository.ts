@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { PoolClient } from 'pg';
+import type { PoolClient, Pool } from 'pg';
 import pool, { query as dbQuery, withTransaction as dbWithTransaction } from '../../lib/db';
 import type { LeadContext, LeadStatus, ListLeadsQuery, UpdateLeadBody } from './schemas';
+import { dateInZone } from '../metrics/period';
 
 /**
  * Persistence cho lead submission và quản lý leads trong workspace (TQ-05).
@@ -44,6 +45,7 @@ export interface LeadTransaction {
 }
 
 export interface LeadRepository {
+  countCapturedInPeriod(workspaceId: string, from: string, to: string, timezone: string): Promise<number>;
   withTransaction<T>(fn: (tx: LeadTransaction) => Promise<T>): Promise<T>;
   count(workspaceId?: string): Promise<number>;
   findById(id: string, workspaceId?: string): Promise<LeadRecord | null>;
@@ -84,6 +86,9 @@ function mapDbRowToLeadRecord(row: any): LeadRecord {
 }
 
 export class PostgresLeadRepository implements LeadRepository {
+  async countCapturedInPeriod(workspaceId: string, from: string, to: string, timezone: string): Promise<number> {
+    return countLeadsInPeriod(pool, workspaceId, from, to, timezone);
+  }
   async withTransaction<T>(fn: (tx: LeadTransaction) => Promise<T>): Promise<T> {
     return dbWithTransaction(async (client: PoolClient) => {
       const tx: LeadTransaction = {
@@ -176,6 +181,16 @@ export class PostgresLeadRepository implements LeadRepository {
     const params: any[] = [workspaceId];
     let idx = 2;
 
+    if (filter?.from) {
+      conditions.push(`captured_at >= ($${idx++}::date::timestamp AT TIME ZONE $${idx++})`);
+      params.push(filter.from, filter.timezone ?? 'Asia/Ho_Chi_Minh');
+    }
+    if (filter?.to) {
+      conditions.push(`captured_at < (($${idx++}::date + 1)::timestamp AT TIME ZONE $${idx++})`);
+      params.push(filter.to, filter.timezone ?? 'Asia/Ho_Chi_Minh');
+    }
+    if (filter?.exclude_synthetic === 'true') conditions.push("COALESCE(context->>'synthetic', 'false') <> 'true'");
+
     if (filter?.lead_status) {
       conditions.push(`lead_status = $${idx++}`);
       params.push(filter.lead_status);
@@ -245,7 +260,25 @@ export class PostgresLeadRepository implements LeadRepository {
   }
 }
 
+/** Shared SQL aggregate; accepts the active DB/transaction rather than loading a capped page. */
+export async function countLeadsInPeriod(db: Pick<Pool, 'query'>, workspaceId: string, from: string, to: string, timezone: string): Promise<number> {
+  const result = await db.query(
+    `SELECT count(*)::int AS count FROM leads WHERE workspace_id=$1
+       AND captured_at >= ($2::date::timestamp AT TIME ZONE $4)
+       AND captured_at < (($3::date + 1)::timestamp AT TIME ZONE $4)
+       AND COALESCE(context->>'synthetic', 'false') <> 'true'`,
+    [workspaceId, from, to, timezone],
+  );
+  return result.rows[0].count;
+}
+
 export class InMemoryLeadRepository implements LeadRepository {
+  async countCapturedInPeriod(workspaceId: string, from: string, to: string, timezone: string): Promise<number> {
+    return [...this.rows.values()].filter((lead) => {
+      const date = dateInZone(lead.captured_at, timezone);
+      return lead.workspace_id === workspaceId && String((lead.context as Record<string, unknown>)?.synthetic) !== 'true' && date >= from && date <= to;
+    }).length;
+  }
   private rows = new Map<string, LeadRecord>();
   private failNextAfterInsert = false;
 
@@ -323,6 +356,11 @@ export class InMemoryLeadRepository implements LeadRepository {
     filter?: ListLeadsQuery
   ): Promise<{ items: LeadRecord[]; total: number }> {
     let items = Array.from(this.rows.values()).filter((r) => r.workspace_id === workspaceId);
+    if (filter?.from || filter?.to) items = items.filter(r => {
+      const date = dateInZone(r.captured_at, filter.timezone ?? 'Asia/Ho_Chi_Minh');
+      return (!filter.from || date >= filter.from) && (!filter.to || date <= filter.to);
+    });
+    if (filter?.exclude_synthetic === 'true') items = items.filter(r => String((r.context as Record<string, unknown>).synthetic) !== 'true');
 
     if (filter?.lead_status) {
       items = items.filter((r) => r.lead_status === filter.lead_status);

@@ -4,6 +4,8 @@ import { globalLeadRepo } from '../../lib/public-service';
 import { query as dbQuery } from '../../lib/db';
 import { METRIC_PROVIDER, dailySnapshots } from '../metrics/service';
 import { facebookPageConfigured, getFacebookPageKpis } from './facebookPage';
+import { dateInZone, periodSchema } from '../metrics/period';
+import { reportQuerySchema } from './schemas';
 import type {
   ReportQuery,
   ReportQueryInput,
@@ -73,25 +75,20 @@ export const memorySnapshots = new Map<string, MetricSnapshotRecord>();
  * 3. Hỗ trợ time range (from, to), timezone và currency.
  */
 export async function getWorkspaceReport(workspaceId: string, query: ReportQueryInput) {
-  const fromDate = query.from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const toDate = query.to || new Date().toISOString().split('T')[0];
-  const timezone = query.timezone || 'Asia/Bang_Chi_Minh';
-  const currency = query.currency || 'VND';
-
-  // 1. Đọc leads thật từ LeadRepository
-  const leadsResult = await globalLeadRepo.listByWorkspace(workspaceId, { limit: 100 });
-  const fromTs = new Date(fromDate).getTime();
-  const toTs = new Date(toDate + 'T23:59:59.999Z').getTime();
-
-  const leadsInRange = leadsResult.items.filter((lead) => {
-    const t = lead.captured_at.getTime();
-    return t >= fromTs && t <= toTs;
-  });
+  const parsed = reportQuerySchema.safeParse(query);
+  if (!parsed.success) throw new AppError(422, 'VALIDATION_FAILED', parsed.error.message);
+  const { timezone, currency } = parsed.data;
+  const toDate = parsed.data.to ?? dateInZone(new Date(), timezone);
+  const fromDate = parsed.data.from ?? new Date(Date.parse(toDate) - 6 * 86_400_000).toISOString().slice(0, 10);
+  if (!periodSchema.safeParse({ from: fromDate, to: toDate }).success) {
+    throw new AppError(422, 'VALIDATION_FAILED', 'Invalid report period (maximum 366 days)');
+  }
+  const leadCount = await globalLeadRepo.countCapturedInPeriod(workspaceId, fromDate, toDate, timezone);
 
   const kpis: Record<string, MetricItem> = {
     leads_generated: {
       metric: 'leads_generated',
-      value: leadsInRange.length,
+      value: leadCount,
       availability: 'available',
       missing_reason: null,
     },
@@ -133,14 +130,16 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
     if (
       snapshot.workspace_id === workspaceId &&
       snapshot.period_from === fromDate &&
-      snapshot.period_to === toDate
+      snapshot.period_to === toDate &&
+      snapshot.metric_name in METRIC_PROVIDER
     ) {
       kpis[snapshot.metric_name] = {
         metric: snapshot.metric_name,
-        value: snapshot.metric_value,
-        availability: snapshot.availability,
-        missing_reason: snapshot.missing_reason,
-        currency: snapshot.currency,
+        value: snapshot.metric_name === 'ad_spend' && snapshot.currency !== currency ? null : snapshot.metric_value,
+        availability: snapshot.metric_name === 'ad_spend' && snapshot.currency !== currency ? 'missing' : snapshot.availability,
+        missing_reason: snapshot.metric_name === 'ad_spend' && snapshot.currency !== currency ? 'CURRENCY_MISMATCH' : snapshot.missing_reason,
+        ...(snapshot.metric_name === 'ad_spend' ? { currency: snapshot.currency } : {}),
+        timezone: snapshot.timezone,
       };
     }
   }
@@ -149,8 +148,16 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
   // Đủ mọi ngày → available; thiếu ngày → partial (không lấp chỗ trống bằng 0).
   try {
     const dayCount = Math.round((Date.parse(toDate) - Date.parse(fromDate)) / 86_400_000) + 1;
-    for (const metric of Object.keys(METRIC_PROVIDER)) {
-      const rawPoints = await dailySnapshots(workspaceId, metric, fromDate, toDate);
+    const series = await Promise.all(Object.keys(METRIC_PROVIDER).map(async metric => ({ metric,
+      points: await dailySnapshots(workspaceId, metric, fromDate, toDate) })));
+    for (const { metric, points: rawPoints } of series) {
+      const zoneCount = new Set(rawPoints.map(p => p.timezone)).size;
+      const mismatch = zoneCount > 1 || rawPoints.some(p => !p.timezone || p.timezone === 'unknown' || (metric === 'ad_spend' && p.currency !== currency));
+      if (mismatch) {
+        kpis[metric] = { metric, value: null, availability: 'missing', missing_reason:
+          zoneCount > 1 || rawPoints.some(p => !p.timezone || p.timezone === 'unknown') ? 'TIMEZONE_MISMATCH' : 'CURRENCY_MISMATCH' };
+        continue;
+      }
       const points = rawPoints.filter(
         (p) => p.availability === 'available' && p.value !== null
       );
@@ -160,7 +167,7 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
           kpis[metric] = {
             ...kpis[metric],
             value: null,
-            availability: 'missing',
+            availability: rawPoints.some(p => p.availability === 'delayed') ? 'delayed' : 'missing',
             missing_reason: noData.missing_reason,
           };
         }
@@ -172,11 +179,13 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
         value: points.reduce((sum, p) => sum + (p.value as number), 0),
         availability: complete ? 'available' : 'partial',
         missing_reason: complete ? null : 'SYNC_NOT_RUN_YET',
+        timezone: points[0].timezone,
         ...(metric === 'ad_spend' ? { currency } : {}),
       };
     }
-  } catch {
-    // DB không sẵn sàng (test in-memory): giữ số liệu hiện có
+  } catch (error) {
+    // Isolated in-memory fixtures have no DB; configured services must expose operational failures.
+    if (process.env.DATABASE_URL) throw error;
   }
 
   // Fanpage đã kết nối (token server-side): số liệu đọc trực tiếp từ Graph API.
@@ -194,7 +203,7 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
     },
     kpis,
     summary: {
-      total_leads: leadsInRange.length,
+      total_leads: leadCount,
       available_kpi_count: Object.values(kpis).filter((k) => k.availability === 'available').length,
       missing_kpi_count: Object.values(kpis).filter((k) => k.availability === 'missing').length,
     },

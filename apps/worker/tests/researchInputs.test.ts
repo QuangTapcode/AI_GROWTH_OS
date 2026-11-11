@@ -10,11 +10,14 @@ it.each([true, false])('dispatches workspace inventory and verified GSC input to
   const inventory = [{ content_id: randomUUID(), workspace_id: ws, version: 1, title: 'Coworking spaces for expats' }];
   const measured = { artifact: { artifact_id: randomUUID(), workspace_id: ws }, result: { site_url: 'sc-domain:tripc.ai' } };
   const output = { workspace_id: ws, synthetic: true };
+  const action = { metric_name: 'leads', reason: 'Investigate the measured decline', report_artifact_id: randomUUID() };
   const hash = createHash('sha256').update(JSON.stringify({ evidence: [], result: { synthetic: true, workspace_id: ws } })).digest('hex');
   const query = vi.fn(async (sql: string) => {
     if (sql.includes("SET status='claimed'") && sql.includes('RETURNING *')) return { rows: [{ id: randomUUID(), workspace_id: ws, task_id: taskId, attempts: 1 }] };
     if (sql.includes('SELECT * FROM workflow_tasks')) return { rows: [{ id: taskId, role: 'research', operation: 'research.run', context_snapshot_id: ctx,
-      status: 'queued', input_version: 1, payload: { input: { operation: 'research.run' }, synthetic: true }, created_at: new Date() }] };
+      status: 'queued', input_version: 1, payload: hasMetrics
+        ? { input: { operation: 'research.run', performance_action: action }, synthetic: true }
+        : { input: { operation: 'research.run' }, performance_action: { ...action, approved_by: randomUUID() }, synthetic: true }, created_at: new Date() }] };
     if (sql.includes('SELECT * FROM knowledge_contexts')) return { rows: [{ snapshot_id: ctx, profile_version: 1, profile: { version: 1 }, snapshot: { sources: [] }, goal }] };
     if (sql.includes('SELECT version FROM business_profiles')) return { rows: [{ version: 1 }] };
     if (sql.includes('FROM (') && sql.includes('inventory')) return { rows: inventory };
@@ -30,6 +33,7 @@ it.each([true, false])('dispatches workspace inventory and verified GSC input to
   expect(request.aiOperation).toBe('research.run');
   expect(request.input.content_inventory).toEqual(inventory);
   expect(request.input.goal_context).toEqual(goal);
+  expect(request.input.performance_action).toEqual(action);
   if (hasMetrics) expect(request.input.search_metrics).toEqual({ ...measured, evidence: [] });
   else expect(request.input.search_metrics_missing_reason).toBe('gsc_snapshot_missing_or_stale');
   const scopedQueries = query.mock.calls.filter(([sql]) => sql.includes('JOIN integration_connections'));

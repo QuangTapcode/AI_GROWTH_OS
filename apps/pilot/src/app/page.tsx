@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listPosts } from "@/lib/site";
-import { CommunityGroupCard, PageView } from "@/features/site/measure";
+import { CommunityGroupCard, PageView, CtaButton, LeadForm } from "@/features/site/measure";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,7 @@ export default async function HomePage() {
         <p className="eyebrow">Da Nang · English website pilot</p>
         <h1>Your next chapter in Da Nang.</h1>
         <p className="lead">Practical, sourced guides about housing, coworking and everyday life for English-speaking newcomers.</p>
+        <CtaButton slug={null} label="Ask TripC" />
       </section>
       <section aria-labelledby="guides">
         <h2 id="guides">Guides</h2>
@@ -25,6 +26,7 @@ export default async function HomePage() {
           {post.meta.description && <p className="muted">{post.meta.description}</p>}
         </li>)}</ul> : <p className="muted">No guides are published yet.</p>}
       </section>
+      <section id="request" className="request"><h2>Ask TripC</h2><LeadForm topic="General information" /></section>
       <CommunityGroupCard slug={null} />
       <footer className="muted"><span>© TripC</span></footer>
     </main>

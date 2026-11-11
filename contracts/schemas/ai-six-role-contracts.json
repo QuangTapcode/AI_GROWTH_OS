@@ -1307,9 +1307,47 @@
                 "maxItems": 5,
                 "title": "Weak Titles",
                 "type": "array"
+              },
+              "channel_observations": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "title": "Channel Observations",
+                "type": "array"
               }
             },
             "title": "LearningLessons",
+            "type": "object"
+          },
+          "PerformanceAction": {
+            "additionalProperties": false,
+            "description": "Owner-approved investigation guidance, never source evidence or a causal claim.",
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "reason": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "report_artifact_id": {
+                "format": "uuid",
+                "title": "Report Artifact Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "metric_name",
+              "reason",
+              "report_artifact_id"
+            ],
+            "title": "PerformanceAction",
             "type": "object"
           },
           "PriorityTopic": {
@@ -2180,6 +2218,17 @@
             "anyOf": [
               {
                 "$ref": "#/$defs/LearningLessons"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "performance_action": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PerformanceAction"
               },
               {
                 "type": "null"
@@ -5999,7 +6048,7 @@
         "opportunity.score": "growth-lead-v1",
         "strategy.generate": "growth-lead-v1",
         "brief.generate": "growth-lead-v1",
-        "learning.analyze": "learning-v1"
+        "learning.analyze": "learning-v2"
       },
       "learning_contract": {
         "input_schema": {
@@ -15895,6 +15944,32 @@
                 "minimum": 0,
                 "title": "Cta Clicks",
                 "type": "integer"
+              },
+              "qualified_visits": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Qualified Visits"
+              },
+              "leads": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Leads"
               }
             },
             "required": [
@@ -16064,6 +16139,106 @@
             "title": "GoalKpi",
             "type": "object"
           },
+          "GroupMetricsEvidence": {
+            "additionalProperties": false,
+            "description": "Native group period, never silently aligned with website or ads windows.",
+            "properties": {
+              "workspace_id": {
+                "format": "uuid",
+                "title": "Workspace Id",
+                "type": "string"
+              },
+              "group_id": {
+                "pattern": "^\\d{5,30}$",
+                "title": "Group Id",
+                "type": "string"
+              },
+              "source": {
+                "const": "facebook_group_browser",
+                "title": "Source",
+                "type": "string"
+              },
+              "captured_at": {
+                "format": "date-time",
+                "title": "Captured At",
+                "type": "string"
+              },
+              "period_from": {
+                "format": "date",
+                "title": "Period From",
+                "type": "string"
+              },
+              "period_to": {
+                "format": "date",
+                "title": "Period To",
+                "type": "string"
+              },
+              "timezone": {
+                "const": "provider_unspecified",
+                "title": "Timezone",
+                "type": "string"
+              },
+              "source_url": {
+                "title": "Source Url",
+                "type": "string"
+              },
+              "total_members": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Total Members"
+              },
+              "metrics": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "propertyNames": {
+                  "enum": [
+                    "posts",
+                    "comments",
+                    "reactions",
+                    "new_members"
+                  ]
+                },
+                "title": "Metrics",
+                "type": "object"
+              },
+              "missing_reasons": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Missing Reasons",
+                "type": "object"
+              }
+            },
+            "required": [
+              "workspace_id",
+              "group_id",
+              "source",
+              "captured_at",
+              "period_from",
+              "period_to",
+              "timezone",
+              "source_url",
+              "metrics"
+            ],
+            "title": "GroupMetricsEvidence",
+            "type": "object"
+          },
           "KpiMeasurement": {
             "additionalProperties": false,
             "properties": {
@@ -16170,6 +16345,152 @@
               "content_hash"
             ],
             "title": "RunArtifact",
+            "type": "object"
+          },
+          "SocialPostEvidence": {
+            "additionalProperties": false,
+            "description": "Counters as observed, not reach or conversions during the report window.",
+            "properties": {
+              "workspace_id": {
+                "format": "uuid",
+                "title": "Workspace Id",
+                "type": "string"
+              },
+              "publishing_job_id": {
+                "format": "uuid",
+                "title": "Publishing Job Id",
+                "type": "string"
+              },
+              "content_id": {
+                "format": "uuid",
+                "title": "Content Id",
+                "type": "string"
+              },
+              "artifact_id": {
+                "format": "uuid",
+                "title": "Artifact Id",
+                "type": "string"
+              },
+              "artifact_version": {
+                "minimum": 1,
+                "title": "Artifact Version",
+                "type": "integer"
+              },
+              "campaign_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Campaign Id"
+              },
+              "external_post_id": {
+                "pattern": "^\\d+(?:_\\d+)?$",
+                "title": "External Post Id",
+                "type": "string"
+              },
+              "published_at": {
+                "format": "date-time",
+                "title": "Published At",
+                "type": "string"
+              },
+              "captured_at": {
+                "format": "date-time",
+                "title": "Captured At",
+                "type": "string"
+              },
+              "provider": {
+                "default": "facebook_page",
+                "enum": [
+                  "facebook_page",
+                  "facebook_group"
+                ],
+                "title": "Provider",
+                "type": "string"
+              },
+              "group_id": {
+                "anyOf": [
+                  {
+                    "pattern": "^\\d{5,30}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Group Id"
+              },
+              "external_content_modified": {
+                "default": false,
+                "title": "External Content Modified",
+                "type": "boolean"
+              },
+              "observed_text_hash": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Observed Text Hash"
+              },
+              "scope": {
+                "const": "post_lifetime",
+                "default": "post_lifetime",
+                "title": "Scope",
+                "type": "string"
+              },
+              "counters": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "propertyNames": {
+                  "enum": [
+                    "reactions",
+                    "comments",
+                    "shares"
+                  ]
+                },
+                "title": "Counters",
+                "type": "object"
+              },
+              "missing_reasons": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Missing Reasons",
+                "type": "object"
+              }
+            },
+            "required": [
+              "workspace_id",
+              "publishing_job_id",
+              "content_id",
+              "artifact_id",
+              "artifact_version",
+              "external_post_id",
+              "published_at",
+              "captured_at",
+              "counters"
+            ],
+            "title": "SocialPostEvidence",
             "type": "object"
           }
         },
@@ -16378,6 +16699,60 @@
             },
             "title": "Content Metrics",
             "type": "array"
+          },
+          "coverage": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Coverage",
+            "type": "object"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Currency"
+          },
+          "actions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "channel_metrics": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Channel Metrics",
+            "type": "object"
+          },
+          "social_posts": {
+            "items": {
+              "$ref": "#/$defs/SocialPostEvidence"
+            },
+            "maxItems": 20,
+            "title": "Social Posts",
+            "type": "array"
+          },
+          "group_metrics": {
+            "items": {
+              "$ref": "#/$defs/GroupMetricsEvidence"
+            },
+            "maxItems": 10,
+            "title": "Group Metrics",
+            "type": "array"
           }
         },
         "required": [
@@ -16401,10 +16776,10 @@
         "experiment.hypothesis": "dedicated"
       },
       "prompt_versions": {
-        "analytics.report": "performance-v2",
-        "experiment.hypothesis": "performance-v2"
+        "analytics.report": "performance-v3",
+        "experiment.hypothesis": "performance-v3"
       },
-      "prompt_version": "performance-v2",
+      "prompt_version": "performance-v3",
       "schema_operations": [
         "analytics.report",
         "experiment.hypothesis"

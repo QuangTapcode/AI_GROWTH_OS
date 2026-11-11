@@ -5,6 +5,8 @@
  */
 import './loadApiEnv';
 import { Pool } from 'pg';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
@@ -13,6 +15,7 @@ import { listLinksWithBrowser } from './workflow/BrowserRenderer';
 import { FirstPartyBlogSync } from './workflow/FirstPartyBlogSync';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
+import { GroupMetricsScheduler,loadGroupSchedule,groupErrorCode } from './metrics/GroupMetricsScheduler';
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
@@ -53,6 +56,18 @@ async function main() {
   syncBlog();
   timers.push(setInterval(syncBlog, Number(process.env.BLOG_SYNC_HOURS ?? 6) * 3_600_000));
 
+  // Group metrics run only when a schedule file is configured (see GroupMetricsScheduler).
+  const localGroupConfig=resolve(__dirname,'../.fb-group-metrics.json');
+  const groupConfig=process.env.FACEBOOK_GROUP_METRICS_CONFIG||(existsSync(localGroupConfig)?localGroupConfig:undefined);
+  if(groupConfig){
+    try{
+      const config=loadGroupSchedule(groupConfig);
+      const groups=new GroupMetricsScheduler(pool,config,process.env.API_BASE_URL||'http://127.0.0.1:4000',process.env.AUTOMATION_INTERNAL_TOKEN||'');
+      const sync=()=>void groups.tick().catch(error=>console.warn('[group-metrics]',groupErrorCode(error)));
+      sync();timers.push(setInterval(sync,30000));
+      console.log('[group-metrics] enabled; interval minutes:',config.interval_minutes,'targets:',config.targets.length);
+    }catch(error){console.warn('[group-metrics] disabled:',groupErrorCode(error));}
+  }
   const autopilot = process.env.AUTOPILOT !== '0';
   if (autopilot) {
     const apiBase = (process.env.API_BASE_URL || 'http://127.0.0.1:4000').replace(/\/v1\/?$/, '').replace(/\/$/, '');

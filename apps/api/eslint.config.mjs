@@ -1,19 +1,11 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import js from "@eslint/js";
-import globals from "globals";
-import tseslint from "typescript-eslint";
-import reactHooks from "eslint-plugin-react-hooks";
+import { FlatCompat } from "@eslint/eslintrc";
+import { fileURLToPath } from "node:url";
 
-export default defineConfig([
-  globalIgnores([".next/**", "next-env.d.ts", "playwright-report/**", "test-results/**"]),
-  {
-    files: ["**/*.{js,mjs,ts,tsx}"],
-    extends: [js.configs.recommended, tseslint.configs.recommended],
-    languageOptions: { globals: { ...globals.browser, ...globals.node } },
-  },
-  {
-    files: ["**/*.tsx"],
-    extends: [reactHooks.configs.flat.recommended],
-  },
-]);
+const compat = new FlatCompat({ baseDirectory: fileURLToPath(new URL(".", import.meta.url)) });
+
+const config = [
+  { ignores: [".next/**", "next-env.d.ts", "playwright-report/**", "test-results/**", "node_modules/**"] },
+  ...compat.extends("next/core-web-vitals"),
+];
+export default config;
 

@@ -1,4 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+vi.mock('../../src/lib/db', () => ({ query: vi.fn(async () => ({ rows: [] })), default: {}, withTransaction: vi.fn() }));
+vi.mock('../../src/lib/public-service', async () => {
+  const { InMemoryLeadRepository } = await import('../../src/modules/leads/repository');
+  return { globalLeadRepo: new InMemoryLeadRepository() };
+});
 import {
   getWorkspaceReport,
   recordMetricSnapshot,
@@ -22,6 +27,7 @@ import { MemoryAnalyticsSink } from '../../src/lib/analytics';
 const WORKSPACE_ID = '10000000-0000-4000-8000-000000000001';
 const OWNER_USER_ID = '11111111-1111-1111-1111-111111111111';
 const SALES_USER_ID = '22222222-2222-2222-2222-222222222222';
+afterEach(() => vi.useRealTimers());
 
 describe('TQ-07: Reports, Real Metrics, Exceptions & Event Consistency', () => {
   beforeEach(() => {
@@ -34,6 +40,9 @@ describe('TQ-07: Reports, Real Metrics, Exceptions & Event Consistency', () => {
     it('đọc số liệu leads thật từ database và giữ nguyên missing_reason cho các chỉ số ngoài chưa kết nối', async () => {
       // 1. Tạo 2 leads thật
       const deps = { repo: globalLeadRepo, analytics: new MemoryAnalyticsSink() };
+      // Midnight in Vietnam already falls on the next date while UTC is still the previous day.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-10T18:00:00Z'));
       await submitLead(deps, {
         siteId: 'tripc-pilot',
         idempotencyKey: 'report-lead-1',
@@ -55,16 +64,16 @@ describe('TQ-07: Reports, Real Metrics, Exceptions & Event Consistency', () => {
         },
       });
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date());
       const report = await getWorkspaceReport(WORKSPACE_ID, {
         from: today,
         to: today,
-        timezone: 'Asia/Bang_Chi_Minh',
+        timezone: 'Asia/Ho_Chi_Minh',
         currency: 'VND',
       });
 
       expect(report.workspace_id).toBe(WORKSPACE_ID);
-      expect(report.period.timezone).toBe('Asia/Bang_Chi_Minh');
+      expect(report.period.timezone).toBe('Asia/Ho_Chi_Minh');
       expect(report.period.currency).toBe('VND');
 
       // Leads nội bộ đọc thật từ repo
@@ -94,7 +103,7 @@ describe('TQ-07: Reports, Real Metrics, Exceptions & Event Consistency', () => {
         metric_name: 'sessions',
         period_from: today,
         period_to: today,
-        timezone: 'Asia/Bang_Chi_Minh',
+        timezone: 'Asia/Ho_Chi_Minh',
         currency: 'VND',
         metric_value: 1250,
         availability: 'available',

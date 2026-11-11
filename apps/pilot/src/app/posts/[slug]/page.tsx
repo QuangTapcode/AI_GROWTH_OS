@@ -42,7 +42,7 @@ export default async function PostPage({ params }: Params) {
       </article>
       <section id="request" className="request" aria-labelledby="request-title">
         <h2 id="request-title">{label}</h2>
-        <LeadForm topic={post.title} />
+        <LeadForm topic={post.title} slug={post.slug} />
       </section>
       <CommunityGroupCard slug={post.slug} />
     </main>

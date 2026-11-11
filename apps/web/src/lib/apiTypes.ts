@@ -136,6 +136,7 @@ export interface Campaign {
 export type MetricAvailability = "available" | "missing" | "partial" | "delayed";
 
 export interface MetricItem {
+  timezone?: string;
   metric: string;
   value: number | null;
   availability: MetricAvailability;
@@ -279,7 +280,7 @@ export interface MetricSeries {
   from: string;
   to: string;
   points: Array<{ date: string; value: number | null; availability: MetricAvailability; missing_reason: string | null }>;
-  availability: "available" | "missing";
+  availability: "available" | "missing" | "partial" | "delayed";
   missing_reason: string | null;
 }
 

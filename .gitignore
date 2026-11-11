@@ -16,6 +16,7 @@ coverage/
 *.tsbuildinfo
 infra/staging/.runtime/
 __pycache__/
+.pytest_cache/
 .venv/
 
 # Local diagnostics and test artifacts
@@ -38,6 +39,7 @@ services/ai/corpus/out/
 apps/worker/.worker-state/
 apps/worker/.fb-browser-profile/
 apps/worker/.fb-session.json
+apps/worker/.fb-group-metrics.json
 .fb-session.json
 .fb-browser-profile/
 
