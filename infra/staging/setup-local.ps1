@@ -1,4 +1,4 @@
-param(
+﻿param(
     # Bỏ qua Docker (Postgres/SearXNG đã chạy sẵn và infra/local/.env đã có)
     [switch]$SkipInfra
 )
@@ -43,7 +43,18 @@ function Invoke-Native([string]$description, [scriptblock]$command) {
 if (-not $SkipInfra) {
     foreach ($image in @('pgvector/pgvector:0.8.7-pg17-bookworm', 'searxng/searxng:latest')) {
         if (-not (Test-NativeCommand { docker image inspect $image --format '{{.Id}}' })) {
-            Invoke-Native ('docker pull ' + $image) { docker pull $image }
+            $pulled = $false
+            for ($attempt = 1; $attempt -le 5; $attempt++) {
+                Write-Host "Đang tải docker image $image (Lần thử $attempt/5)..." -ForegroundColor Cyan
+                & docker pull $image
+                if ($LASTEXITCODE -eq 0) {
+                    $pulled = $true
+                    break
+                }
+                Write-Warning "Mạng bị ngắt giữa chừng, đang tự động tải tiếp các layer còn lại sau 3 giây..."
+                Start-Sleep -Seconds 3
+            }
+            if (-not $pulled) { throw "Không thể tải image $image sau 5 lần thử. Vui lòng kiểm tra kết nối mạng." }
         }
     }
     & (Join-Path $repoRoot 'infra/local/bootstrap.ps1')
