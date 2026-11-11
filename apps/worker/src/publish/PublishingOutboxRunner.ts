@@ -1,7 +1,8 @@
 import type { Pool } from 'pg';
 import { createGatewayCheck } from './GatewayRecheckClient';
-import { defaultRegistry, type PublisherRegistry } from './CmsPublisher';
+import { defaultRegistry, type CmsPublishRequest, type PublisherRegistry } from './CmsPublisher';
 import { PublishJobProcessor, type PublishContext } from './PublishJobProcessor';
+import { SocialTokenManager } from './SocialTokenManager';
 import { recheckBeforeOutbox } from './gateway_recheck';
 
 type PublishChannel = PublishContext['channel'];
@@ -69,6 +70,11 @@ export class PublishingOutboxRunner {
       scheduled_for: string;
       status: string;
       mode: string;
+      media_url?: string | null;
+      media_path?: string | null;
+      media_type?: string | null;
+      custom_caption?: string | null;
+      tiktok_video_id?: string | null;
       body_markdown: string | null;
       content_title: string;
       artifact_id: string | null;
@@ -84,6 +90,7 @@ export class PublishingOutboxRunner {
       external_post_id: string | null;
     }>(`
       SELECT j.id, j.workspace_id, j.content_id, j.approval_id, j.scheduled_for, j.status, j.mode,
+             j.media_url, j.media_path, j.media_type, j.custom_caption, j.tiktok_video_id,
              c.body_markdown, c.title AS content_title, j.artifact_id,
              a.version AS artifact_version, a.content_hash, a.payload AS artifact_payload, a.evidence AS artifact_evidence,
              j.channel_id, ch.platform_name, ch.channel_identifier, j.utm_url,
@@ -218,6 +225,16 @@ export class PublishingOutboxRunner {
       `UPDATE publishing_jobs SET status = 'publishing' WHERE id = $1 AND status = 'scheduled'`,
       [job.id]
     );
+    if (job.tiktok_video_id) {
+      try {
+        await this.pool.query(
+          `UPDATE tiktok_videos SET status = 'publishing', error_message = NULL, updated_at = NOW() WHERE id = $1`,
+          [job.tiktok_video_id]
+        );
+      } catch {
+        // Ignore if table doesn't exist in mock tests
+      }
+    }
 
     const payload = job.artifact_payload ?? {};
     // The approved post carries its images in the artifact result; pick the first approved image that has
@@ -247,13 +264,24 @@ export class PublishingOutboxRunner {
       payloadResult.facebook && typeof payloadResult.facebook === 'object' ? payloadResult.facebook : {}
     ) as Record<string, unknown>;
     const resolvedBodyMarkdown =
+      asString(job.custom_caption) ??
       asString(job.body_markdown) ??
       (channel === 'Facebook' || channel === 'FacebookGroup' ? asString(payloadFacebook.text) : undefined) ??
       asString(payloadResult.caption) ??
       asString(payloadResult.body_markdown) ??
       asString(payload.document_markdown) ??
       '';
-    const resolvedMediaUrl = asString(payload.media_url ?? payload.mediaUrl ?? image?.url);
+    const resolvedMediaUrl = asString(
+      job.media_url ?? payload.media_url ?? payload.mediaUrl ?? payloadResult.media_url ?? image?.url
+    );
+    const resolvedMediaPath = asString(job.media_path ?? payload.media_path ?? payload.mediaPath);
+    const resolvedMediaType = asMediaType(
+      job.media_type ?? payload.media_type ?? payload.mediaType ?? payloadResult.media_type ?? (image ? 'image' : undefined)
+    );
+    const resolvedTikTokAuth =
+      channel === 'TikTok'
+        ? await this.resolveTikTokAuth(job.workspace_id, asString(payloadResult.privacy_level))
+        : undefined;
     const gatewayCheck = createGatewayCheck();
 
     let result;
@@ -269,11 +297,13 @@ export class PublishingOutboxRunner {
         metaTitle: job.content_title,
         linkUrl: job.utm_url ?? undefined,
         mediaUrl: resolvedMediaUrl,
-        mediaType: asMediaType(payload.media_type ?? payload.mediaType ?? (image ? 'image' : undefined)),
+        mediaPath: resolvedMediaPath,
+        mediaType: resolvedMediaType,
+        authOverride: resolvedTikTokAuth,
         expectedVersion: job.artifact_version,
         contentHash: job.content_hash,
         approvalId: job.approval_id ?? undefined,
-        isAiGenerated: Boolean(payload.is_ai_generated ?? payload.isAiGenerated ?? payload.ai_metadata ?? image?.synthetic),
+        isAiGenerated: Boolean(payload.is_ai_generated ?? payload.isAiGenerated ?? payload.ai_metadata ?? payloadResult.is_aigc ?? image?.synthetic),
         aiImageMeta: (payload.ai_metadata ?? payload.aiImageMeta) as Record<string, any> | undefined,
         ...(gatewayCheck ? { gatewayCheck } : {}),
       });
@@ -298,7 +328,10 @@ export class PublishingOutboxRunner {
           const publisher = this.registry.get(channel);
           if (publisher) {
             try {
-              const reconciled = await publisher.reconcile(result.externalPostId || idempotencyKey);
+              const queryKey = result.externalPostId || idempotencyKey;
+              const reconciled = resolvedTikTokAuth
+                ? await publisher.reconcile(queryKey, resolvedTikTokAuth)
+                : await publisher.reconcile(queryKey);
               if (reconciled.success && reconciled.externalPostId) {
                 // Bài ĐÃ lên platform! Hoàn tất xuất bản, không thử lại
                 return this.markPublished(event.id, job, reconciled.externalPostId, reconciled.publishedAt, {
@@ -361,6 +394,7 @@ export class PublishingOutboxRunner {
       body_markdown?: string | null;
       platform_name?: string;
       utm_url?: string | null;
+      tiktok_video_id?: string | null;
       artifact_payload?: Record<string, unknown> | null;
     },
     externalPostId: string | null,
@@ -373,6 +407,22 @@ export class PublishingOutboxRunner {
       [job.id, at, externalPostId]
     );
     await this.pool.query(`UPDATE contents SET status = 'published', published_at = $2 WHERE id = $1`, [job.content_id, at]);
+
+    if (job.tiktok_video_id) {
+      try {
+        await this.pool.query(
+          `UPDATE tiktok_videos
+              SET status = 'published',
+                  tiktok_publish_id = COALESCE($2, tiktok_publish_id),
+                  error_message = NULL,
+                  updated_at = NOW()
+            WHERE id = $1`,
+          [job.tiktok_video_id, externalPostId]
+        );
+      } catch {
+        // Ignore if table doesn't exist in mock tests
+      }
+    }
 
     // Sync community_group_posts when the published channel is facebook_group
     if (job.workspace_id && job.platform_name?.toLowerCase() === 'facebook_group') {
@@ -406,8 +456,8 @@ export class PublishingOutboxRunner {
       }
     }
 
-    // Tự động mở chủ đề thảo luận Cộng đồng khi bài đã hẹn giờ được xuất bản
-    if (job.workspace_id && job.content_title) {
+    // Tự động mở chủ đề thảo luận Cộng đồng khi bài đã hẹn giờ được xuất bản (bỏ qua TikTok)
+    if (job.workspace_id && job.content_title && job.platform_name?.toLowerCase() !== 'tiktok') {
       try {
         const exists = await this.pool.query(
           `SELECT 1 FROM community_hub_discussions WHERE workspace_id = $1 AND title = $2 LIMIT 1`,
@@ -475,7 +525,21 @@ export class PublishingOutboxRunner {
     }
   ): Promise<'failed'> {
     const detail = message ? `${code}: ${message}` : code;
-    if (jobId) await this.pool.query(`UPDATE publishing_jobs SET status = 'failed', error_message = $2 WHERE id = $1`, [jobId, detail]);
+    if (jobId) {
+      await this.pool.query(`UPDATE publishing_jobs SET status = 'failed', error_message = $2 WHERE id = $1`, [jobId, detail]);
+      try {
+        await this.pool.query(
+          `UPDATE tiktok_videos
+              SET status = 'failed',
+                  error_message = $2,
+                  updated_at = NOW()
+            WHERE publishing_job_id = $1`,
+          [jobId, detail]
+        );
+      } catch {
+        // Ignore if table doesn't exist in mock tests
+      }
+    }
     if (jobId && jobMeta?.workspace_id && jobMeta.platform_name?.toLowerCase() === 'facebook_group') {
       try {
         await this.pool.query(
@@ -505,6 +569,76 @@ export class PublishingOutboxRunner {
     }
     await this.pool.query(`UPDATE outbox_events SET status = 'failed', published_at = NOW() WHERE id = $1`, [eventId]);
     return 'failed';
+  }
+
+  private async resolveTikTokAuth(
+    workspaceId: string,
+    preferredPrivacy?: string
+  ): Promise<CmsPublishRequest['authOverride'] | undefined> {
+    try {
+      const res = await this.pool.query<{
+        open_id: string;
+        encrypted_access_token: string;
+        encrypted_refresh_token: string | null;
+        expires_at: string;
+        refresh_expires_at: string | null;
+      }>(
+        `SELECT open_id, encrypted_access_token, encrypted_refresh_token, expires_at, refresh_expires_at
+           FROM tiktok_oauth_tokens
+          WHERE workspace_id = $1
+          LIMIT 1`,
+        [workspaceId]
+      );
+      const row = res.rows[0];
+      if (!row?.encrypted_access_token) return undefined;
+
+      const tokenManager = new SocialTokenManager();
+      let accessToken = tokenManager.decrypt(row.encrypted_access_token);
+      const privacyLevel = preferredPrivacy || process.env.TIKTOK_PRIVACY_LEVEL || 'SELF_ONLY';
+
+      const expiresAtMs = new Date(row.expires_at).getTime();
+      const expiringSoon = Number.isFinite(expiresAtMs) && expiresAtMs - Date.now() < 300_000;
+      const clientId = process.env.TIKTOK_CLIENT_KEY?.trim();
+      const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
+
+      if (expiringSoon && row.encrypted_refresh_token && clientId && clientSecret) {
+        const refreshToken = tokenManager.decrypt(row.encrypted_refresh_token);
+        const refreshed = await tokenManager.refreshToken({
+          channel: 'TikTok',
+          accessToken,
+          refreshToken,
+          clientId,
+          clientSecret,
+        });
+        if (refreshed.success && refreshed.accessToken) {
+          accessToken = refreshed.accessToken;
+          const nextAccessEnc = tokenManager.encrypt(refreshed.accessToken);
+          const nextRefreshEnc = refreshed.refreshToken ? tokenManager.encrypt(refreshed.refreshToken) : null;
+          const nextExpiresAt = new Date(Date.now() + (refreshed.expiresIn ?? 86400) * 1000).toISOString();
+          const nextRefreshExpiresAt = refreshed.refreshExpiresIn
+            ? new Date(Date.now() + refreshed.refreshExpiresIn * 1000).toISOString()
+            : null;
+          await this.pool.query(
+            `UPDATE tiktok_oauth_tokens
+                SET encrypted_access_token = $2,
+                    encrypted_refresh_token = COALESCE($3, encrypted_refresh_token),
+                    expires_at = $4,
+                    refresh_expires_at = COALESCE($5, refresh_expires_at),
+                    updated_at = NOW()
+              WHERE workspace_id = $1`,
+            [workspaceId, nextAccessEnc, nextRefreshEnc, nextExpiresAt, nextRefreshExpiresAt]
+          );
+        }
+      }
+
+      return {
+        accessToken,
+        openId: row.open_id,
+        privacyLevel,
+      };
+    } catch {
+      return undefined;
+    }
   }
 }
 

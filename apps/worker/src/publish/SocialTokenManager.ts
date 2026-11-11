@@ -16,6 +16,7 @@ export interface RefreshResult {
   accessToken?: string;
   refreshToken?: string;
   expiresIn?: number;
+  refreshExpiresIn?: number;
   errorMessage?: string;
 }
 
@@ -30,7 +31,11 @@ export class SocialTokenManager {
   private readonly store = new Map<string, StoredTokenData>();
 
   constructor(customKey?: string) {
-    const rawKey = customKey || process.env.TOKEN_ENCRYPTION_KEY || 'default_secret_key_tripc_growth_os_32bytes!!';
+    const rawKey =
+      customKey ||
+      process.env.TOKEN_ENCRYPTION_KEY ||
+      process.env.AUTH_SECRET ||
+      'default_secret_key_tripc_growth_os_32bytes!!';
     // Đảm bảo đúng 32 bytes (256 bits) cho AES-256-GCM
     this.encryptionKey = crypto.createHash('sha256').update(rawKey).digest();
   }
@@ -220,17 +225,23 @@ export class SocialTokenManager {
           body: body.toString(),
         });
         const data = (await res.json()) as any;
-        if (!res.ok || data.error?.code || !data.data?.access_token) {
+        const tokenData = data?.data && typeof data.data === 'object' ? data.data : data;
+        const errCode = data?.error?.code || (typeof data?.error === 'string' ? data.error : undefined);
+        if (!res.ok || (errCode && errCode !== 'ok') || !tokenData?.access_token) {
           return {
             success: false,
-            errorMessage: data.error?.message || `TikTok token refresh failed with HTTP ${res.status}`,
+            errorMessage:
+              data?.error?.message ||
+              data?.error_description ||
+              `TikTok token refresh failed with HTTP ${res.status}`,
           };
         }
         return {
           success: true,
-          accessToken: data.data.access_token,
-          refreshToken: data.data.refresh_token,
-          expiresIn: data.data.expires_in,
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          expiresIn: tokenData.expires_in,
+          refreshExpiresIn: tokenData.refresh_expires_in,
         };
       } catch (err) {
         return {

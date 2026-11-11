@@ -33,7 +33,13 @@ export interface PublishContext {
   contentHash: string;
   linkUrl?: string;
   mediaUrl?: string;
+  mediaPath?: string;
   mediaType?: 'video' | 'image';
+  authOverride?: {
+    accessToken: string;
+    openId?: string;
+    privacyLevel?: string;
+  };
   isAiGenerated?: boolean;
   aiImageMeta?: Record<string, any>;
   /** TQ-06 gateway recheck tại execution (MY-05): approval/version/hash. */
@@ -106,7 +112,9 @@ export class PublishJobProcessor {
       workspaceId: ctx.workspaceId,
       linkUrl: ctx.linkUrl,
       mediaUrl: ctx.mediaUrl,
+      mediaPath: ctx.mediaPath,
       mediaType: ctx.mediaType,
+      authOverride: ctx.authOverride,
       isAiGenerated: ctx.isAiGenerated,
       aiImageMeta: ctx.aiImageMeta,
     };
@@ -163,7 +171,9 @@ export class PublishJobProcessor {
       // Timeout or unknown outcome → attempt reconciliation instead of blind retry
       if (result.errorCode === 'CMS_TIMEOUT' || result.errorCode === 'CMS_UNKNOWN_OUTCOME') {
         const queryKey = result.externalPostId || ctx.idempotencyKey || '';
-        const reconciled = await publisher.reconcile(queryKey);
+        const reconciled = ctx.authOverride
+          ? await publisher.reconcile(queryKey, ctx.authOverride)
+          : await publisher.reconcile(queryKey);
         if (reconciled.success) {
           return { ...reconciled, success: true };
         }

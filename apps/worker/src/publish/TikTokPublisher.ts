@@ -1,12 +1,40 @@
+import fs from 'node:fs';
 import type { CmsPublisher, CmsPublishRequest, CmsPublishResult } from './CmsPublisher';
 import { generateManualPack, type ManualPack } from './ManualPackGenerator';
+
+const SINGLE_CHUNK_MAX_BYTES = 64 * 1024 * 1024; // TikTok allows single-chunk uploads up to 64 MB
+const MULTI_CHUNK_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per chunk for > 64 MB videos
+
+/**
+ * Compute TikTok FILE_UPLOAD chunk parameters respecting TikTok's 5 MB–64 MB rules:
+ * - <= 64 MB: single chunk equal to exact video size.
+ * - > 64 MB: 10 MB chunks, floor division so final chunk carries remainder (>= 10 MB, < 20 MB).
+ */
+export function calculateTikTokChunkPlan(videoSize: number): {
+  videoSize: number;
+  chunkSize: number;
+  totalChunkCount: number;
+} {
+  if (!Number.isFinite(videoSize) || videoSize <= 0) {
+    throw new Error('Video file is empty.');
+  }
+  if (videoSize <= SINGLE_CHUNK_MAX_BYTES) {
+    return { videoSize, chunkSize: videoSize, totalChunkCount: 1 };
+  }
+  const totalChunkCount = Math.floor(videoSize / MULTI_CHUNK_SIZE_BYTES);
+  return {
+    videoSize,
+    chunkSize: MULTI_CHUNK_SIZE_BYTES,
+    totalChunkCount,
+  };
+}
 
 /**
  * TikTok Content Posting API Adapter (Direct Post video/photo).
  *
  * Tuân thủ chính sách hiện hành của TikTok:
- * 1. Direct Post video (/v2/post/publish/video/init/) hoặc Photo Mode (/v2/post/publish/content/init/).
- * 2. Media URL công khai đã xác thực (HTTP/HTTPS).
+ * 1. Direct Post video (/v2/post/publish/video/init/) qua FILE_UPLOAD hoặc PULL_FROM_URL, hoặc Photo Mode (/v2/post/publish/content/init/).
+ * 2. Media file (.mp4/.mov) cục bộ hoặc URL công khai đã xác thực (HTTP/HTTPS).
  * 3. tiktok_privacy_level mặc định SELF_ONLY khi thử nghiệm (an toàn tuyệt đối).
  * 4. Nhãn nội dung AI (is_aigc: true) theo chính sách AIGC hiện hành của TikTok.
  * 5. Fallback tự động sang ManualPackGenerator khi bị từ chối quyền (401/403 Permission Denied - chưa duyệt app).
@@ -52,28 +80,59 @@ export class TikTokPublisher implements CmsPublisher {
   }
 
   async publish(req: CmsPublishRequest): Promise<CmsPublishResult & { manualPack?: ManualPack }> {
-    if (!req.mediaUrl || !TikTokPublisher.isValidPublicMediaUrl(req.mediaUrl)) {
+    const hasFileUpload = Boolean(req.mediaPath && fs.existsSync(req.mediaPath));
+    const hasValidUrl = Boolean(req.mediaUrl && TikTokPublisher.isValidPublicMediaUrl(req.mediaUrl));
+
+    if (req.mediaPath && !hasFileUpload && !hasValidUrl) {
       return {
         success: false,
-        errorCode: 'TIKTOK_MEDIA_REQUIRED',
-        errorMessage: 'TikTok Direct Post requires an approved, validated public video or image URL (http/https)',
+        errorCode: 'TIKTOK_MEDIA_FILE_MISSING',
+        errorMessage: `Uploaded TikTok video file is missing for content ${req.contentId}`,
       };
     }
 
+    if (!hasFileUpload && !hasValidUrl) {
+      return {
+        success: false,
+        errorCode: 'TIKTOK_MEDIA_REQUIRED',
+        errorMessage: 'TikTok Direct Post requires an approved, validated public video/image URL (http/https) or local .mp4 upload',
+      };
+    }
+
+    const activeToken = (req.authOverride?.accessToken || this.accessToken || '').trim();
+    if (!activeToken) {
+      return {
+        success: false,
+        errorCode: 'TIKTOK_ACCOUNT_NOT_CONNECTED',
+        errorMessage: 'TikTok account is not connected. Connect TikTok in Workspace or Distribution first.',
+      };
+    }
+
+    const authOverride: CmsPublishRequest['authOverride'] = {
+      accessToken: activeToken,
+      openId: req.authOverride?.openId || this.openId,
+      privacyLevel: TikTokPublisher.validatePrivacyLevel(req.authOverride?.privacyLevel || this.privacyLevel),
+    };
+
     const isAiGenerated = Boolean(req.isAiGenerated || req.aiImageMeta);
-    let title = (req.metaTitle || toPlainText(req.bodyMarkdown)).slice(0, 2200);
+    const plainBody = toPlainTextKeepHashtags(req.bodyMarkdown);
+    let title = (plainBody || (req.metaTitle ? req.metaTitle.trim() : '')).slice(0, 2200);
 
     // Gắn nhãn AIGC trong caption theo chính sách TikTok
     if (isAiGenerated && !title.includes('#AIGC')) {
-      title = `${title} #AIGC #AIcontent`.trim();
+      const suffix = ' #AIGC #AIcontent';
+      title =
+        title.length + suffix.length <= 2200
+          ? `${title}${suffix}`.trim()
+          : `${title.slice(0, 2200 - suffix.length).trim()}${suffix}`;
     }
 
-    const isImageMode = req.mediaType === 'image';
+    const isImageMode = !hasFileUpload && req.mediaType === 'image';
     const path = isImageMode ? '/v2/post/publish/content/init/' : '/v2/post/publish/video/init/';
 
     const postInfo: Record<string, unknown> = {
       title,
-      privacy_level: this.privacyLevel,
+      privacy_level: authOverride.privacyLevel,
       disable_duet: false,
       disable_stitch: false,
       disable_comment: false,
@@ -81,8 +140,32 @@ export class TikTokPublisher implements CmsPublisher {
     };
 
     let requestBody: Record<string, unknown>;
+    let chunkPlan: { videoSize: number; chunkSize: number; totalChunkCount: number } | null = null;
 
-    if (isImageMode) {
+    if (hasFileUpload && req.mediaPath) {
+      const stat = fs.statSync(req.mediaPath);
+      try {
+        chunkPlan = calculateTikTokChunkPlan(stat.size);
+      } catch (err) {
+        return {
+          success: false,
+          errorCode: 'TIKTOK_MEDIA_INVALID',
+          errorMessage: err instanceof Error ? err.message : 'Uploaded TikTok video file is empty.',
+        };
+      }
+      requestBody = {
+        post_info: {
+          ...postInfo,
+          video_cover_timestamp_ms: 1000,
+        },
+        source_info: {
+          source: 'FILE_UPLOAD',
+          video_size: chunkPlan.videoSize,
+          chunk_size: chunkPlan.chunkSize,
+          total_chunk_count: chunkPlan.totalChunkCount,
+        },
+      };
+    } else if (isImageMode) {
       // Photo Mode (Direct Post Content)
       requestBody = {
         post_info: {
@@ -98,7 +181,7 @@ export class TikTokPublisher implements CmsPublisher {
         media_type: 'PHOTO',
       };
     } else {
-      // Video Direct Post
+      // Video Direct Post (PULL_FROM_URL)
       requestBody = {
         post_info: {
           ...postInfo,
@@ -112,7 +195,7 @@ export class TikTokPublisher implements CmsPublisher {
     }
 
     try {
-      const response = await this.request(path, requestBody);
+      const response = await this.request(path, requestBody, authOverride);
 
       if (!response.ok || typeof response.payload?.data?.publish_id !== 'string') {
         const isPermissionDenied =
@@ -156,6 +239,22 @@ export class TikTokPublisher implements CmsPublisher {
       }
 
       const publishId = response.payload.data.publish_id as string;
+
+      if (hasFileUpload && req.mediaPath && chunkPlan) {
+        const uploadUrl = response.payload?.data?.upload_url;
+        if (typeof uploadUrl !== 'string' || !uploadUrl.trim()) {
+          return {
+            success: false,
+            externalPostId: publishId,
+            errorCode: 'TIKTOK_PUBLISH_FAILED',
+            errorMessage: 'TikTok video/init response did not contain upload_url for FILE_UPLOAD.',
+          };
+        }
+
+        const uploadResult = await this.uploadFileChunks(req.mediaPath, uploadUrl, chunkPlan, publishId);
+        if (uploadResult) return uploadResult;
+      }
+
       return { success: true, externalPostId: publishId, publishedAt: new Date() };
     } catch (error) {
       return {
@@ -166,7 +265,66 @@ export class TikTokPublisher implements CmsPublisher {
     }
   }
 
-  async reconcile(externalPostId: string): Promise<CmsPublishResult> {
+  private async uploadFileChunks(
+    filePath: string,
+    uploadUrl: string,
+    plan: { videoSize: number; chunkSize: number; totalChunkCount: number },
+    publishId: string
+  ): Promise<CmsPublishResult | null> {
+    const timeoutMs = Number(process.env.TIKTOK_UPLOAD_TIMEOUT_MS || 120000);
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      for (let chunkIndex = 0; chunkIndex < plan.totalChunkCount; chunkIndex++) {
+        const start = chunkIndex * plan.chunkSize;
+        const endExclusive = chunkIndex === plan.totalChunkCount - 1 ? plan.videoSize : start + plan.chunkSize;
+        const length = endExclusive - start;
+        const buf = Buffer.allocUnsafe(length);
+
+        let offset = 0;
+        while (offset < length) {
+          const bytesRead = fs.readSync(fd, buf, offset, length - offset, start + offset);
+          if (bytesRead <= 0) {
+            return {
+              success: false,
+              externalPostId: publishId,
+              errorCode: 'TIKTOK_UPLOAD_FAILED',
+              errorMessage: `Unexpected EOF reading chunk ${chunkIndex + 1}/${plan.totalChunkCount}`,
+            };
+          }
+          offset += bytesRead;
+        }
+
+        const chunkRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'video/mp4',
+            'Content-Length': String(length),
+            'Content-Range': `bytes ${start}-${endExclusive - 1}/${plan.videoSize}`,
+          },
+          body: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+
+        if (!chunkRes.ok) {
+          const isTransient = chunkRes.status === 408 || chunkRes.status >= 500;
+          return {
+            success: false,
+            externalPostId: publishId,
+            errorCode: isTransient ? 'CMS_TIMEOUT' : 'TIKTOK_UPLOAD_FAILED',
+            errorMessage: `TikTok upload_url chunk ${chunkIndex + 1}/${plan.totalChunkCount} failed with HTTP ${chunkRes.status}`,
+          };
+        }
+      }
+      return null;
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
+  async reconcile(
+    externalPostId: string,
+    authOverride?: CmsPublishRequest['authOverride']
+  ): Promise<CmsPublishResult> {
     if (!externalPostId) return { success: false, errorCode: 'TIKTOK_RECONCILE_MISSING_ID' };
 
     // Nếu là manual fallback pack, đối soát thành công ngay
@@ -175,7 +333,11 @@ export class TikTokPublisher implements CmsPublisher {
     }
 
     try {
-      const response = await this.request('/v2/post/publish/status/fetch/', { publish_id: externalPostId });
+      const response = await this.request(
+        '/v2/post/publish/status/fetch/',
+        { publish_id: externalPostId },
+        authOverride
+      );
       if (!response.ok) {
         return {
           success: false,
@@ -201,12 +363,18 @@ export class TikTokPublisher implements CmsPublisher {
     }
   }
 
-  private async request(path: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; payload: Record<string, any> }> {
+  private async request(
+    path: string,
+    body: Record<string, unknown>,
+    authOverride?: CmsPublishRequest['authOverride']
+  ): Promise<{ ok: boolean; status: number; payload: Record<string, any> }> {
+    const token = authOverride?.accessToken || this.accessToken;
+    const openId = authOverride?.openId || this.openId;
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.accessToken}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json; charset=UTF-8',
     };
-    if (this.openId) headers['X-Open-Id'] = this.openId;
+    if (openId) headers['X-Open-Id'] = openId;
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers,
@@ -224,8 +392,20 @@ export class TikTokPublisher implements CmsPublisher {
   }
 }
 
-function toPlainText(markdown: string): string {
-  return markdown.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim();
+export function toPlainTextKeepHashtags(markdown: string): string {
+  if (!markdown) return '';
+  return markdown
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^[ \t]*#{1,6}[ \t]+/gm, '')
+    .replace(/^[ \t]*>[ \t]?/gm, '')
+    .replace(/\*\*|__|`/g, '')
+    .replace(/(^|[^\p{L}\p{N}_])_([^_\n]+)_(?=[^\p{L}\p{N}_]|$)/gu, '$1$2')
+    .replace(/\*/g, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function providerError(payload: Record<string, any>, status: number): string {
