@@ -1122,6 +1122,175 @@ export class CommunityHubService {
     return moved.length;
   }
 
+  /**
+   * Pairs any active/failed scheduled `facebook_group` jobs with a `facebook` (Fanpage) job
+   * sharing the same `scheduled_for` slot when `publish_target === 'both'`.
+   */
+  async syncScheduledGroupJobsToFanpage(workspaceId: string): Promise<number> {
+    const fbChannel = (
+      await this.pool.query<{ id: string }>(
+        "SELECT id FROM channels WHERE workspace_id = $1 AND platform_name = 'facebook' ORDER BY created_at LIMIT 1",
+        [workspaceId],
+      )
+    ).rows[0];
+    if (!fbChannel) return 0;
+
+    const fbConnRow = (
+      await this.pool
+        .query<{ status: string | null; verified_at: Date | string | null }>(
+          `SELECT status, verified_at
+             FROM integration_connections
+            WHERE workspace_id = $1 AND provider = 'facebook_page'
+            ORDER BY updated_at DESC LIMIT 1`,
+          [workspaceId],
+        )
+        .catch(() => ({ rows: [] as { status: string | null; verified_at: Date | string | null }[] }))
+    ).rows[0];
+    const hasEnvFanpage =
+      (process.env.INTEGRATION_MODE ?? 'fake') === 'production' &&
+      Boolean(process.env.FACEBOOK_PAGE_ID?.trim()) &&
+      Boolean(process.env.FACEBOOK_PAGE_ACCESS_TOKEN?.trim());
+    const fanpageConnected =
+      Boolean(fbConnRow?.status === 'connected' && fbConnRow?.verified_at) || (!fbConnRow && hasEnvFanpage);
+    const mode = fanpageConnected ? 'live' : 'manual';
+
+    const groupJobs = (
+      await this.pool.query<{
+        id: string;
+        content_id: string | null;
+        artifact_id: string | null;
+        approval_id: string | null;
+        scheduled_for: Date | string;
+        utm_url: string | null;
+        source_id: string | null;
+      }>(
+        `SELECT j.id, j.content_id, j.artifact_id, j.approval_id, j.scheduled_for, j.utm_url,
+                a.evidence->0->>'source_id' AS source_id
+           FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id AND ch.workspace_id = j.workspace_id
+           LEFT JOIN content_artifacts a ON a.id = j.artifact_id
+          WHERE j.workspace_id = $1
+            AND ch.platform_name = 'facebook_group'
+            AND j.status IN ('scheduled', 'failed', 'publishing')
+          ORDER BY j.scheduled_for ASC`,
+        [workspaceId],
+      )
+    ).rows;
+
+    if (groupJobs.length === 0) return 0;
+
+    const existingFanpageRows = (
+      await this.pool.query<{
+        id: string;
+        artifact_id: string | null;
+        source_id: string | null;
+        status: string;
+        error_message: string | null;
+      }>(
+        `SELECT j.id, j.artifact_id, a.evidence->0->>'source_id' AS source_id, j.status, j.error_message
+           FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id AND ch.workspace_id = j.workspace_id
+           LEFT JOIN content_artifacts a ON a.id = j.artifact_id
+          WHERE j.workspace_id = $1
+            AND ch.platform_name = 'facebook'
+            AND COALESCE(j.external_post_id, '') NOT LIKE 'newsletter_%'`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const activeOrPublishedArtifactIds = new Set(
+      existingFanpageRows
+        .filter((r) => r.status === 'published' || r.status === 'scheduled' || r.status === 'publishing')
+        .map((r) => r.artifact_id)
+        .filter(Boolean) as string[],
+    );
+    const activeOrPublishedSourceIds = new Set(
+      existingFanpageRows
+        .filter((r) => r.status === 'published' || r.status === 'scheduled' || r.status === 'publishing')
+        .map((r) => r.source_id)
+        .filter(Boolean) as string[],
+    );
+
+    let pairedCount = 0;
+    for (const gJob of groupJobs) {
+      if (!gJob.content_id || !gJob.artifact_id) continue;
+      if (activeOrPublishedArtifactIds.has(gJob.artifact_id)) continue;
+      if (gJob.source_id && activeOrPublishedSourceIds.has(gJob.source_id)) continue;
+
+      const scheduledIso =
+        gJob.scheduled_for instanceof Date
+          ? gJob.scheduled_for.toISOString()
+          : new Date(gJob.scheduled_for).toISOString();
+
+      const reusableRow = existingFanpageRows.find(
+        (r) =>
+          r.artifact_id === gJob.artifact_id &&
+          (r.status === 'cancelled' || (r.status === 'failed' && (r.error_message || '').includes('PUBLISH_TARGET_GROUP_ONLY'))),
+      );
+
+      let fanpageJobId: string | undefined;
+      if (reusableRow) {
+        await this.pool.query(
+          `UPDATE publishing_jobs
+              SET scheduled_for = $2,
+                  status = 'scheduled',
+                  mode = $3,
+                  utm_url = COALESCE($4, utm_url),
+                  error_message = NULL
+            WHERE id = $1 AND workspace_id = $5`,
+          [reusableRow.id, scheduledIso, mode, gJob.utm_url, workspaceId],
+        );
+        fanpageJobId = reusableRow.id;
+      } else {
+        const inserted = (
+          await this.pool.query<{ id: string }>(
+            `INSERT INTO publishing_jobs
+               (content_id, channel_id, scheduled_for, status, workspace_id, artifact_id, approval_id, mode, created_by, utm_url)
+             VALUES ($1, $2, $3, 'scheduled', $4, $5, $6, $7, $8, $9)
+             RETURNING id`,
+            [
+              gJob.content_id,
+              fbChannel.id,
+              scheduledIso,
+              workspaceId,
+              gJob.artifact_id,
+              gJob.approval_id,
+              mode,
+              '11111111-1111-4000-8000-000000000001',
+              gJob.utm_url,
+            ],
+          )
+        ).rows[0];
+        fanpageJobId = inserted?.id;
+      }
+
+      if (fanpageJobId) {
+        await this.pool.query(
+          `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
+           VALUES ($1, 'publishing.scheduled', $2, $3, 'pending', 0)
+           ON CONFLICT (workspace_id, dedup_key)
+           DO UPDATE SET status = 'pending', retry_count = 0, payload = EXCLUDED.payload`,
+          [
+            workspaceId,
+            `publish:${fanpageJobId}`,
+            JSON.stringify({
+              job_id: fanpageJobId,
+              artifact_id: gJob.artifact_id,
+              approval_id: gJob.approval_id,
+              channel_id: fbChannel.id,
+              mode,
+            }),
+          ],
+        );
+        activeOrPublishedArtifactIds.add(gJob.artifact_id);
+        if (gJob.source_id) activeOrPublishedSourceIds.add(gJob.source_id);
+        pairedCount++;
+      }
+    }
+
+    return pairedCount;
+  }
+
   async updateCommunitySettings(
     workspaceId: string,
     input: {
@@ -1237,6 +1406,7 @@ export class CommunityHubService {
       await this.migrateScheduledJobsToGroupChannel(workspaceId, nextGroupUrl, nextName);
     } else if (nextPublishTarget === 'both') {
       await this.ensureGroupChannel(workspaceId, nextGroupUrl, nextName);
+      await this.syncScheduledGroupJobsToFanpage(workspaceId);
     }
 
     return this.getCommunitySettings(workspaceId);
@@ -5068,6 +5238,9 @@ export class CommunityHubService {
     const targetMode = settings.publish_target;
 
     await this.ensurePlaybookTopicsScheduled(workspaceId, undefined, actorId, settings);
+    if (targetMode === 'both') {
+      await this.syncScheduledGroupJobsToFanpage(workspaceId);
+    }
 
     const intervalMs = Math.max(1, Number(options.interval_hours ?? 24)) * 3600_000;
     const nowUtc = new Date();
@@ -5121,25 +5294,43 @@ export class CommunityHubService {
     }
 
     const scheduledRows = (
-      await this.pool.query<{ id: string; title: string; platform_name: string }>(
-        `SELECT j.id, c.title, ch.platform_name
+      await this.pool.query<{
+        id: string;
+        title: string;
+        platform_name: string;
+        source_id: string | null;
+        content_id: string | null;
+      }>(
+        `SELECT j.id, c.title, ch.platform_name,
+                a.evidence->0->>'source_id' AS source_id,
+                j.content_id
            FROM publishing_jobs j
            JOIN channels ch ON ch.id = j.channel_id
            JOIN contents c ON c.id = j.content_id
+           LEFT JOIN content_artifacts a ON a.id = j.artifact_id
           WHERE j.workspace_id = $1
             AND ${targetPlatformClause}
             AND j.status IN ('scheduled', 'failed')
-          ORDER BY j.scheduled_for ASC, c.title ASC`,
+          ORDER BY j.scheduled_for ASC, c.title ASC, ch.platform_name DESC`,
         [workspaceId],
       )
     ).rows;
 
+    const slotIndexByTopicKey = new Map<string, number>();
+    let nextSlotIndex = 0;
+
     for (let i = 0; i < scheduledRows.length; i++) {
       const row = scheduledRows[i];
+      const topicKey = row.source_id || row.content_id || row.title?.trim().toLowerCase() || row.id;
+      let slotIndex = slotIndexByTopicKey.get(topicKey);
+      if (slotIndex === undefined) {
+        slotIndex = nextSlotIndex++;
+        slotIndexByTopicKey.set(topicKey, slotIndex);
+      }
       const slotUtc =
-        snapFutureSlotsToNineAmVn && i >= 1 && intervalMs === 24 * 3600_000
-          ? new Date(Date.UTC(vnYear, vnMonth, vnDay + i, 2, 0, 0))
-          : new Date(startUtc.getTime() + i * intervalMs);
+        snapFutureSlotsToNineAmVn && slotIndex >= 1 && intervalMs === 24 * 3600_000
+          ? new Date(Date.UTC(vnYear, vnMonth, vnDay + slotIndex, 2, 0, 0))
+          : new Date(startUtc.getTime() + slotIndex * intervalMs);
       if (row.platform_name === 'facebook_group') {
         await this.pool.query(
           `UPDATE publishing_jobs

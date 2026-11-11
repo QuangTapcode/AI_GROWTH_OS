@@ -1314,5 +1314,104 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
       } catch {}
     }
   });
+
+  it('scheduleAllPlaybookPosts keeps Group and Fanpage jobs on the same daily slot when publish_target = "both"', async () => {
+    const updatedSchedules: { jobId: string; scheduledFor: string }[] = [];
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM integration_connections')) {
+        return { rows: [{ account_ref: '1381196421750749', display_name: 'Dịch vụ hỗ trợ du lịch' }] };
+      }
+      if (sql.includes('SELECT * FROM community_hub_settings')) {
+        return {
+          rows: [
+            {
+              community_name: 'Cộng đồng Du lịch & Sống tại Việt Nam',
+              group_url: 'https://www.facebook.com/groups/1134282109069209',
+              publish_target: 'both',
+              page_name: 'Dịch vụ hỗ trợ du lịch',
+              page_url: 'https://www.facebook.com/profile.php?id=61596152213281',
+              positioning: 'Cộng đồng',
+              group_member_count: 5,
+              week1_target: 5,
+              week2_target: 10,
+              week3_target: 18,
+              week4_target: 30,
+              updated_at: new Date(),
+            },
+          ],
+        };
+      }
+      if (sql.includes("platform_name = 'facebook_group'")) {
+        return {
+          rows: [
+            {
+              id: GROUP_CHANNEL_ID,
+              channel_identifier: 'https://www.facebook.com/groups/1134282109069209',
+              display_name: 'Cộng đồng Du lịch & Sống tại Việt Nam',
+            },
+          ],
+        };
+      }
+      if (sql.includes("platform_name = 'facebook'")) {
+        return { rows: [{ id: FANPAGE_CHANNEL_ID }] };
+      }
+      if (sql.includes('SELECT count(*)::int AS n FROM community_hub_discussions')) return { rows: [{ n: 1 }] };
+      if (sql.includes('FROM community_hub_discussions') && sql.includes('LIKE')) return { rows: [{ n: 0 }] };
+      if (sql.includes('FROM sources') && sql.includes("https://tripc.ai/blog/%")) {
+        return { rows: [] };
+      }
+      if (sql.includes('SELECT count(*)::int AS cnt') && sql.includes('FROM publishing_jobs')) {
+        return { rows: [{ cnt: 0 }] };
+      }
+      if (sql.includes('ch.platform_name,') && sql.includes('FROM publishing_jobs j')) {
+        return {
+          rows: [
+            {
+              id: 'job-grp-a',
+              title: 'Topic A',
+              platform_name: 'facebook_group',
+              source_id: 'src-a',
+              content_id: 'cnt-a',
+            },
+            {
+              id: 'job-fp-a',
+              title: 'Topic A',
+              platform_name: 'facebook',
+              source_id: 'src-a',
+              content_id: 'cnt-a',
+            },
+            {
+              id: 'job-grp-b',
+              title: 'Topic B',
+              platform_name: 'facebook_group',
+              source_id: 'src-b',
+              content_id: 'cnt-b',
+            },
+          ],
+        };
+      }
+      if (sql.includes('UPDATE publishing_jobs') && sql.includes('SET scheduled_for = $2')) {
+        updatedSchedules.push({
+          jobId: String(params?.[0]),
+          scheduledFor: String(params?.[1]),
+        });
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const service = new CommunityHubService({ query, connect: vi.fn() } as unknown as Pool);
+    const res = await service.scheduleAllPlaybookPosts(WORKSPACE_ID, ACTOR_ID, {
+      start_date_iso: '2026-11-12T02:00:00.000Z',
+      interval_hours: 24,
+    });
+
+    expect(res.publish_target).toBe('both');
+    expect(updatedSchedules).toEqual([
+      { jobId: 'job-grp-a', scheduledFor: '2026-11-12T02:00:00.000Z' },
+      { jobId: 'job-fp-a', scheduledFor: '2026-11-12T02:00:00.000Z' },
+      { jobId: 'job-grp-b', scheduledFor: '2026-11-13T02:00:00.000Z' },
+    ]);
+  });
 });
 
