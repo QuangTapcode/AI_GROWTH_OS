@@ -110,10 +110,15 @@ try {
     do {
         $ready = 0
         foreach ($service in $services) {
-            try {
-                $health = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $service.port + '/health') -TimeoutSec 2
-                if ($health.status -eq 'ok' -and $health.service -eq ('ai-growth-os-' + $service.name)) { $ready++ }
-            } catch { }
+            foreach ($healthPath in @('/health', '/health/')) {
+                try {
+                    $health = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $service.port + $healthPath) -TimeoutSec 2
+                    if ($health.status -eq 'ok' -and $health.service -eq ('ai-growth-os-' + $service.name)) {
+                        $ready++
+                        break
+                    }
+                } catch { }
+            }
         }
         if ($ready -eq $services.Count) { break }
         Start-Sleep -Milliseconds 500
