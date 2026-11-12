@@ -17,6 +17,7 @@ const schema = z.object({
   interval_hours: z.number().int().min(1).max(168).default(24),
   publish_website: z.boolean().default(true),
   publish_facebook: z.boolean().default(false),
+  publish_tiktok: z.boolean().optional(),
   // Owner-declared target for the leads KPI; required when the workspace has no goal yet.
   lead_target: z.number().int().min(0).max(1_000_000).optional(),
 }).strict();
@@ -67,11 +68,12 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
       await new PgPlanRepository(pool).issueContext(tenant.workspaceId);
     }
     await pool.query(
-      `INSERT INTO agent_automation(workspace_id,actor_id,enabled,interval_hours,cta,auto_approve_outputs,auto_publish_facebook,auto_publish_website)
-       VALUES($1,$2,true,$3,$4,true,$5,$6)
+      `INSERT INTO agent_automation(workspace_id,actor_id,enabled,interval_hours,cta,auto_approve_outputs,auto_publish_facebook,auto_publish_website,auto_publish_tiktok)
+       VALUES($1,$2,true,$3,$4,true,$5,$6,COALESCE($7,false))
        ON CONFLICT(workspace_id) DO UPDATE SET actor_id=$2,enabled=true,interval_hours=$3,cta=$4,
-         auto_approve_outputs=true,auto_publish_facebook=$5,auto_publish_website=$6,updated_at=now()`,
-      [tenant.workspaceId, tenant.user.id, body.interval_hours, body.cta, body.publish_facebook, body.publish_website],
+         auto_approve_outputs=true,auto_publish_facebook=$5,auto_publish_website=$6,
+         auto_publish_tiktok=COALESCE($7,agent_automation.auto_publish_tiktok),updated_at=now()`,
+      [tenant.workspaceId, tenant.user.id, body.interval_hours, body.cta, body.publish_facebook, body.publish_website, body.publish_tiktok ?? null],
     );
     const tick = await tickAutomation(pool, tenant.workspaceId, true);
     return NextResponse.json({ status: 'started', goal_changed: goalChanged, tick }, { status: 202 });

@@ -423,6 +423,22 @@ export async function saveTikTokOAuthConnection(input: {
     );
 
     await client.query(
+      `UPDATE agent_automation
+          SET auto_publish_tiktok = true,
+              updated_at = NOW()
+        WHERE workspace_id = $1`,
+      [input.workspaceId],
+    );
+
+    await client.query(
+      `UPDATE channels
+          SET display_name = $2,
+              channel_identifier = $3
+        WHERE workspace_id = $1 AND platform_name = 'tiktok'`,
+      [input.workspaceId, `TikTok (${displayName})`, input.tokens.open_id],
+    );
+
+    await client.query(
       `INSERT INTO audit_events (workspace_id, actor_id, action, entity_type, entity_id, details)
        VALUES ($1, $2, 'integration.tiktok.connected', 'integration', $1, $3)`,
       [
