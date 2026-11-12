@@ -9,6 +9,11 @@ import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { planSchema } from '../campaignPlans/schemas';
 import { getWorkspaceConnectionStatus } from '../integrations/stubs';
+import {
+  buildTikTokCaptionFromArtifact,
+  getTikTokConnectionSummary,
+  validatePrivacyLevel,
+} from '../integrations/tiktok';
 import { publishSeoArtifact } from '../site/publish';
 import { processReceivedCommunityMessages } from './service';
 import {
@@ -5498,7 +5503,7 @@ export class CommunityHubService {
 
     const cleanTitle = targetSource.title.replace(/\s*\(tripc\.ai\)\s*$/i, '').trim();
 
-    const findExistingJob = async (platformName: 'facebook_group' | 'facebook') =>
+    const findExistingJob = async (platformName: 'facebook_group' | 'facebook' | 'tiktok') =>
       (
         await this.pool.query<{
           job_id: string;
@@ -5525,23 +5530,40 @@ export class CommunityHubService {
         )
       ).rows[0];
 
+    let wantTikTok = false;
+    try {
+      const tiktokConn = await getWorkspaceConnectionStatus(workspaceId, 'tiktok');
+      if (tiktokConn.status === 'connected') {
+        const autoTikTokRes = await this.pool.query<{ auto_publish_tiktok?: boolean }>(
+          'SELECT auto_publish_tiktok FROM agent_automation WHERE workspace_id = $1 LIMIT 1',
+          [workspaceId],
+        );
+        wantTikTok = autoTikTokRes.rows[0]?.auto_publish_tiktok !== false;
+      }
+    } catch {
+      wantTikTok = false;
+    }
+
     const existingGroupJob = wantGroup ? await findExistingJob('facebook_group') : undefined;
     const existingFanpageJob = wantFanpage ? await findExistingJob('facebook') : undefined;
+    const existingTikTokJob = wantTikTok ? await findExistingJob('tiktok') : undefined;
 
     // Fast path for non-immediate rescheduling when the target channel job already exists
     if (!isImmediate) {
       const canReuseGroupOnly = targetMode === 'group' && Boolean(existingGroupJob);
       const canReuseFanpageOnly = targetMode === 'fanpage' && Boolean(existingFanpageJob);
       const canReuseBoth = targetMode === 'both' && Boolean(existingGroupJob) && Boolean(existingFanpageJob);
+      const tikTokReady = !wantTikTok || Boolean(existingTikTokJob);
 
-      if (canReuseGroupOnly || canReuseFanpageOnly || canReuseBoth) {
+      if (tikTokReady && (canReuseGroupOnly || canReuseFanpageOnly || canReuseBoth)) {
         const primaryJob = existingGroupJob ?? existingFanpageJob!;
-        const jobsToReschedule = [existingGroupJob, existingFanpageJob].filter(Boolean) as NonNullable<
+        const jobsToReschedule = [existingGroupJob, existingFanpageJob, existingTikTokJob].filter(Boolean) as NonNullable<
           typeof existingGroupJob
         >[];
 
         for (const jobRow of jobsToReschedule) {
           const isGroupJob = jobRow === existingGroupJob;
+          const isTikTokJob = jobRow === existingTikTokJob;
           await this.pool.query(
             isGroupJob
               ? `UPDATE publishing_jobs
@@ -5554,6 +5576,13 @@ export class CommunityHubService {
               ? [jobRow.job_id, scheduledForDate.toISOString(), workspaceId, settings.group_url]
               : [jobRow.job_id, scheduledForDate.toISOString(), workspaceId],
           );
+          if (isTikTokJob) {
+            await this.pool.query(
+              `UPDATE tiktok_videos SET status = 'scheduled', error_message = NULL, updated_at = NOW()
+                WHERE publishing_job_id = $1 AND workspace_id = $2`,
+              [jobRow.job_id, workspaceId],
+            );
+          }
           await this.pool.query(
             `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
              VALUES ($1, 'publishing.scheduled', $2, $3, 'pending', 0)
@@ -5567,7 +5596,7 @@ export class CommunityHubService {
                 artifact_id: jobRow.artifact_id,
                 approval_id: jobRow.approval_id,
                 channel_id: jobRow.channel_id,
-                mode: isGroupJob ? 'live' : jobRow.mode,
+                mode: isGroupJob || isTikTokJob ? 'live' : jobRow.mode,
               }),
             ],
           );
@@ -5746,6 +5775,7 @@ export class CommunityHubService {
     let contentArtifactId = existingApprovedContent?.artifact_id ?? randomUUID();
     let contentHash = existingApprovedContent?.content_hash ?? '';
     let contentApprovalId = existingApprovedContent?.approval_id ?? '';
+    let resolvedContentPayload: Record<string, any> | undefined = existingApprovedContent?.payload;
     let resolvedImageUrl =
       (existingApprovedContent?.payload?.result?.image_assets?.[0]?.url as string | undefined) ?? chosenAsset.url;
     let resolvedAttribution =
@@ -5762,6 +5792,7 @@ export class CommunityHubService {
     let socialContentId: string | null = null;
     let groupJobId: string | null = null;
     let fanpageJobId: string | null = null;
+    let tiktokJobId: string | null = null;
 
     try {
       await db.query('BEGIN');
@@ -5827,6 +5858,7 @@ export class CommunityHubService {
           context_snapshot_id: ctx.snapshot_id,
           role: 'content',
         };
+        resolvedContentPayload = { artifact: contentArtifactRef, result: contentResult };
 
         await db.query(
           `INSERT INTO content_artifacts
@@ -5998,6 +6030,129 @@ export class CommunityHubService {
               }),
             ],
           );
+        }
+      }
+
+      // 3) TikTok Channel Job (Automatically scheduled when TikTok is connected and auto-publish is enabled)
+      if (wantTikTok && socialContentId) {
+        let tikTokChannel = (
+          await db.query<{ id: string }>(
+            "SELECT id FROM channels WHERE workspace_id = $1 AND platform_name = 'tiktok' ORDER BY created_at LIMIT 1",
+            [workspaceId],
+          )
+        ).rows[0];
+        if (!tikTokChannel) {
+          const summary = await getTikTokConnectionSummary(workspaceId);
+          const displayName = summary.display_name ? `TikTok (${summary.display_name})` : 'TripC TikTok';
+          tikTokChannel = (
+            await db.query<{ id: string }>(
+              `INSERT INTO channels (workspace_id, platform_name, display_name, channel_identifier)
+               VALUES ($1, 'tiktok', $2, $3) RETURNING id`,
+              [workspaceId, displayName, summary.open_id ?? null],
+            )
+          ).rows[0];
+        }
+
+        if (tikTokChannel) {
+          const ttCaptionPack = buildTikTokCaptionFromArtifact({
+            title: cleanTitle,
+            payload: resolvedContentPayload ?? {},
+          });
+          const privacyLevel = validatePrivacyLevel(process.env.TIKTOK_PRIVACY_LEVEL || 'SELF_ONLY');
+          const cleanTikTokTitle = ttCaptionPack.title.slice(0, 255);
+
+          if (existingTikTokJob) {
+            await db.query(
+              `UPDATE publishing_jobs
+                  SET scheduled_for = $2, status = 'scheduled', mode = 'live', error_message = NULL
+                WHERE id = $1 AND workspace_id = $3`,
+              [existingTikTokJob.job_id, scheduledForDate.toISOString(), workspaceId],
+            );
+            await db.query(
+              `UPDATE tiktok_videos
+                  SET status = 'scheduled', error_message = NULL, updated_at = NOW()
+                WHERE publishing_job_id = $1 AND workspace_id = $2`,
+              [existingTikTokJob.job_id, workspaceId],
+            );
+            tiktokJobId = existingTikTokJob.job_id;
+          } else {
+            const existingVideoForArtifact = (
+              await db.query<{ id: string; publishing_job_id: string | null }>(
+                `SELECT id, publishing_job_id FROM tiktok_videos
+                  WHERE workspace_id = $1 AND artifact_id = $2 AND publishing_job_id IS NOT NULL
+                  ORDER BY created_at DESC LIMIT 1`,
+                [workspaceId, contentArtifactId],
+              )
+            ).rows[0];
+            if (existingVideoForArtifact?.publishing_job_id) {
+              tiktokJobId = existingVideoForArtifact.publishing_job_id;
+            } else {
+              const ttVideo = (
+                await db.query<{ id: string }>(
+                  `INSERT INTO tiktok_videos
+                     (workspace_id, title, caption, hashtags, source_artifact_id, video_source_type,
+                      media_url, privacy_level, is_aigc, status, artifact_id, created_by)
+                   VALUES ($1, $2, $3, $4, $5, 'file_upload', $6, $7, true, 'scheduled', $8, $9)
+                   RETURNING id`,
+                  [
+                    workspaceId,
+                    cleanTikTokTitle,
+                    ttCaptionPack.caption,
+                    ttCaptionPack.hashtags,
+                    seoArtifactId,
+                    resolvedImageUrl,
+                    privacyLevel,
+                    contentArtifactId,
+                    actorId,
+                  ],
+                )
+              ).rows[0];
+              const ttJob = (
+                await db.query<{ id: string }>(
+                  `INSERT INTO publishing_jobs
+                     (content_id, channel_id, scheduled_for, status, workspace_id, artifact_id, approval_id,
+                      mode, created_by, media_url, media_type, custom_caption, tiktok_video_id, utm_url)
+                   VALUES ($1, $2, $3, 'scheduled', $4, $5, $6, 'live', $7, $8, 'video', $9, $10, $11)
+                   RETURNING id`,
+                  [
+                    socialContentId,
+                    tikTokChannel.id,
+                    scheduledForDate.toISOString(),
+                    workspaceId,
+                    contentArtifactId,
+                    contentApprovalId,
+                    actorId,
+                    resolvedImageUrl,
+                    ttCaptionPack.caption,
+                    ttVideo.id,
+                    settings.group_url,
+                  ],
+                )
+              ).rows[0];
+              await db.query(`UPDATE tiktok_videos SET publishing_job_id = $1 WHERE id = $2`, [ttJob.id, ttVideo.id]);
+              tiktokJobId = ttJob.id;
+            }
+          }
+
+          if (tiktokJobId) {
+            await db.query(
+              `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
+               VALUES ($1, 'publishing.scheduled', $2, $3, 'pending', 0)
+               ON CONFLICT (workspace_id, dedup_key)
+               DO UPDATE SET status = 'pending', retry_count = 0, payload = EXCLUDED.payload`,
+              [
+                workspaceId,
+                `publish:${tiktokJobId}`,
+                JSON.stringify({
+                  job_id: tiktokJobId,
+                  artifact_id: contentArtifactId,
+                  approval_id: contentApprovalId,
+                  channel_id: tikTokChannel.id,
+                  mode: 'live',
+                }),
+              ],
+            );
+          }
         }
       }
 
