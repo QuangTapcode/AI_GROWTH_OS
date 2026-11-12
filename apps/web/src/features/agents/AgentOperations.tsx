@@ -17,6 +17,7 @@ type Settings = {
   auto_approve_outputs: boolean;
   auto_publish_facebook: boolean;
   auto_publish_website: boolean;
+  auto_publish_tiktok?: boolean;
   next_run_at: string;
   last_tick_at: string | null;
   last_error: string | null;
@@ -91,6 +92,7 @@ function Operations() {
   const [cta, setCta] = useState("Contact our team");
   const [autoApprove, setAutoApprove] = useState(false);
   const [autoPublishFacebook, setAutoPublishFacebook] = useState(false);
+  const [autoPublishTikTok, setAutoPublishTikTok] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [role, setRole] = useState("all");
@@ -112,6 +114,7 @@ function Operations() {
         setAutoApprove(data.settings.auto_approve_outputs);
         setAutoPublishFacebook(data.settings.auto_publish_facebook);
         setAutoPublishWebsite(data.settings.auto_publish_website);
+        setAutoPublishTikTok(Boolean(data.settings.auto_publish_tiktok));
       }
       if (data.goal) {
         setRequest(data.goal.title);
@@ -135,6 +138,7 @@ function Operations() {
           auto_approve_outputs: autoApprove,
           auto_publish_facebook: autoPublishFacebook,
           auto_publish_website: autoPublishWebsite,
+          auto_publish_tiktok: autoPublishTikTok,
           run_now,
         },
       });
@@ -162,6 +166,7 @@ function Operations() {
           interval_hours: interval,
           publish_website: autoPublishWebsite,
           publish_facebook: autoPublishFacebook,
+          publish_tiktok: autoPublishTikTok,
           ...(leadTarget.trim() ? { lead_target: Number(leadTarget) } : {}),
         },
       });
@@ -359,6 +364,15 @@ function Operations() {
                   disabled={!canApprove || busy}
                 />
                 Tự đăng Facebook
+              </label>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={autoPublishTikTok}
+                  onChange={(e) => setAutoPublishTikTok(e.target.checked)}
+                  disabled={!canApprove || busy}
+                />
+                Tự đăng TikTok
               </label>
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input
