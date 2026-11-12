@@ -233,7 +233,7 @@ export class TikTokPublisher implements CmsPublisher {
             success: false,
             errorCode: 'TIKTOK_UNAUDITED_PRIVATE_ONLY',
             errorMessage:
-              'App TikTok chưa được TikTok duyệt nên chỉ đăng được ở chế độ "Chỉ mình tôi" (SELF_ONLY). Chọn quyền riêng tư đó rồi đăng lại; muốn đăng công khai phải gửi app cho TikTok duyệt.',
+              'App TikTok chưa được TikTok duyệt nên chỉ đăng được ở chế độ "Chỉ mình tôi" (SELF_ONLY) và lên tài khoản TikTok đang bật "Tài khoản riêng tư" (Private account). Hãy kiểm tra cả hai điều kiện này rồi thử lại; muốn đăng công khai phải gửi app cho TikTok duyệt.',
           };
         }
         const isPermissionDenied =

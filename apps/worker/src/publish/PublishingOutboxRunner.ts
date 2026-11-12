@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import type { Pool } from 'pg';
 import { createGatewayCheck } from './GatewayRecheckClient';
 import { defaultRegistry, type CmsPublishRequest, type PublisherRegistry } from './CmsPublisher';
@@ -6,6 +7,11 @@ import { SocialTokenManager } from './SocialTokenManager';
 import { recheckBeforeOutbox } from './gateway_recheck';
 import { enqueueReel } from './ReelOutboxRunner';
 import { resolveTikTokMediaPath } from './TikTokPublisher';
+import {
+  ensureAutoTikTokVideo,
+  extractSourceIdFromEvidence,
+  type AutoTikTokVideoInput,
+} from './TikTokAutoVideoRenderer';
 
 type PublishChannel = PublishContext['channel'];
 
@@ -13,6 +19,7 @@ export interface OutboxRunnerOptions {
   maxRetries?: number;
   baseBackoffSeconds?: number;
   maxBackoffSeconds?: number;
+  autoVideoRenderer?: (input: AutoTikTokVideoInput) => Promise<string>;
 }
 
 /**
@@ -29,6 +36,7 @@ export class PublishingOutboxRunner {
   private readonly processor: PublishJobProcessor;
   private readonly maxRetries: number;
   private readonly maxBackoffSeconds: number;
+  private readonly customAutoVideoRenderer?: (input: AutoTikTokVideoInput) => Promise<string>;
 
   constructor(
     pool: Pool,
@@ -40,6 +48,7 @@ export class PublishingOutboxRunner {
     this.processor = new PublishJobProcessor(this.registry);
     this.maxRetries = options.maxRetries ?? 5;
     this.maxBackoffSeconds = options.maxBackoffSeconds ?? 300;
+    this.customAutoVideoRenderer = options.autoVideoRenderer;
   }
 
   async runOnce(): Promise<'idle' | 'published' | 'deferred' | 'failed'> {
@@ -273,14 +282,82 @@ export class PublishingOutboxRunner {
       asString(payloadResult.body_markdown) ??
       asString(payload.document_markdown) ??
       '';
-    const resolvedMediaUrl = asString(
+    let resolvedMediaUrl = asString(
       job.media_url ?? payload.media_url ?? payload.mediaUrl ?? payloadResult.media_url ?? image?.url
     );
     // The API stores the path inside its container; find the same upload on this machine.
-    const resolvedMediaPath = resolveTikTokMediaPath(asString(job.media_path ?? payload.media_path ?? payload.mediaPath));
-    const resolvedMediaType = asMediaType(
+    let resolvedMediaPath = resolveTikTokMediaPath(asString(job.media_path ?? payload.media_path ?? payload.mediaPath));
+    let resolvedMediaType = asMediaType(
       job.media_type ?? payload.media_type ?? payload.mediaType ?? payloadResult.media_type ?? (image ? 'image' : undefined)
     );
+    const hasLocalMediaFile = Boolean(resolvedMediaPath && fs.existsSync(resolvedMediaPath));
+    const hasDirectVideoUrl = Boolean(
+      resolvedMediaUrl &&
+      resolvedMediaType === 'video' &&
+      /\.(mp4|mov|webm)(\?|$)/i.test(resolvedMediaUrl)
+    );
+    const shouldRenderTikTokVideo =
+      channel === 'TikTok' &&
+      !hasLocalMediaFile &&
+      !hasDirectVideoUrl &&
+      ((process.env.INTEGRATION_MODE || 'fake') === 'production' || Boolean(this.customAutoVideoRenderer));
+    if (shouldRenderTikTokVideo) {
+      try {
+        const tiktokObj = (
+          payloadResult.tiktok && typeof payloadResult.tiktok === 'object' ? payloadResult.tiktok : {}
+        ) as Record<string, unknown>;
+        const hookText =
+          asString(tiktokObj.hook) ??
+          asString(payloadFacebook.hook) ??
+          asString(payloadResult.caption)?.split(/\r?\n/)[0]?.trim() ??
+          job.content_title;
+        const rawTitle = asString(job.content_title);
+        const resolvedTitle =
+          rawTitle && !['content', 'seo', 'social_post'].includes(rawTitle.toLowerCase())
+            ? rawTitle
+            : (hookText || 'TripC Growth OS');
+        const renderFn = this.customAutoVideoRenderer ?? ensureAutoTikTokVideo;
+        const renderedPath = await renderFn({
+          workspaceId: job.workspace_id,
+          jobId: job.id,
+          title: resolvedTitle,
+          hook: hookText,
+          cta: asString(tiktokObj.cta) ?? asString(payloadResult.cta) ?? 'Follow TripC on TikTok',
+          imageUrl: asString(image?.url) ?? resolvedMediaUrl ?? null,
+          sourceId: extractSourceIdFromEvidence(job.artifact_evidence),
+        });
+        resolvedMediaPath = renderedPath;
+        resolvedMediaType = 'video';
+        resolvedMediaUrl = undefined;
+        const fileSize = fs.existsSync(renderedPath) ? fs.statSync(renderedPath).size : null;
+        try {
+          await this.pool.query(
+            `UPDATE publishing_jobs SET media_path = $2, media_type = 'video' WHERE id = $1`,
+            [job.id, renderedPath]
+          );
+          if (job.tiktok_video_id) {
+            await this.pool.query(
+              `UPDATE tiktok_videos SET file_path = $2, file_size_bytes = COALESCE($3, file_size_bytes), updated_at = NOW() WHERE id = $1`,
+              [job.tiktok_video_id, renderedPath, fileSize]
+            );
+          }
+        } catch {
+          // Non-fatal in mock pools without these columns
+        }
+      } catch (renderErr) {
+        return this.failEvent(
+          event.id,
+          job.id,
+          'TIKTOK_VIDEO_RENDER_FAILED',
+          renderErr instanceof Error ? renderErr.message : 'Auto TikTok video render failed',
+          {
+            ...job,
+            body_text: resolvedBodyMarkdown,
+            image_url: resolvedMediaUrl,
+          }
+        );
+      }
+    }
     const resolvedTikTokAuth =
       channel === 'TikTok'
         ? await this.resolveTikTokAuth(job.workspace_id, asString(payloadResult.privacy_level))
