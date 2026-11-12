@@ -56,6 +56,11 @@ it('social posts are not articles: Research dedups against articles only', async
   await new PlanOutboxRunner(pool, { run: vi.fn().mockRejectedValue(new Error('stop after building the input')) } as unknown as AiAdapter).runOnce().catch(() => undefined);
   const inventory = query.mock.calls.find(([sql]) => sql.includes('FROM (') && sql.includes('inventory'));
   expect(inventory?.[0]).toContain("FROM contents WHERE workspace_id=$1 AND type <> 'social_post'");
+  // Articles already on the business's own blog count as covered topics, listed first so the limit keeps them,
+  // with no quotes or chunks so their facts stay citable for other topics.
+  expect(inventory?.[0]).toContain("license='TripC first-party content'");
+  expect(inventory?.[0]).toMatch(/'\[\]'::jsonb AS evidence_quotes,'\[\]'::jsonb AS evidence_chunk_ids,0 AS rank_group/);
+  expect(inventory?.[0]).toContain('ORDER BY rank_group, created_at DESC LIMIT 100');
 });
 
 it('Growth Lead receives the latest measured window, so the plan can respond to it', async () => {

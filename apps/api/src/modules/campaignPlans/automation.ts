@@ -200,13 +200,27 @@ async function scheduleFacebookArtifact(
   // Prefer the Facebook-specific post (hook, body, question, exact CTA) over the generic caption.
   const facebook = result.facebook as { text?: unknown } | null | undefined;
   const body = typeof facebook?.text === "string" ? facebook.text : typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
+  const refs = result.input_artifact_refs;
+  const parentId = Array.isArray(refs) ? (refs[0] as { artifact_id?: string } | undefined)?.artifact_id : undefined;
+  const parentTitle = parentId
+    ? (await db.query<{ title: string | null }>(
+        "SELECT COALESCE(payload->'result'->>'title', NULLIF(title, 'seo')) AS title FROM content_artifacts WHERE workspace_id=$1 AND id=$2 LIMIT 1",
+        [workspaceId, parentId],
+      )).rows[0]?.title
+    : null;
+  const socialTitle = (
+    (typeof result.title === "string" && result.title.trim() && result.title.trim() !== "content" ? result.title.trim() : null) ||
+    (parentTitle && parentTitle.trim() ? parentTitle.trim() : null) ||
+    body.split(/\r?\n/).find((l) => l.trim().length > 5)?.trim().slice(0, 120) ||
+    row.title
+  );
   const resolvedLink = await articleLink(db, workspaceId, row);
   const utmUrl = targetPlatform === "facebook_group" ? (resolvedLink ?? groupInfo?.groupUrl ?? "https://www.facebook.com/groups/1134282109069209") : resolvedLink;
   const content = (await db.query<{ id: string }>(
     `INSERT INTO contents (workspace_id,title,body_markdown,type,status,created_by,approved_by,current_version,content_hash,artifact_id)
      VALUES($1,$2,$3,'social_post','approved','ai',$4,$5,$6,$7)
      ON CONFLICT DO NOTHING RETURNING id`,
-    [workspaceId, row.title, body, actorId, row.version, row.content_hash, row.result_ref],
+    [workspaceId, socialTitle, body, actorId, row.version, row.content_hash, row.result_ref],
   )).rows[0] ?? (await db.query<{ id: string }>(
     "SELECT id FROM contents WHERE workspace_id=$1 AND artifact_id=$2",
     [workspaceId, row.result_ref],

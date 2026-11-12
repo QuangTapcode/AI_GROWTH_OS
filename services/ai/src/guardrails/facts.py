@@ -120,8 +120,28 @@ def missing_answer(labels: list[str]) -> str:
     return f"The available sources do not include {joined}."
 
 
+_MONTH_NUMBERS = {
+    "january": "1", "jan": "1",
+    "february": "2", "feb": "2",
+    "march": "3", "mar": "3",
+    "april": "4", "apr": "4",
+    "may": "5",
+    "june": "6", "jun": "6",
+    "july": "7", "jul": "7",
+    "august": "8", "aug": "8",
+    "september": "9", "sep": "9", "sept": "9",
+    "october": "10", "oct": "10",
+    "november": "11", "nov": "11",
+    "december": "12", "dec": "12",
+}
+_MONTH_WORDS = re.compile(r"\b(" + "|".join(_MONTH_NUMBERS) + r")\b", re.I)
+
+
 def _digit_runs(text: str) -> set[str]:
-    return {re.sub(r"\D", "", match) for match in _NUMBER.findall(text)} - {""}
+    digits = {re.sub(r"\D", "", match) for match in _NUMBER.findall(text)} - {""}
+    for m in _MONTH_WORDS.findall(text):
+        digits.add(_MONTH_NUMBERS[m.lower()])
+    return digits
 
 
 def unsupported_numbers(answer: str, evidence_texts: list[str]) -> list[str]:

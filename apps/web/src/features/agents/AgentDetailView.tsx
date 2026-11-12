@@ -18,6 +18,7 @@ import { useApiData } from "@/lib/useApiData";
 import ArtifactReviewContent from "@/features/review-queue/components/ArtifactReviewContent";
 import ResearchDiscoveryPanel from "./ResearchDiscoveryPanel";
 import CommunityGrowthHub from "./CommunityGrowthHub";
+import TikTokStudioSection from "@/features/distribution/components/TikTokStudioSection";
 import PerformanceEvidence, { type PerformanceEvidenceData } from './PerformanceEvidence';
 import PerformanceExperiments from './PerformanceExperiments';
 import PerformanceSocialSync from './PerformanceSocialSync';
@@ -73,6 +74,16 @@ type AgentData = {
   failedLoads: Partial<Record<SecondaryLoadKey, string>>;
 };
 
+type KpiComparisonItem = {
+  metric_name: string;
+  status: string;
+  baseline_value: number | null;
+  current_value: number | null;
+  target_value: number | null;
+  absolute_change: number | null;
+  relative_change_pct: number | null;
+};
+
 type PerformanceReport = PerformanceEvidenceData & {
   status: "draft" | "insufficient_data";
   metrics: Record<string, number | null>;
@@ -83,6 +94,8 @@ type PerformanceReport = PerformanceEvidenceData & {
   attribution: string;
   missing_facts: string[];
   spend_mutation_allowed: boolean;
+  kpi_comparisons?: KpiComparisonItem[];
+  content_metrics?: { slug: string; title: string; page_views: number; cta_clicks: number }[];
   experiment?: {
     hypothesis: string;
     control_variant: string;
@@ -92,6 +105,55 @@ type PerformanceReport = PerformanceEvidenceData & {
     grouping: string;
   } | null;
 };
+
+const perfMetricLabels: Record<string, string> = {
+  leads: "Khách tiềm năng (Leads)",
+  clicks: "Lượt tương tác / Click",
+  impressions: "Lượt hiển thị (Impressions)",
+  qualified_visits: "Truy cập chất lượng (Qualified Visits)",
+};
+
+function formatPerfObservation(text: string): string {
+  const obsMatch = text.match(/^Observed (\w+): ([\d.]+)\.$/);
+  if (obsMatch) {
+    const label = perfMetricLabels[obsMatch[1]] ?? obsMatch[1];
+    return `Ghi nhận ${label}: ${obsMatch[2]}.`;
+  }
+  const notMeasured = text.match(/^(\w+) not measured: (.+)\.$/);
+  if (notMeasured) {
+    const label = perfMetricLabels[notMeasured[1]] ?? notMeasured[1];
+    return `${label}: chưa kết nối nguồn đo trực tiếp (${notMeasured[2]}).`;
+  }
+  const zeroBase = text.match(/^(\w+): measured change ([\d.-]+); relative change unavailable for a zero baseline\. Observation only, not causal\.$/);
+  if (zeroBase) {
+    const label = perfMetricLabels[zeroBase[1]] ?? zeroBase[1];
+    const diff = Number(zeroBase[2]);
+    return `${label}: biến động ${diff >= 0 ? `+${diff}` : diff} so với kỳ cơ sở (Baseline = 0). Chỉ ghi nhận quan sát, không kết luận nhân quả.`;
+  }
+  const pctBase = text.match(/^(\w+): measured change ([\d.-]+); relative change ([\d.-]+)%\. Observation only, not causal\.$/);
+  if (pctBase) {
+    const label = perfMetricLabels[pctBase[1]] ?? pctBase[1];
+    const diff = Number(pctBase[2]);
+    return `${label}: biến động ${diff >= 0 ? `+${diff}` : diff} (${pctBase[3]}% so với Baseline). Chỉ ghi nhận quan sát, không kết luận nhân quả.`;
+  }
+  const topArt = text.match(/^Top article '(.+)': (\d+) views, (\d+) CTA clicks\. Observation only, not causal\.$/);
+  if (topArt) {
+    return `Bài viết hiệu quả nhất: "${topArt[1]}" — ${topArt[2]} lượt xem, ${topArt[3]} lượt tương tác CTA (quan sát thực tế, không suy diễn nhân quả).`;
+  }
+  return text;
+}
+
+function formatPerfProposal(text?: string | null): string {
+  if (!text) return "Chưa có đề xuất vì dữ liệu chưa đủ.";
+  if (text === "Review the cited aggregate window before proposing the next content test.") {
+    return "Đề xuất: Xem xét số liệu tổng hợp của kỳ đo lường hiện tại và duyệt kết quả Learning bên trên để mở vòng thử nghiệm nội dung tiếp theo.";
+  }
+  const expMatch = text.match(/^Test the hypothesis '(.+)' with '(.+)' versus '(.+)', using (.+) as the primary metric, grouped by (.+)\. Do not declare causal impact from this draft alone\.$/);
+  if (expMatch) {
+    return `Đề xuất thử nghiệm A/B: Kiểm chứng giả thuyết "${expMatch[1]}" giữa nhóm đối chứng (${expMatch[2]}) và nhóm thử nghiệm (${expMatch[3]}), đo lường theo chỉ số chính ${perfMetricLabels[expMatch[4]] ?? expMatch[4]} (${expMatch[5]}).`;
+  }
+  return text;
+}
 
 type LearningReport = {
   status: "draft" | "insufficient_data";
@@ -341,6 +403,8 @@ function AgentPage({ role }: { role: RoleId }) {
   }
   const [researchId, setResearchId] = useState("");
   const [planId, setPlanId] = useState("");
+  const [seoArticleId, setSeoArticleId] = useState("");
+  const [perfArtifactId, setPerfArtifactId] = useState("");
   const [cta, setCta] = useState("Liên hệ TripC để được tư vấn nơi ở phù hợp tại Đà Nẵng");
   const [deadline, setDeadline] = useState(() => { const date = new Date(Date.now() + 7 * 86400000); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); });
 
@@ -348,11 +412,14 @@ function AgentPage({ role }: { role: RoleId }) {
   const roleArtifacts = useMemo(() => data?.artifacts.filter((artifact) => artifact.role === role).sort((a, b) => b.created_at.localeCompare(a.created_at)) ?? [], [data, role]);
   const latestTask = roleTasks[0];
   const latestArtifact = roleArtifacts[0];
-  const facebookPost = valueText((latestArtifact?.payload.result as { facebook?: { text?: unknown } | null } | undefined)?.facebook?.text);
+  const latestRepurposeArtifact = useMemo(() => roleArtifacts.find((artifact) => artifact.operation === "content.repurpose") ?? latestArtifact, [roleArtifacts, latestArtifact]);
+  const facebookPost = valueText((latestRepurposeArtifact?.payload.result as { facebook?: { text?: unknown } | null } | undefined)?.facebook?.text);
   const availableResearch = data?.artifacts.filter((item) => item.operation === "research.run" && item.context_snapshot_id === data.currentContext?.snapshot_id && (item.payload.result as Record<string, unknown> | undefined)?.status === "ready_for_handoff").sort((a, b) => b.created_at.localeCompare(a.created_at)) ?? [];
   const chosenResearch = availableResearch.find((item) => item.id === researchId) ?? availableResearch[0];
   const approvedPlans = data?.artifacts.filter((item) => item.operation === "strategy.generate" && item.context_snapshot_id === data.currentContext?.snapshot_id && data.approvals.some((approval) => approval.target_id === item.id && approval.status === "approved" && approval.target_version === item.version && approval.target_hash === item.content_hash)).sort((a, b) => b.created_at.localeCompare(a.created_at)) ?? [];
   const chosenPlan = approvedPlans.find((item) => item.id === planId) ?? approvedPlans[0];
+  const completedSeoArtifacts = useMemo(() => data?.artifacts.filter((item) => item.role === "seo" && data.approvals.some((approval) => approval.target_id === item.id && approval.status === "approved" && approval.target_version === item.version && approval.target_hash === item.content_hash)).sort((a, b) => b.created_at.localeCompare(a.created_at)) ?? [], [data]);
+  const chosenSeoArticle = completedSeoArtifacts.find((item) => item.id === seoArticleId) ?? completedSeoArtifacts[0];
   // Closed loop: Performance draft + lead aggregate → Learning → owner opens the next Research round.
   const inContext = (operation: string) => data?.artifacts.filter((item) => item.operation === operation && item.context_snapshot_id === data.currentContext?.snapshot_id).sort((a, b) => b.created_at.localeCompare(a.created_at)) ?? [];
   const performanceDraft = inContext("analytics.report").find((item) => (item.payload.result as Partial<PerformanceReport> | undefined)?.status === "draft");
@@ -385,9 +452,12 @@ function AgentPage({ role }: { role: RoleId }) {
     const timer = window.setTimeout(reload, 2000);
     return () => window.clearTimeout(timer);
   }, [waitingTaskId, data, reload]);
-  const performanceReport = role === "performance" && ["analytics.report", "experiment.hypothesis"].includes(latestArtifact?.operation ?? "")
-    ? (latestArtifact.payload.result as Partial<PerformanceReport> | undefined)
+  const performanceReportArtifacts = useMemo(() => roleArtifacts.filter((item) => ["analytics.report", "experiment.hypothesis"].includes(item.operation)), [roleArtifacts]);
+  const chosenPerformanceArtifact = performanceReportArtifacts.find((item) => item.id === perfArtifactId) ?? performanceReportArtifacts[0];
+  const performanceReport = role === "performance" && chosenPerformanceArtifact
+    ? (chosenPerformanceArtifact.payload.result as Partial<PerformanceReport> & { content_metrics?: { slug: string; title: string; page_views: number; cta_clicks: number }[] } | undefined)
     : null;
+  const activeExperiment = performanceReport?.experiment ?? (roleArtifacts.find((item) => item.operation === "experiment.hypothesis")?.payload.result as Partial<PerformanceReport> | undefined)?.experiment ?? null;
   const failedTasks = roleTasks.filter((task) => task.status === "failed");
   const pendingApprovals = data?.approvals.filter((approval) => approval.status === "pending" && (!latestArtifact || approval.target_id === latestArtifact.id)) ?? [];
   const roleExceptions = data?.exceptions.filter((item) => !item.source_task_id || roleTasks.some((task) => task.id === item.source_task_id)) ?? [];
@@ -587,12 +657,14 @@ function AgentPage({ role }: { role: RoleId }) {
       )}
       {role === "content" && data && <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <SectionTitle title="SEO đã duyệt → Caption Marketing" subtitle="Content tự nhận bài SEO đã duyệt theo kế hoạch Growth Lead. Caption gồm mở đầu, ý chính từ bài viết, CTA và hashtag; không tự đăng lên mạng xã hội." />
-        {roleTasks.some((task) => task.operation === "content.repurpose" && task.status === "pending" && task.campaign_id) && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Có task Content đang chờ duyệt bài SEO. Mở Review Queue, kiểm tra và duyệt đúng bài SEO để worker tự tạo caption.</p>}
+        {roleTasks.some((task) => task.operation === "content.repurpose" && task.status === "pending" && task.campaign_id && task.context_snapshot_id === contextId) && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Có task Content đang chờ duyệt bài SEO. Mở Review Queue, kiểm tra và duyệt đúng bài SEO để worker tự tạo caption.</p>}
+        <label className="mt-4 block text-sm font-semibold">Bài SEO đã hoàn thành &amp; duyệt ({completedSeoArtifacts.length})<select aria-label="Bài SEO đã hoàn thành" value={chosenSeoArticle?.id ?? ""} onChange={(event) => setSeoArticleId(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 p-2 text-sm"><option value="" disabled>Chưa có bài SEO đã duyệt</option>{completedSeoArtifacts.map((item) => <option key={item.id} value={item.id}>{formatDate(item.created_at)} · {valueText((item.payload.result as Record<string, unknown> | undefined)?.title) || item.title} · {item.id.slice(0, 8)}</option>)}</select></label>
+        {chosenSeoArticle && <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3"><summary className="cursor-pointer text-sm font-semibold text-blue-700">Xem nội dung bài SEO đã chọn: {valueText((chosenSeoArticle.payload.result as Record<string, unknown> | undefined)?.title) || chosenSeoArticle.title}</summary><ArtifactReviewContent artifact={chosenSeoArticle} /></details>}
         <div className="mt-4 flex flex-wrap gap-4"><Link href="/review-queue" className="text-sm font-semibold text-blue-700">Mở Review Queue →</Link><Link href="/agents/seo" className="text-sm font-semibold text-blue-700">Xem bài SEO đầu vào →</Link><button onClick={reload} className="text-sm font-semibold text-blue-700">Cập nhật caption</button></div>
         {waitingTaskId && <p className="mt-4 text-sm text-blue-800">Content đang tạo caption… Kết quả sẽ tự cập nhật.</p>}
-        {latestArtifact?.operation === "content.repurpose" ? <>
-          <ArtifactReviewContent artifact={latestArtifact} />
-          <button onClick={async () => { try { await navigator.clipboard.writeText(valueText((latestArtifact.payload.result as Record<string, unknown> | undefined)?.caption)); setNotice("Đã sao chép caption."); } catch { setNotice("Không sao chép được. Bạn có thể chọn và sao chép nội dung caption trực tiếp."); } }} className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700">Sao chép caption</button>
+        {latestRepurposeArtifact ? <>
+          <ArtifactReviewContent artifact={latestRepurposeArtifact} />
+          <button onClick={async () => { try { await navigator.clipboard.writeText(valueText((latestRepurposeArtifact.payload.result as Record<string, unknown> | undefined)?.caption)); setNotice("Đã sao chép caption."); } catch { setNotice("Không sao chép được. Bạn có thể chọn và sao chép nội dung caption trực tiếp."); } }} className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700">Sao chép caption</button>
           {facebookPost && <button onClick={async () => { try { await navigator.clipboard.writeText(facebookPost); setNotice("Đã sao chép bài Facebook."); } catch { setNotice("Không sao chép được. Bạn có thể chọn và sao chép nội dung bài Facebook trực tiếp."); } }} className="ml-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white">Sao chép bài Facebook</button>}
         </> : <p className="mt-4 text-sm text-slate-600">Chưa có caption mới từ bài SEO. Caption sẽ xuất hiện tại đây và Review Queue sau khi worker xử lý.</p>}
         {notice && <p role="status" className="mt-3 text-sm text-blue-800">{notice}</p>}
@@ -634,8 +706,8 @@ function AgentPage({ role }: { role: RoleId }) {
           </div>
         )}
       </section>}
-      {role === "growth_lead" && data && <section className="rounded-2xl border border-slate-200 bg-white p-6">
-        <SectionTitle title="Performance → Learning → Research vòng mới" subtitle="Đóng vòng học từ số liệu first-party. Learning chỉ đề xuất; owner duyệt mới mở vòng Research tiếp theo, tối đa ba vòng và không trùng lặp." />
+      {(role === "growth_lead" || role === "performance") && data && <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <SectionTitle title="Performance → Learning → Research vòng mới" subtitle="Đóng vòng học từ số liệu first-party và tương tác Fanpage/Messenger. Learning chỉ đề xuất; owner duyệt mới mở vòng Research tiếp theo, tối đa ba vòng và không trùng lặp." />
         <ol className="mt-5 space-y-4">
           <li className="rounded-xl border border-slate-200 p-4">
             <p className="text-sm font-semibold text-slate-900">1. Số liệu và báo cáo Performance</p>
@@ -666,6 +738,7 @@ function AgentPage({ role }: { role: RoleId }) {
       </section>}
       {role === "community" && data && <>
         <CommunityGrowthHub workspaceId={workspace.id} canEdit={canEdit} onUpdated={reload} />
+        <TikTokStudioSection workspaceId={workspace.id} canEdit={canEdit} returnTo="/agents/community/" />
         <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <SectionTitle title="Soạn phản hồi Community" subtitle="Nhập câu hỏi hoặc comment. Agent sử dụng nguồn đã duyệt để soạn nháp; không tự gửi phản hồi lên mạng xã hội." />
         <form onSubmit={submitCommunity} className="mt-5 space-y-3">
@@ -716,7 +789,7 @@ function AgentPage({ role }: { role: RoleId }) {
         {role === "performance" && <PerformanceGroups key={workspace.id} workspaceId={workspace.id} />}
         {role === "performance" && <PerformanceExperiments />}
         {role === "performance" && performanceReport && latestArtifact && <PerformanceEvidence report={performanceReport} artifact={latestArtifact} />}
-        {role === "performance" && performanceReport && <section className="rounded-2xl border border-blue-200 bg-blue-50/40 p-6"><SectionTitle title="Performance report" subtitle="Số liệu lấy nguyên từ metric snapshot; không suy diễn ROI hoặc causal impact." /><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(performanceReport.metrics ?? {}).map(([metric, value]) => <Metric key={metric} label={metric.replaceAll("_", " ")} value={value === null || value === undefined ? "Chưa có dữ liệu" : value.toLocaleString("en-US")} tone={value === null || value === undefined ? "red" : "green"} />)}</div><div className="mt-5 grid gap-5 lg:grid-cols-2"><div className="space-y-3"><Info label="Status" value={performanceReport.status ?? "unknown"} /><Info label="Metric snapshot" value={performanceReport.metric_snapshot_id ?? "Thiếu"} /><Info label="Window" value={performanceReport.window ? `${formatDate(performanceReport.window.start)} → ${formatDate(performanceReport.window.end)}` : "Thiếu"} /><Info label="Spend mutation" value={performanceReport.spend_mutation_allowed === false ? "Disabled" : "Blocked by contract"} /></div><div><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Observations</p><ul className="mt-3 space-y-2 text-sm text-slate-700">{(performanceReport.observations ?? []).map((item) => <li key={item} className="rounded-lg bg-white px-3 py-2">{item}</li>)}{!performanceReport.observations?.length && <li className="text-slate-500">Chưa có observation.</li>}</ul>{performanceReport.missing_facts?.length ? <p className="mt-4 text-sm text-amber-800">Missing facts: {performanceReport.missing_facts.join(", ")}</p> : null}<p className="mt-4 text-sm font-semibold text-slate-800">{performanceReport.proposal ?? "Chưa có proposal vì dữ liệu chưa đủ."}</p></div></div>{performanceReport.experiment && <div className="mt-5 rounded-xl border border-blue-100 bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Experiment hypothesis</p><p className="mt-2 text-sm font-semibold text-slate-900">{performanceReport.experiment.hypothesis}</p><div className="mt-3 grid gap-3 text-sm md:grid-cols-2"><Info label="Control" value={performanceReport.experiment.control_variant} /><Info label="Treatment" value={performanceReport.experiment.treatment_variant} /><Info label="Primary metric" value={performanceReport.experiment.primary_metric} /><Info label="Grouping" value={performanceReport.experiment.grouping} /><Info label="Period" value={`${formatDate(performanceReport.experiment.period.start)} → ${formatDate(performanceReport.experiment.period.end)}`} /></div></div>}</section>}
+        {role === "performance" && performanceReport && <section className="rounded-2xl border border-blue-200 bg-blue-50/40 p-6"><SectionTitle title="Performance report" subtitle="Số liệu lấy nguyên từ metric snapshot và tương tác Fanpage/Messenger; không suy diễn ROI hoặc causal impact." /><label className="mt-4 block text-sm font-semibold">Lịch sử báo cáo Performance &amp; Thử nghiệm ({performanceReportArtifacts.length})<select aria-label="Lịch sử báo cáo Performance" value={chosenPerformanceArtifact?.id ?? ""} onChange={(event) => setPerfArtifactId(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm">{performanceReportArtifacts.map((item) => <option key={item.id} value={item.id}>{formatDate(item.created_at)} · {item.operation === "experiment.hypothesis" ? "Thử nghiệm A/B (experiment.hypothesis)" : "Báo cáo hiệu quả (analytics.report)"} · {item.id.slice(0, 8)}</option>)}</select></label><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(performanceReport.metrics ?? {}).map(([metric, value]) => <Metric key={metric} label={perfMetricLabels[metric] ?? metric.replaceAll("_", " ")} value={value === null || value === undefined ? "Chưa có dữ liệu" : value.toLocaleString("en-US")} tone={value === null || value === undefined ? "red" : "green"} />)}</div><div className="mt-5 grid gap-5 lg:grid-cols-2"><div className="space-y-3"><Info label="Trạng thái báo cáo" value={performanceReport.status === "draft" ? "Đạt chuẩn (Đã đo lường)" : performanceReport.status ?? "unknown"} /><Info label="Metric snapshot" value={performanceReport.metric_snapshot_id ?? "Thiếu"} /><Info label="Kỳ đo lường (Window)" value={performanceReport.window ? `${formatDate(performanceReport.window.start)} → ${formatDate(performanceReport.window.end)}` : "Thiếu"} /><Info label="Tự động chi tiêu (Spend mutation)" value={performanceReport.spend_mutation_allowed === false ? "Đã khóa an toàn (Disabled)" : "Blocked by contract"} /></div><div><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Ghi nhận thực tế (Observations)</p><ul className="mt-3 space-y-2 text-sm text-slate-700">{(performanceReport.observations ?? []).map((item) => <li key={item} className="rounded-lg bg-white px-3 py-2 shadow-xs">{formatPerfObservation(item)}</li>)}{!performanceReport.observations?.length && <li className="text-slate-500">Chưa có observation.</li>}</ul>{performanceReport.missing_facts?.length ? <p className="mt-4 text-sm text-amber-800">Dữ liệu còn thiếu: {performanceReport.missing_facts.join(", ")}</p> : null}<p className="mt-4 rounded-lg border border-blue-200 bg-blue-100/60 px-3 py-2 text-sm font-semibold text-blue-950">{formatPerfProposal(performanceReport.proposal)}</p></div></div>{Array.isArray(performanceReport.kpi_comparisons) && performanceReport.kpi_comparisons.length > 0 && <div className="mt-5 rounded-xl border border-blue-100 bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">So sánh với kỳ cơ sở (Baseline vs Kỳ hiện tại)</p><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{performanceReport.kpi_comparisons.map((cmp) => <div key={cmp.metric_name} className="rounded-lg border border-slate-100 bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-600">{perfMetricLabels[cmp.metric_name] ?? cmp.metric_name}</p><div className="mt-1 flex items-baseline justify-between gap-2"><span className="text-lg font-bold text-slate-900">{cmp.current_value ?? "—"} <span className="text-xs font-normal text-slate-500">(trước: {cmp.baseline_value ?? 0})</span></span>{cmp.absolute_change !== null && cmp.absolute_change !== undefined && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${cmp.absolute_change > 0 ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{cmp.absolute_change >= 0 ? `+${cmp.absolute_change}` : cmp.absolute_change}</span>}</div></div>)}</div></div>}{Array.isArray(performanceReport.content_metrics) && performanceReport.content_metrics.length > 0 && <div className="mt-5 rounded-xl border border-blue-100 bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Hiệu quả theo bài viết ({performanceReport.content_metrics.length})</p><ul className="mt-2 space-y-2 text-sm text-slate-700">{performanceReport.content_metrics.map((art) => <li key={art.slug} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"><span className="font-semibold text-slate-900">{art.title}</span><span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">{art.page_views} lượt xem · {art.cta_clicks} tương tác CTA</span></li>)}</ul></div>}{activeExperiment && <div className="mt-5 rounded-xl border border-blue-100 bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Giả thuyết thử nghiệm A/B (Experiment Hypothesis)</p><p className="mt-2 text-sm font-semibold text-slate-900">{activeExperiment.hypothesis}</p><div className="mt-3 grid gap-3 text-sm md:grid-cols-2"><Info label="Nhóm đối chứng (Control)" value={activeExperiment.control_variant} /><Info label="Nhóm thử nghiệm (Treatment)" value={activeExperiment.treatment_variant} /><Info label="Chỉ số đo chính (Primary metric)" value={perfMetricLabels[activeExperiment.primary_metric] ?? activeExperiment.primary_metric} /><Info label="Phương pháp phân nhóm" value={activeExperiment.grouping} /><Info label="Chu kỳ đo" value={`${formatDate(activeExperiment.period.start)} → ${formatDate(activeExperiment.period.end)}`} /></div></div>}</section>}
         <section className="rounded-2xl border border-slate-200 bg-white p-6"><div className="flex flex-wrap items-start justify-between gap-3"><SectionTitle title="Task và lỗi gần đây" subtitle="Đây là log vận hành thực tế của role, không phải trạng thái demo." />{notice && <span className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{notice}</span>}</div>{roleTasks.length ? <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Operation</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Queue</th><th className="px-4 py-3">Bắt đầu</th><th className="px-4 py-3">Lỗi</th><th className="px-4 py-3" /></tr></thead><tbody>{roleTasks.slice(0, 20).map((task) => <tr key={task.id} className="border-t border-slate-100 align-top"><td className="px-4 py-4"><p className="font-semibold text-slate-900">{task.operation}{task.payload?.synthetic === true && <span className="ml-2 text-xs text-amber-700">Demo</span>}</p><p className="mt-1 font-mono text-xs text-slate-400">{task.id.slice(0, 12)}</p></td><td className="px-4 py-4"><span className={`rounded-md px-2 py-1 text-xs font-semibold ${statusClass(task.status)}`}>{statusLabels[task.status] ?? task.status}</span></td><td className="px-4 py-4 text-xs text-slate-500">{valueText((task as WorkflowTask & { queue_status?: string }).queue_status) || "—"}<br />attempt {String((task as WorkflowTask & { attempts?: number }).attempts ?? task.retry_count)}</td><td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{formatDate(task.started_at ?? task.created_at)}</td><td className="max-w-xs px-4 py-4 text-xs text-red-700">{task.error_details ? <pre className="whitespace-pre-wrap">{JSON.stringify(task.error_details)}</pre> : "—"}</td><td className="px-4 py-4">{task.status === "failed" && canApprove && <button disabled={retrying === task.id} onClick={() => retry(task)} className="whitespace-nowrap rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 disabled:opacity-50">{retrying === task.id ? "Đang retry…" : "Retry"}</button>}</td></tr>)}</tbody></table></div> : <Empty title="Chưa có task cho agent này" description="Agent chỉ xuất hiện ở đây khi worker nhận đúng operation trong workspace." />}</section>
         <section className="grid gap-6 xl:grid-cols-2"><section className="rounded-2xl border border-slate-200 bg-white p-6"><SectionTitle title="Approval và handoff" subtitle="Output chỉ được chuyển bước khi version/hash còn hợp lệ." /><div className="mt-4 space-y-3"><Info label="Approval pending" value={String(pendingApprovals.length)} /><Info label="Approval gần nhất" value={data.approvals.find((item) => latestArtifact && item.target_id === latestArtifact.id)?.status ?? "Chưa có"} /><Info label="Context snapshot" value={contextId ?? "Thiếu"} /></div></section><section className="rounded-2xl border border-slate-200 bg-white p-6"><SectionTitle title="Exception cần xử lý" subtitle="Các exception liên quan task của role hoặc exception workspace chưa gán task." />{roleExceptions.length ? <div className="mt-4 space-y-3">{roleExceptions.slice(0, 5).map((item) => <div key={item.id} className="rounded-xl border border-red-100 bg-red-50 p-4"><div className="flex justify-between gap-3"><p className="font-semibold text-red-900">{item.code} · {item.title}</p><span className="text-xs text-red-700">{item.severity}</span></div><p className="mt-1 text-xs text-red-800">{item.description || "Không có mô tả."}</p></div>)}</div> : <Empty title="Không có exception mở" description="API chưa báo lỗi hệ thống gắn với role này." />}</section></section>
       </>}

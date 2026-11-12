@@ -4,6 +4,8 @@ import { defaultRegistry, type CmsPublishRequest, type PublisherRegistry } from 
 import { PublishJobProcessor, type PublishContext } from './PublishJobProcessor';
 import { SocialTokenManager } from './SocialTokenManager';
 import { recheckBeforeOutbox } from './gateway_recheck';
+import { enqueueReel } from './ReelOutboxRunner';
+import { resolveTikTokMediaPath } from './TikTokPublisher';
 
 type PublishChannel = PublishContext['channel'];
 
@@ -274,7 +276,8 @@ export class PublishingOutboxRunner {
     const resolvedMediaUrl = asString(
       job.media_url ?? payload.media_url ?? payload.mediaUrl ?? payloadResult.media_url ?? image?.url
     );
-    const resolvedMediaPath = asString(job.media_path ?? payload.media_path ?? payload.mediaPath);
+    // The API stores the path inside its container; find the same upload on this machine.
+    const resolvedMediaPath = resolveTikTokMediaPath(asString(job.media_path ?? payload.media_path ?? payload.mediaPath));
     const resolvedMediaType = asMediaType(
       job.media_type ?? payload.media_type ?? payload.mediaType ?? payloadResult.media_type ?? (image ? 'image' : undefined)
     );
@@ -396,6 +399,7 @@ export class PublishingOutboxRunner {
       utm_url?: string | null;
       tiktok_video_id?: string | null;
       artifact_payload?: Record<string, unknown> | null;
+      artifact_evidence?: unknown;
     },
     externalPostId: string | null,
     publishedAt?: Date,
@@ -501,6 +505,16 @@ export class PublishingOutboxRunner {
       }
     }
 
+    // The topic's explainer video follows as its own Reel (ReelOutboxRunner). The post is already out, so a failure
+    // here is logged and never turns the published post into a failure.
+    if (job.platform_name?.toLowerCase() === 'facebook' && job.workspace_id && externalPostId) {
+      try {
+        await enqueueReel(this.pool, { id: job.id, workspace_id: job.workspace_id, content_title: job.content_title,
+          artifact_payload: job.artifact_payload, artifact_evidence: job.artifact_evidence });
+      } catch (error) {
+        console.error('[publishing-outbox] could not queue the Reel:', (error as Error).message);
+      }
+    }
     return this.completeEvent(eventId);
   }
 

@@ -19,7 +19,11 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
   try {
     const tenant = await resolveTenantContext(authenticateUser(req), params.workspace_id);
     requireRole(tenant, ['owner', 'editor']);
-    const result = await runDiscovery(pool, tenant.workspaceId, defaultSearch());
+    const body = await req.json().catch(() => ({})) as { topic?: unknown };
+    if (body?.topic != null && (typeof body.topic !== 'string' || body.topic.length > 200)) {
+      throw new AppError(400, 'INVALID_TOPIC', 'topic must be a string of at most 200 characters');
+    }
+    const result = await runDiscovery(pool, tenant.workspaceId, defaultSearch(), { topic: body?.topic as string | undefined });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof DiscoveryError) return handleApiError(new AppError(error.status, error.code, error.message));

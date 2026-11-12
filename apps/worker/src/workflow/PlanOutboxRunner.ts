@@ -47,8 +47,14 @@ function toFloat16Bits(value: number): number {
   return sign | ((exponent << 10) + ((mantissa + 0x1000) >> 13));
 }
 
+const vectorSnapshotCache = new Map<string, SnapshotChunks>();
+
 /** Vectors stored at ingest, so a question is compared with the corpus without embedding it again. Never kept in the pinned context. */
-async function withStoredVectors(pool: Pool, workspaceId: string, snapshot: SnapshotChunks) {
+async function withStoredVectors(pool: Pool, workspaceId: string, snapshot: SnapshotChunks & { snapshot_id?: string }) {
+  const cacheKey = snapshot.snapshot_id ? `${workspaceId}:${snapshot.snapshot_id}` : '';
+  if (cacheKey && vectorSnapshotCache.has(cacheKey)) {
+    return vectorSnapshotCache.get(cacheKey)!;
+  }
   const ids = snapshot.sources.flatMap((source) => source.chunks.map((chunk) => chunk.chunk_id));
   if (!ids.length || ids.length > MAX_CHUNKS_WITH_VECTORS) return snapshot;
   const rows = (await pool.query<{ id: string; model: string | null; embedding: string }>(
@@ -60,7 +66,15 @@ async function withStoredVectors(pool: Pool, workspaceId: string, snapshot: Snap
     if (!row) return chunk;
     return { ...chunk, model: row.model, embedding: packEmbedding(JSON.parse(row.embedding) as number[]) };
   };
-  return { ...snapshot, sources: snapshot.sources.map((source) => ({ ...source, chunks: source.chunks.map(withVector) })) };
+  const enriched = { ...snapshot, sources: snapshot.sources.map((source) => ({ ...source, chunks: source.chunks.map(withVector) })) };
+  if (cacheKey) {
+    if (vectorSnapshotCache.size >= 3) {
+      const oldest = vectorSnapshotCache.keys().next().value;
+      if (oldest) vectorSnapshotCache.delete(oldest);
+    }
+    vectorSnapshotCache.set(cacheKey, enriched);
+  }
+  return enriched;
 }
 
 /** Durable DB outbox consumer; one task per tick, stable AI idempotency across lease recovery. */
@@ -262,7 +276,7 @@ export class PlanOutboxRunner {
       WHERE status='claimed' AND lease_until<now() AND attempts>=3 RETURNING task_id)
       UPDATE workflow_tasks SET status='failed',error_details='{"code":"LEASE_EXHAUSTED"}',updated_at=now() WHERE id IN(SELECT task_id FROM expired)`);
     const claimed = (await this.pool.query(`UPDATE plan_task_outbox SET status='claimed',lease_until=now()+interval '10 minutes',attempts=attempts+1
-      WHERE id=(SELECT id FROM plan_task_outbox WHERE (status='pending' OR (status='claimed' AND lease_until<now())) AND attempts<3 ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`)).rows[0];
+      WHERE id=(SELECT id FROM plan_task_outbox WHERE (status='pending' OR (status='claimed' AND lease_until<now())) AND attempts<3 ORDER BY (operation = 'community.response') DESC, created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`)).rows[0];
     if (!claimed) return null;
     try {
       let task = (await this.pool.query('SELECT * FROM workflow_tasks WHERE workspace_id=$1 AND id=$2', [claimed.workspace_id, claimed.task_id])).rows[0];
@@ -281,9 +295,16 @@ export class PlanOutboxRunner {
       }
       const profile = (await this.pool.query('SELECT version FROM business_profiles WHERE workspace_id=$1', [claimed.workspace_id])).rows[0];
       if (!context || profile?.version !== context.profile_version) throw new Error('STALE_CONTEXT');
-      for (const source of context.snapshot.sources) {
-        const row = (await this.pool.query("SELECT id FROM sources WHERE workspace_id=$1 AND id=$2 AND version=$3 AND status='approved' AND deleted_at IS NULL", [claimed.workspace_id, source.source_id, source.version])).rows[0];
-        if (!row) throw new Error('SOURCE_NOT_APPROVED');
+      const expectedSources = Array.isArray(context.snapshot?.sources) ? context.snapshot.sources : [];
+      if (expectedSources.length > 0) {
+        const approvedRows = (await this.pool.query<{ id: string; version: number }>(
+          "SELECT id, version FROM sources WHERE workspace_id=$1 AND id=ANY($2::uuid[]) AND status='approved' AND deleted_at IS NULL",
+          [claimed.workspace_id, expectedSources.map((s: { source_id: string }) => s.source_id)],
+        )).rows;
+        const approvedMap = new Map(approvedRows.map((r) => [r.id, r.version]));
+        for (const source of expectedSources) {
+          if (approvedMap.get(source.source_id) !== source.version) throw new Error('SOURCE_NOT_APPROVED');
+        }
       }
       const load = async (id: string) => {
         const row = (await this.pool.query('SELECT payload,evidence FROM content_artifacts WHERE workspace_id=$1 AND id=$2', [claimed.workspace_id, id])).rows[0];
@@ -339,7 +360,7 @@ export class PlanOutboxRunner {
             });
           }
         }
-        payload.assets = rawAssets;
+        payload.assets = Array.isArray(rawAssets) ? rawAssets.slice(0, 10) : rawAssets;
         if (Array.isArray(taskInput.target_channels)) payload.target_channels = taskInput.target_channels;
         const automation = (await this.pool.query(
           'SELECT auto_publish_facebook,auto_approve_outputs FROM agent_automation WHERE workspace_id=$1',
@@ -391,13 +412,27 @@ export class PlanOutboxRunner {
         if (taskInput.lessons) payload.lessons = taskInput.lessons;
         payload.content_inventory = (await this.pool.query(`SELECT content_id,workspace_id,version,title,evidence_quotes,evidence_chunk_ids FROM (
           SELECT id AS content_id,workspace_id,1 AS version,left(title,200) AS title,created_at,'[]'::jsonb AS evidence_quotes,
-            '[]'::jsonb AS evidence_chunk_ids FROM contents WHERE workspace_id=$1 AND type <> 'social_post'
+            '[]'::jsonb AS evidence_chunk_ids,1 AS rank_group FROM contents WHERE workspace_id=$1 AND type <> 'social_post'
           UNION ALL
           SELECT id AS content_id,workspace_id,version,left(payload->'result'->>'title',200) AS title,created_at,
             (SELECT coalesce(jsonb_agg(e->>'quote'),'[]'::jsonb) FROM (SELECT e FROM jsonb_array_elements(evidence) e LIMIT 10) q) AS evidence_quotes,
-            (SELECT coalesce(jsonb_agg(e->>'chunk_id'),'[]'::jsonb) FROM (SELECT e FROM jsonb_array_elements(evidence) e LIMIT 10) q) AS evidence_chunk_ids
+            (SELECT coalesce(jsonb_agg(e->>'chunk_id'),'[]'::jsonb) FROM (SELECT e FROM jsonb_array_elements(evidence) e LIMIT 10) q) AS evidence_chunk_ids,
+            1 AS rank_group
           FROM content_artifacts WHERE workspace_id=$1 AND role='seo' AND payload->'result'->>'title' IS NOT NULL
-          ) inventory WHERE title IS NOT NULL AND length(trim(title))>0 ORDER BY created_at DESC LIMIT 100`, [claimed.workspace_id])).rows;
+          UNION ALL
+          -- Articles already on the business's own blog: a topic they cover is not new content. Titles only,
+          -- so their facts can still be cited for a different topic.
+          SELECT id AS content_id,workspace_id,version,left(regexp_replace(title,'\\s*\\((tripc\\.ai|tripc\\.vn)\\)\\s*$',''),200) AS title,
+            created_at,'[]'::jsonb AS evidence_quotes,'[]'::jsonb AS evidence_chunk_ids,0 AS rank_group
+          FROM sources WHERE workspace_id=$1 AND status='approved' AND deleted_at IS NULL AND license='TripC first-party content'
+            AND COALESCE(source_url,url_or_blob) ~ '^https://(www\\.)?tripc\\.(ai|vn)/blog/'
+          ) inventory WHERE title IS NOT NULL AND length(trim(title))>0 ORDER BY rank_group, created_at DESC LIMIT 100`, [claimed.workspace_id])).rows;
+        // The business's own sites, so Research can tell which searched topics it is absent from.
+        payload.own_domains = (await this.pool.query<{ domain: string }>(
+          `SELECT DISTINCT lower(regexp_replace(substring(COALESCE(source_url,url_or_blob) from '^https?://([^/:]+)'),'^www\\.','')) AS domain
+             FROM sources WHERE workspace_id=$1 AND status='approved' AND deleted_at IS NULL
+              AND (license ILIKE '%first-party%' OR license ILIKE '%-owned%') LIMIT 10`, [claimed.workspace_id],
+        )).rows.map((r) => r.domain).filter(Boolean);
         const measured = (await this.pool.query(`SELECT a.payload,a.evidence FROM content_artifacts a
           JOIN integration_connections c ON c.workspace_id=a.workspace_id AND c.provider='gsc'
             AND c.account_ref=a.payload->'result'->>'site_url' AND c.status='connected' AND c.verified_at IS NOT NULL

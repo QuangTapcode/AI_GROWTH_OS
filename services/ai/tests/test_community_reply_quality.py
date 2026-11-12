@@ -6,6 +6,7 @@ import pytest
 from test_community_history import Provider
 from conftest import run_job
 from examples.six_role_requests import mock_research_request, request
+from src.agents.community.pipeline import GENERAL_PROMPT
 from src.app.schemas import Usage
 
 GROUNDED = "The guide compares living areas for newcomers."
@@ -20,6 +21,8 @@ class ReplyProvider:
         self.reply = reply
 
     async def chat_json(self, **kwargs):
+        if kwargs.get("system") == GENERAL_PROMPT:  # general knowledge has nothing either (tested on its own)
+            return json.dumps({"reply": "NO_ANSWER", "kind": "info"}), Usage(llm_calls=1)
         return json.dumps({"reply": self.reply}), Usage(llm_calls=1)
 
     async def embed(self, texts):
@@ -92,7 +95,8 @@ class CountingProvider(ReplyProvider):
     calls = 0
 
     async def chat_json(self, **kwargs):
-        CountingProvider.calls += 1
+        if kwargs.get("system") != GENERAL_PROMPT:  # counts only drafts from the quotes
+            CountingProvider.calls += 1
         return await super().chat_json(**kwargs)
 
 
@@ -128,10 +132,12 @@ def test_common_question_words_missing_from_the_sources_do_not_stop_an_answer(ma
     "bot ơi nói chuyện với mọi người đi",
     "bạn tên gì vậy?",
 ])
-def test_conversational_openers_get_a_grounded_reply_even_when_similarity_is_low(make_client, opener):
+def test_conversational_openers_get_the_assistants_own_reply_even_when_similarity_is_low(make_client, opener):
+    # Since 2026-11-11 (owner): small talk is answered as small talk, not with whichever guides rank first.
+    chat = "Mình là trợ lý AI của TripC, bạn cứ hỏi về du lịch và cuộc sống ở Việt Nam nhé!"
     job = request(mock_research_request(), "community.response", {"question": opener})
-    body = run_job(make_client(provider=Provider(similarity=0.1, reply=GROUNDED), provider_mode="live"), job)
+    body = run_job(make_client(provider=Provider(similarity=0.1, reply=GROUNDED, general=chat), provider_mode="live"), job)
     assert body["status"] == "completed", body
     result = body["result"]["result"]
     assert result["status"] == "draft" and result["escalation_required"] is False
-    assert result["reply"] == GROUNDED and result["citations"]
+    assert result["reply"] == chat and result["citations"] == []

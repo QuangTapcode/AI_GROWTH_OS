@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/features/shell/AppShell";
 import { useWorkspace } from "@/features/shell/WorkspaceProvider";
@@ -8,7 +8,6 @@ import { EmptyBlock, ErrorBlock, LoadingBlock, Toast } from "@/features/shell/St
 import { latestApproval } from "@/features/artifacts/adapters";
 import { ApiError, apiRequest, growthApi } from "@/lib/api";
 import GeneratedPosts, { type SitePost } from "./GeneratedPosts";
-import TikTokVideoStudio from "./TikTokVideoStudio";
 import type { Channel, ContentArtifact, PublishingJob } from "@/lib/apiTypes";
 import { agentLabel, formatDateTime, humanize, shortCode, timeAgo } from "@/lib/format";
 import { useApiData } from "@/lib/useApiData";
@@ -253,7 +252,7 @@ function DistributionContent() {
   const [syncingStats, setSyncingStats] = useState(false);
   const [publishedDateFilter, setPublishedDateFilter] = useState<string>("");
   const { data, error, loading, reload } = useApiData(workspace.id, async (signal) => {
-    const [channels, jobs, artifacts, approvals, integrations, automation, sitePosts, communityHub, tikTok] = await Promise.all([
+    const [channels, jobs, artifacts, approvals, integrations, automation, sitePosts, communityHub] = await Promise.all([
       growthApi.listChannels(workspace.id, signal),
       growthApi.listPublishingJobs(workspace.id, signal),
       growthApi.listArtifacts(workspace.id, signal),
@@ -262,20 +261,6 @@ function DistributionContent() {
       apiRequest<{ settings: { auto_publish_website?: boolean } | null }>(`/workspaces/${workspace.id}/automation`, { signal }),
       apiRequest<{ items: SitePost[] }>(`/workspaces/${workspace.id}/site-posts`, { signal }),
       apiRequest<DistributionHubSummary>(`/workspaces/${workspace.id}/community/hub`, { signal }).catch(() => null),
-      growthApi.listTikTokVideos(workspace.id, signal).catch(() => ({
-        connection: {
-          connected: false,
-          expired: false,
-          open_id: null,
-          display_name: null,
-          avatar_url: null,
-          scopes: [],
-          expires_at: null,
-          refresh_expires_at: null,
-          sandbox_privacy_default: "SELF_ONLY" as const,
-        },
-        items: [],
-      })),
     ]);
     const facebook = integrations.providers.find((p) => p.provider === "facebook_page");
     const facebookGroup = integrations.providers.find((p) => p.provider === "facebook_group");
@@ -285,37 +270,9 @@ function DistributionContent() {
       facebookGroup: { connected: facebookGroup?.status === "connected", reason: facebookGroup?.missing_reason ?? null },
       websiteAutoPublish: automation.settings?.auto_publish_website === true, sitePosts: sitePosts.items,
       communityHub,
-      tikTokConnection: tikTok.connection,
-      tikTokVideos: tikTok.items,
     };
   });
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tt = params.get("tiktok");
-    const ttName = params.get("tiktok_name");
-    const ttError = params.get("tiktok_error");
-    if (tt !== "connected" && !ttError) return;
-
-    const message =
-      tt === "connected"
-        ? `Đã kết nối tài khoản TikTok thành công${ttName ? ` (${ttName})` : ""}.`
-        : `Lỗi kết nối TikTok: ${ttError}`;
-
-    const timer = window.setTimeout(() => {
-      setToast(message);
-      params.delete("tiktok");
-      params.delete("tiktok_name");
-      params.delete("tiktok_error");
-      const nextSearch = params.toString();
-      window.history.replaceState(
-        {},
-        "",
-        `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`
-      );
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   const handleSyncPostStats = async () => {
     setSyncingStats(true);
@@ -596,15 +553,6 @@ function DistributionContent() {
             <GeneratedPosts artifacts={data.artifacts} approvals={data.approvals} jobs={data.jobs} sitePosts={data.sitePosts}
               facebook={data.facebook} facebookGroup={data.facebookGroup} websiteAutoPublish={data.websiteAutoPublish} />
 
-            <TikTokVideoStudio
-              workspaceId={workspace.id}
-              canEdit={canEdit}
-              connection={data.tikTokConnection}
-              videos={data.tikTokVideos}
-              artifacts={data.artifacts}
-              onToast={setToast}
-              onReload={reload}
-            />
             <section className={`${card} p-6`}>
               <h2 className="text-sm font-bold text-slate-900">Ready to publish</h2>
               <p className="text-[11px] text-slate-400 mt-0.5 mb-4">Artifacts whose exact current version was approved by an owner.</p>

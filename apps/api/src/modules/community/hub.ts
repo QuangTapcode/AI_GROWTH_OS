@@ -1,3 +1,4 @@
+import { PgGapStore } from './gaps';
 import { createHash, randomUUID } from 'node:crypto';
 import dns from 'node:dns';
 import fs from 'node:fs';
@@ -19,6 +20,12 @@ import {
   type TargetSource,
   type WeeklyTargetPlanItem,
 } from './targets';
+import { AppError } from '../../lib/errors';
+import { groupBotBridgeUrl, groupBotTmpDir, spawnGroupBot } from './groupBotProcess';
+import { COMMUNITY_VIDEO_POSTS_SQL, readVideoManifest, reelRequest, signedVideoPath, videoDir } from './videos';
+
+// Created once per process; the hub is polled every few seconds.
+let videoPostsTable: Promise<unknown> | null = null;
 
 try {
   dns.setDefaultResultOrder('ipv4first');
@@ -366,21 +373,6 @@ export const PLAYBOOK_OFFERS = [
   'visa',
 ];
 
-const PLAYBOOK_TREND_TOPICS = [
-  { query: 'Vietnam apartment viewing checklist expats', title: 'Apartment Viewing Checklist in Vietnam for Expats', url: 'https://tripc.ai/blog/apartment-viewing-checklist-vietnam' },
-  { query: 'Vietnam working remotely setup expats', title: 'Working Remotely from Vietnam: Reliable Setup Guide', url: 'https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide' },
-  { query: 'Vietnam esim sim card expats', title: 'eSIM or Local SIM in Vietnam: Complete Comparison', url: 'https://tripc.ai/blog/vietnam-esim-vs-sim-card' },
-  { query: 'Vietnam bank account foreigner expats', title: 'Opening a Bank Account in Vietnam as a Foreigner', url: 'https://tripc.ai/blog/open-bank-account-vietnam-foreigner-guide' },
-  { query: 'Vietnam health insurance expats', title: 'Health Insurance in Vietnam: Local vs International Coverage', url: 'https://tripc.ai/blog/health-insurance-vietnam-local-vs-international' },
-  { query: 'Vietnam grocery shopping expats', title: 'Grocery Shopping in Vietnam: Supermarkets, Markets & Apps', url: 'https://tripc.ai/blog/grocery-shopping-in-vietnam-expat-guide' },
-  { query: 'Vietnam first two weeks accommodation expats', title: 'Where to Stay During Your First Two Weeks in Vietnam', url: 'https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide' },
-  { query: 'Vietnam temporary residence registration expats', title: 'Temporary Residence Registration in Vietnam for Foreigners', url: 'https://tripc.ai/blog/temporary-residence-registration-guide' },
-  { query: 'Vietnam essential apps living expats', title: 'Essential Apps for Living in Vietnam', url: 'https://tripc.ai/blog/essential-apps-for-living-in-vietnam' },
-  { query: 'Vietnam travel budget cost expats', title: 'How Much Does a Day in Vietnam Cost? Travel Budget Guide', url: 'https://tripc.ai/blog/vietnam-travel-budget-per-day' },
-  { query: 'Vietnam packing list moving expats', title: 'What to Pack When Moving to Vietnam', url: 'https://tripc.ai/blog/packing-list-moving-to-vietnam' },
-  { query: 'Vietnam common scams safety expats', title: 'Common Scams in Vietnam: What New Arrivals Should Watch For', url: 'https://tripc.ai/blog/common-scams-in-vietnam-guide' },
-];
-
 function matchesTagInText(lowerText: string, tag: string): boolean {
   const clean = tag.trim().toLowerCase();
   if (!clean) return false;
@@ -670,6 +662,8 @@ function resolveGroupBotSessionFile(workerDir: string): { exists: boolean; fileP
 }
 
 function resolveGroupBotRunner(workerDir: string): { command: string; prefixArgs: string[] } {
+  // In the API container the worker's bridge runs the bot on the host; it adds the runner itself.
+  if (groupBotBridgeUrl()) return { command: 'group-bot-bridge', prefixArgs: [] };
   const srcRunner = path.join(workerDir, 'src', 'publish', 'runFacebookGroupBot.ts');
   const distRunner = path.join(workerDir, 'dist', 'publish', 'runFacebookGroupBot.js');
   const localTsx = path.join(workerDir, 'node_modules', 'tsx', 'dist', 'cli.mjs');
@@ -847,6 +841,23 @@ function formatVnDateTime(date: Date, includeTime = true): { full: string; short
     short: `${dateOnly} • ${hh}:${min}`,
     dateOnly,
   };
+}
+
+/** Why the Growth Lead targets were not applied, and what to do about it. */
+export function growthLeadSyncMessage(reason: string): string {
+  if (reason === 'RESEARCH_NOT_READY_FOR_CONTEXT') {
+    return 'Bộ nguồn vừa thay đổi (có nguồn mới được duyệt) nên Research chưa chạy cho bộ nguồn này. '
+      + 'Growth Lead phải dựa trên Research của đúng bộ nguồn hiện tại: chạy Research trước (hoặc đợi chu kỳ tự động hằng ngày), rồi bấm lại.';
+  }
+  if (reason === 'NO_CURRENT_CONTEXT') return 'Chưa có bộ nguồn (knowledge context) nào đang dùng. Duyệt nguồn và tạo context trước.';
+  if (reason.startsWith('GROWTH_LEAD_RUN_RUNNING') || reason.startsWith('GROWTH_LEAD_RUN_QUEUED')) {
+    return 'Growth Lead chạy quá 45 giây chưa xong. Đợi một lát rồi bấm lại.';
+  }
+  if (reason.startsWith('GROWTH_LEAD_RUN_')) return `Growth Lead chạy nhưng thất bại (${reason.replace('GROWTH_LEAD_RUN_', '')}).`;
+  if (reason.startsWith('GROWTH_LEAD_AI_HTTP_')) return 'Không gọi được dịch vụ AI. Kiểm tra container AI đang chạy.';
+  if (reason === 'GROWTH_LEAD_PLAN_INVALID') return 'Growth Lead trả về kế hoạch không hợp lệ nên không áp dụng.';
+  if (reason === 'GROWTH_LEAD_ARTIFACT_MISMATCH') return 'Kết quả Growth Lead không khớp chữ ký kiểm tra nên không áp dụng.';
+  return 'Growth Lead chưa chạy được.';
 }
 
 export class CommunityHubService {
@@ -1503,118 +1514,20 @@ export class CommunityHubService {
 
     const all30Assets = getPlaybookImageAssets(workspaceId).map(({ topic_tags, match_slug, ...rest }) => rest);
 
-    const profileRow = (
-      await this.pool.query<{ products_services: string[]; version: number }>(
-        'SELECT products_services, version FROM business_profiles WHERE workspace_id = $1',
-        [workspaceId],
-      )
-    ).rows[0];
-
-    if (profileRow && (!profileRow.products_services || profileRow.products_services.length < 10)) {
-      await this.pool.query(
-        `UPDATE business_profiles
-            SET products_services = $2::text[],
-                target_locations = $3::text[],
-                target_audiences = $4::text[],
-                overview = $5,
-                updated_at = NOW()
-          WHERE workspace_id = $1`,
-        [
-          workspaceId,
-          PLAYBOOK_OFFERS,
-          ['Vietnam', 'Da Nang', 'Hanoi', 'Ho Chi Minh City'],
-          ['Travelers, expats, digital nomads, and remote workers visiting or living in Vietnam'],
-          `${settings.community_name}: cộng đồng hỗ trợ du lịch, lưu trú, ẩm thực, di chuyển và kinh nghiệm sống thực tế tại Đà Nẵng & Việt Nam.`,
-        ],
-      );
-    }
-
-    const goalRow = (
-      await this.pool.query<{ id: string; title: string }>(
-        "SELECT id, title FROM growth_goals WHERE workspace_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1",
-        [workspaceId],
-      )
-    ).rows[0];
-    if (goalRow && (/\be-?visa\b/i.test(goalRow.title) || /Playbook|2 chiều/i.test(goalRow.title))) {
-      await this.pool.query(
-        `UPDATE growth_goals
-            SET title = 'Phát triển Cộng đồng Du lịch & Sống tại Việt Nam và chuỗi bài cẩm nang du lịch, lưu trú thực tế'
-          WHERE id = $1`,
-        [goalRow.id],
-      );
-    }
-
+    // The hub only supplies post illustrations to the current context. It never rewrites the owner's
+    // business profile, growth goal or the pinned profile/goal, and never writes search signals:
+    // Research must see the owner's profile and real search results only.
     const currentCtx = (
-      await this.pool.query<{ snapshot_id: string; profile: Record<string, any>; goal: Record<string, any> | null; assets: unknown[] }>(
-        'SELECT snapshot_id, profile, goal, assets FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
+      await this.pool.query<{ snapshot_id: string; assets: unknown[] }>(
+        'SELECT snapshot_id, assets FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
         [workspaceId],
       )
     ).rows[0];
-
-    if (currentCtx) {
-      const currentAssetsLen = Array.isArray(currentCtx.assets) ? currentCtx.assets.length : 0;
-      const currentProductsLen = Array.isArray(currentCtx.profile?.products) ? currentCtx.profile.products.length : 0;
-      const currentFocusLen = Array.isArray(currentCtx.goal?.focus_offers) ? currentCtx.goal.focus_offers.length : 0;
-
-      if (currentAssetsLen < 30 || currentProductsLen < 10 || currentFocusLen > 0) {
-        const updatedProfile = {
-          ...(currentCtx.profile ?? {}),
-          products: PLAYBOOK_OFFERS,
-          locations: ['Vietnam', 'Da Nang', 'Hanoi', 'Ho Chi Minh City'],
-          audiences: ['Travelers, expats, digital nomads, and remote workers visiting or living in Vietnam'],
-          overview: `${settings.community_name}: cộng đồng hỗ trợ du lịch, lưu trú, di chuyển và kinh nghiệm sống thực tế tại Việt Nam.`,
-        };
-        const updatedGoal = currentCtx.goal
-          ? {
-            ...currentCtx.goal,
-            objective:
-              'Phát triển Cộng đồng Du lịch & Sống tại Việt Nam và chuỗi bài cẩm nang du lịch, lưu trú thực tế',
-            focus_offers: [],
-          }
-          : null;
-
-        await this.pool.query(
-          `UPDATE knowledge_contexts
-              SET profile = $2::jsonb,
-                  goal = $3::jsonb,
-                  assets = $4::jsonb
-            WHERE workspace_id = $1 AND snapshot_id = $5`,
-          [workspaceId, JSON.stringify(updatedProfile), JSON.stringify(updatedGoal), JSON.stringify(all30Assets), currentCtx.snapshot_id],
-        );
-      }
-    }
-
-    const latestRun = (
-      await this.pool.query<{ discovery_run_id: string; count: string }>(
-        `SELECT discovery_run_id, count(*)::text AS count
-           FROM trend_signals
-          WHERE workspace_id = $1
-          GROUP BY discovery_run_id
-          ORDER BY max(observed_at) DESC
-          LIMIT 1`,
-        [workspaceId],
-      )
-    ).rows[0];
-
-    const runId = latestRun?.discovery_run_id ?? randomUUID();
-    const existingQueries = new Set(
-      (
-        await this.pool.query<{ query: string }>(
-          'SELECT DISTINCT query FROM trend_signals WHERE workspace_id = $1 AND discovery_run_id = $2',
-          [workspaceId, runId],
-        )
-      ).rows.map((r) => r.query),
-    );
-
-    for (let i = 0; i < PLAYBOOK_TREND_TOPICS.length; i++) {
-      const item = PLAYBOOK_TREND_TOPICS[i];
-      if (!existingQueries.has(item.query)) {
-        await this.pool.query(
-          `INSERT INTO trend_signals (id, workspace_id, discovery_run_id, query, rank, title, url, domain, observed_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'tripc.ai', NOW() - INTERVAL '5 minutes')`,
-          [randomUUID(), workspaceId, runId, item.query, i + 1, item.title, item.url],
-        );
-      }
+    if (currentCtx && (Array.isArray(currentCtx.assets) ? currentCtx.assets.length : 0) < all30Assets.length) {
+      await this.pool.query(
+        'UPDATE knowledge_contexts SET assets = $2::jsonb WHERE workspace_id = $1 AND snapshot_id = $3',
+        [workspaceId, JSON.stringify(all30Assets), currentCtx.snapshot_id],
+      );
     }
 
     await this.seedInitialDiscussionsIfEmpty(workspaceId, settings);
@@ -2810,7 +2723,7 @@ export class CommunityHubService {
         ).rows.map((r) => r.facebook_post_url);
 
         const runner = resolveGroupBotRunner(workerDir);
-        const tmpPayloadFile = path.join(os.tmpdir(), `fb-scan-stats-${randomUUID()}.json`);
+        const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-scan-stats-${randomUUID()}.json`);
         fs.writeFileSync(
           tmpPayloadFile,
           JSON.stringify({
@@ -2823,7 +2736,7 @@ export class CommunityHubService {
         );
         try {
           const botOutput = await new Promise<{ stdout: string; stderr: string }>((resolve) => {
-            const child = spawn(
+            const child = spawnGroupBot(
               runner.command,
               [...runner.prefixArgs, 'scan-stats', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
               {
@@ -2938,7 +2851,7 @@ export class CommunityHubService {
     ).rows.map((r) => r.facebook_post_url);
 
     const runner = resolveGroupBotRunner(workerDir);
-    const tmpPayloadFile = path.join(os.tmpdir(), `fb-scan-comments-${randomUUID()}.json`);
+    const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-scan-comments-${randomUUID()}.json`);
     fs.writeFileSync(
       tmpPayloadFile,
       JSON.stringify({
@@ -2953,7 +2866,7 @@ export class CommunityHubService {
     try {
       const botOutput = await new Promise<{ code: number | null; stdout: string; stderr: string; spawnErr?: string; timedOut?: boolean }>(
         (resolve) => {
-          const child = spawn(
+          const child = spawnGroupBot(
             runner.command,
             [...runner.prefixArgs, 'scan-comments', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
             {
@@ -3239,7 +3152,7 @@ export class CommunityHubService {
         );
         const runner = resolveGroupBotRunner(workerDir);
         const nativeLimit = Math.min(remaining, Math.max(1, batchCap - invitedCount));
-        const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-invite-${randomUUID()}.json`);
+        const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-group-invite-${randomUUID()}.json`);
         fs.writeFileSync(
           tmpPayloadFile,
           JSON.stringify({
@@ -3254,7 +3167,7 @@ export class CommunityHubService {
         try {
           const botOutput = await new Promise<{ code: number | null; stdout: string; stderr: string; spawnErr?: string; timedOut?: boolean }>(
             (resolve) => {
-              const child = spawn(
+              const child = spawnGroupBot(
                 runner.command,
                 [...runner.prefixArgs, 'invite', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
                 {
@@ -3402,6 +3315,8 @@ export class CommunityHubService {
   ): Promise<{
     applied: boolean;
     reason?: string;
+    /** What the owner can do about `reason`, in Vietnamese. */
+    message?: string;
     artifact_id?: string | null;
     week1_target: number;
     week2_target: number;
@@ -3459,6 +3374,8 @@ export class CommunityHubService {
     }
 
     // Run real Growth Lead Agent (strategy.generate) against current knowledge context + research + community_context
+    // Why no plan was applied, named per step so the owner knows what to do next.
+    let reason = 'GROWTH_LEAD_RUN_UNAVAILABLE';
     const contextRow = (
       await this.pool.query<{ snapshot_id: string; profile_version: number; profile: unknown; snapshot: unknown; goal: unknown }>(
         'SELECT snapshot_id, profile_version, profile, snapshot, goal FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
@@ -3478,6 +3395,10 @@ export class CommunityHubService {
         [workspaceId, contextRow?.snapshot_id],
       )
     ).rows[0];
+
+    // Growth Lead must read Research made from these same sources; approving sources starts a new context.
+    if (!contextRow) reason = 'NO_CURRENT_CONTEXT';
+    else if (!researchRow?.payload?.artifact || !researchRow.payload.result) reason = 'RESEARCH_NOT_READY_FOR_CONTEXT';
 
     if (contextRow && researchRow?.payload?.artifact && researchRow.payload.result) {
       const communityContext = await loadCommunityGrowthContext(this.pool, workspaceId);
@@ -3571,6 +3492,7 @@ export class CommunityHubService {
             prompt_version?: string;
           };
           provider_calls?: number;
+          error_code?: string | null;
         };
         const pollDeadline = Date.now() + 45_000;
         while ((runStatus.status === 'queued' || runStatus.status === 'running') && Date.now() < pollDeadline) {
@@ -3583,7 +3505,11 @@ export class CommunityHubService {
           runStatus = (await getRes.json()) as typeof runStatus;
         }
 
-        if (runStatus.status === 'completed' && runStatus.result?.artifact && runStatus.result?.result) {
+        const completed = runStatus.status === 'completed' && runStatus.result?.artifact && runStatus.result?.result;
+        if (!completed) {
+          reason = `GROWTH_LEAD_RUN_${String(runStatus.status || 'unknown').toUpperCase()}${runStatus.error_code ? `:${runStatus.error_code}` : ''}`;
+        }
+        if (completed && runStatus.result?.artifact && runStatus.result?.result) {
           const artifact = runStatus.result.artifact as {
             artifact_id: string;
             workspace_id: string;
@@ -3644,15 +3570,21 @@ export class CommunityHubService {
                 target_rationale: refreshed.target_rationale,
               };
             }
+            reason = 'GROWTH_LEAD_PLAN_INVALID';
+          } else {
+            reason = 'GROWTH_LEAD_ARTIFACT_MISMATCH';
           }
         }
+      } else {
+        reason = `GROWTH_LEAD_AI_HTTP_${postRes.status}`;
       }
     }
 
     const refreshed = await this.getCommunitySettings(workspaceId);
     return {
       applied: false,
-      reason: 'GROWTH_LEAD_RUN_UNAVAILABLE',
+      reason,
+      message: growthLeadSyncMessage(reason),
       artifact_id: refreshed.strategy_artifact_id,
       week1_target: refreshed.week1_target,
       week2_target: refreshed.week2_target,
@@ -4127,6 +4059,33 @@ export class CommunityHubService {
     let publishedGroupCount = 0;
     let publishedFanpageCount = 0;
     let failedGroupCount = 0;
+    // Explainer videos rendered for topics (Video3D pipeline), keyed by the same source id as the cards.
+    const topicVideos = readVideoManifest(videoDir(), workspaceId);
+    // Reels the worker posted after each Facebook post (apps/worker ReelOutboxRunner); latest per topic.
+    videoPostsTable ??= this.pool.query(COMMUNITY_VIDEO_POSTS_SQL).catch((error) => {
+      videoPostsTable = null;
+      throw error;
+    });
+    await videoPostsTable;
+    const reelBySource = new Map(
+      (
+        await this.pool.query<{ source_id: string; status: string; post_url: string | null; error: string | null }>(
+          `SELECT DISTINCT ON (source_id) source_id, status, post_url, error
+             FROM community_video_posts WHERE workspace_id = $1 ORDER BY source_id, updated_at DESC`,
+          [workspaceId],
+        )
+      ).rows.map((r) => [r.source_id, { status: r.status, post_url: r.post_url, error: r.error }]),
+    );
+    // A Reel waiting in the worker's queue shows as "queued" until it is posted or fails.
+    for (const r of (
+      await this.pool.query<{ source_id: string }>(
+        `SELECT DISTINCT payload->>'source_id' AS source_id FROM outbox_events
+          WHERE workspace_id = $1 AND event_type = 'publishing.reel' AND status IN ('pending', 'processing')`,
+        [workspaceId],
+      )
+    ).rows) {
+      if (reelBySource.get(r.source_id)?.status !== 'published') reelBySource.set(r.source_id, { status: 'queued', post_url: null, error: null });
+    }
 
     const dailyCalendar = orderedSources.map((source, index) => {
       const groupPub = getGroupPub(source);
@@ -4323,6 +4282,13 @@ export class CommunityHubService {
           (targetMode === 'fanpage' ? fanpagePub?.published_at : groupPub?.published_at ?? webPub?.published_at)?.toISOString() ??
           null,
         facebook_post_url: targetMode === 'fanpage' ? fanpagePostUrl : groupPostUrl ?? fanpagePostUrl,
+        video: (() => {
+          const v = topicVideos.get(source.id);
+          return v
+            ? { path: signedVideoPath(workspaceId, source.id), title: v.title, duration_s: v.duration_s, status: v.status, created_at: v.created_at,
+                facebook_reel: reelBySource.get(source.id) ?? null }
+            : null;
+        })(),
         unique_topic_verified: true,
         unique_image_verified: isUniqueImage,
         engagement: {
@@ -4984,6 +4950,7 @@ export class CommunityHubService {
         },
       },
       telegram_bot: telegramBotStatus,
+      knowledge_gaps: await this.knowledgeGaps(workspaceId),
       weekly_campaigns: weeklyCampaigns,
       matched_members: members,
       discussions,
@@ -5391,6 +5358,54 @@ export class CommunityHubService {
    * a 100% fresh, non-duplicate article + post for the configured community destination
    * (Facebook Group by default; Fanpage only when `publish_target` is `'fanpage'` or `'both'`).
    */
+/**
+   * Posts a topic's video as a Reel for a Facebook post that is already out (posts published before Reels existed,
+   * or a Reel that failed). Only queues it: the worker's ReelOutboxRunner uploads it within seconds.
+   */
+  async queueReelForPublishedPost(workspaceId: string, sourceId: string) {
+    if (!readVideoManifest(videoDir(), workspaceId).has(sourceId)) {
+      throw new AppError(409, 'VIDEO_NOT_READY', 'This topic has no video yet.');
+    }
+    const job = (
+      await this.pool.query<{ id: string; workspace_id: string; content_title: string | null; hook: string | null }>(
+        `SELECT j.id, j.workspace_id, c.title AS content_title, a.payload->'result'->'facebook'->>'hook' AS hook
+           FROM publishing_jobs j
+           JOIN content_artifacts a ON a.id = j.artifact_id
+           JOIN contents c ON c.id = j.content_id
+           JOIN channels ch ON ch.id = j.channel_id
+          WHERE j.workspace_id = $1 AND j.status = 'published' AND j.external_post_id IS NOT NULL
+            AND ch.platform_name = 'facebook' AND a.evidence->0->>'source_id' = $2
+          ORDER BY j.published_at DESC NULLS LAST LIMIT 1`,
+        [workspaceId, sourceId],
+      )
+    ).rows[0];
+    if (!job) throw new AppError(409, 'POST_NOT_PUBLISHED', 'This topic has no Facebook post yet. Use "Đăng ngay hôm nay" to post it with its video.');
+
+    videoPostsTable ??= this.pool.query(COMMUNITY_VIDEO_POSTS_SQL).catch((error) => {
+      videoPostsTable = null;
+      throw error;
+    });
+    await videoPostsTable;
+    const done = (await this.pool.query<{ status: string }>('SELECT status FROM community_video_posts WHERE publishing_job_id = $1', [job.id])).rows[0];
+    if (done?.status === 'published') throw new AppError(409, 'REEL_ALREADY_PUBLISHED', 'This video is already on the Fanpage.');
+
+    const events = (
+      await this.pool.query<{ status: string }>(
+        `SELECT status FROM outbox_events WHERE workspace_id = $1 AND event_type = 'publishing.reel' AND payload->>'job_id' = $2`,
+        [workspaceId, job.id],
+      )
+    ).rows;
+    if (events.some((e) => e.status === 'pending' || e.status === 'processing')) return { status: 'queued' as const, job_id: job.id };
+
+    const request = reelRequest({ ...job, source_id: sourceId }, events.length);
+    await this.pool.query(
+      `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload) VALUES ($1, 'publishing.reel', $2, $3)
+       ON CONFLICT (workspace_id, dedup_key) DO NOTHING`,
+      [workspaceId, request.dedup_key, JSON.stringify(request.payload)],
+    );
+    return { status: 'queued' as const, job_id: job.id };
+  }
+
   async publishFreshPlaybookPost(
     workspaceId: string,
     actorId: string,
@@ -6227,6 +6242,27 @@ export class CommunityHubService {
   /**
    * Server-side Telegram Bot status & conversation metrics (never exposes TELEGRAM_BOT_TOKEN).
    */
+  /** Questions the bot could not answer, with the state of each source proposed for them (open questions first). */
+  async knowledgeGaps(workspaceId: string) {
+    try {
+      const store = new PgGapStore(this.pool);
+      const gaps = (await store.list(workspaceId)).slice(0, 30);
+      const ids = gaps.flatMap((g) => g.proposed.map((p) => p.source_id));
+      const rows = ids.length
+        ? (await this.pool.query<{ id: string; status: string; version: number }>(
+            `SELECT id::text, status, version FROM sources WHERE id::text = ANY($1::text[]) AND deleted_at IS NULL`, [ids])).rows
+        : [];
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      return gaps.map((g) => ({
+        id: g.id, question: g.question, ask_count: g.ask_count, status: g.status, topic: g.topic, reopened: g.reopened,
+        last_asked_at: new Date(g.last_asked_at).toISOString(),
+        sources: g.proposed.map((p) => ({ ...p, status: byId.get(p.source_id)?.status ?? 'missing', version: byId.get(p.source_id)?.version ?? null })),
+      }));
+    } catch {
+      return []; // Table not migrated yet: the hub still loads.
+    }
+  }
+
   async getTelegramBotStatus(workspaceId: string): Promise<{
     configured: boolean;
     mode: 'polling' | 'webhook';
@@ -6413,7 +6449,7 @@ export class CommunityHubService {
     const runner = resolveGroupBotRunner(workerDir);
 
     const verified = await new Promise<GroupBotSessionStatus>((resolve) => {
-      const child = spawn(runner.command, [...runner.prefixArgs, 'check'], {
+      const child = spawnGroupBot(runner.command, [...runner.prefixArgs, 'check'], {
         cwd: workerDir,
         env: { ...process.env, FB_SESSION_FILE: session.filePath },
         shell: false,
@@ -6678,7 +6714,7 @@ if ($found) { 'FOCUSED' } else { 'NONE' }
 
     const runner = resolveGroupBotRunner(workerDir);
     const signalFile = waitForConfirm
-      ? path.join(os.tmpdir(), `fb-login-done-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}.sig`)
+      ? path.join(groupBotTmpDir(), `fb-login-done-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}.sig`)
       : '';
     activeLoginSignalFile = signalFile || null;
 
@@ -6759,7 +6795,7 @@ exit $p.ExitCode
           stdio: ['ignore', 'pipe', 'pipe'],
         });
       } else {
-        child = spawn(runner.command, runnerArgs, {
+        child = spawnGroupBot(runner.command, runnerArgs, {
           cwd: workerDir,
           env: { ...process.env, FB_SESSION_FILE: session.filePath },
           shell: false,
@@ -7065,7 +7101,12 @@ exit $p.ExitCode
     }
 
     const runner = resolveGroupBotRunner(workerDir);
-    const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-post-${randomUUID()}.json`);
+    const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-group-post-${randomUUID()}.json`);
+    // The topic's explainer video goes with the post. Only its file name: the bot finds it in its own
+    // COMMUNITY_VIDEO_DIR, since this process may see that folder under another path (container).
+    const video = options.source_id ? readVideoManifest(videoDir(), workspaceId).get(options.source_id) : undefined;
+    // Facebook keeps "Post" disabled while a video uploads. Stays under fetch's 300 s header timeout (bridge).
+    const postTimeoutMs = video ? 270_000 : 120_000;
     fs.writeFileSync(
       tmpPayloadFile,
       JSON.stringify({
@@ -7074,6 +7115,7 @@ exit $p.ExitCode
         body: options.body,
         discussionPrompt: options.discussion_prompt,
         imageUrl: options.image_url,
+        ...(video ? { videoFile: video.file } : {}),
         headless: true,
       }),
       'utf8',
@@ -7087,7 +7129,7 @@ exit $p.ExitCode
         spawnErr?: string;
         timedOut?: boolean;
       }>((resolve) => {
-        const child = spawn(
+        const child = spawnGroupBot(
           runner.command,
           [...runner.prefixArgs, 'post', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
           {
@@ -7111,7 +7153,7 @@ exit $p.ExitCode
             }
             resolve({ code: null, stdout, stderr, timedOut: true });
           }
-        }, 120_000);
+        }, postTimeoutMs);
 
         child.stdout?.on('data', (d) => {
           stdout += d.toString();
@@ -7155,7 +7197,7 @@ exit $p.ExitCode
 
       const rawError =
         botOutput.timedOut
-          ? 'Group Bot đăng bài quá thời gian chờ (120s).'
+          ? `Group Bot đăng bài quá thời gian chờ (${postTimeoutMs / 1000}s).`
           : botOutput.spawnErr ||
           (typeof parsed?.message === 'string' ? parsed.message : '') ||
           botOutput.stderr.trim() ||
@@ -7263,7 +7305,7 @@ exit $p.ExitCode
     }
 
     const runner = resolveGroupBotRunner(workerDir);
-    const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-del-${randomUUID()}.json`);
+    const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-group-del-${randomUUID()}.json`);
     fs.writeFileSync(
       tmpPayloadFile,
       JSON.stringify({
@@ -7283,7 +7325,7 @@ exit $p.ExitCode
         spawnErr?: string;
         timedOut?: boolean;
       }>((resolve) => {
-        const child = spawn(
+        const child = spawnGroupBot(
           runner.command,
           [...runner.prefixArgs, 'delete', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
           {

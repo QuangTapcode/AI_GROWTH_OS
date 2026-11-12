@@ -30,7 +30,8 @@ if ($Component -eq 'ai') {
     }
     $python = Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'Python/pythoncore-*/python.exe') -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
     if (-not $python) { throw 'Set up the Python interpreter and AI dependencies first' }
-    $env:LLM_PROVIDER_MODE = 'live'; $env:LLM_MODEL = 'qwen3:4b-instruct'
+    if (-not $env:LLM_PROVIDER_MODE) { $env:LLM_PROVIDER_MODE = 'live' }
+    if (-not $env:LLM_MODEL) { $env:LLM_MODEL = 'qwen3:4b-instruct' }
     $executable = $python.FullName; $directory = $repo
     $arguments = @('-m','uvicorn','src.app.main:app','--app-dir','services/ai','--host','127.0.0.1','--port','5000')
 } else {

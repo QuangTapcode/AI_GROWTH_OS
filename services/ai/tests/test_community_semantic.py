@@ -4,6 +4,7 @@ import json
 from conftest import run_job
 from examples.six_role_requests import mock_research_request, request
 from src.app.providers import ProviderError
+from src.agents.community.pipeline import GENERAL_PROMPT
 from src.app.schemas import Usage
 
 GROUNDED = "The guide compares living areas for newcomers."
@@ -25,6 +26,8 @@ class EmbeddingProvider:
         self.similarity, self.chat_calls, self.embedded = similarity, 0, []
 
     async def chat_json(self, **kwargs):
+        if kwargs.get("system") == GENERAL_PROMPT:  # general knowledge has nothing either (tested on its own)
+            return json.dumps({"reply": "NO_ANSWER", "kind": "info"}), Usage(llm_calls=1)
         self.chat_calls += 1
         return json.dumps({"reply": GROUNDED}), Usage(llm_calls=1)
 

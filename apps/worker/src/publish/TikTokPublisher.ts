@@ -1,9 +1,38 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import type { CmsPublisher, CmsPublishRequest, CmsPublishResult } from './CmsPublisher';
 import { generateManualPack, type ManualPack } from './ManualPackGenerator';
 
 const SINGLE_CHUNK_MAX_BYTES = 64 * 1024 * 1024; // TikTok allows single-chunk uploads up to 64 MB
 const MULTI_CHUNK_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per chunk for > 64 MB videos
+
+/** The repo's `.tiktok-uploads`, which the API container mounts as its upload folder. */
+export function defaultTikTokUploadRoot(start = process.cwd()): string {
+  const explicit = process.env.TIKTOK_HOST_UPLOAD_DIR?.trim();
+  if (explicit) return path.resolve(explicit);
+  let cur = path.resolve(start);
+  for (let i = 0; i < 8; i++) {
+    if (fs.existsSync(path.join(cur, 'apps')) && fs.existsSync(path.join(cur, 'database'))) return path.join(cur, '.tiktok-uploads');
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return path.resolve(start, '../../.tiktok-uploads');
+}
+
+/**
+ * The API saves an upload as `<its upload root>/<workspace id>/<file>`, a path inside its container.
+ * Here the same file sits under this machine's upload root, so only the last two parts carry over.
+ */
+export function resolveTikTokMediaPath(stored: string | undefined, uploadRoot = defaultTikTokUploadRoot()): string | undefined {
+  if (!stored || fs.existsSync(stored)) return stored;
+  const parts = stored.split(/[\\/]+/);
+  if (parts.includes('..')) return stored;
+  const [workspace, file] = parts.slice(-2);
+  if (!/^[0-9a-f-]{36}$/i.test(workspace ?? '') || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(file ?? '')) return stored;
+  const local = path.join(uploadRoot, workspace, file);
+  return fs.existsSync(local) ? local : stored;
+}
 
 /**
  * Compute TikTok FILE_UPLOAD chunk parameters respecting TikTok's 5 MB–64 MB rules:
@@ -198,6 +227,15 @@ export class TikTokPublisher implements CmsPublisher {
       const response = await this.request(path, requestBody, authOverride);
 
       if (!response.ok || typeof response.payload?.data?.publish_id !== 'string') {
+        // An app TikTok has not audited may only post privately; a manual pack would not help.
+        if (response.payload?.error?.code === 'unaudited_client_can_only_post_to_private_accounts') {
+          return {
+            success: false,
+            errorCode: 'TIKTOK_UNAUDITED_PRIVATE_ONLY',
+            errorMessage:
+              'App TikTok chưa được TikTok duyệt nên chỉ đăng được ở chế độ "Chỉ mình tôi" (SELF_ONLY). Chọn quyền riêng tư đó rồi đăng lại; muốn đăng công khai phải gửi app cho TikTok duyệt.',
+          };
+        }
         const isPermissionDenied =
           response.status === 401 ||
           response.status === 403 ||

@@ -1,0 +1,236 @@
+{
+ "version": "community-retrieval-v1",
+ "note": "Real questions for the Community bot. 'gold' is a regex that a passage able to answer must match; a question is a hit when one of the top 3 passages matches. kind=abuse|chat|unanswerable expect no evidence.",
+ "questions": [
+  {
+   "q": "bao giờ đến mùa du lịch ở Đà Nẵng",
+   "gold": "dry season|best time|February|March|April|rainy season"
+  },
+  {
+   "q": "thời tiết Đà Nẵng tháng 12 thế nào",
+   "gold": "December|rainy season|typhoon|wet season"
+  },
+  {
+   "q": "mùa mưa ở miền Trung kéo dài mấy tháng",
+   "gold": "rainy season|September|October|November|typhoon"
+  },
+  {
+   "q": "When is the rainy season in Da Nang?",
+   "gold": "rainy season|September|October|November|typhoon"
+  },
+  {
+   "q": "eSIM mua ở đâu?",
+   "gold": "eSIM"
+  },
+  {
+   "q": "nên mua sim vật lý hay eSIM",
+   "gold": "eSIM|SIM card"
+  },
+  {
+   "q": "làm visa điện tử Việt Nam mất bao lâu",
+   "gold": "(?i)(working days|processing|business days)"
+  },
+  {
+   "q": "hộ chiếu cần còn hạn bao lâu để nhập cảnh",
+   "gold": "(?i)(six months|6 months).{0,80}valid|valid.{0,80}(six months|6 months)"
+  },
+  {
+   "q": "web làm e-visa chính thức là trang nào",
+   "gold": "(?i)evisa\\.gov\\.vn|official"
+  },
+  {
+   "q": "có cần vé máy bay khứ hồi không",
+   "gold": "(?i)onward"
+  },
+  {
+   "q": "nên mang bao nhiêu tiền mặt",
+   "gold": "(?i)cash"
+  },
+  {
+   "q": "thẻ tín dụng nước ngoài có dùng được không",
+   "gold": "(?i)credit card|Visa|Mastercard"
+  },
+  {
+   "q": "số điện thoại cấp cứu ở Việt Nam",
+   "gold": "113|114|115"
+  },
+  {
+   "q": "người nước ngoài đăng ký tạm trú thế nào",
+   "gold": "(?i)temporary residence"
+  },
+  {
+   "q": "chi phí sinh hoạt một tháng khoảng bao nhiêu",
+   "gold": "(?i)monthly|per month|a month"
+  },
+  {
+   "q": "mở tài khoản ngân hàng cần giấy tờ gì",
+   "gold": "(?i)bank account|passport"
+  },
+  {
+   "q": "bảo hiểm y tế cho người nước ngoài",
+   "gold": "(?i)health[- ]insurance|medical insurance"
+  },
+  {
+   "q": "những chiêu lừa đảo du khách hay gặp",
+   "gold": "(?i)scam"
+  },
+  {
+   "q": "từ sân bay Đà Nẵng về trung tâm đi bằng gì",
+   "gold": "(?i)airport.{0,200}(taxi|Grab|bus)|(taxi|Grab|bus).{0,200}airport"
+  },
+  {
+   "q": "đi lại trong Việt Nam nên chọn tàu hay máy bay",
+   "gold": "(?i)train|flight|bus"
+  },
+  {
+   "q": "app nào cần cài khi sống ở Việt Nam",
+   "gold": "(?i)Grab|Zalo|app"
+  },
+  {
+   "q": "cầu Rồng phun lửa lúc mấy giờ",
+   "gold": "(?i)Dragon Bridge"
+  },
+  {
+   "q": "đi Bà Nà Hills có gì",
+   "gold": "(?i)Ba Na"
+  },
+  {
+   "q": "bãi biển Mỹ Khê",
+   "gold": "(?i)My Khe"
+  },
+  {
+   "q": "Ngũ Hành Sơn có gì chơi",
+   "gold": "(?i)Marble Mountains"
+  },
+  {
+   "q": "Hội An cách Đà Nẵng bao xa",
+   "gold": "(?i)Hoi An"
+  },
+  {
+   "q": "thuê căn hộ cần kiểm tra gì trước khi ký",
+   "gold": "(?i)apartment|lease|landlord|contract"
+  },
+  {
+   "q": "2 tuần đầu nên ở đâu",
+   "gold": "(?i)first two weeks|short-term|serviced apartment"
+  },
+  {
+   "q": "làm việc từ xa ở Đà Nẵng, coworking ở đâu",
+   "gold": "(?i)cowork|remote"
+  },
+  {
+   "q": "mang chó mèo sang Việt Nam được không",
+   "gold": "(?i)\\bpets?\\b|dog|cat"
+  },
+  {
+   "q": "Do I need an onward ticket to enter Vietnam?",
+   "gold": "(?i)onward"
+  },
+  {
+   "q": "Which airport should I fly into for Da Nang?",
+   "gold": "(?i)airport"
+  },
+  {
+   "q": "Is Da Nang good for digital nomads?",
+   "gold": "(?i)remote|nomad|cowork"
+  },
+  {
+   "q": "Du lịch đồ ngu",
+   "kind": "abuse"
+  },
+  {
+   "q": "bot ngu quá",
+   "kind": "abuse"
+  },
+  {
+   "q": "Bạn là ai?",
+   "kind": "chat"
+  },
+  {
+   "q": "giá vé máy bay Hà Nội Đà Nẵng hôm nay bao nhiêu",
+   "kind": "unanswerable"
+  },
+  {
+   "q": "phố cổ Hội An có gì đặc biệt",
+   "gold": "(?i)Ancient Town|Old Town|UNESCO",
+   "topic": "coverage"
+  },
+  {
+   "q": "đèn lồng Hội An đêm rằm",
+   "gold": "(?i)lantern",
+   "topic": "coverage"
+  },
+  {
+   "q": "Huế có gì tham quan",
+   "gold": "(?i)Hue.{0,120}(Citadel|Imperial|tomb)|(Citadel|Imperial City)",
+   "topic": "coverage"
+  },
+  {
+   "q": "lễ hội pháo hoa Đà Nẵng tổ chức khi nào",
+   "gold": "(?i)fireworks",
+   "topic": "coverage"
+  },
+  {
+   "q": "Cù Lao Chàm đi thế nào",
+   "gold": "(?i)Cham Island|Cu Lao Cham",
+   "topic": "coverage"
+  },
+  {
+   "q": "bán đảo Sơn Trà, chùa Linh Ứng",
+   "gold": "(?i)Son Tra|Linh Ung",
+   "topic": "coverage"
+  },
+  {
+   "q": "Thánh địa Mỹ Sơn",
+   "gold": "(?i)My Son",
+   "topic": "coverage"
+  },
+  {
+   "q": "chợ Hàn mua gì",
+   "gold": "(?i)Han Market",
+   "topic": "coverage"
+  },
+  {
+   "q": "đặc sản Đà Nẵng nên ăn gì",
+   "gold": "(?i)m[iì] qu[aả]ng|banh xeo|b[aá]nh tr[aá]ng|cao lau|specialt",
+   "topic": "coverage"
+  },
+  {
+   "q": "đèo Hải Vân",
+   "gold": "(?i)Hai Van",
+   "topic": "coverage"
+  },
+  {
+   "q": "Vịnh Hạ Long đi mấy ngày",
+   "gold": "(?i)Ha ?Long",
+   "topic": "coverage"
+  },
+  {
+   "q": "Tết Nguyên Đán đi du lịch có ổn không",
+   "gold": "(?i)\bTet\b|Lunar New Year",
+   "topic": "coverage"
+  },
+  {
+   "q": "eSIM mua ở đâu?",
+   "history": [
+    "thời tiết Đà Nẵng tháng 12 thế nào"
+   ],
+   "gold": "eSIM"
+  },
+  {
+   "q": "từ sân bay Đà Nẵng về trung tâm đi bằng gì",
+   "history": [
+    "thời tiết Đà Nẵng tháng 12 thế nào",
+    "eSIM mua ở đâu?"
+   ],
+   "gold": "(?i)airport.{0,200}(taxi|Grab|bus)|(taxi|Grab|bus).{0,200}airport"
+  },
+  {
+   "q": "còn sim vật lý thì sao?",
+   "history": [
+    "eSIM mua ở đâu?"
+   ],
+   "gold": "(?i)SIM card|local SIM|physical SIM"
+  }
+ ]
+}

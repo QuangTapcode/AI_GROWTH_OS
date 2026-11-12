@@ -7,7 +7,8 @@ const getSwitchFallbackSnapshot = () =>
   typeof HTMLInputElement !== "undefined" && !("switch" in HTMLInputElement.prototype);
 const getSwitchFallbackServerSnapshot = () => false;
 import Link from "next/link";
-import { apiRequest } from "@/lib/api";
+import { API_BASE_URL, apiRequest } from "@/lib/api";
+import KnowledgeGapsPanel, { type KnowledgeGap } from "./KnowledgeGapsPanel";
 
 type WeeklyTargetPlanItem = {
   week: number;
@@ -186,6 +187,83 @@ type EngagementSnapshotItem = {
   group_members: number;
   captured_at: string;
 };
+type TopicVideo = {
+  path: string;
+  title: string;
+  duration_s: number;
+  status: "draft" | "approved";
+  created_at: string;
+  /** The Reel the worker posted after the card's Facebook post, if any. */
+  facebook_reel?: { status: "published" | "failed" | "no_video" | string; post_url: string | null; error: string | null } | null;
+};
+
+function TopicVideoPanel({ video, onPublishReel, busy }: { video?: TopicVideo | null; onPublishReel?: () => void; busy?: boolean }) {
+  if (!video) {
+    return (
+      <div className="mx-4 mb-3 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[11px] text-slate-500">
+        🎬 Chưa có video cho chủ đề này
+      </div>
+    );
+  }
+  const src = `${API_BASE_URL}${video.path}`;
+  return (
+    <div className="mx-4 mb-3 rounded-lg border border-violet-200 bg-violet-50 p-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-bold text-violet-900">
+        <span>
+          🎬 Video giải thích · {Math.round(video.duration_s)} giây · Lời Anh, phụ đề Việt
+        </span>
+        <span
+          className={`shrink-0 rounded px-1.5 py-0.5 ${
+            video.status === "approved" ? "bg-emerald-600 text-white" : "bg-amber-400 text-slate-950"
+          }`}
+        >
+          {video.status === "approved" ? "Đã duyệt" : "Chờ duyệt"}
+        </span>
+      </div>
+      <video
+        key={src}
+        controls
+        playsInline
+        preload="metadata"
+        src={src}
+        className="mx-auto max-h-80 rounded bg-black"
+      />
+      <a
+        href={`${src}&download=1`}
+        className="mt-1.5 inline-block text-[11px] font-bold text-violet-800 hover:underline"
+      >
+        ⬇ Tải video
+      </a>
+      {video.facebook_reel?.status === "published" && video.facebook_reel.post_url && (
+        <a href={video.facebook_reel.post_url} target="_blank" rel="noreferrer"
+          className="ml-3 inline-block text-[11px] font-bold text-emerald-700 hover:underline">
+          ▶ Reel đã đăng trên Fanpage ↗
+        </a>
+      )}
+      {video.facebook_reel?.status === "failed" && (
+        <p className="mt-1 rounded bg-red-50 px-2 py-1 text-[11px] text-red-700">
+          Reel chưa đăng được: {video.facebook_reel.error}
+        </p>
+      )}
+      {video.facebook_reel?.status === "queued" && (
+        <p className="mt-1 text-[11px] font-semibold text-violet-800">⏳ Đang đăng video lên Fanpage dạng Reel…</p>
+      )}
+      {onPublishReel && video.facebook_reel?.status !== "published" && video.facebook_reel?.status !== "queued" && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onPublishReel}
+          className="mt-1.5 block rounded-lg bg-violet-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+        >
+          {busy ? "Đang gửi…" : video.facebook_reel?.status === "failed" ? "🎬 Thử đăng lại video lên Fanpage" : "🎬 Đăng video lên Fanpage"}
+        </button>
+      )}
+      {!video.facebook_reel && !onPublishReel && (
+        <p className="mt-1 text-[10px] text-violet-700">Khi bài được đăng lên Fanpage, video này tự đăng kèm dạng Reel.</p>
+      )}
+    </div>
+  );
+}
 
 type DailyCalendarItem = {
   day_index: number;
@@ -232,6 +310,8 @@ type DailyCalendarItem = {
   published_at: string | null;
   facebook_post_url?: string | null;
   post_body_preview?: string | null;
+  /** Explainer video for the topic; `path` is a signed link under API_BASE_URL. */
+  video?: TopicVideo | null;
   unique_topic_verified: boolean;
   unique_image_verified: boolean;
   engagement?: PostEngagementSummary;
@@ -381,6 +461,7 @@ type HubResponse = {
     monthly: MonthlyCalendarItem[];
   };
   telegram_bot?: TelegramBotStatus;
+  knowledge_gaps?: KnowledgeGap[];
 };
 
 type WeekFilterId = `week${number}`;
@@ -895,6 +976,7 @@ export default function CommunityGrowthHub({
         sync_result: {
           applied: boolean;
           reason?: string;
+          message?: string;
           week1_target: number;
           week2_target: number;
           week3_target: number;
@@ -918,7 +1000,7 @@ export default function CommunityGrowthHub({
         res.sync_result.applied ? "success" : "warning",
         res.sync_result.applied
           ? `🤖 Growth Lead Agent đã phân tích số liệu thực tế & tự động áp dụng mục tiêu mới: Tuần 1 (${res.sync_result.week1_target}) → Tuần 2 (${res.sync_result.week2_target}) → Tuần 3 (${res.sync_result.week3_target}) → Tuần 4 (${res.sync_result.week4_target}) thành viên • Giới hạn mời an toàn: ${res.sync_result.daily_invite_limit} lượt/ngày.`
-          : `⚠️ Không thể áp dụng tự động mục tiêu Growth Lead (${res.sync_result.reason || "locked_manual"}).`
+          : `⚠️ Không thể áp dụng tự động mục tiêu Growth Lead (${res.sync_result.reason || "locked_manual"}).${res.sync_result.message ? ` ${res.sync_result.message}` : ""}`
       );
       onUpdated?.();
     } catch (err) {
@@ -1505,7 +1587,30 @@ export default function CommunityGrowthHub({
     }
   }
 
-  async function handleCopyAndOpenGroup(title: string, bodyText: string, promptText: string) {
+  /** Posts the topic's video as a Reel for a card that is already on the Fanpage (posts from before Reels existed). */
+  async function handlePublishReel(sourceId: string, title: string) {
+    if (!window.confirm(`Đăng video của "${title}" lên Fanpage dạng Reel? Video sẽ công khai ngay.`)) return;
+    setBusyAction(`reel:${sourceId}`);
+    setBannerMessage("");
+    try {
+      const res = await apiRequest<{ data: HubResponse }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "publish_reel", source_id: sourceId },
+      });
+      setHub(res.data);
+      setBannerMessage(`Đã gửi video "${title}" lên hàng đợi; Reel sẽ xuất hiện trên Fanpage trong ít phút.`);
+    } catch (err) {
+      setBannerMessage((err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  /**
+   * Facebook removed the Groups API (Graph API v19, April 2024), so nothing can post to a Group for us. This does every
+   * step but the last: copy the text, download the topic's video, open the Group; the person pastes, attaches, posts.
+   */
+  async function handleCopyAndOpenGroup(title: string, bodyText: string, promptText: string, video?: TopicVideo | null) {
     if (!hub) return;
     const postContent = [
       `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${title}`,
@@ -1516,16 +1621,26 @@ export default function CommunityGrowthHub({
       "",
       `#CongDongDuLich #DichVuHoTroDuLich #DaNang #ExploreVietnam`,
     ].join("\n");
+    if (video) {
+      // The API answers download=1 with Content-Disposition: attachment, so this saves the file without leaving the page.
+      const a = document.createElement("a");
+      a.href = `${API_BASE_URL}${video.path}&download=1`;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    const videoNote = video ? " Video của chủ đề đang tải về thư mục Downloads: kéo file vào ô bài viết." : "";
     try {
       await navigator.clipboard.writeText(postContent);
       showBanner(
         "success",
-        `Đã copy sẵn toàn bộ nội dung bài "${title}" vào bộ nhớ tạm! Cửa sổ Group "${hub.group.name}" đã mở — bạn chỉ cần bấm vào ô "Bạn viết gì đi..." và nhấn Ctrl + V để đăng vào Nhóm.`
+        `Đã copy sẵn toàn bộ nội dung bài "${title}" vào bộ nhớ tạm! Cửa sổ Group "${hub.group.name}" đã mở — bạn chỉ cần bấm vào ô "Bạn viết gì đi..." và nhấn Ctrl + V để đăng vào Nhóm.${videoNote}`
       );
     } catch {
       showBanner(
         "warning",
-        `Đã mở Group "${hub.group.name}". Bạn có thể sao chép nội dung bài "${title}" để dán trực tiếp vào Nhóm.`
+        `Đã mở Group "${hub.group.name}". Bạn có thể sao chép nội dung bài "${title}" để dán trực tiếp vào Nhóm.${videoNote}`
       );
     }
     window.open(hub.group.group_url, "_blank", "noopener,noreferrer");
@@ -3582,6 +3697,13 @@ export default function CommunityGrowthHub({
           </div>
         </div>
 
+      <KnowledgeGapsPanel
+        workspaceId={workspaceId}
+        gaps={hub.knowledge_gaps}
+        canEdit={canEdit}
+        onChanged={() => void syncFromServer({ showErrorOnFailure: true })}
+      />
+
       {/* Navigation Tabs (Accessible Single-Row Scrollable Tablist) */}
       <div
         role="tablist"
@@ -4449,6 +4571,14 @@ export default function CommunityGrowthHub({
                               )}
                           </div>
                         </div>
+
+                        <TopicVideoPanel
+                          video={item.video}
+                          busy={busyAction === `reel:${item.source_id}`}
+                          onPublishReel={
+                            isFanpagePublished && canEdit ? () => handlePublishReel(item.source_id, item.topic_title) : undefined
+                          }
+                        />
 
                         {/* VÙNG 5: CHÂN THẺ (LINK BÀI ĐÃ ĐĂNG GROUP/WEB HOẶC BỘ ĐỔI NGÀY GIỜ & NÚT ĐĂNG GROUP) */}
                         <div className="space-y-2.5 border-t border-slate-200 bg-slate-50 px-4 py-3">

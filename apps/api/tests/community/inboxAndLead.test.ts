@@ -255,6 +255,46 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
       expect(clientQuery.mock.calls.some(([sql]) => String(sql).includes("status = 'replied'"))).toBe(false);
     });
 
+    it("lists a question the bot could not answer from its sources, so sources can be found for it", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000105";
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return { rows: [{ id: artifactId, role: "community", task_id: "00000000-0000-0000-0000-000000000205", payload: { result: {
+            status: "insufficient_data", reply: "Chào bạn! ... nhóm Facebook ...", escalation_required: true, missing_facts: ["grounded_answer"] } } }] };
+        }
+        if (sql.includes("platform IN ('facebook_message', 'telegram_message')")) {
+          return { rows: [{ id: "msg-gap", platform: "telegram_message", author_contact: "-100123", content: "Cù Lao Chàm đi thế nào", metadata: {} }] };
+        }
+        if (sql.includes("INSERT INTO community_knowledge_gaps")) {
+          return { rows: [{ id: "gap-1", workspace_id: workspaceId, key: "cu lao cham di the nao", question: "Cù Lao Chàm đi thế nào", ask_count: 1,
+            status: "open", topic: null, proposed: [], last_asked_at: new Date(), last_checked_at: null, reopened: 0 }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      const gap = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO community_knowledge_gaps"));
+      expect(gap?.[1]).toEqual(expect.arrayContaining([workspaceId, "cu lao cham di the nao", "Cù Lao Chàm đi thế nào"]));
+    });
+
+    it("answers a Telegram group question in the group, as a reply to the asking message", async () => {
+      const artifactId = "00000000-0000-0000-0000-000000000104";
+      const clientQuery = vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes("SELECT id, role, task_id, payload FROM content_artifacts")) {
+          return { rows: [{ id: artifactId, role: "community", task_id: "00000000-0000-0000-0000-000000000204", payload: { result: {
+            status: "draft", reply: "Buy an eSIM before you fly.", escalation_required: false,
+            lead_proposal: { intent: "request_information", status: "proposed", contact: {} } } } }] };
+        }
+        if (sql.includes("platform IN ('facebook_message', 'telegram_message')")) {
+          return { rows: [{ id: "msg-grp", platform: "telegram_message", author_contact: "-100123",
+            metadata: { chat_type: "supergroup", reply_to_message_id: 11, from_id: 777 } }] };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+      await persistCommunityLead({ query: clientQuery } as unknown as PoolClient, workspaceId, artifactId, actorId);
+      const outbox = clientQuery.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO outbox_events"))!;
+      expect(JSON.parse(outbox[1][2])).toMatchObject({ recipient: "-100123", platform: "telegram_message", reply_to_message_id: 11 });
+    });
+
     it("queues a Telegram reply for its chat and connected account, and never stores the chat id as a phone", async () => {
       const artifactId = "00000000-0000-0000-0000-000000000103";
       const taskId = "00000000-0000-0000-0000-000000000203";

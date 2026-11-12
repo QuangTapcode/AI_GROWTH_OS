@@ -18,6 +18,8 @@ type Props = {
   artifacts: ContentArtifact[];
   onToast: (message: string) => void;
   onReload: () => void;
+  /** Page TikTok sends the owner back to after connecting. */
+  returnTo?: string;
 };
 
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -120,6 +122,7 @@ export default function TikTokVideoStudio({
   artifacts,
   onToast,
   onReload,
+  returnTo = "/distribution",
 }: Props) {
   const [sourceArtifactId, setSourceArtifactId] = useState("");
   const [videoSourceType, setVideoSourceType] = useState<"file_upload" | "url">("file_upload");
@@ -188,7 +191,7 @@ export default function TikTokVideoStudio({
     setAuthBusy(true);
     setStatusMessage(null);
     try {
-      const auth = await growthApi.getTikTokAuthUrl(workspaceId, "/distribution");
+      const auth = await growthApi.getTikTokAuthUrl(workspaceId, returnTo);
       window.location.assign(auth.url);
     } catch (err) {
       const msg = err instanceof ApiError ? `${err.message} (${err.code})` : "Không thể mở trang đăng nhập TikTok.";

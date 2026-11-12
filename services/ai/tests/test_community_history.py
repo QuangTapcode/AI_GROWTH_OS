@@ -5,6 +5,7 @@ import pytest
 
 from conftest import run_job
 from examples.six_role_requests import mock_research_request, request
+from src.agents.community.pipeline import GENERAL_PROMPT
 from src.app.schemas import Usage
 
 GROUNDED = "The guide compares living areas for newcomers."
@@ -20,10 +21,13 @@ class Provider:
     model_version = "test/community"
     embedding_model_version = "test/embed"
 
-    def __init__(self, similarity=0.4, reply=GROUNDED):
+    def __init__(self, similarity=0.4, reply=GROUNDED, general="NO_ANSWER", general_kind="chat"):
         self.similarity, self.reply, self.user = similarity, reply, None
+        self.general, self.general_kind = general, general_kind
 
-    async def chat_json(self, *, user, **kwargs):
+    async def chat_json(self, *, user, system, **kwargs):
+        if system == GENERAL_PROMPT:  # by default general knowledge has nothing either (tested on its own)
+            return json.dumps({"reply": self.general, "kind": self.general_kind}), Usage(llm_calls=1)
         self.user = json.loads(user)
         return json.dumps({"reply": self.reply}), Usage(llm_calls=1)
 
@@ -101,11 +105,13 @@ def test_history_is_bounded_and_has_a_known_shape(make_client, history):
 
 
 @pytest.mark.parametrize("greeting", ["hi", "Hello!", "xin chào", "Chào shop", "hi admin", "Good morning"])
-def test_a_greeting_gets_a_grounded_welcome_rather_than_a_handoff(make_client, greeting):
-    provider = Provider(similarity=0.1, reply=GROUNDED)
+def test_a_greeting_gets_the_assistants_welcome_rather_than_a_handoff(make_client, greeting):
+    # Since 2026-11-11 (owner): a welcome no longer lists whatever guides happen to rank first ("Funtastic Beach Hostel").
+    hello = "Hello! Ask me about visas, eSIMs or getting around Vietnam."
+    provider = Provider(similarity=0.1, reply=GROUNDED, general=hello)
     result = ask(make_client, provider, greeting)
     assert result["status"] == "draft" and result["escalation_required"] is False
-    assert result["reply"] == GROUNDED and result["citations"]
+    assert result["reply"] == hello and result["citations"] == [] and provider.user is None
 
 
 @pytest.mark.parametrize("question", ["hi, do you sell motorbike insurance?", "Hello, what is the visa fee?", "xin chào, cho hỏi bảo hiểm xe máy"])
@@ -183,4 +189,4 @@ def test_an_english_greeting_is_not_answered_in_vietnamese(make_client, greeting
 
 def test_a_vietnamese_greeting_keeps_the_models_welcome(make_client):
     reply = "Xin chào! Tôi có thể giúp gì cho bạn?"
-    assert ask(make_client, Provider(similarity=0.1, reply=reply), "xin chào")["reply"] == reply
+    assert ask(make_client, Provider(similarity=0.1, general=reply), "xin chào")["reply"] == reply

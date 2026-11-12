@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
-import { buildDiscoveryQueries, loadSignals, refreshDiscoveryIfStale, runDiscovery, type SearchResult } from '../../src/modules/research/discovery';
+import { buildDiscoveryQueries, loadSignals, refreshDiscoveryIfStale, runDiscovery, topicQueries, type SearchResult } from '../../src/modules/research/discovery';
 import { policyFor, referenceUrls } from '../../src/modules/research/sourcePolicy';
 
 const profile = {
@@ -29,6 +29,14 @@ describe('research discovery', () => {
     expect(buildDiscoveryQueries({ locations: ['Da Nang'], audiences: profile.target_audiences, products: profile.products_services }))
       .toEqual(['Da Nang housing expats', 'Da Nang living areas expats', 'Da Nang coworking expats']);
     expect(buildDiscoveryQueries({ locations: [], audiences: [], products: ['housing'] })).toEqual([]);
+  });
+
+  it('phrases the audience differently on each run', () => {
+    const p = { locations: ['Da Nang'], audiences: profile.target_audiences, products: ['housing'] };
+    expect(buildDiscoveryQueries(p, 0)).toEqual(['Da Nang housing expats']);
+    expect(buildDiscoveryQueries(p, 3)).toEqual(['Da Nang housing for foreigners']);
+    expect(buildDiscoveryQueries(p, 6)).toEqual(['Da Nang housing']);
+    expect(buildDiscoveryQueries(p, 9)).toEqual(['Da Nang housing expats']);
   });
 
   it('ingests only open-license or official domains', () => {
@@ -69,6 +77,33 @@ describe('research discovery', () => {
     const { pool, statements } = fakePool();
     await expect(runDiscovery(pool, 'ws-1', async () => [])).rejects.toMatchObject({ code: 'SEARCH_EMPTY' });
     expect(statements.some((s) => s.sql.includes('INSERT INTO trend_signals'))).toBe(false);
+  });
+
+  it('searches a typed topic, adds the location once and asks the open wikis for relevant pages', async () => {
+    expect(topicQueries('  Hoi An  lantern festival ', 'Da Nang')).toEqual(['Hoi An lantern festival', 'Da Nang Hoi An lantern festival']);
+    expect(topicQueries('Da Nang beaches', 'Da Nang')).toEqual(['Da Nang beaches']);
+    expect(topicQueries('   ', 'Da Nang')).toEqual([]);
+
+    const search = vi.fn(async (): Promise<SearchResult[]> => []);
+    const searchWiki = vi.fn(async (site: string) => [
+      { title: 'Hoi An', url: `https://${site}/wiki/Hoi_An` },
+      { title: 'Laos', url: `https://${site}/wiki/Laos` },
+    ]);
+    const { pool, statements } = fakePool();
+    const out = await runDiscovery(pool, 'ws-1', search, { topic: 'Hoi An lantern festival', searchWiki });
+
+    expect(out.queries).toEqual(['Hoi An lantern festival', 'Da Nang Hoi An lantern festival']);
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(searchWiki).toHaveBeenCalledTimes(2);
+    // Web search found nothing, yet the wiki pages are queued; the profile's own reference pages are not.
+    expect(out.queued_sources.map((s) => s.url)).toEqual(['https://en.wikivoyage.org/wiki/Hoi_An', 'https://en.wikipedia.org/wiki/Hoi_An']);
+    expect(statements.some((s) => s.sql.includes('FROM growth_goals'))).toBe(false);
+  });
+
+  it('still reports an empty topic search when no wiki page is relevant either', async () => {
+    const { pool } = fakePool();
+    await expect(runDiscovery(pool, 'ws-1', async () => [], { topic: 'zzz', searchWiki: async () => [] }))
+      .rejects.toMatchObject({ code: 'SEARCH_EMPTY' });
   });
 
   it('rolls back and releases when persisting fails', async () => {

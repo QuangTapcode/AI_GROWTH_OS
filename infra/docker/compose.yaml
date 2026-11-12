@@ -1,0 +1,78 @@
+# AI Growth OS core services in Docker Desktop on the Windows host: API, AI service and the Cloudflare tunnel.
+# Postgres and SearXNG stay in infra/local/compose.yaml; Ollama and the draft worker stay on Windows
+# (the worker needs Edge for group posts, and Remotion/edge-tts for videos).
+#
+#   docker compose -f infra/docker/compose.yaml up -d --build
+#
+# Every service has restart: unless-stopped, so it comes back whenever Docker Desktop starts (at Windows sign-in).
+# Ports stay on 127.0.0.1 so the Windows worker keeps talking to 127.0.0.1:4000 and 127.0.0.1:5000.
+name: ai-growth-os-core
+
+x-host-env: &host-env
+  env_file: ../../apps/api/.env.local
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  restart: unless-stopped
+
+services:
+  ai:
+    <<: *host-env
+    build: { context: ../.., dockerfile: infra/docker/ai.Dockerfile }
+    image: ai-growth-os-ai:local
+    environment:
+      LLM_PROVIDER_MODE: ${LLM_PROVIDER_MODE:-hybrid}
+      LLM_MODEL: qwen3:4b-instruct
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      AI_SERVICE_BASE_URL: http://127.0.0.1:5000
+      AI_RUN_STORE_PATH: /data/runs.sqlite3
+    volumes:
+      - ai_runs:/data
+    ports:
+      - "127.0.0.1:5000:5000"
+    mem_limit: 1g
+
+  api:
+    <<: *host-env
+    build: { context: ../.., dockerfile: infra/docker/api.Dockerfile }
+    image: ai-growth-os-api:local
+    environment:
+      # The password is synced from infra/local/.env by apps/api/src/lib/db.ts, as on Windows.
+      DATABASE_URL: postgres://ai_growth_dev:synced@host.docker.internal:15432/ai_growth_os
+      INTERNAL_AI_URL: http://ai:5000/
+      SEARXNG_BASE_URL: http://host.docker.internal:18081/
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      COMMUNITY_VIDEO_DIR: /data/videos
+      # Facebook Group Bot: Edge and the saved session are on Windows, so the worker's bridge runs the bot
+      # there (apps/worker/src/publish/GroupBotBridge.ts). apps/worker is mounted so the hub sees the session
+      # file and writes payload / login-signal files the bot on the host can read.
+      GROUP_BOT_BRIDGE_URL: http://host.docker.internal:4105
+      WORKER_DIR: /host-worker
+      FB_SESSION_FILE: /host-worker/.fb-session.json
+      GROUP_BOT_SHARED_DIR: /host-worker/.group-bot-io
+      # TikTok uploads land in the repo's .tiktok-uploads so the worker on Windows can send the same file.
+      TIKTOK_UPLOAD_DIR: /data/tiktok-uploads
+    volumes:
+      - ../local/.env:/app/infra/local/.env:ro
+      - ../../../Video3D/tripc-playbook/out:/data/videos:ro
+      - ../../apps/worker:/host-worker
+      - ../../.tiktok-uploads:/data/tiktok-uploads
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      ai: { condition: service_started }
+    mem_limit: 1g
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.3
+    restart: unless-stopped
+    # Shares the API container's network, so the tunnel's origin (127.0.0.1:4000 in the Cloudflare dashboard) is the API.
+    network_mode: service:api
+    command: ["tunnel", "--no-autoupdate", "run", "--dns-resolver-addrs", "1.1.1.1:53", "--token-file", "/etc/cloudflared/token"]
+    volumes:
+      - ${USERPROFILE}/.cloudflared/aigrowthos-api.token:/etc/cloudflared/token:ro
+    depends_on:
+      api: { condition: service_healthy }
+    mem_limit: 256m
+
+volumes:
+  ai_runs:

@@ -556,4 +556,31 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
     assert.equal(capturedBody, 'Nội dung dành riêng cho Facebook Group');
     assert.equal(groupPostSynced, true);
   });
+
+  it('9. Sau khi bài Facebook lên, xếp hàng đúng một Reel cho video của chủ đề (nguồn đầu tiên bài trích dẫn)', async () => {
+    const publisher = new TrackableMockPublisher('Facebook', 'success');
+    const inserts: any[][] = [];
+    const result = { facebook: { text: 'eSIM tips', hook: 'Need internet in Vietnam?' } };
+    const evidence = [{ source_id: 'src-esim', chunk_id: 'c1' }];
+    const pool = {
+      query: async (sql: string, params: any[] = []) => {
+        if (sql.includes('candidate AS')) return { rows: [{ id: 'evt_reel', payload: { job_id: 'job_reel' }, retry_count: 1 }] };
+        if (sql.includes('FROM publishing_jobs j')) return { rows: [{
+          id: 'job_reel', workspace_id: 'ws_1', content_id: 'content_1', approval_id: 'appr_1',
+          scheduled_for: new Date(Date.now() - 1000).toISOString(), status: 'scheduled', mode: 'automated',
+          body_markdown: 'eSIM tips', content_title: 'eSIM at the airport', artifact_id: 'art_1', artifact_version: 1,
+          artifact_payload: { result }, artifact_evidence: evidence, content_hash: computeSha256Hex({ result, evidence }),
+          platform_name: 'facebook', channel_identifier: 'page', utm_url: null, approval_status: 'approved', external_post_id: null }] };
+        if (sql.includes("'publishing.reel'")) inserts.push(params);
+        return { rows: [] };
+      },
+    };
+    const runner = new PublishingOutboxRunner(pool as any, new Map([['Facebook', publisher]]) as any);
+    assert.equal(await runner.runOnce(), 'published');
+    assert.equal(inserts.length, 1);
+    assert.equal(inserts[0][1], 'reel:job_reel');
+    const payload = JSON.parse(inserts[0][2]);
+    assert.equal(payload.source_id, 'src-esim');
+    assert.ok(payload.description.startsWith('Need internet in Vietnam?'));
+  });
 });

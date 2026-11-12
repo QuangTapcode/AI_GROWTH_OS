@@ -2189,6 +2189,14 @@
             "title": "Trend Signals",
             "type": "array"
           },
+          "own_domains": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Own Domains",
+            "type": "array"
+          },
           "search_metrics": {
             "anyOf": [
               {
@@ -2792,6 +2800,24 @@
                 "minimum": 0,
                 "title": "Distinct Domains",
                 "type": "integer"
+              },
+              "business_present": {
+                "default": false,
+                "title": "Business Present",
+                "type": "boolean"
+              },
+              "business_has_article": {
+                "default": false,
+                "title": "Business Has Article",
+                "type": "boolean"
+              },
+              "leading_domains": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "title": "Leading Domains",
+                "type": "array"
               }
             },
             "required": [
@@ -3303,6 +3329,115 @@
               "company"
             ],
             "title": "BusinessProfile",
+            "type": "object"
+          },
+          "CommunityContextInput": {
+            "additionalProperties": false,
+            "properties": {
+              "group_name": {
+                "anyOf": [
+                  {
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Group Name"
+              },
+              "current_members": {
+                "maximum": 10000000,
+                "minimum": 0,
+                "title": "Current Members",
+                "type": "integer"
+              },
+              "week1_baseline_members": {
+                "anyOf": [
+                  {
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Week1 Baseline Members"
+              },
+              "page_followers": {
+                "anyOf": [
+                  {
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Page Followers"
+              },
+              "identified_prospects": {
+                "default": 0,
+                "maximum": 1000000,
+                "minimum": 0,
+                "title": "Identified Prospects",
+                "type": "integer"
+              },
+              "invites_sent_7d": {
+                "default": 0,
+                "maximum": 100000,
+                "minimum": 0,
+                "title": "Invites Sent 7D",
+                "type": "integer"
+              },
+              "comments_replied_7d": {
+                "default": 0,
+                "maximum": 100000,
+                "minimum": 0,
+                "title": "Comments Replied 7D",
+                "type": "integer"
+              },
+              "pending_questions": {
+                "default": 0,
+                "maximum": 100000,
+                "minimum": 0,
+                "title": "Pending Questions",
+                "type": "integer"
+              },
+              "current_campaign_week": {
+                "default": 1,
+                "maximum": 52,
+                "minimum": 1,
+                "title": "Current Campaign Week",
+                "type": "integer"
+              },
+              "daily_invite_cap": {
+                "default": 12,
+                "maximum": 20,
+                "minimum": 1,
+                "title": "Daily Invite Cap",
+                "type": "integer"
+              },
+              "auto_reply_comments": {
+                "default": true,
+                "title": "Auto Reply Comments",
+                "type": "boolean"
+              },
+              "auto_invite_enabled": {
+                "default": true,
+                "title": "Auto Invite Enabled",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "current_members"
+            ],
+            "title": "CommunityContextInput",
             "type": "object"
           },
           "EvidenceRef": {
@@ -4882,6 +5017,24 @@
                 "minimum": 0,
                 "title": "Distinct Domains",
                 "type": "integer"
+              },
+              "business_present": {
+                "default": false,
+                "title": "Business Present",
+                "type": "boolean"
+              },
+              "business_has_article": {
+                "default": false,
+                "title": "Business Has Article",
+                "type": "boolean"
+              },
+              "leading_domains": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "title": "Leading Domains",
+                "type": "array"
               }
             },
             "required": [
@@ -5062,6 +5215,17 @@
             },
             "title": "Score Factors",
             "type": "object"
+          },
+          "community_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CommunityContextInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -5168,6 +5332,112 @@
               "brief"
             ],
             "title": "CampaignTask",
+            "type": "object"
+          },
+          "CommunityGrowthPlan": {
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "const": "growth_lead_agent",
+                "default": "growth_lead_agent",
+                "title": "Source",
+                "type": "string"
+              },
+              "auto_apply": {
+                "const": true,
+                "default": true,
+                "title": "Auto Apply",
+                "type": "boolean"
+              },
+              "current_members": {
+                "minimum": 0,
+                "title": "Current Members",
+                "type": "integer"
+              },
+              "pacing_status": {
+                "enum": [
+                  "ahead",
+                  "on_track",
+                  "behind",
+                  "baseline"
+                ],
+                "title": "Pacing Status",
+                "type": "string"
+              },
+              "recommended_daily_invite_limit": {
+                "maximum": 15,
+                "minimum": 10,
+                "title": "Recommended Daily Invite Limit",
+                "type": "integer"
+              },
+              "recommended_auto_reply_comments": {
+                "default": true,
+                "title": "Recommended Auto Reply Comments",
+                "type": "boolean"
+              },
+              "recommended_auto_invite_enabled": {
+                "default": true,
+                "title": "Recommended Auto Invite Enabled",
+                "type": "boolean"
+              },
+              "week1_target": {
+                "minimum": 1,
+                "title": "Week1 Target",
+                "type": "integer"
+              },
+              "week2_target": {
+                "minimum": 1,
+                "title": "Week2 Target",
+                "type": "integer"
+              },
+              "week3_target": {
+                "minimum": 1,
+                "title": "Week3 Target",
+                "type": "integer"
+              },
+              "week4_target": {
+                "minimum": 1,
+                "title": "Week4 Target",
+                "type": "integer"
+              },
+              "weekly_targets": {
+                "items": {
+                  "$ref": "#/$defs/WeeklyCommunityTarget"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "title": "Weekly Targets",
+                "type": "array"
+              },
+              "rationale": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Rationale",
+                "type": "string"
+              },
+              "focus_channels": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "minItems": 1,
+                "title": "Focus Channels",
+                "type": "array"
+              }
+            },
+            "required": [
+              "current_members",
+              "pacing_status",
+              "recommended_daily_invite_limit",
+              "week1_target",
+              "week2_target",
+              "week3_target",
+              "week4_target",
+              "weekly_targets",
+              "rationale",
+              "focus_channels"
+            ],
+            "title": "CommunityGrowthPlan",
             "type": "object"
           },
           "EvidenceRef": {
@@ -5852,6 +6122,57 @@
             ],
             "title": "TrendSignal",
             "type": "object"
+          },
+          "WeeklyCommunityTarget": {
+            "additionalProperties": false,
+            "properties": {
+              "week": {
+                "maximum": 4,
+                "minimum": 1,
+                "title": "Week",
+                "type": "integer"
+              },
+              "label": {
+                "maxLength": 120,
+                "minLength": 1,
+                "title": "Label",
+                "type": "string"
+              },
+              "member_target": {
+                "maximum": 10000000,
+                "minimum": 1,
+                "title": "Member Target",
+                "type": "integer"
+              },
+              "weekly_new_target": {
+                "maximum": 1000000,
+                "minimum": 0,
+                "title": "Weekly New Target",
+                "type": "integer"
+              },
+              "focus": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Focus",
+                "type": "string"
+              },
+              "channel_tactic": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Channel Tactic",
+                "type": "string"
+              }
+            },
+            "required": [
+              "week",
+              "label",
+              "member_target",
+              "weekly_new_target",
+              "focus",
+              "channel_tactic"
+            ],
+            "title": "WeeklyCommunityTarget",
+            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -6013,6 +6334,17 @@
             ],
             "default": null,
             "title": "Strategy Alignment"
+          },
+          "community_growth_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CommunityGrowthPlan"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [

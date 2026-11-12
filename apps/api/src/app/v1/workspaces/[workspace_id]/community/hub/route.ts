@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/lib/auth';
 import { resolveTenantContext, requireRole } from '@/lib/tenant';
-import { handleApiError } from '@/lib/errors';
+import { AppError, handleApiError } from '@/lib/errors';
 import pool from '@/lib/db';
 import { CommunityHubService, normalizePublishTarget } from '@/modules/community/hub';
 
@@ -136,6 +136,13 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
       });
       const data = await service.getHubData(params.workspace_id);
       return NextResponse.json({ status: 'created', discussion, data }, { status: 201 });
+    }
+
+    if (action === 'publish_reel') {
+      if (!body.source_id) throw new AppError(400, 'SOURCE_ID_REQUIRED', 'source_id is required');
+      const reel = await service.queueReelForPublishedPost(params.workspace_id, String(body.source_id));
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: 'reel_queued', reel, data });
     }
 
     if (action === 'publish_fresh_post') {

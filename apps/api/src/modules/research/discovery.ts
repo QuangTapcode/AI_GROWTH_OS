@@ -3,11 +3,13 @@ import type { Pool } from 'pg';
 import { hostOf, policyFor, referenceUrls } from './sourcePolicy';
 import { researchStrategySchema, type ResearchStrategy } from '../businessProfile/strategy';
 import { activeGoal, focusOffers } from '../growthGoals/service';
+import { GAP_WIKIS, mediaWikiSearch, relevantToTopic } from '../community/gaps';
 
 // docs/coordination/PILOT_LIMITS.md: <=3 queries/run, <=10 results/query, HTTP 30s, one SearXNG adapter.
 export const MAX_QUERIES = 3;
 export const MAX_RESULTS = 10;
 const SEARCH_TIMEOUT_MS = 30_000;
+const AUDIENCE_HINTS = [' expats', ' for foreigners', ''] as const;
 
 export type DiscoveryProfile = { locations: string[]; audiences: string[]; products: string[]; strategy?: ResearchStrategy | null };
 export type SearchResult = { url: string; title: string; engine: string | null };
@@ -24,10 +26,25 @@ export class DiscoveryError extends Error {
 export function buildDiscoveryQueries(profile: DiscoveryProfile, offset = 0, focus: string[] = []): string[] {
   const location = profile.locations.map((x) => x.trim()).find(Boolean);
   if (!location) return [];
-  const hint = profile.audiences.some((a) => /\bexpat/i.test(a)) ? ' expats' : '';
+  // Each run phrases the audience differently, so the landscape is not one wording's results only.
+  const hint = profile.audiences.some((a) => /\bexpat/i.test(a))
+    ? AUDIENCE_HINTS[Math.floor(Math.max(0, offset) / MAX_QUERIES) % AUDIENCE_HINTS.length] : '';
   const focused = focus.map((offer) => `${location} ${offer.replace(/_/g, ' ').trim()}${hint}`.slice(0, 200));
   return [...new Set([...focused, ...rotationQueries(profile, offset, location, hint)])].slice(0, MAX_QUERIES);
 }
+
+/** Owner-typed topic: searched as typed, plus once with the profile's location when the topic does not name it. */
+export function topicQueries(topic: string, location?: string | null): string[] {
+  const typed = topic.replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!typed) return [];
+  const place = location?.trim();
+  const located = place && !typed.toLowerCase().includes(place.toLowerCase()) ? `${place} ${typed}`.slice(0, 200) : null;
+  return [...new Set([typed, ...(located ? [located] : [])])].slice(0, MAX_QUERIES);
+}
+
+export type WikiSearch = (site: string, query: string) => Promise<{ title: string; url: string }[]>;
+export type DiscoveryOptions = { topic?: string | null; searchWiki?: WikiSearch };
+const WIKI_PAGES_PER_SITE = 2;
 
 function rotationQueries(profile: DiscoveryProfile, offset: number, location: string, hint: string): string[] {
   if (profile.strategy?.topics.length) {
@@ -64,7 +81,7 @@ export function searxngSearch(baseUrl: string): Search {
  * open/official pages (plus the location's open references) as URL sources.
  * New sources start as `imported`; the worker ingests them and the owner approves.
  */
-export async function runDiscovery(pool: Pool, workspaceId: string, search: Search) {
+export async function runDiscovery(pool: Pool, workspaceId: string, search: Search, options: DiscoveryOptions = {}) {
   const profileRow = (await pool.query(
     'SELECT target_locations, target_audiences, products_services, research_strategy FROM business_profiles WHERE workspace_id=$1', [workspaceId],
   )).rows[0];
@@ -73,22 +90,42 @@ export async function runDiscovery(pool: Pool, workspaceId: string, search: Sear
   const profile = { locations: profileRow.target_locations ?? [], audiences: profileRow.target_audiences ?? [], products: profileRow.products_services ?? [], strategy };
   // Three queries per run remain bounded; rotate so medium-priority topics are not starved.
   const previousRuns = strategy ? Number((await pool.query('SELECT count(DISTINCT discovery_run_id)::int AS count FROM trend_signals WHERE workspace_id=$1', [workspaceId])).rows[0]?.count ?? 0) : 0;
-  const goal = await activeGoal(pool, workspaceId);
-  const queries = buildDiscoveryQueries(profile, previousRuns * MAX_QUERIES, goal ? focusOffers(goal.title, profile.products) : []);
-  if (!queries.length) throw new DiscoveryError('PROFILE_INCOMPLETE', 'Profile needs a target location and products/services');
+  const topic = options.topic?.trim() || null;
+  let queries: string[];
+  if (topic) {
+    queries = topicQueries(topic, profile.locations.find((x: string) => x?.trim()));
+  } else {
+    const goal = await activeGoal(pool, workspaceId);
+    queries = buildDiscoveryQueries(profile, previousRuns * MAX_QUERIES, goal ? focusOffers(goal.title, profile.products) : []);
+    if (!queries.length) throw new DiscoveryError('PROFILE_INCOMPLETE', 'Profile needs a target location and products/services');
+  }
+  if (!queries.length) throw new DiscoveryError('TOPIC_REQUIRED', 'Type a topic to search for');
 
   // Searches run sequentially and outside the transaction: they are slow and must not hold row locks.
   const results: { query: string; rank: number; result: SearchResult }[] = [];
   for (const query of queries) {
     (await search(query)).forEach((result, index) => results.push({ query, rank: index + 1, result }));
   }
+
+  const candidates = new Map<string, string>();
+  if (topic) {
+    // A typed topic also asks the open wikis directly: web search often ranks only blogs, which are never ingested.
+    const wikiQuery = queries[queries.length - 1];
+    for (const site of GAP_WIKIS) {
+      const pages = await (options.searchWiki ?? mediaWikiSearch())(site, wikiQuery).catch(() => []);
+      pages.filter((p) => relevantToTopic(topic, p.title) && policyFor(p.url)).slice(0, WIKI_PAGES_PER_SITE)
+        .forEach((p) => candidates.set(p.url, p.title));
+    }
+  } else {
+    for (const url of referenceUrls(profile.locations[0])) candidates.set(url, decodeURIComponent(url.split('/wiki/')[1]).replace(/_/g, ' '));
+  }
+  for (const { result } of results) if (policyFor(result.url) && !candidates.has(result.url)) candidates.set(result.url, result.title);
   // Every engine blocked or empty: say so, since Research would otherwise reason on an old landscape.
-  if (!results.length) throw new DiscoveryError('SEARCH_EMPTY', `Search returned no results for ${queries.length} queries`, 502);
+  if (!results.length && (!topic || !candidates.size)) {
+    throw new DiscoveryError('SEARCH_EMPTY', `Search returned no results for ${queries.length} queries`, 502);
+  }
 
   const runId = randomUUID();
-  const candidates = new Map<string, string>();
-  for (const url of referenceUrls(profile.locations[0])) candidates.set(url, decodeURIComponent(url.split('/wiki/')[1]).replace(/_/g, ' '));
-  for (const { result } of results) if (policyFor(result.url) && !candidates.has(result.url)) candidates.set(result.url, result.title);
 
   const db = await pool.connect();
   try {

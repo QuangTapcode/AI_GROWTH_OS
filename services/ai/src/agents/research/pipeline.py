@@ -103,7 +103,7 @@ def evidence_year(text: str) -> int | None:
 
 
 # Hint words the discovery step appends to queries; they name the audience, not the topic.
-QUERY_HINTS = {"expat", "expats"}
+QUERY_HINTS = {"expat", "expats", "foreigner", "foreigners"}
 
 
 def has_term(word: str, words: set[str]) -> bool:
@@ -120,6 +120,33 @@ def trend_topics(signals: list[TrendSignal], locations: list[str]) -> list[tuple
             topics[signal.query] = [words, 0]
         topics[signal.query][1] += 1
     return [(query, " ".join(words), words, count) for query, (words, count) in topics.items() if words]
+
+
+def own_domain(domain: str, own: list[str]) -> bool:
+    host = domain.lower().removeprefix("www.")
+    return any(host == d or host.endswith("." + d) for d in (o.lower().removeprefix("www.") for o in own if o))
+
+
+def leading_domains(signals, query: str, limit: int = 3) -> list[str]:
+    """Domains holding the best ranks for a query: who the business competes with on that topic."""
+    best: dict[str, int] = {}
+    for s in signals:
+        if s.query == query:
+            best[s.domain] = min(best.get(s.domain, s.rank), s.rank)
+    return [d for d, _ in sorted(best.items(), key=lambda item: (item[1], item[0]))][:limit]
+
+
+def content_gaps_first(payload) -> list[tuple[str, str, list[str], int, set[str], bool, bool]]:
+    """Searched topics where the business is absent and has no article come first, the most crowded
+    (most competing domains) first; topics it already ranks for or wrote about come last."""
+    rows = []
+    for query, topic, words, count in trend_topics(payload.trend_signals, payload.business_profile.locations):
+        domains = {s.domain for s in payload.trend_signals if s.query == query}
+        present = any(own_domain(d, payload.own_domains) for d in domains)
+        has_article = topic_has_content(topic, payload.content_inventory)
+        rows.append((query, topic, words, count, domains, present, has_article))
+    order = {row[0]: index for index, row in enumerate(rows)}
+    return sorted(rows, key=lambda r: (r[5] or r[6], -len(r[4]), order[r[0]]))
 
 
 def exact_quote(quote: str, text: str) -> str | None:
@@ -429,11 +456,12 @@ async def run_research(ctx: RunContext) -> OperationOutcome:
         -score[key], order[key]))
     # Each trend topic first gets its best covering excerpt, so budget follows what people search for.
     coverage, priority = [], []
-    for query, topic, words, count in trend_topics(payload.trend_signals, payload.business_profile.locations):
+    for query, topic, words, count, domains, present, has_article in content_gaps_first(payload):
         covering = [key for key in by_relevance if all(has_term(w, terms(candidates[key][1].text)) for w in words)]
-        domains = {s.domain for s in payload.trend_signals if s.query == query}
         coverage.append(TrendCoverage(query=query, topic=topic, signal_count=count, covered_chunks=len(covering),
-                                      distinct_domains=len(domains)))
+                                      distinct_domains=len(domains), business_present=present,
+                                      business_has_article=has_article,
+                                      leading_domains=leading_domains(payload.trend_signals, query)))
         if covering:
             priority.append(covering[0])
         else:

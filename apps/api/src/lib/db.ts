@@ -3,9 +3,10 @@ import path from "node:path";
 import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 
 function resolveConnectionString(): string {
-  const raw =
+  const raw = (
     process.env.DATABASE_URL ||
-    "postgres://postgres:postgres@localhost:15432/ai_growth_os";
+    "postgres://postgres:postgres@127.0.0.1:15432/ai_growth_os"
+  ).replace("@localhost:", "@127.0.0.1:");
   // When running against the local Docker Postgres (:15432), automatically sync the password
   // from infra/local/.env if present so copying apps/api/.env.local across machines never fails auth.
   if (raw.includes(":15432/")) {
@@ -21,6 +22,7 @@ function resolveConnectionString(): string {
         const match = content.match(/^POSTGRES_PASSWORD=(.+)$/m);
         const password = match?.[1]?.trim();
         if (password) {
+          // Keep the host: 127.0.0.1 on Windows, host.docker.internal inside infra/docker.
           const parsed = new URL(raw);
           parsed.password = password;
           return parsed.toString();

@@ -1,3 +1,4 @@
+import { recordUnansweredQuestion } from './gaps';
 import type { PoolClient } from 'pg';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -229,6 +230,17 @@ export async function persistCommunityLead(
     [workspaceId, artifactRow.task_id],
   )).rows[0] : undefined;
   if (direct) await queueDirectReply(client, workspaceId, direct, artifactId, artifactRow.payload?.result ?? {});
+  const unanswered = (artifactRow.payload?.result as { missing_facts?: unknown } | undefined)?.missing_facts;
+  if (direct?.content && Array.isArray(unanswered) && unanswered.includes('grounded_answer')) {
+    // The question goes on the list of what the sources do not cover yet; a failure here never blocks the reply.
+    try {
+      await client.query('SAVEPOINT sp_knowledge_gap');
+      await recordUnansweredQuestion(client, workspaceId, direct.content);
+      await client.query('RELEASE SAVEPOINT sp_knowledge_gap');
+    } catch {
+      await client.query('ROLLBACK TO SAVEPOINT sp_knowledge_gap').catch(() => {});
+    }
+  }
 
   const proposal = artifactRow.payload?.result?.lead_proposal;
   if (!proposal) {

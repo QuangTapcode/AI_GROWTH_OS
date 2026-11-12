@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { CommunityHubService } from '@/modules/community/hub';
 import { processReceivedCommunityMessages } from '@/modules/community/service';
+import { defaultKnowledgeGaps } from '@/modules/community/gaps';
 
 export async function POST(req: NextRequest) {
   const token = process.env.AUTOMATION_INTERNAL_TOKEN;
@@ -68,6 +69,15 @@ export async function POST(req: NextRequest) {
         }
         await service.syncMembersFromInteractions(ws.workspace_id);
         entry.comments = { page_ingested: pageScan.ingested, group_ingested: groupScan.ingested };
+      }
+
+      // Questions the bot could not answer: resolve those whose sources were approved, look for sources for new ones.
+      try {
+        const gaps = await defaultKnowledgeGaps(pool);
+        await gaps.refresh(ws.workspace_id);
+        entry.knowledge_gaps_searched = await gaps.runCycle(ws.workspace_id);
+      } catch (error) {
+        entry.knowledge_gaps_error = (error as Error).message;
       }
 
       if (ws.actor_id && ws.snapshot_id) {

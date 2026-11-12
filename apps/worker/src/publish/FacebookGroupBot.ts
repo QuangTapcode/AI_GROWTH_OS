@@ -11,6 +11,8 @@ export interface GroupPostOptions {
   discussionPrompt?: string;
   hashtags?: string[];
   imageUrl?: string;
+  /** File name of the topic's video in COMMUNITY_VIDEO_DIR; posted instead of the image when present. */
+  videoFile?: string;
   headless?: boolean;
 }
 
@@ -363,6 +365,13 @@ export class FacebookGroupBot {
     }
 
     return 0;
+  }
+
+  /** The topic video named by the API, inside this host's COMMUNITY_VIDEO_DIR; anything else is ignored. */
+  static resolveVideoFile(videoFile: string | undefined, dir = process.env.COMMUNITY_VIDEO_DIR?.trim()): string | null {
+    if (!videoFile || !dir || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.mp4$/.test(videoFile)) return null;
+    const file = path.join(path.resolve(dir), videoFile);
+    return fs.existsSync(file) ? file : null;
   }
 
   static buildPostText(options: GroupPostOptions): string {
@@ -947,8 +956,14 @@ export class FacebookGroupBot {
 
     const fullText = FacebookGroupBot.buildPostText(options);
 
+    // The topic's video goes up instead of the image (same as the Fanpage Reel). No video file → image as before.
+    const videoPath = FacebookGroupBot.resolveVideoFile(options.videoFile);
+    if (options.videoFile && !videoPath) {
+      console.warn(`[FacebookGroupBot] Không thấy video ${options.videoFile} trong COMMUNITY_VIDEO_DIR, đăng kèm ảnh.`);
+    }
+
     let tempImagePath: string | null = null;
-    if (options.imageUrl) {
+    if (options.imageUrl && !videoPath) {
       try {
         const res = await fetch(options.imageUrl);
         if (res.ok) {
@@ -1020,6 +1035,34 @@ export class FacebookGroupBot {
       console.log('[FacebookGroupBot] Đã điền xong nội dung bài viết.');
       await page.waitForTimeout(1500);
 
+      if (videoPath) {
+        // A video that fails to attach must fail the post: a text-only post would look done but miss the video.
+        const inputSelector = 'div[role="dialog"] input[type="file"][accept*="video"]';
+        let inputs = await page.$$(inputSelector);
+        if (inputs.length === 0) {
+          for (const btnSel of [
+            'div[role="dialog"] div[aria-label*="Ảnh/video"]',
+            'div[role="dialog"] div[aria-label*="Photo/video"]',
+          ]) {
+            const button = await page.$(btnSel);
+            if (!button) continue;
+            await button.click();
+            await page.waitForTimeout(1200);
+            inputs = await page.$$(inputSelector);
+            if (inputs.length > 0) break;
+          }
+        }
+        const input = inputs[inputs.length - 1];
+        if (!input) {
+          throw new Error('FACEBOOK_GROUP_PUBLISH_FAILED: Không tìm thấy chỗ tải video trong hộp thoại đăng bài.');
+        }
+        await input.setInputFiles(videoPath);
+        console.log(`[FacebookGroupBot] Đã chọn video ${path.basename(videoPath)}, đang chờ Facebook tải lên...`);
+        await page.waitForSelector('div[role="dialog"] video', { timeout: 60000 }).catch(() => {
+          throw new Error('FACEBOOK_GROUP_PUBLISH_FAILED: Facebook không hiện video trong hộp thoại sau 60 giây.');
+        });
+      }
+
       // Attach image strictly inside the composer dialog (never match cover-photo inputs outside div[role="dialog"])
       if (tempImagePath && fs.existsSync(tempImagePath)) {
         try {
@@ -1070,21 +1113,31 @@ export class FacebookGroupBot {
       ];
 
       let posted = false;
-      for (const sel of postBtnSelectors) {
-        const btn = await page.$(sel);
-        if (btn) {
-          const isDisabled = await btn.getAttribute('aria-disabled');
-          if (isDisabled !== 'true') {
-            await btn.click();
-            posted = true;
-            console.log('[FacebookGroupBot] Đã bấm nút "Đăng bài"!');
-            break;
+      // "Post" stays disabled while a video uploads; give it up to 3 minutes (the API waits 270 s in all).
+      const postDeadline = Date.now() + (videoPath ? 180_000 : 0);
+      for (;;) {
+        for (const sel of postBtnSelectors) {
+          const btn = await page.$(sel);
+          if (btn) {
+            const isDisabled = await btn.getAttribute('aria-disabled');
+            if (isDisabled !== 'true') {
+              await btn.click();
+              posted = true;
+              console.log('[FacebookGroupBot] Đã bấm nút "Đăng bài"!');
+              break;
+            }
           }
         }
+        if (posted || Date.now() >= postDeadline) break;
+        await page.waitForTimeout(2000);
       }
 
       if (!posted) {
-        throw new Error('FACEBOOK_GROUP_PUBLISH_FAILED: Nút "Đăng" bị vô hiệu hóa hoặc không tìm thấy trong hộp thoại.');
+        throw new Error(
+          videoPath
+            ? 'FACEBOOK_GROUP_PUBLISH_FAILED: Video chưa tải xong sau 3 phút, nút "Đăng" vẫn bị khóa.'
+            : 'FACEBOOK_GROUP_PUBLISH_FAILED: Nút "Đăng" bị vô hiệu hóa hoặc không tìm thấy trong hộp thoại.',
+        );
       }
 
       // Confirm submission: wait for composer dialog to close rather than guessing after a static sleep

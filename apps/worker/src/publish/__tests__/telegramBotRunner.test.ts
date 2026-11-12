@@ -190,7 +190,7 @@ describe('TelegramBotRunner', () => {
     expect(offsetsSeen).toEqual([0, 0]);
   });
 
-  it('responds in Telegram groups for @mention pings, stripped questions, direct replies, /command@bot, and welcomes new members while ignoring casual chatter', async () => {
+  it('answers in Telegram groups only messages that say "MyLe", and still welcomes new members', async () => {
     vi.stubEnv('TELEGRAM_BOT_TOKEN', '9005376:bot-secret');
     vi.stubEnv('TELEGRAM_WEBHOOK_WORKSPACE_ID', 'ws-1');
     vi.stubEnv('TELEGRAM_BOT_MODE', 'polling');
@@ -283,6 +283,33 @@ describe('TelegramBotRunner', () => {
                 chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
               },
             },
+            {
+              update_id: 307,
+              message: {
+                message_id: 17,
+                text: 'MyLe ơi, Đà Nẵng có bãi biển nào đẹp?',
+                from: { id: 111, is_bot: false, first_name: 'Quang' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+            {
+              update_id: 308,
+              message: {
+                message_id: 18,
+                text: 'ở đó ăn sáng món gì ngon vậy myle',
+                from: { id: 111, is_bot: false, first_name: 'Quang' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
+            {
+              update_id: 309,
+              message: {
+                message_id: 19,
+                text: 'MyLe',
+                from: { id: 222, is_bot: false, first_name: 'Hung' },
+                chat: { id: -100555, type: 'supergroup', title: 'Nhóm Du Lịch' },
+              },
+            },
           ],
         }));
       }
@@ -302,25 +329,20 @@ describe('TelegramBotRunner', () => {
     });
 
     const out = await runner.pollOnce();
-    expect(out).toEqual({ processed: 5 });
-    // Three RAG questions ingested: stripped @mention question (302), reply-to-bot follow-up (303), and admin group "bot" phrase (306).
-    expect(onMessageIngested).toHaveBeenCalledTimes(3);
+    expect(out).toEqual({ processed: 4 });
+    // Owner's rule (2026-11-11): only "MyLe" calls the bot; @mention, a reply to it or the word "bot" no longer do.
+    expect(onMessageIngested).toHaveBeenCalledTimes(2);
 
     const sends = apiCalls.filter((c) => c.url.endsWith('/sendMessage'));
-    expect(sends).toHaveLength(2);
-    expect(sends[0]!.body.chat_id).toBe('-100555');
-    expect(sends[0]!.body.reply_to_message_id).toBe(11);
-    expect(String(sends[0]!.body.text)).toContain('@tripc_community_bot');
-    expect(sends[1]!.body.reply_to_message_id).toBe(14);
-    expect(String(sends[1]!.body.text)).toContain('Lan');
+    expect(sends.map((c) => c.body.reply_to_message_id)).toEqual([14, 19]);
+    expect(String(sends[0]!.body.text)).toContain('Lan');
+    expect(String(sends[1]!.body.text)).toContain('MyLe');
 
     const msgInserts = sqlCalls.filter((c) => c.text.includes('INSERT INTO community_messages'));
-    expect(msgInserts[1]!.params[4]).toBe('Đà Nẵng có bãi biển nào đẹp?');
-    expect(JSON.parse(String(msgInserts[1]!.params[5]))).toMatchObject({
-      chat_type: 'supergroup',
-      reply_to_message_id: 12,
-    });
-    expect(msgInserts[2]!.params[4]).toBe('Ở đó ăn sáng món gì ngon?');
+    // Every message the bot answers is logged; the questions go in without "MyLe ơi".
+    expect(msgInserts.map((c) => c.params[4])).toEqual(
+      ['[Thành viên mới: Lan]', 'Đà Nẵng có bãi biển nào đẹp?', 'ở đó ăn sáng món gì ngon vậy', 'MyLe']);
+    expect(JSON.parse(String(msgInserts[1]!.params[5]))).toMatchObject({ chat_type: 'supergroup', reply_to_message_id: 17 });
   });
 });
 

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 from ...app.schemas import EvidenceRef
 from ..contracts import DraftResult, MarketingContext
@@ -20,6 +22,13 @@ class ReplyDraft(BaseModel):
     # Ollama enforces this limit while generating, so it must sit well above the length asked for in the
     # prompt: at 500 the model was stopped mid-sentence.
     reply: str = Field(min_length=1, max_length=1500)
+
+
+class GeneralDraft(BaseModel):
+    """A reply from general knowledge, when no approved guide answers: small talk, or general guidance."""
+    model_config = ConfigDict(extra="forbid")
+    reply: str = Field(min_length=1, max_length=1500)
+    kind: Literal["chat", "info"]
 
 
 class CommunityReply(DraftResult):

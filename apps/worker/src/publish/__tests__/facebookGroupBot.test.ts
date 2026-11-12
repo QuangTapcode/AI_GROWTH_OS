@@ -277,5 +277,19 @@ describe('FacebookGroupBot & FacebookGroupPublisher', () => {
     expect(FacebookGroupBot.getSessionStatusSync(anonSessionFile).hasAuthCookies).toBe(false);
     expect(FacebookGroupBot.hasSavedSession(anonSessionFile)).toBe(false);
   });
+
+  it("finds the topic's video in this host's video folder, and only a plain .mp4 there", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'group-video-'));
+    fs.writeFileSync(path.join(dir, 'apartment-checklist.mp4'), 'x');
+    fs.writeFileSync(path.join(os.tmpdir(), 'outside.mp4'), 'x');
+
+    expect(FacebookGroupBot.resolveVideoFile('apartment-checklist.mp4', dir)).toBe(path.join(dir, 'apartment-checklist.mp4'));
+    expect(FacebookGroupBot.resolveVideoFile('missing.mp4', dir)).toBeNull();
+    expect(FacebookGroupBot.resolveVideoFile('../outside.mp4', dir)).toBeNull();
+    expect(FacebookGroupBot.resolveVideoFile('notes.txt', dir)).toBeNull();
+    expect(FacebookGroupBot.resolveVideoFile('apartment-checklist.mp4', undefined)).toBeNull();
+    expect(FacebookGroupBot.resolveVideoFile(undefined, dir)).toBeNull();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
 });
 
