@@ -45,7 +45,12 @@ async function run() {
     await page.goto('http://127.0.0.1:3000' + p);
     await page.waitForTimeout(2500);
     if (errors.length === 0) {
-      console.log(`✅ [PASS] ${p} (0 errors)`);
+      const hasErrorBanner = await page.locator('text=Could not load data from the API').isVisible().catch(() => false);
+      if (hasErrorBanner) {
+        console.log(`❌ [FAIL] ${p} (Found "Could not load data from the API" error banner on UI!)`);
+      } else {
+        console.log(`✅ [PASS] ${p} (0 errors, UI clean)`);
+      }
     } else {
       console.log(`❌ [FAIL] ${p} (${errors.length} errors):`);
       errors.forEach(e => console.log('    ', e));
@@ -56,3 +61,4 @@ async function run() {
 }
 
 run().catch(console.error);
+

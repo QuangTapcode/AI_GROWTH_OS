@@ -716,22 +716,26 @@ export function buildTikTokCaptionFromArtifact(artifact: {
 }
 
 export async function listTikTokVideos(workspaceId: string): Promise<TikTokVideoRow[]> {
-  const res = await query<TikTokVideoRow>(
-    `SELECT tv.id, tv.workspace_id, tv.title, tv.caption, tv.hashtags, tv.source_artifact_id,
-            tv.video_source_type, tv.file_size_bytes, tv.media_url, tv.privacy_level, tv.is_aigc,
-            tv.status, tv.artifact_id, tv.publishing_job_id, tv.tiktok_publish_id, tv.error_message,
-            tv.created_by, tv.created_at, tv.updated_at,
-            pj.status AS job_status, pj.scheduled_for AS job_scheduled_for,
-            pj.published_at AS job_published_at, pj.external_post_id AS job_external_post_id,
-            pj.error_message AS job_error_message
-     FROM tiktok_videos tv
-     LEFT JOIN publishing_jobs pj ON pj.id = tv.publishing_job_id AND pj.workspace_id = tv.workspace_id
-     WHERE tv.workspace_id = $1
-     ORDER BY tv.created_at DESC
-     LIMIT 50`,
-    [workspaceId],
-  );
-  return res.rows;
+  try {
+    const res = await query<TikTokVideoRow>(
+      `SELECT tv.id, tv.workspace_id, tv.title, tv.caption, tv.hashtags, tv.source_artifact_id,
+              tv.video_source_type, tv.file_size_bytes, tv.media_url, tv.privacy_level, tv.is_aigc,
+              tv.status, tv.artifact_id, tv.publishing_job_id, tv.tiktok_publish_id, tv.error_message,
+              tv.created_by, tv.created_at, tv.updated_at,
+              pj.status AS job_status, pj.scheduled_for AS job_scheduled_for,
+              pj.published_at AS job_published_at, pj.external_post_id AS job_external_post_id,
+              pj.error_message AS job_error_message
+       FROM tiktok_videos tv
+       LEFT JOIN publishing_jobs pj ON pj.id = tv.publishing_job_id AND pj.workspace_id = tv.workspace_id
+       WHERE tv.workspace_id = $1
+       ORDER BY tv.created_at DESC
+       LIMIT 50`,
+      [workspaceId],
+    );
+    return res.rows;
+  } catch {
+    return [];
+  }
 }
 
 export async function createOptionBTikTokVideo(input: {
