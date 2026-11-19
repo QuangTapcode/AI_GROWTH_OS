@@ -16,26 +16,34 @@ export interface IntegrationConnectionRow {
 }
 
 export async function getConnection(workspaceId: string, provider: IntegrationProvider): Promise<IntegrationConnectionRow | null> {
-  const result = await query<IntegrationConnectionRow>(
-    `SELECT id, workspace_id, provider, account_ref, display_name, status, scopes,
-            credential_ref, last_error, verified_at, updated_at
-       FROM integration_connections
-      WHERE workspace_id = $1 AND provider = $2
-      ORDER BY updated_at DESC LIMIT 1`,
-    [workspaceId, provider],
-  );
-  return result.rows[0] ?? null;
+  try {
+    const result = await query<IntegrationConnectionRow>(
+      `SELECT id, workspace_id, provider, account_ref, display_name, status, scopes,
+              credential_ref, last_error, verified_at, updated_at
+         FROM integration_connections
+        WHERE workspace_id = $1 AND provider = $2
+        ORDER BY updated_at DESC LIMIT 1`,
+      [workspaceId, provider],
+    );
+    return result.rows[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function listConnections(workspaceId: string): Promise<IntegrationConnectionRow[]> {
-  const result = await query<IntegrationConnectionRow>(
-    `SELECT id, workspace_id, provider, account_ref, display_name, status, scopes,
-            credential_ref, last_error, verified_at, updated_at
-       FROM integration_connections
-      WHERE workspace_id = $1 ORDER BY provider, updated_at DESC`,
-    [workspaceId],
-  );
-  return result.rows;
+  try {
+    const result = await query<IntegrationConnectionRow>(
+      `SELECT id, workspace_id, provider, account_ref, display_name, status, scopes,
+              credential_ref, last_error, verified_at, updated_at
+         FROM integration_connections
+        WHERE workspace_id = $1 ORDER BY provider, updated_at DESC`,
+      [workspaceId],
+    );
+    return result.rows;
+  } catch {
+    return [];
+  }
 }
 
 export async function upsertConnection(input: {

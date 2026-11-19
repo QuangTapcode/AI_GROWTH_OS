@@ -55,10 +55,6 @@ export default function DashboardSidebar({
     "/distribution": "distribution",
     "/growth-results": "growth-results",
     "/workspace": "workspace-integrations",
-    "/onboarding": "onboarding",
-    "/booking-leads": "booking-leads",
-    "/gmaps": "gmaps",
-    "/admin/llm": "admin-llm",
   };
   const currentTab = TAB_BY_PATH[pathname.replace(/\/$/, "")] ?? activeTab;
 
@@ -93,11 +89,33 @@ export default function DashboardSidebar({
   };
 
   const navItems = [
-    { id: "onboarding", label: "Zero-Tech Onboarding", href: "/onboarding", icon: <span className="text-lg" aria-hidden="true">🚀</span> },
-    { id: "booking-leads", label: "Agent 7: Inbox & Leads (1-1)", href: "/booking-leads", icon: <span className="text-lg" aria-hidden="true">🛎️</span> },
-    { id: "gmaps", label: "Agent 5: Maps & Drive", href: "/gmaps", icon: <span className="text-lg" aria-hidden="true">📍</span> },
-    { id: "admin-llm", label: "Admin: Multi-LLM", href: "/admin/llm", icon: <span className="text-lg" aria-hidden="true">🎛️</span> },
-    { id: "agents", label: "Agent Operations", href: "/agents", icon: <span className="text-lg" aria-hidden="true">↗</span> },
+    {
+      id: "agents",
+      label: "Agent Operations",
+      href: "/agents",
+      icon: (
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+          <rect x="9" y="9" width="6" height="6" />
+          <line x1="9" y1="1" x2="9" y2="4" />
+          <line x1="15" y1="1" x2="15" y2="4" />
+          <line x1="9" y1="20" x2="9" y2="23" />
+          <line x1="15" y1="20" x2="15" y2="23" />
+          <line x1="20" y1="9" x2="23" y2="9" />
+          <line x1="20" y1="14" x2="23" y2="14" />
+          <line x1="1" y1="9" x2="4" y2="9" />
+          <line x1="1" y1="14" x2="4" y2="14" />
+        </svg>
+      ),
+    },
     {
       id: "overview",
       label: "Overview",

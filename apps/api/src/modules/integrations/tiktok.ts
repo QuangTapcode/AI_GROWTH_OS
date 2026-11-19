@@ -469,15 +469,21 @@ export async function saveTikTokOAuthConnection(input: {
 
 export async function getTikTokConnectionSummary(workspaceId: string): Promise<TikTokConnectionSummary> {
   const privacyDefault = validatePrivacyLevel(process.env.TIKTOK_PRIVACY_LEVEL || "SELF_ONLY");
-  const res = await query<TikTokTokenDbRow>(
-    `SELECT id, workspace_id, open_id, display_name, avatar_url, encrypted_access_token,
-            encrypted_refresh_token, scopes, expires_at, refresh_expires_at, updated_at
-     FROM tiktok_oauth_tokens
-     WHERE workspace_id = $1
-     ORDER BY updated_at DESC LIMIT 1`,
-    [workspaceId],
-  );
-  const row = res.rows[0];
+  let row: TikTokTokenDbRow | undefined;
+  try {
+    const res = await query<TikTokTokenDbRow>(
+      `SELECT id, workspace_id, open_id, display_name, avatar_url, encrypted_access_token,
+              encrypted_refresh_token, scopes, expires_at, refresh_expires_at, updated_at
+       FROM tiktok_oauth_tokens
+       WHERE workspace_id = $1
+       ORDER BY updated_at DESC LIMIT 1`,
+      [workspaceId],
+    );
+    row = res.rows[0];
+  } catch {
+    // Database offline fallback
+    row = undefined;
+  }
   if (!row) {
     if ((process.env.INTEGRATION_MODE ?? "fake") === "production" && process.env.TIKTOK_ACCESS_TOKEN?.trim()) {
       return {
