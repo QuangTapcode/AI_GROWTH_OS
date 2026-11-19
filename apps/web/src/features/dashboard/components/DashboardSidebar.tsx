@@ -500,16 +500,16 @@ export default function DashboardSidebar({
             </div>
           </div>
 
-          {/* Zero-Tech Onboarding */}
+          {/* Channel & Data Connections */}
           <div
             role="link"
             tabIndex={0}
             onClick={() => router.push("/onboarding")}
             className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
           >
-            <span className="text-sm">🚀</span>
+            <span className="text-sm">🔗</span>
             <span className="text-xs font-medium text-white">
-              Khởi tạo Zero-Tech
+              Kết Nối Kênh & Dữ Liệu
             </span>
           </div>
 

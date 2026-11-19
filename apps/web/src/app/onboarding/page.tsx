@@ -15,7 +15,7 @@ function OnboardingContent() {
 
 export default function OnboardingPage() {
   return (
-    <AppShell activeTab="onboarding" pageTitle="Khởi Tạo Phòng Marketing AI (Zero-Tech)">
+    <AppShell activeTab="onboarding" pageTitle="Kết Nối Kênh & Dữ Liệu Marketing">
       <OnboardingContent />
     </AppShell>
   );

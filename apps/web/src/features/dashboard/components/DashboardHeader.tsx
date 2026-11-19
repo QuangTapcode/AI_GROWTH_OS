@@ -71,10 +71,10 @@ export default function DashboardHeader({
         <a
           href="/onboarding"
           className="flex items-center gap-1.5 bg-blue-500/80 hover:bg-blue-500 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-white font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
-          title="Khởi tạo hoặc cập nhật cấu hình phòng Marketing AI (Zero-Tech)"
+          title="Quản lý liên kết Fanpage, Google Maps, Kho ảnh Drive và Group cộng đồng"
         >
-          <span>🚀</span>
-          <span className="hidden md:inline">Khởi Tạo Quán</span>
+          <span>🔗</span>
+          <span className="hidden md:inline">Kết Nối Kênh</span>
         </a>
 
         {onOpenDailyReport && (

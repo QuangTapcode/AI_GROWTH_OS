@@ -99,12 +99,12 @@ export function ZeroTechOnboarding({ workspaceId, onCompleted }: ZeroTechOnboard
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 p-6 text-white">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-2xl">
-            🚀
+            🔗
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight">Khởi Tạo Phòng Marketing AI Cho Nhà Hàng (Zero-Tech)</h2>
+            <h2 className="text-xl font-bold tracking-tight">Trung Tâm Kết Nối Kênh & Dữ Liệu Marketing</h2>
             <p className="text-sm text-blue-200 mt-1">
-              Dành riêng cho chủ quán không rành công nghệ. Chỉ cần dán 4 đường link và bấm kích hoạt!
+              Liên kết Fanpage, Google Maps, Kho ảnh Drive và Group cộng đồng để đội ngũ AI tự động vận hành.
             </p>
           </div>
         </div>
@@ -240,9 +240,9 @@ export function ZeroTechOnboarding({ workspaceId, onCompleted }: ZeroTechOnboard
             <button
               type="submit"
               disabled={isLoading}
-              className="px-6 py-2.5 rounded-xl font-bold text-sm bg-blue-600 hover:bg-blue-700 active:scale-95 text-white transition-all shadow-md shadow-blue-500/20 disabled:opacity-60"
+              className="px-6 py-2.5 rounded-xl font-bold text-sm bg-blue-600 hover:bg-blue-700 active:scale-95 text-white transition-all shadow-md shadow-blue-500/20 disabled:opacity-60 cursor-pointer"
             >
-              {isLoading ? 'Đang kích hoạt...' : isCompleted ? 'Cập Nhật Cấu Hình' : 'Kích Hoạt Phòng Marketing AI'}
+              {isLoading ? 'Đang lưu...' : isCompleted ? 'Lưu & Cập Nhật Kênh' : 'Kích Hoạt Kết Nối Kênh'}
             </button>
           </div>
         </form>
