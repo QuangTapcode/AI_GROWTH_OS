@@ -119,19 +119,45 @@ export class CommunityService {
  * Autopilot helper: enqueues pending received community messages into workflow_tasks.
  */
 /** A reply counts only once it was sent: a draft nobody sent was never said to this person. */
-async function conversationHistory(pool: Pool, workspaceId: string, platform: string, contact: string, messageId: string) {
+/** How far back an earlier question still belongs to the same conversation. A group moves on faster. */
+export const HISTORY_WINDOW_MINUTES = { group: 30, private: 180 } as const;
+const HISTORY_TURNS = 4;
+
+/**
+ * The asker's own earlier questions in this chat, oldest first: context for a follow-up such as "Khu vực Đà Nẵng".
+ * A Telegram group shares one author_contact (the group's chat id), so there the sender's id picks out their own
+ * turns; commands and join notices (no AI task) and anything older than the window are not part of the conversation.
+ */
+export async function conversationHistory(pool: Pick<Pool, 'query'>, workspaceId: string, platform: string, contact: string, messageId: string) {
+  const isGroup = contact.startsWith('-');
   const prior = (await pool.query<{ content: string; reply: string | null }>(
-    `SELECT m.content,
+    `WITH cur AS (
+       SELECT received_at, metadata->>'sender_id' AS sender_id FROM community_messages WHERE id = $4
+     )
+     SELECT m.content,
             CASE WHEN m.status = 'replied'
                  THEN COALESCE(a.payload->'result'->>'reply', m.metadata->>'reply_text')
             END AS reply
        FROM community_messages m
+       CROSS JOIN cur
        LEFT JOIN content_artifacts a ON a.workspace_id = m.workspace_id AND a.task_id = m.task_id
       WHERE m.workspace_id = $1 AND m.platform = $2 AND m.author_contact = $3 AND m.id <> $4
-      ORDER BY m.received_at DESC LIMIT 6`,
-    [workspaceId, platform, contact, messageId],
+        AND m.task_id IS NOT NULL
+        AND m.received_at <= cur.received_at
+        AND m.received_at > cur.received_at - make_interval(mins => $5::int)
+        AND (cur.sender_id IS NULL OR m.metadata->>'sender_id' = cur.sender_id)
+        AND lower(m.content) <> lower((SELECT content FROM community_messages WHERE id = $4))
+      ORDER BY m.received_at DESC LIMIT $6`,
+    [workspaceId, platform, contact, messageId,
+      isGroup ? HISTORY_WINDOW_MINUTES.group : HISTORY_WINDOW_MINUTES.private, HISTORY_TURNS],
   )).rows;
-  return prior.reverse().map((row) => ({
+  // The same message delivered twice is one turn.
+  const seen = new Set<string>();
+  const unique = prior.filter((row) => {
+    const key = row.content.trim().toLowerCase();
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
+  return unique.reverse().map((row) => ({
     question: row.content.slice(0, 300),
     ...(row.reply ? { reply: row.reply.slice(0, 300) } : {}),
   }));

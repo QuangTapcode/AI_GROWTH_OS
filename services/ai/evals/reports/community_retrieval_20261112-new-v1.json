@@ -1,0 +1,617 @@
+{
+ "label": "20261112-new-v1",
+ "dataset": "community_retrieval_v1.json",
+ "score": "51/51",
+ "hit_rate": 1.0,
+ "results": [
+  {
+   "q": "bao giờ đến mùa du lịch ở Đà Nẵng",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 128,
+   "top": [
+    "Hoi An | Vietnam Tourism (vietnam.travel #ca03a8: 'Add to AI Itinerary Planner Save to My Trip\\n\\nBest time Mar - May\\n\\nWarm'",
+    "When Is the Best Time to Visit Vietnam?  #7415a0: 'The Central coast works on a different calendar from the rest of the c'",
+    "Da Nang (en.wikipedia.org) #01b87c: 'Da Nang has a tropical monsoon climate with two seasons: a typhoon and'"
+   ]
+  },
+  {
+   "q": "thời tiết Đà Nẵng tháng 12 thế nào",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 82,
+   "top": [
+    "Da Nang (en.wikipedia.org) #01b87c: 'Da Nang has a tropical monsoon climate with two seasons: a typhoon and'",
+    "When Is the Best Time to Visit Vietnam?  #7415a0: 'The Central coast works on a different calendar from the rest of the c'",
+    "When Is the Best Time to Visit Vietnam?  #03f5a5: \"Cool season (mid-December to February): Hanoi's coldest month is Janua\""
+   ]
+  },
+  {
+   "q": "mùa mưa ở miền Trung kéo dài mấy tháng",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 172,
+   "top": [
+    "Rainy Season in Central Vietnam (tripc.a #e92199: 'Vietnam is long enough that the three regions have different wet seaso'",
+    "When Is the Best Time to Visit Vietnam?  #7415a0: 'The Central coast works on a different calendar from the rest of the c'",
+    "Rainy Season in Central Vietnam (tripc.a #d37bd2: 'Two honest caveats, though. Do not assume that late November will auto'"
+   ]
+  },
+  {
+   "q": "When is the rainy season in Da Nang?",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 172,
+   "top": [
+    "Da Nang Workcation Guide: Where to Live, #05bb65: 'Timing matters in Da Nang more than in the two big cities, because the'",
+    "Da Nang (en.wikipedia.org) #01b87c: 'Da Nang has a tropical monsoon climate with two seasons: a typhoon and'",
+    "Hoi An | Vietnam Tourism (vietnam.travel #ca03a8: 'Add to AI Itinerary Planner Save to My Trip\\n\\nBest time Mar - May\\n\\nWarm'"
+   ]
+  },
+  {
+   "q": "eSIM mua ở đâu?",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 25,
+   "top": [
+    "eSIM or Local SIM in Vietnam: Which Shou #6894a1: 'Quick answer: For a trip of up to about two weeks, a travel eSIM bough'",
+    "eSIM or Local SIM in Vietnam: Which Shou #4dc4bd: 'Paperwork: Travel eSIM (bought online): None in Vietnam · Local SIM or'",
+    "eSIM or Local SIM in Vietnam: Which Shou #babb84: 'Viettel prices come from its own shop page, which adds the SIM or eSIM'"
+   ]
+  },
+  {
+   "q": "nên mua sim vật lý hay eSIM",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 30,
+   "top": [
+    "eSIM or Local SIM in Vietnam: Which Shou #6894a1: 'Quick answer: For a trip of up to about two weeks, a travel eSIM bough'",
+    "eSIM or Local SIM in Vietnam: Which Shou #4dc4bd: 'Paperwork: Travel eSIM (bought online): None in Vietnam · Local SIM or'",
+    "First 7 Days in Vietnam: Setup Checklist #200f8a: 'Whichever you choose, the one rule that matters is that the SIM must b'"
+   ]
+  },
+  {
+   "q": "làm visa điện tử Việt Nam mất bao lâu",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 33,
+   "top": [
+    "How Long Does the Vietnam E-Visa Take? W #20bdbc: 'The Vietnam e-visa takes up to 3 working days to process under Vietnam'",
+    "Vietnam E-Visa Guide 2026: How to Apply, #a6395e: \"The e-visa is an electronic visa issued by Vietnam's Immigration Depar\"",
+    "How Long Does the Vietnam E-Visa Take? W #79502f: 'Quick answer: The Vietnam e-visa is processed within 3 working days af'"
+   ]
+  },
+  {
+   "q": "hộ chiếu cần còn hạn bao lâu để nhập cảnh",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 13,
+   "top": [
+    "How many months must my passport be vali #ce88d6: 'Quick answer: If you enter Vietnam visa-free, your passport must be va'",
+    "How many months must my passport be vali #268ddf: 'If you are visa-exempt, you must renew: with less than 6 months left y'",
+    "How many months must my passport be vali #48213b: 'Airlines ask for 6 months because they are responsible for flying you '"
+   ]
+  },
+  {
+   "q": "web làm e-visa chính thức là trang nào",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 215,
+   "top": [
+    "Which Vietnam E-Visa Website Is Official #9246ba: \"Quick answer: Vietnam's official e-visa portal runs on two addresses o\"",
+    "Which Vietnam E-Visa Website Is Official #b968e4: 'You may still see the older Immigration Department address, evisa.xuat'",
+    "Should You Print Your Vietnam E-Visa? (t #f61e3a: 'Open the official portal. Go to evisa.gov.vn (or thithucdientu.gov.vn,'"
+   ]
+  },
+  {
+   "q": "có cần vé máy bay khứ hồi không",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 21,
+   "top": [
+    "Does Vietnam Require Proof of Onward Tra #8e6c25: 'Yes. Vietnamese law does not require a return or onward ticket to ente'",
+    "Does Vietnam Require Proof of Onward Tra #7945f2: \"Quick answer: Mostly a myth. Vietnam's Law on Entry, Exit, Transit and\"",
+    "Does Vietnam Require Proof of Onward Tra #b51d3f: 'A passport or international travel document and a visa, unless you are'"
+   ]
+  },
+  {
+   "q": "nên mang bao nhiêu tiền mặt",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 69,
+   "top": [
+    "How Much Cash Should You Bring to Vietna #68cf84: \"Linh's tip: Ask the ATM or exchange counter for some small notes, then\"",
+    "How Much Cash Should You Bring to Vietna #5f341a: 'Quick answer: Bring enough cash for your first one or two days, about '",
+    "How Much Cash Should You Bring to Vietna #97e7f8: 'You only need a small cash float to start a trip to Vietnam, because A'"
+   ]
+  },
+  {
+   "q": "thẻ tín dụng nước ngoài có dùng được không",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 243,
+   "top": [
+    "Do Foreign Credit Cards Work in Vietnam? #a331bb: 'Quick answer: Yes. Foreign Visa and Mastercard cards work at most hote'",
+    "Do Foreign Credit Cards Work in Vietnam? #55412c: 'You can link an international credit or debit card to the Grab app in '",
+    "Opening a Bank Account in Vietnam as a F #2083c2: 'Cash. Cash remains useful for markets, small shops and businesses that'"
+   ]
+  },
+  {
+   "q": "số điện thoại cấp cứu ở Việt Nam",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 34,
+   "top": [
+    "First 7 Days in Vietnam: Setup Checklist #11847e: \"Save Vietnam's emergency numbers in your phone now: 113 for police, 11\"",
+    "Emergency Numbers and Essential Contacts #fa573b: 'Cứu tôi với! — Help me!\\n\\nGọi xe cấp cứu! — Call an ambulance!\\n\\nGọi côn'",
+    "Emergency Numbers and Essential Contacts #40a58f: \"Vietnam's emergency lines operate in Vietnamese, so you should not ass\""
+   ]
+  },
+  {
+   "q": "người nước ngoài đăng ký tạm trú thế nào",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 49,
+   "top": [
+    "Temporary Residence Registration in Viet #883c77: 'Temporary residence registration, commonly referred to in Vietnamese a'",
+    "Temporary Residence Registration in Viet #8ab48d: 'This is the most frequently misunderstood part of the process.\\n\\nUnder '",
+    "Temporary Residence Registration in Viet #388e6c: 'Does an Airbnb listing prove that the property can receive foreign gue'"
+   ]
+  },
+  {
+   "q": "chi phí sinh hoạt một tháng khoảng bao nhiêu",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 43,
+   "top": [
+    "Cost of Living in Vietnam: A Realistic M #62e708: 'A lean budget of roughly $600 to $900 a month can be workable with sim'",
+    "Cost of Living in Vietnam: A Realistic M #325d9c: 'Living in Vietnam in 2026 may cost, very broadly, $600 to $900 a month'",
+    "Cost of Living in Vietnam: A Realistic M #1378ae: \"Food is where Vietnam's affordability is most obvious. Eating local is\""
+   ]
+  },
+  {
+   "q": "mở tài khoản ngân hàng cần giấy tờ gì",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 179,
+   "top": [
+    "Opening a Bank Account in Vietnam as a F #d6d466: 'Your passport is the starting point, but arriving at a branch with onl'",
+    "Opening a Bank Account in Vietnam as a F #6394c7: 'A 90-day e-visa is not a reliable basis on which to plan immediate acc'",
+    "Opening a Bank Account in Vietnam as a F #8d4ee5: 'Employers often have an established relationship with a bank and may b'"
+   ]
+  },
+  {
+   "q": "bảo hiểm y tế cho người nước ngoài",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 20,
+   "top": [
+    "Health Insurance in Vietnam: Local vs In #d92d3c: 'Vietnam also has a statutory health-insurance system. The public syste'",
+    "Health Insurance in Vietnam: Local vs In #c1e9aa: 'International private medical insurance is designed for people living '",
+    "Health Insurance in Vietnam: Local vs In #0e21b0: 'A local plan may be sufficient for someone who expects to receive care'"
+   ]
+  },
+  {
+   "q": "những chiêu lừa đảo du khách hay gặp",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 44,
+   "top": [
+    "Vietnam (en.wikivoyage.org) #66ab81: 'Hotels\\n\\nHotel owners may tell you that the room price is 200,000 dong.'",
+    "Common Scams in Vietnam: What New Arriva #84ec56: 'The friendly invitation. A stranger may begin with ordinary conversati'",
+    "Common Scams in Vietnam: What New Arriva #b94de7: 'Many scams and first-week traps are built around ordinary needs: a rid'"
+   ]
+  },
+  {
+   "q": "từ sân bay Đà Nẵng về trung tâm đi bằng gì",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 36,
+   "top": [
+    "Da Nang (en.wikivoyage.org) #4e7222: '1 Da Nang International Airport (DAD IATA) (3 km southwest of the cent'",
+    "Da Nang (en.wikivoyage.org) #eee93c: 'City Bus #6 and #10 go west towards the city centre, cross the Han riv'",
+    "Hanoi, Da Nang or Ho Chi Minh City: Whic #4da996: 'Distance to centre: Hanoi Noi Bai (HAN): 27–30 km to the Old Quarter ·'"
+   ]
+  },
+  {
+   "q": "đi lại trong Việt Nam nên chọn tàu hay máy bay",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 309,
+   "top": [
+    "Choosing How to Travel Around Vietnam (t #49564f: 'Plane, Train, Bus or Private Car? Choosing How to Travel Around Vietna'",
+    "Choosing How to Travel Around Vietnam (t #11da19: \"Book through a channel you can verify. The airline's official website \"",
+    "Choosing How to Travel Around Vietnam (t #c33d67: 'This door-to-door calculation is the most reliable way to choose.\\n\\nWhe'"
+   ]
+  },
+  {
+   "q": "app nào cần cài khi sống ở Việt Nam",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 539,
+   "top": [
+    "Essential Apps for Living in Vietnam (tr #117083: 'Review which services are connected to your Vietnamese phone number.\\n\\n'",
+    "Essential Apps for Living in Vietnam (tr #5f334c: 'Download Grab, Google Maps, Zalo and Google Translate.\\n\\nDownload an of'",
+    "Essential Apps for Living in Vietnam (tr #a735e3: 'Facebook Messenger is also useful for contacting local businesses beca'"
+   ]
+  },
+  {
+   "q": "cầu Rồng phun lửa lúc mấy giờ",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 7,
+   "top": [
+    "Da Nang (en.wikivoyage.org) #d9c2ec: '2 Golden Bridge. A 150m long pedestrian bridge, used as viewpoint. A n'",
+    "Da Nang (en.wikivoyage.org) #d54bd8: '4 Han River Promenade, along Bach Dang Rd (between Dragon Bridge and D'",
+    "Hội An (city) (en.wikipedia.org) #527679: 'On the 15th days of the first and seventh lunar months, Hội An residen'"
+   ]
+  },
+  {
+   "q": "đi Bà Nà Hills có gì",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 11,
+   "top": [
+    "Ba Na Hills (en.wikipedia.org) #53eb29: '(Redirected from Ba Na Hills)\\n\\nBa Na Hills Resort in July 2025 An old '",
+    "Da Nang (en.wikivoyage.org) #215cfe: 'BanaHills Center — discount ticket reseller for Ba Na Hills (☎ +84 792'",
+    "Ba Na Hills (en.wikipedia.org) #b68355: 'Cable Car\\n\\nBa Na resort cable cars Golden Bridge at Ba Na Hills\\n\\nThe B'"
+   ]
+  },
+  {
+   "q": "bãi biển Mỹ Khê",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 19,
+   "top": [
+    "Da Nang (en.wikivoyage.org) #af9a85: '1 My Khe Beach (Bãi biển Mỹ Khê), Hoang Sa Rd. Across the Han River fr'",
+    "Da Nang (en.wikivoyage.org) #9ba649: 'Do\\n\\nBeaches\\n\\nAerial view of My Khe Beach, curving south towards Hoi An'",
+    "Da Nang (en.wikivoyage.org) #027170: 'Orienting yourself in Da Nang is straightforward. Gorgeous My Khe Beac'"
+   ]
+  },
+  {
+   "q": "Ngũ Hành Sơn có gì chơi",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 18,
+   "top": [
+    "Da Nang (en.wikivoyage.org) #9788d9: '6 Marble Mountains (Ngu Hanh Son) (9 km S of downtown and across the s'",
+    "Hoi An | Vietnam Tourism (vietnam.travel #2fdf78: 'Top things to do in Da Nang\\n\\nRelax on My Khe Beach\\n\\nBroad golden sands'",
+    "Da Nang | Vietnam Tourism (vietnam.trave #8b0c63: 'Broad golden sands sweep south from the Son Tra Peninsula. Swim at sun'"
+   ]
+  },
+  {
+   "q": "Hội An cách Đà Nẵng bao xa",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 129,
+   "top": [
+    "Da Nang (en.wikivoyage.org) #7e555a: 'To Hoi An\\n\\nRenting a motorbike to travel to Hoi An from Da Nang costs '",
+    "Hội An (city) (en.wikipedia.org) #6cd322: 'Transportation\\n\\nAir\\n\\nThe nearest airport to Hội An is Da Nang Internat'",
+    "Hoi An (en.wikivoyage.org) #c28e7a: 'By bus\\n\\nFrom Da Nang\\n\\nViệt Hàn schedule\\n\\nAs of Nov 2023, you can take '"
+   ]
+  },
+  {
+   "q": "thuê căn hộ cần kiểm tra gì trước khi ký",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 172,
+   "top": [
+    "Apartment Viewing Checklist in Vietnam ( #16dfce: 'Calculate the real monthly cost. Add rent, management charges, parking'",
+    "Apartment Viewing Checklist in Vietnam ( #c93b88: 'The short version: check the apartment with your senses and your phone'",
+    "Apartment Viewing Checklist in Vietnam ( #cd2a9f: 'Ask what is included before becoming attached to the apartment. Confir'"
+   ]
+  },
+  {
+   "q": "2 tuần đầu nên ở đâu",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 27,
+   "top": [
+    "Where to Stay During Your First Two Week #f1c375: 'For a stay of a week or two while you find your feet, there are three '",
+    "Where to Stay During Your First Two Week #2e09f2: 'One to two weeks can be a useful starting point — long enough to explo'",
+    "Where to Stay During Your First Two Week #b184e0: 'For your first week or two in Vietnam, consider booking short-term acc'"
+   ]
+  },
+  {
+   "q": "làm việc từ xa ở Đà Nẵng, coworking ở đâu",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 73,
+   "top": [
+    "Da Nang vs Hanoi vs Ho Chi Minh City for #45b7e1: 'Ho Chi Minh City has the largest and best-equipped coworking scene, wi'",
+    "Da Nang Workcation Guide: Where to Live, #22290b: 'The café culture is strong and genuinely functional, with a widespread'",
+    "Da Nang Workcation Guide: Where to Live, #0e31e7: \"An Thuong and the broader My An area form Da Nang's main beachside hub\""
+   ]
+  },
+  {
+   "q": "mang chó mèo sang Việt Nam được không",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 572,
+   "top": [
+    "Bringing Your Family, Partner or Pet to  #1d5988: \"Vietnam's requirements sit within its animal-health and import-quarant\"",
+    "Bringing Your Family, Partner or Pet to  #d4bb77: 'Airline policies deserve their own planning timeline. Each airline dec'",
+    "Bringing Your Family, Partner or Pet to  #e2dcb6: 'For a dog or cat, focus on the current animal-health and import-quaran'"
+   ]
+  },
+  {
+   "q": "Do I need an onward ticket to enter Vietnam?",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 21,
+   "top": [
+    "Does Vietnam Require Proof of Onward Tra #8e6c25: 'Yes. Vietnamese law does not require a return or onward ticket to ente'",
+    "Does Vietnam Require Proof of Onward Tra #7945f2: \"Quick answer: Mostly a myth. Vietnam's Law on Entry, Exit, Transit and\"",
+    "Does Vietnam Require Proof of Onward Tra #b51d3f: 'A passport or international travel document and a visa, unless you are'"
+   ]
+  },
+  {
+   "q": "Which airport should I fly into for Da Nang?",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 139,
+   "top": [
+    "Hanoi, Da Nang or Ho Chi Minh City: Whic #191807: \"Fly into Hanoi's Noi Bai airport when your trip starts in the North: H\"",
+    "Hanoi, Da Nang or Ho Chi Minh City: Whic #903526: 'No. Hoi An has no airport. The nearest airport is Da Nang Internationa'",
+    "Hanoi, Da Nang or Ho Chi Minh City: Whic #c4adfe: \"Noi Bai and Tan Son Nhat are Vietnam's two largest airports, and Da Na\""
+   ]
+  },
+  {
+   "q": "Is Da Nang good for digital nomads?",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 78,
+   "top": [
+    "Da Nang vs Hanoi vs Ho Chi Minh City for #2954af: 'Ho Chi Minh City has the largest and most varied international communi'",
+    "Da Nang Workcation Guide: Where to Live, #54b059: 'Da Nang works well as a remote-work base because it offers a practical'",
+    "Da Nang Workcation Guide: Where to Live, #2241f8: 'Da Nang tends to suit people looking for balance rather than extremes:'"
+   ]
+  },
+  {
+   "q": "Du lịch đồ ngu",
+   "topic": null,
+   "kind": "abuse",
+   "ok": true,
+   "gold_in_corpus": null,
+   "top": []
+  },
+  {
+   "q": "bot ngu quá",
+   "topic": null,
+   "kind": "abuse",
+   "ok": true,
+   "gold_in_corpus": null,
+   "top": []
+  },
+  {
+   "q": "Bạn là ai?",
+   "topic": null,
+   "kind": "chat",
+   "ok": null,
+   "gold_in_corpus": null,
+   "top": []
+  },
+  {
+   "q": "giá vé máy bay Hà Nội Đà Nẵng hôm nay bao nhiêu",
+   "topic": null,
+   "kind": "unanswerable",
+   "ok": true,
+   "gold_in_corpus": null,
+   "top": []
+  },
+  {
+   "q": "phố cổ Hội An có gì đặc biệt",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 67,
+   "top": [
+    "Hội An (city) (en.wikipedia.org) #1d6fb9: \"Hội An's restaurants are not only known for their delectable cuisine b\"",
+    "Hoi An (en.wikivoyage.org) #a91a33: 'See\\n\\nDragon fountain at the back of the Cantonese Assembly Hall\\n\\nOld T'",
+    "Hội An (city) (en.wikipedia.org) #beafb2: 'Trần Phú Street hosts architectural works, including five Chinese comm'"
+   ]
+  },
+  {
+   "q": "đèn lồng Hội An đêm rằm",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 10,
+   "top": [
+    "Hội An (city) (en.wikipedia.org) #99f1ae: 'Since 1998, the Hội An municipal government has hosted the Full Moon F'",
+    "Hoi An (en.wikivoyage.org) #a91a33: 'See\\n\\nDragon fountain at the back of the Cantonese Assembly Hall\\n\\nOld T'",
+    "Hội An (city) (en.wikipedia.org) #527679: 'On the 15th days of the first and seventh lunar months, Hội An residen'"
+   ]
+  },
+  {
+   "q": "Huế có gì tham quan",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 56,
+   "top": [
+    "Hue | Vietnam Tourism (vietnam.travel) #45a29d: 'Top things to do in Hue\\n\\nSee Imperial Vietnam\\n\\nGet acquainted with Vie'",
+    "Hue (en.wikivoyage.org) #e4e4ce: 'Hue Jungle Crevice – When the Viet Cong briefly overran Hue, they roun'",
+    "Hue | Vietnam Tourism (vietnam.travel) #195e99: \"Explore the city's Buddhist roots\\n\\nHue’s serene atmosphere is most pen\""
+   ]
+  },
+  {
+   "q": "lễ hội pháo hoa Đà Nẵng tổ chức khi nào",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 6,
+   "top": [
+    "Da Nang (en.wikivoyage.org) #d54bd8: '4 Han River Promenade, along Bach Dang Rd (between Dragon Bridge and D'",
+    "Tết (en.wikipedia.org) #64b1db: 'Fireworks displays have also become a traditional part of a Tết celebr'",
+    "About Da Nang City (danangfantasticity.c #87245c: 'The existing sports area and Asian Park theme park can be further deve'"
+   ]
+  },
+  {
+   "q": "Cù Lao Chàm đi thế nào",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 20,
+   "top": [
+    "Cham Islands (en.wikivoyage.org) #552194: '(Redirected from Cham Islands)\\n\\nAsia > Southeast Asia > Vietnam > Cent'",
+    "Cham Islands (en.wikivoyage.org) #cf7a2d: 'Fees and permits\\n\\nGenerally for day trippers travelling with a dive op'",
+    "Cham Islands (en.wikivoyage.org) #a125c8: 'Landscape\\n\\nCham Island topography is mostly mountainous, without river'"
+   ]
+  },
+  {
+   "q": "bán đảo Sơn Trà, chùa Linh Ứng",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 22,
+   "top": [
+    "Da Nang (en.wikivoyage.org) #42c30f: '5 Linh Ung Temple (Chùa Linh Ứng), Hoang Sa Rd (Bai But, Son Tra Penin'",
+    "About Da Nang City (danangfantasticity.c #ac5759: 'Da Nang currently features specific religious sites intricately woven '",
+    "Hoi An | Vietnam Tourism (vietnam.travel #a567ba: 'Ride around Son Tra Peninsula\\n\\nA winding coastal road leads through fo'"
+   ]
+  },
+  {
+   "q": "Thánh địa Mỹ Sơn",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 20,
+   "top": [
+    "Mỹ Sơn (en.wikipedia.org) #71e9bc: 'Mỹ Sơn\\n\\nCommune\\n\\nMountains in Mỹ Sơn commune\\n\\nInteractive map of Mỹ Sơ'",
+    "My Son (en.wikivoyage.org) #463d93: 'Asia > Southeast Asia > Vietnam > Central Coast (Vietnam) > Da Nang > '",
+    "Mỹ Sơn (en.wikipedia.org) #1cbaf0: 'Population\\n\\n(31 December 2024)\\n\\n• Total\\n\\n• Density\\n\\n63/km2 (160/sq mi)'"
+   ]
+  },
+  {
+   "q": "chợ Hàn mua gì",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 6,
+   "top": [
+    "Da Nang (en.wikipedia.org) #05c3f9: \"Inside Hàn Market\\n\\nHistorically, Da Nang's main marketplaces has been \"",
+    "Da Nang (en.wikivoyage.org) #e08b6f: 'Work\\n\\nThere are a number of schools (ILA, Apollo, Academy English Cent'",
+    "Da Nang (en.wikivoyage.org) #e2fe77: '2 Helio Night Market (Chợ đêm Helio). Located near the Danang Sports H'"
+   ]
+  },
+  {
+   "q": "đặc sản Đà Nẵng nên ăn gì",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 21,
+   "top": [
+    "Da Nang (en.wikipedia.org) #781917: \"Da Nang's culinary identity is strongly shaped by the flavors of Centr\"",
+    "Da Nang (en.wikivoyage.org) #7a5390: 'Then there are regional specialities like mì Quảng, or Quang Nam-style'",
+    "Da Nang (en.wikivoyage.org) #1a9857: '9 Đặc Sản Làm Quà Đà Nẵng (Tiem Qua Cua Lan), 23 An Thuong 26 (near by'"
+   ]
+  },
+  {
+   "q": "đèo Hải Vân",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 20,
+   "top": [
+    "Hải Vân Pass (en.wikipedia.org) #d796a4: 'Accidents\\n\\nBesides its beauty, the pass is also renowned for its diffi'",
+    "Hải Vân Pass (en.wikipedia.org) #8113cf: 'Hải Vân Pass\\n\\nĐèo Hải Vân\\n\\nHải Vân Pass\\n\\nLocation within Vietnam\\n\\nLoca'",
+    "Hải Vân Pass (en.wikipedia.org) #89c49a: \"Transport\\n\\nThe pass is crossed by two main transport routes: Vietnam's\""
+   ]
+  },
+  {
+   "q": "Vịnh Hạ Long đi mấy ngày",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 27,
+   "top": [
+    "Ha Long Bay (en.wikivoyage.org) #ab0537: 'See and do\\n\\nIt is best to avoid beaches and swimming until you get to '",
+    "Ha Long Bay (en.wikivoyage.org) #28cde8: 'Ha Long Bay Tourism website\\n\\nGet in\\n\\nThere are a number of domestic co'",
+    "Vietnam (en.wikivoyage.org) #d5216e: \"Tour boats can be chartered for around US$20 for a day's tour; but bew\""
+   ]
+  },
+  {
+   "q": "Tết Nguyên Đán đi du lịch có ổn không",
+   "topic": "coverage",
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 17,
+   "top": [
+    "Vietnam (en.wikivoyage.org) #db6d16: 'Visiting Vietnam during Tết has good points and bad points. On the min'",
+    "Vietnam (en.wikivoyage.org) #235441: 'By far the largest holiday is Tết — the Lunar New Year — which takes p'",
+    "When Is the Best Time to Visit Vietnam?  #a6c392: \"Check the forecast and your government's travel advice from 5 days bef\""
+   ]
+  },
+  {
+   "q": "eSIM mua ở đâu?",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 25,
+   "top": [
+    "eSIM or Local SIM in Vietnam: Which Shou #6894a1: 'Quick answer: For a trip of up to about two weeks, a travel eSIM bough'",
+    "eSIM or Local SIM in Vietnam: Which Shou #4dc4bd: 'Paperwork: Travel eSIM (bought online): None in Vietnam · Local SIM or'",
+    "eSIM or Local SIM in Vietnam: Which Shou #babb84: 'Viettel prices come from its own shop page, which adds the SIM or eSIM'"
+   ]
+  },
+  {
+   "q": "từ sân bay Đà Nẵng về trung tâm đi bằng gì",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 36,
+   "top": [
+    "Da Nang (en.wikivoyage.org) #4e7222: '1 Da Nang International Airport (DAD IATA) (3 km southwest of the cent'",
+    "Da Nang (en.wikivoyage.org) #eee93c: 'City Bus #6 and #10 go west towards the city centre, cross the Han riv'",
+    "Hanoi, Da Nang or Ho Chi Minh City: Whic #4da996: 'Distance to centre: Hanoi Noi Bai (HAN): 27–30 km to the Old Quarter ·'"
+   ]
+  },
+  {
+   "q": "còn sim vật lý thì sao?",
+   "asked": "eSIM mua ở đâu - còn sim vật lý thì sao?",
+   "topic": null,
+   "kind": "answer",
+   "ok": true,
+   "gold_in_corpus": 21,
+   "top": [
+    "eSIM or Local SIM in Vietnam: Which Shou #6894a1: 'Quick answer: For a trip of up to about two weeks, a travel eSIM bough'",
+    "eSIM or Local SIM in Vietnam: Which Shou #4dc4bd: 'Paperwork: Travel eSIM (bought online): None in Vietnam · Local SIM or'",
+    "eSIM or Local SIM in Vietnam: Which Shou #babb84: 'Viettel prices come from its own shop page, which adds the SIM or eSIM'"
+   ]
+  }
+ ]
+}

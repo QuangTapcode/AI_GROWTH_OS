@@ -76,7 +76,7 @@
   },
   {
    "q": "từ sân bay Đà Nẵng về trung tâm đi bằng gì",
-   "gold": "(?i)airport.{0,200}(taxi|Grab|bus)|(taxi|Grab|bus).{0,200}airport"
+   "gold": "(?i)(airport|terminal).{0,700}(taxi|Grab|bus)|(taxi|Grab|bus).{0,200}airport"
   },
   {
    "q": "đi lại trong Việt Nam nên chọn tàu hay máy bay",
@@ -223,7 +223,7 @@
     "thời tiết Đà Nẵng tháng 12 thế nào",
     "eSIM mua ở đâu?"
    ],
-   "gold": "(?i)airport.{0,200}(taxi|Grab|bus)|(taxi|Grab|bus).{0,200}airport"
+   "gold": "(?i)(airport|terminal).{0,700}(taxi|Grab|bus)|(taxi|Grab|bus).{0,200}airport"
   },
   {
    "q": "còn sim vật lý thì sao?",

@@ -87,22 +87,33 @@ def cosine(a: list[float], b: list[float]) -> float:
     return dot / n if n else 0.0
 
 
-def run(label: str) -> dict:
+def run(label: str, dataset: Path = DATASET, pipeline_module: str = "src.agents.community.pipeline") -> dict:
     sys.path.insert(0, str(ROOT))
-    from src.agents.community.pipeline import choose_passages  # noqa: E402
+    import importlib
+    pipeline = importlib.import_module(pipeline_module)
+    choose_passages = pipeline.choose_passages
+    # Older pipelines (for a before/after run) read a fragment as typed.
+    standalone = getattr(pipeline, "standalone_question", lambda question, history: question)
     from src.rag.ingest import query_embedding_input  # noqa: E402
 
     corpus = load_corpus()
-    questions = json.loads(DATASET.read_text(encoding="utf-8"))["questions"]
-    vectors = embed([query_embedding_input(q["q"]) for q in questions])
+    questions = json.loads(dataset.read_text(encoding="utf-8"))["questions"]
+    # A history turn is the earlier question, or {"q": ..., "reply": ...} when the bot's reply matters.
+    turns_of = lambda q: [type("Turn", (), {"question": h["q"] if isinstance(h, dict) else h,
+                                            "reply": h.get("reply") if isinstance(h, dict) else None})()
+                          for h in q.get("history", [])]
+    # As the service does: a fragment completing the question before is searched as that whole question.
+    asked = [standalone(q["q"], turns_of(q)) for q in questions]
+    vectors = embed([query_embedding_input(a) for a in asked])
     # With history, the service also searches the last earlier question together with this one.
-    joined = embed([query_embedding_input(f"{q['history'][-1]} {q['q']}" if q.get("history") else q["q"]) for q in questions])
+    joined = embed([query_embedding_input(f"{turns_of(q)[-1].question} {a}" if q.get("history") and a == q["q"] else a)
+                    for q, a in zip(questions, asked)])
     results, hits, scored = [], 0, 0
-    for q, vector, joined_vector in zip(questions, vectors, joined):
+    for q, a, vector, joined_vector in zip(questions, asked, vectors, joined):
         similarity = {c.chunk_id: cosine(vector, c.embedding) for _, c in corpus}
         in_context = {c.chunk_id: cosine(joined_vector, c.embedding) for _, c in corpus}
-        history = [type("Turn", (), {"question": h})() for h in q.get("history", [])]
-        chosen = choose_passages(q["q"], history, corpus, similarity, in_context, "live")[:3]
+        history = turns_of(q) if a == q["q"] else []
+        chosen = choose_passages(a, history, corpus, similarity, in_context, "live")[:3]
         kind = q.get("kind", "answer")
         if kind == "answer":
             gold = re.compile(q["gold"])
@@ -115,9 +126,9 @@ def run(label: str) -> dict:
         else:
             available, ok = None, None
         hits += bool(ok)
-        results.append({"q": q["q"], "kind": kind, "ok": ok, "gold_in_corpus": available,
+        results.append({"q": q["q"], **({"asked": a} if a != q["q"] else {}), "topic": q.get("topic"), "kind": kind, "ok": ok, "gold_in_corpus": available,
                         "top": [f"{s.title[:40]} #{c.chunk_id[:6]}: {c.text[:70]!r}" for s, c in chosen]})
-    report = {"label": label, "score": f"{hits}/{scored}", "hit_rate": round(hits / scored, 3), "results": results}
+    report = {"label": label, "dataset": dataset.name, "score": f"{hits}/{scored}", "hit_rate": round(hits / scored, 3), "results": results}
     REPORTS.mkdir(parents=True, exist_ok=True)
     (REPORTS / f"community_retrieval_{label}.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     for r in results:
@@ -134,7 +145,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["export", "run"])
     parser.add_argument("--label", default="current")
+    parser.add_argument("--dataset", default=str(DATASET), help="questions file (default: community_retrieval_v1.json)")
+    parser.add_argument("--pipeline", default="src.agents.community.pipeline", help="module to score, e.g. a saved copy of an older pipeline")
     parser.add_argument("--include-review", action="store_true", help="also export sources waiting for the owner's review")
     args = parser.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
-    export(args.include_review) if args.command == "export" else run(args.label)
+    export(args.include_review) if args.command == "export" else run(args.label, Path(args.dataset), args.pipeline)
