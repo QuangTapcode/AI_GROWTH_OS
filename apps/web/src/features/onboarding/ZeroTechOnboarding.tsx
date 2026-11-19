@@ -14,15 +14,29 @@ interface ZeroTechOnboardingProps {
   onCompleted?: () => void;
 }
 
+const DEFAULT_AGENTS: AgentRosterItem[] = [
+  { id: 'agent_1', name: 'growth_lead', role: 'Executive Lead & Daily Report', status: 'active' },
+  { id: 'agent_2', name: 'asset_manager', role: 'Drive Asset Ingestion (Gemini Vision)', status: 'active' },
+  { id: 'agent_3', name: 'content_planner', role: 'Multi-Channel Content Planner', status: 'active' },
+  { id: 'agent_4', name: 'publisher', role: 'Multi-Channel Publisher & TikTok Video', status: 'active' },
+  { id: 'agent_5', name: 'gmaps_specialist', role: 'Google Maps Specialist (SEO Local & Reviews)', status: 'active' },
+  { id: 'agent_6', name: 'comment_reply', role: 'Social Comment Reply 24/7 (SLA < 3m)', status: 'active' },
+  { id: 'agent_7', name: 'inbox_concierge', role: 'Omnichannel Inbox & Lead Concierge (1-on-1 CRM)', status: 'active' },
+  { id: 'agent_8', name: 'community_growth', role: 'Community Funnel (0 -> 1.000 Members)', status: 'active' },
+];
+
+const DEFAULT_WELCOME =
+  'Xin chào Bạn! Tôi là AI Growth Lead phụ trách chiến lược tăng trưởng toàn diện cho thương hiệu & điểm đến du lịch của bạn. Tôi đã kích hoạt thành công đội ngũ 8 AI Agent chuyên trách và bắt đầu quét tư liệu thực tế để tối ưu tiếp thị ngay hôm nay.';
+
 export function ZeroTechOnboarding({ workspaceId, onCompleted }: ZeroTechOnboardingProps) {
   const [fanpageUrl, setFanpageUrl] = useState('https://facebook.com/dulich.trainghiem.danang');
   const [gmapsUrl, setGmapsUrl] = useState('https://maps.app.goo.gl/danang-travel-experience');
   const [gdriveUrl, setGdriveUrl] = useState('https://drive.google.com/drive/folders/danang-travel-real-photos');
   const [groupUrl, setGroupUrl] = useState('https://facebook.com/groups/cam-nang-du-lich-da-nang');
   const [isLoading, setIsLoading] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
-  const [welcomeMessage, setWelcomeMessage] = useState('');
-  const [agents, setAgents] = useState<AgentRosterItem[]>([]);
+  const [isCompleted, setIsCompleted] = useState(true);
+  const [welcomeMessage, setWelcomeMessage] = useState(DEFAULT_WELCOME);
+  const [agents, setAgents] = useState<AgentRosterItem[]>(DEFAULT_AGENTS);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -236,30 +250,120 @@ export function ZeroTechOnboarding({ workspaceId, onCompleted }: ZeroTechOnboard
         {/* 8 Agents Status Roster */}
         {agents.length > 0 && (
           <div className="mt-8 pt-6 border-t border-slate-100">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-              Trạng Thái Đội Ngũ 8 AI Agent Đang Hoạt Động
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {agents.map((agent) => (
-                <div
-                  key={agent.id}
-                  className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 flex items-center justify-between"
-                >
-                  <div>
-                    <div className="text-xs font-bold text-slate-800 font-mono">{agent.name}</div>
-                    <div className="text-[11px] text-slate-500 line-clamp-1">{agent.role}</div>
-                  </div>
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      agent.status === 'active'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Đội Ngũ 8 AI Agent Chuyên Trách & Giao Diện Hoạt Động
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Bấm vào từng Agent để mở trực tiếp trung tâm điều khiển và giao diện làm việc tương ứng.
+                </p>
+              </div>
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full w-fit">
+                ● 8/8 Agent sẵn sàng
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {agents.map((agent) => {
+                const AGENT_WORKSPACE_ROUTES: Record<string, { href: string; label: string; icon: string; desc: string }> = {
+                  growth_lead: {
+                    href: '/agents/growth_lead',
+                    label: 'Mở Growth Lead',
+                    icon: '🎩',
+                    desc: 'Điều phối campaign, scoring cơ hội & daily report',
+                  },
+                  asset_manager: {
+                    href: '/gmaps',
+                    label: 'Mở Drive & Media',
+                    icon: '📁',
+                    desc: 'Quét kho ảnh Drive & Gemini Vision gắn tag tư liệu',
+                  },
+                  content_planner: {
+                    href: '/agents/content',
+                    label: 'Mở Content Studio',
+                    icon: '✍️',
+                    desc: 'Lập kế hoạch nội dung, sinh bài viết & Social Pack',
+                  },
+                  publisher: {
+                    href: '/distribution',
+                    label: 'Mở Lịch Distribution',
+                    icon: '🚀',
+                    desc: 'Xếp lịch xuất bản đa kênh & Auto-Publish TikTok',
+                  },
+                  gmaps_specialist: {
+                    href: '/gmaps',
+                    label: 'Mở Google Maps',
+                    icon: '📍',
+                    desc: 'Google Business Profile, Local SEO & phản hồi review',
+                  },
+                  comment_reply: {
+                    href: '/agents/community',
+                    label: 'Mở Phản Hồi Bình Luận',
+                    icon: '💬',
+                    desc: 'Túc trực 24/7 tự động trả lời comment mạng xã hội',
+                  },
+                  inbox_concierge: {
+                    href: '/agents/community',
+                    label: 'Mở Inbox & Leads',
+                    icon: '🔔',
+                    desc: 'Tư vấn hội thoại 1-1 Messenger & bắt Lead CRM',
+                  },
+                  community_growth: {
+                    href: '/agents/community',
+                    label: 'Mở Community Group',
+                    icon: '👥',
+                    desc: 'Phát triển Group Facebook / Zalo & tăng trưởng thành viên',
+                  },
+                };
+
+                const meta = AGENT_WORKSPACE_ROUTES[agent.name] || {
+                  href: '/agents',
+                  label: 'Mở Agent',
+                  icon: '🤖',
+                  desc: agent.role,
+                };
+
+                return (
+                  <div
+                    key={agent.id}
+                    className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between group"
                   >
-                    {agent.status === 'active' ? 'Hoạt động' : 'Sẵn sàng'}
-                  </span>
-                </div>
-              ))}
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xl p-1.5 rounded-xl bg-slate-100 group-hover:bg-blue-50 transition-colors shrink-0">
+                            {meta.icon}
+                          </span>
+                          <span className="text-xs font-bold text-slate-800 font-mono truncate">
+                            {agent.name}
+                          </span>
+                        </div>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                            agent.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {agent.status === 'active' ? 'Hoạt động' : 'Sẵn sàng'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium line-clamp-2 leading-relaxed">
+                        {meta.desc}
+                      </p>
+                    </div>
+
+                    <a
+                      href={meta.href}
+                      className="mt-3.5 w-full py-1.5 px-3 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-600 hover:text-white flex items-center justify-between transition-all"
+                    >
+                      <span>{meta.label}</span>
+                      <span>→</span>
+                    </a>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

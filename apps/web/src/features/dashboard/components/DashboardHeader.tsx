@@ -68,6 +68,15 @@ export default function DashboardHeader({
         </div>
 
         {/* Quick Merchant Actions */}
+        <a
+          href="/onboarding"
+          className="flex items-center gap-1.5 bg-blue-500/80 hover:bg-blue-500 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-white font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+          title="Khởi tạo hoặc cập nhật cấu hình phòng Marketing AI (Zero-Tech)"
+        >
+          <span>🚀</span>
+          <span className="hidden md:inline">Khởi Tạo Quán</span>
+        </a>
+
         {onOpenDailyReport && (
           <button
             type="button"
