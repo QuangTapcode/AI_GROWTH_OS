@@ -1066,6 +1066,9 @@ export default function CommunityGrowthHub({
           group_ingested: number;
           queued_for_rag: number;
           auto_reply_comments: boolean;
+          auto_replies_sent?: number;
+          page_replies_sent?: number;
+          group_replies_sent?: number;
           warnings: string[];
         };
         data: HubResponse;
@@ -1079,10 +1082,53 @@ export default function CommunityGrowthHub({
         res.scan_result.warnings.length > 0
           ? ` (Lưu ý: ${res.scan_result.warnings.join(" | ")})`
           : "";
+      const replySentInfo =
+        res.scan_result.auto_replies_sent !== undefined && res.scan_result.auto_replies_sent > 0
+          ? ` • ĐÃ TỰ ĐỘNG ĐĂNG ${res.scan_result.auto_replies_sent} TRẢ LỜI LÊN FACEBOOK (Page: ${res.scan_result.page_replies_sent ?? 0}, Group: ${res.scan_result.group_replies_sent ?? 0})`
+          : "";
       showBanner(
         res.scan_result.warnings.length > 0 ? "warning" : "success",
-        `💬 Đã quét bình luận thật (Fanpage: +${res.scan_result.page_ingested}, Group: +${res.scan_result.group_ingested}) • Đã xếp hàng ${res.scan_result.queued_for_rag} bình luận chờ trả lời RAG${res.scan_result.auto_reply_comments ? " (Auto-Reply ĐANG BẬT)" : " (Auto-Reply đang tắt)"}.${warnSuffix}`
+        `💬 Đã quét bình luận thật (Fanpage: +${res.scan_result.page_ingested}, Group: +${res.scan_result.group_ingested})${replySentInfo} • Đã xếp hàng ${res.scan_result.queued_for_rag} bình luận chờ trả lời RAG${res.scan_result.auto_reply_comments ? " (Auto-Reply ĐANG BẬT)" : " (Auto-Reply đang tắt)"}.${warnSuffix}`
       );
+      onUpdated?.();
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleDispatchCommentReplies() {
+    setBusyAction("dispatch_replies");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        reply_result: {
+          total_checked: number;
+          replies_sent: number;
+          page_replies: number;
+          group_replies: number;
+          failed_count: number;
+        };
+        data: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "dispatch_comment_replies", max_batch: 10 },
+      });
+      setHub(res.data);
+      setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      if (res.reply_result.replies_sent > 0) {
+        showBanner(
+          "success",
+          `✅ Đã tự động đăng thành công ${res.reply_result.replies_sent} câu trả lời bình luận lên Facebook (Fanpage: ${res.reply_result.page_replies}, Group: ${res.reply_result.group_replies})!`
+        );
+      } else if (res.reply_result.total_checked === 0) {
+        showBanner("success", "👍 Hiện không có bình luận nào đang chờ trả lời.");
+      } else {
+        showBanner("warning", `⚠️ Đã kiểm tra ${res.reply_result.total_checked} bình luận nhưng chưa thể đăng (Lỗi/chờ: ${res.reply_result.failed_count}).`);
+      }
       onUpdated?.();
     } catch (err) {
       showBanner("error", (err as Error).message);
@@ -5210,7 +5256,15 @@ export default function CommunityGrowthHub({
                       onClick={() => void handleScanComments()}
                       className="rounded-lg bg-blue-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
                     >
-                      {busyAction === "scan_comments" ? "Đang quét bình luận…" : "💬 Quét & Trả lời Comment RAG"}
+                      {busyAction === "scan_comments" ? "Đang quét & trả lời…" : "💬 Quét & Trả lời Comment Tự Động"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canEdit || !!busyAction}
+                      onClick={() => void handleDispatchCommentReplies()}
+                      className="rounded-lg border border-blue-600 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      {busyAction === "dispatch_replies" ? "Đang đăng phản hồi…" : "⚡ Đăng ngay câu trả lời tồn đọng"}
                     </button>
                   </div>
                 </div>

@@ -76,6 +76,14 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
       return NextResponse.json({ status: 'comments_scanned', scan_result: scanResult, data });
     }
 
+    if (action === 'dispatch_comment_replies') {
+      const replyResult = await service.dispatchPendingCommentReplies(params.workspace_id, {
+        maxBatch: typeof body.max_batch === 'number' ? body.max_batch : 10,
+      });
+      const data = await service.getHubData(params.workspace_id);
+      return NextResponse.json({ status: 'comment_replies_dispatched', reply_result: replyResult, data });
+    }
+
     if (action === 'sync_post_stats') {
       const syncStatsResult = await service.syncPostEngagementStats(params.workspace_id, {
         includeGroupBot: body.include_group_bot !== false,

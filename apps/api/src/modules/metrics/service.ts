@@ -69,24 +69,28 @@ interface SnapshotRow {
 
 /** Snapshot mới nhất cho từng ngày trong khoảng. */
 export async function dailySnapshots(workspaceId: string, metric: string, from: string, to: string) {
-  const res = await query<SnapshotRow>(
-    `SELECT DISTINCT ON (period_from) to_char(period_from, 'YYYY-MM-DD') AS date, metric_value, availability,
-            missing_reason, provider, timezone, currency
-     FROM metrics_snapshots
-     WHERE workspace_id = $1 AND metric_name = $2 AND period_from = period_to
-       AND period_from BETWEEN $3::date AND $4::date AND provider=$5
-     ORDER BY period_from, captured_at DESC, id DESC`,
-    [workspaceId, metric, from, to, METRIC_PROVIDER[metric]]
-  );
-  return res.rows.map((r) => ({
-    date: r.date,
-    value: r.metric_value === null ? null : Number(r.metric_value),
-    availability: r.availability,
-    missing_reason: r.missing_reason,
-    provider: r.provider,
-    timezone: r.timezone,
-    currency: r.currency,
-  }));
+  try {
+    const res = await query<SnapshotRow>(
+      `SELECT DISTINCT ON (period_from) to_char(period_from, 'YYYY-MM-DD') AS date, metric_value, availability,
+              missing_reason, provider, timezone, currency
+       FROM metrics_snapshots
+       WHERE workspace_id = $1 AND metric_name = $2 AND period_from = period_to
+         AND period_from BETWEEN $3::date AND $4::date AND provider=$5
+       ORDER BY period_from, captured_at DESC, id DESC`,
+      [workspaceId, metric, from, to, METRIC_PROVIDER[metric]]
+    );
+    return res.rows.map((r) => ({
+      date: r.date,
+      value: r.metric_value === null ? null : Number(r.metric_value),
+      availability: r.availability,
+      missing_reason: r.missing_reason,
+      provider: r.provider,
+      timezone: r.timezone,
+      currency: r.currency,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function getMetricSeries(user: AuthUser, workspaceId: string, rawQuery: unknown) {

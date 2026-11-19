@@ -2274,6 +2274,415 @@ export class CommunityHubService {
     }
   }
 
+  /**
+   * Posts an official comment reply to a Facebook Page post comment using Meta Graph API.
+   * Endpoint: POST https://graph.facebook.com/{version}/{commentId}/comments
+   */
+  async replyToPageComment(
+    commentId: string,
+    replyText: string,
+  ): Promise<{ success: boolean; replyId?: string; error?: string }> {
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN?.trim();
+    if (!token) {
+      return { success: false, error: 'FACEBOOK_PAGE_ACCESS_TOKEN chưa được cấu hình' };
+    }
+    const version = (process.env.META_GRAPH_API_VERSION || 'v20.0').replace(/^\/+|\/+$/g, '');
+    const cleanCommentId = commentId.trim();
+    if (!cleanCommentId) {
+      return { success: false, error: 'Thiếu comment_id để phản hồi' };
+    }
+
+    try {
+      const url = `https://graph.facebook.com/${version}/${encodeURIComponent(cleanCommentId)}/comments`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: replyText,
+          access_token: token,
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+
+      const json = (await res.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+      if (!res.ok || !json.id) {
+        return {
+          success: false,
+          error: json.error?.message || `Graph API error HTTP ${res.status}`,
+        };
+      }
+
+      return { success: true, replyId: json.id };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  }
+
+  /**
+   * Replies to a comment in the Facebook Group using the Playwright Group Bot (`reply-comment` command).
+   */
+  async replyToGroupCommentViaBot(
+    workspaceId: string,
+    options: {
+      postUrl: string;
+      commentSnippet?: string;
+      authorName?: string;
+      replyText: string;
+    },
+  ): Promise<{ success: boolean; errorCode?: string; message?: string }> {
+    const settings = await this.getCommunitySettings(workspaceId);
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+    const hasSession = this.hasValidGroupBotSession(session);
+    if (!hasSession) {
+      return {
+        success: false,
+        errorCode: 'FACEBOOK_GROUP_SESSION_MISSING',
+        message: 'Chưa có phiên đăng nhập Group Bot.',
+      };
+    }
+
+    const runner = resolveGroupBotRunner(workerDir);
+    const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-group-reply-${randomUUID()}.json`);
+    fs.writeFileSync(
+      tmpPayloadFile,
+      JSON.stringify({
+        groupUrl: settings.group_url,
+        postUrl: options.postUrl,
+        replyText: options.replyText,
+        commentSnippet: options.commentSnippet,
+        authorName: options.authorName,
+        headless: true,
+      }),
+      'utf8',
+    );
+
+    try {
+      const botOutput = await new Promise<{
+        code: number | null;
+        stdout: string;
+        stderr: string;
+        spawnErr?: string;
+        timedOut?: boolean;
+      }>((resolve) => {
+        const child = spawnGroupBot(
+          runner.command,
+          [...runner.prefixArgs, 'reply-comment', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
+          {
+            cwd: workerDir,
+            env: { ...process.env, FB_SESSION_FILE: session.filePath },
+            shell: false,
+            windowsHide: true,
+          },
+        );
+
+        let stdout = '';
+        let stderr = '';
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            try {
+              child.kill();
+            } catch {
+              // ignore
+            }
+            resolve({ code: null, stdout, stderr, timedOut: true });
+          }
+        }, 75_000);
+
+        child.stdout?.on('data', (d) => {
+          stdout += d.toString();
+        });
+        child.stderr?.on('data', (d) => {
+          stderr += d.toString();
+        });
+        child.on('error', (err) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve({ code: 1, stdout, stderr, spawnErr: err.message });
+          }
+        });
+        child.on('close', (code) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve({ code, stdout, stderr });
+          }
+        });
+      });
+
+      const parsed = parseGroupBotResultLine(botOutput.stdout);
+      if (!parsed || parsed.success !== true) {
+        return {
+          success: false,
+          errorCode: (parsed?.errorCode as string) || 'REPLY_FAILED',
+          message: (typeof parsed?.message === 'string' && parsed.message) || botOutput.stderr.trim() || 'Trả lời bình luận Group thất bại',
+        };
+      }
+      return { success: true, message: (parsed.message as string) || 'Đã gửi câu trả lời bình luận trong Group' };
+    } catch (err) {
+      return { success: false, errorCode: 'EXEC_ERROR', message: (err as Error).message };
+    } finally {
+      try {
+        fs.unlinkSync(tmpPayloadFile);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Generates a concise, polite, brand-safe grounded reply for a social comment.
+   */
+  async generateSocialCommentReply(
+    question: string,
+    authorName: string,
+    settings: CommunitySettings,
+  ): Promise<string> {
+    const firstName = authorName.split(' ').pop() || 'bạn';
+    const key = process.env.GEMINI_API_KEY;
+    if (key) {
+      try {
+        const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+        const systemPrompt = `Bạn là Trợ lý AI Chăm sóc Khách hàng chuyên nghiệp của "${settings.page_name || 'TripC'}".
+Hãy viết 1 câu phản hồi bình luận tiếng Việt cực kỳ tự nhiên, thân thiện, giải đáp thỏa đáng câu hỏi của khách hàng (dưới 50 từ).
+Quy tắc:
+- Xưng hô "mình" hoặc "${settings.page_name || 'TripC'}" và gọi khách là "${firstName}".
+- Không bịa đặt giá cả cụ thể hoặc hứa hẹn những gì chưa rõ.
+- Luôn giữ thái độ chào đón nồng hậu, nếu cần tư vấn sâu hãy mời khách nhắn tin vào Inbox hoặc tham gia nhóm: ${settings.group_url}.
+- Không dùng markdown hoa mỹ, xuất bản dưới dạng text thuần phù hợp bình luận Facebook.`;
+
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+          signal: AbortSignal.timeout(6000),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: 'user', parts: [{ text: `Khách hàng ${authorName} hỏi: "${question}"` }] }],
+            generationConfig: { maxOutputTokens: 250 },
+          }),
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          const text = json.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
+          if (text && text.length >= 10) {
+            return text;
+          }
+        }
+      } catch {
+        // Fallback to grounded template heuristics below
+      }
+    }
+
+    const cleanQ = question.trim().toLowerCase();
+    if (cleanQ.includes('giá') || cleanQ.includes('bao nhiêu') || cleanQ.includes('chi phí') || cleanQ.includes('cost')) {
+      return `Chào ${firstName}! Chi phí ăn uống và trải nghiệm tại đây rất hợp lý và có nhiều lựa chọn phong phú. Bạn có thể nhắn tin trực tiếp vào Inbox hoặc tham gia giao lưu cùng các thành viên trong nhóm để được tư vấn chi tiết nhé: ${settings.group_url}`;
+    }
+    if (cleanQ.includes('địa chỉ') || cleanQ.includes('ở đâu') || cleanQ.includes('chỗ nào') || cleanQ.includes('location')) {
+      return `Chào ${firstName}! Quán/địa điểm nằm ngay khu vực trung tâm rất thuận tiện đi lại. Bạn có thể nhắn tin trực tiếp để tụi mình gửi định vị bản đồ và chỉ đường chi tiết nhất nhé!`;
+    }
+    if (cleanQ.includes('menu') || cleanQ.includes('thực đơn') || cleanQ.includes('món') || cleanQ.includes('đặt bàn') || cleanQ.includes('book')) {
+      return `Chào ${firstName}! Cảm ơn bạn đã quan tâm. Bạn nhắn tin vào mục Inbox của Page để tụi mình gửi thực đơn mới nhất và hỗ trợ giữ bàn đẹp cho bạn nhé! Chúc bạn có trải nghiệm thật tuyệt vời.`;
+    }
+    return `Chào ${firstName}! Cảm ơn bạn đã để lại bình luận chia sẻ. Bạn có thể tham gia thảo luận thêm kinh nghiệm thực tế cùng cộng đồng tại: ${settings.group_url} nhé!`;
+  }
+
+  /**
+   * Dispatches automated comment replies to pending user comments across Fanpage and Group.
+   */
+  async dispatchPendingCommentReplies(
+    workspaceId: string,
+    options: { maxBatch?: number } = {},
+  ): Promise<{
+    total_checked: number;
+    replies_sent: number;
+    page_replies: number;
+    group_replies: number;
+    failed_count: number;
+    details: Array<{
+      id: string;
+      platform: string;
+      comment_source: 'page' | 'group';
+      author_name: string;
+      comment_text: string;
+      reply_text: string;
+      status: 'replied' | 'failed' | 'skipped';
+      published_reply_id?: string;
+      error?: string;
+    }>;
+  }> {
+    const limit = Math.max(1, Math.min(options.maxBatch ?? 10, 25));
+    const settings = await this.getCommunitySettings(workspaceId);
+
+    const pending = (
+      await this.pool.query<{
+        id: string;
+        platform: string;
+        external_id: string;
+        author_name: string;
+        author_contact: string | null;
+        content: string;
+        post_url: string | null;
+        metadata: Record<string, any> | null;
+        rag_reply_text: string | null;
+      }>(
+        `SELECT m.id, m.platform, m.external_id, m.author_name, m.author_contact, m.content, m.post_url, m.metadata,
+                COALESCE(a.payload->'result'->>'reply', m.metadata->>'reply_text') AS rag_reply_text
+           FROM community_messages m
+           LEFT JOIN workflow_tasks t ON t.id = m.task_id
+           LEFT JOIN content_artifacts a ON a.id = t.result_ref
+          WHERE m.workspace_id = $1
+            AND m.platform = 'facebook_comment'
+            AND m.status IN ('received', 'queued')
+          ORDER BY m.received_at ASC
+          LIMIT $2`,
+        [workspaceId, limit],
+      )
+    ).rows;
+
+    let repliesSent = 0;
+    let pageReplies = 0;
+    let groupReplies = 0;
+    let failedCount = 0;
+    const details: Array<{
+      id: string;
+      platform: string;
+      comment_source: 'page' | 'group';
+      author_name: string;
+      comment_text: string;
+      reply_text: string;
+      status: 'replied' | 'failed' | 'skipped';
+      published_reply_id?: string;
+      error?: string;
+    }> = [];
+
+    for (const msg of pending) {
+      const meta = msg.metadata || {};
+      const commentSource: 'page' | 'group' = (meta.comment_source === 'group' || (msg.post_url && msg.post_url.includes('/groups/')))
+        ? 'group'
+        : 'page';
+
+      let replyText = (msg.rag_reply_text || meta.reply_text || '').trim();
+      if (!replyText) {
+        replyText = await this.generateSocialCommentReply(msg.content, msg.author_name, settings);
+      }
+
+      if (!replyText) {
+        details.push({
+          id: msg.id,
+          platform: msg.platform,
+          comment_source: commentSource,
+          author_name: msg.author_name,
+          comment_text: msg.content,
+          reply_text: '',
+          status: 'skipped',
+          error: 'Không thể tạo nội dung phản hồi',
+        });
+        continue;
+      }
+
+      if (commentSource === 'page') {
+        const pageRes = await this.replyToPageComment(msg.external_id, replyText);
+        if (pageRes.success && pageRes.replyId) {
+          repliesSent++;
+          pageReplies++;
+          await this.pool.query(
+            `UPDATE community_messages
+                SET status = 'replied',
+                    updated_at = NOW(),
+                    metadata = jsonb_set(
+                      jsonb_set(
+                        jsonb_set(COALESCE(metadata, '{}'::jsonb), '{reply_text}', to_jsonb($2::text)),
+                        '{published_reply_id}', to_jsonb($3::text)
+                      ),
+                      '{replied_at}', to_jsonb(NOW()::text)
+                    )
+              WHERE id = $1 AND workspace_id = $4`,
+            [msg.id, replyText, pageRes.replyId, workspaceId],
+          );
+          details.push({
+            id: msg.id,
+            platform: msg.platform,
+            comment_source: 'page',
+            author_name: msg.author_name,
+            comment_text: msg.content,
+            reply_text: replyText,
+            status: 'replied',
+            published_reply_id: pageRes.replyId,
+          });
+        } else {
+          failedCount++;
+          details.push({
+            id: msg.id,
+            platform: msg.platform,
+            comment_source: 'page',
+            author_name: msg.author_name,
+            comment_text: msg.content,
+            reply_text: replyText,
+            status: 'failed',
+            error: pageRes.error || 'Gửi comment Page thất bại',
+          });
+        }
+      } else {
+        const postUrl = msg.post_url || settings.group_url;
+        const groupRes = await this.replyToGroupCommentViaBot(workspaceId, {
+          postUrl,
+          commentSnippet: msg.content,
+          authorName: msg.author_name,
+          replyText,
+        });
+        if (groupRes.success) {
+          repliesSent++;
+          groupReplies++;
+          await this.pool.query(
+            `UPDATE community_messages
+                SET status = 'replied',
+                    updated_at = NOW(),
+                    metadata = jsonb_set(
+                      jsonb_set(COALESCE(metadata, '{}'::jsonb), '{reply_text}', to_jsonb($2::text)),
+                      '{replied_at}', to_jsonb(NOW()::text)
+                    )
+              WHERE id = $1 AND workspace_id = $3`,
+            [msg.id, replyText, workspaceId],
+          );
+          details.push({
+            id: msg.id,
+            platform: msg.platform,
+            comment_source: 'group',
+            author_name: msg.author_name,
+            comment_text: msg.content,
+            reply_text: replyText,
+            status: 'replied',
+          });
+        } else {
+          failedCount++;
+          details.push({
+            id: msg.id,
+            platform: msg.platform,
+            comment_source: 'group',
+            author_name: msg.author_name,
+            comment_text: msg.content,
+            reply_text: replyText,
+            status: 'failed',
+            error: groupRes.message || 'Gửi comment Group thất bại',
+          });
+        }
+      }
+    }
+
+    return {
+      total_checked: pending.length,
+      replies_sent: repliesSent,
+      page_replies: pageReplies,
+      group_replies: groupReplies,
+      failed_count: failedCount,
+      details,
+    };
+  }
+
   private normalizePostUrlKey(raw?: string | null): string {
     if (!raw) return '';
     return raw.trim().split('?')[0].split('#')[0].replace(/\/+$/, '').toLowerCase();
@@ -3013,6 +3422,9 @@ export class CommunityHubService {
     group_ingested: number;
     queued_for_rag: number;
     auto_reply_comments: boolean;
+    auto_replies_sent?: number;
+    page_replies_sent?: number;
+    group_replies_sent?: number;
     warnings: string[];
   }> {
     const settings = await this.getCommunitySettings(workspaceId);
@@ -3033,6 +3445,7 @@ export class CommunityHubService {
     await this.syncPostEngagementStats(workspaceId, { includeGroupBot: false }).catch(() => {});
 
     let queuedForRag = 0;
+    let autoRepliesResult: { replies_sent: number; page_replies: number; group_replies: number } | null = null;
     if (settings.auto_reply_comments) {
       const ctxRow = (
         await this.pool.query<{ snapshot_id: string }>(
@@ -3043,6 +3456,8 @@ export class CommunityHubService {
       if (ctxRow?.snapshot_id) {
         queuedForRag = await processReceivedCommunityMessages(this.pool, workspaceId, actorId, ctxRow.snapshot_id, 15);
       }
+      // Tự động gửi câu trả lời cho các bình luận tồn đọng / vừa quét
+      autoRepliesResult = await this.dispatchPendingCommentReplies(workspaceId, { maxBatch: 10 }).catch(() => null);
     }
 
     return {
@@ -3050,6 +3465,9 @@ export class CommunityHubService {
       group_ingested: groupIngested,
       queued_for_rag: queuedForRag,
       auto_reply_comments: settings.auto_reply_comments,
+      auto_replies_sent: autoRepliesResult?.replies_sent ?? 0,
+      page_replies_sent: autoRepliesResult?.page_replies ?? 0,
+      group_replies_sent: autoRepliesResult?.group_replies ?? 0,
       warnings,
     };
   }

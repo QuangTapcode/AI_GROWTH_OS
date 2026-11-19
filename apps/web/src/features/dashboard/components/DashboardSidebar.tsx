@@ -55,6 +55,10 @@ export default function DashboardSidebar({
     "/distribution": "distribution",
     "/growth-results": "growth-results",
     "/workspace": "workspace-integrations",
+    "/onboarding": "onboarding",
+    "/booking-leads": "booking-leads",
+    "/gmaps": "gmaps",
+    "/admin/llm": "admin-llm",
   };
   const currentTab = TAB_BY_PATH[pathname.replace(/\/$/, "")] ?? activeTab;
 
@@ -89,6 +93,10 @@ export default function DashboardSidebar({
   };
 
   const navItems = [
+    { id: "onboarding", label: "Zero-Tech Onboarding", href: "/onboarding", icon: <span className="text-lg" aria-hidden="true">🚀</span> },
+    { id: "booking-leads", label: "Agent 7: Inbox & Leads (1-1)", href: "/booking-leads", icon: <span className="text-lg" aria-hidden="true">🛎️</span> },
+    { id: "gmaps", label: "Agent 5: Maps & Drive", href: "/gmaps", icon: <span className="text-lg" aria-hidden="true">📍</span> },
+    { id: "admin-llm", label: "Admin: Multi-LLM", href: "/admin/llm", icon: <span className="text-lg" aria-hidden="true">🎛️</span> },
     { id: "agents", label: "Agent Operations", href: "/agents", icon: <span className="text-lg" aria-hidden="true">↗</span> },
     {
       id: "overview",

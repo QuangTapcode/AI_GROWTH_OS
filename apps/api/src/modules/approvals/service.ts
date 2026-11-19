@@ -87,9 +87,14 @@ export async function listWorkspaceApprovals(
   workspaceId: string,
   filters?: { target_type?: string; status?: string }
 ) {
-  await resolveTenantContext(user, workspaceId);
-  const items = await repo.listApprovals(workspaceId, filters);
-  return { items };
+  try {
+    await resolveTenantContext(user, workspaceId);
+    const items = await repo.listApprovals(workspaceId, filters);
+    return { items };
+  } catch (err: any) {
+    if (err instanceof AppError) throw err;
+    return { items: [] };
+  }
 }
 
 export async function getWorkspaceApprovalDetail(

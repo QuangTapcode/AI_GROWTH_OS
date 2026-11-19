@@ -1413,5 +1413,89 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
       { jobId: 'job-grp-b', scheduledFor: '2026-11-13T02:00:00.000Z' },
     ]);
   });
+
+  it('replyToPageComment posts an official reply to Facebook Graph API and returns the new reply ID', async () => {
+    process.env.FACEBOOK_PAGE_ACCESS_TOKEN = 'test-token-xyz';
+    process.env.META_GRAPH_API_VERSION = 'v21.0';
+
+    let capturedUrl = '';
+    let capturedBody: Record<string, unknown> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        capturedUrl = url;
+        capturedBody = JSON.parse((init?.body as string) || '{}');
+        return new Response(JSON.stringify({ id: 'reply_cmt_99999' }), { status: 200 });
+      }),
+    );
+
+    const service = new CommunityHubService({ query: vi.fn() } as unknown as Pool);
+    const res = await service.replyToPageComment('cmt_orig_12345', 'Chào bạn! Cảm ơn bạn đã quan tâm đến quán.');
+
+    expect(res.success).toBe(true);
+    expect(res.replyId).toBe('reply_cmt_99999');
+    expect(capturedUrl).toContain('/v21.0/cmt_orig_12345/comments');
+    expect(capturedBody.message).toBe('Chào bạn! Cảm ơn bạn đã quan tâm đến quán.');
+    expect(capturedBody.access_token).toBe('test-token-xyz');
+  });
+
+  it('dispatchPendingCommentReplies dispatches pending Page comments and marks them as replied', async () => {
+    process.env.FACEBOOK_PAGE_ACCESS_TOKEN = 'test-token-xyz';
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ id: 'reply_live_888' }), { status: 200 })),
+    );
+
+    const updateQueries: unknown[][] = [];
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT * FROM community_hub_settings')) {
+        return {
+          rows: [
+            {
+              community_name: 'Cộng đồng Ẩm thực & Du lịch',
+              group_url: 'https://www.facebook.com/groups/1134282109069209',
+              page_name: 'Quán Ăn Ngon',
+              auto_reply_comments: true,
+            },
+          ],
+        };
+      }
+      if (sql.includes('SELECT m.id, m.platform, m.external_id')) {
+        return {
+          rows: [
+            {
+              id: 'msg-pending-1',
+              platform: 'facebook_comment',
+              external_id: 'fb_cmt_555',
+              author_name: 'Trần Văn Nam',
+              author_contact: 'user-nam-123',
+              content: 'Quán mình có món lẩu cua đồng không ạ?',
+              post_url: 'https://www.facebook.com/page-1/posts/100',
+              metadata: { comment_source: 'page' },
+              rag_reply_text: 'Chào Nam! Quán có món lẩu cua đồng rất tươi ngon phục vụ mỗi ngày bạn nhé!',
+            },
+          ],
+        };
+      }
+      if (sql.includes('UPDATE community_messages')) {
+        updateQueries.push(params ?? []);
+        return { rowCount: 1, rows: [] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+
+    const service = new CommunityHubService({ query } as unknown as Pool);
+    const result = await service.dispatchPendingCommentReplies(WORKSPACE_ID, { maxBatch: 5 });
+
+    expect(result.total_checked).toBe(1);
+    expect(result.replies_sent).toBe(1);
+    expect(result.page_replies).toBe(1);
+    expect(result.failed_count).toBe(0);
+    expect(updateQueries).toHaveLength(1);
+    expect(updateQueries[0][0]).toBe('msg-pending-1');
+    expect(updateQueries[0][1]).toContain('lẩu cua đồng');
+    expect(updateQueries[0][2]).toBe('reply_live_888');
+  });
 });
 

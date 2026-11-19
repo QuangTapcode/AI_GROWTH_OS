@@ -119,10 +119,14 @@ export async function listWorkspaceTasks(
   workspaceId: string,
   filters?: { role?: string; status?: string; campaign_id?: string }
 ) {
-  // Mọi thành viên (owner, editor, viewer) trong workspace đều được xem danh sách task
-  await resolveTenantContext(user, workspaceId);
-  const items = await repo.listTasks(workspaceId, filters);
-  return { items };
+  try {
+    await resolveTenantContext(user, workspaceId);
+    const items = await repo.listTasks(workspaceId, filters);
+    return { items };
+  } catch (err: any) {
+    if (err instanceof AppError) throw err;
+    return { items: [] };
+  }
 }
 
 export async function getWorkspaceTaskDetail(
@@ -256,9 +260,14 @@ export async function listWorkspaceArtifacts(
   workspaceId: string,
   filters?: { role?: string; artifact_type?: string }
 ) {
-  await resolveTenantContext(user, workspaceId);
-  const items = await repo.listArtifacts(workspaceId, filters);
-  return { items };
+  try {
+    await resolveTenantContext(user, workspaceId);
+    const items = await repo.listArtifacts(workspaceId, filters);
+    return { items };
+  } catch (err: any) {
+    if (err instanceof AppError) throw err;
+    return { items: [] };
+  }
 }
 
 export async function getWorkspaceArtifactDetail(

@@ -18,7 +18,7 @@ export type GroupBotBridgeOptions = {
 };
 
 /** The runFacebookGroupBot commands the API issues; anything else is refused. */
-const BOT_COMMANDS = new Set(['check', 'login', 'post', 'delete', 'invite', 'scan-comments', 'scan-stats']);
+const BOT_COMMANDS = new Set(['check', 'login', 'post', 'delete', 'invite', 'scan-comments', 'scan-stats', 'reply-comment']);
 
 function botCommand(workerDir: string): { command: string; prefix: string[] } {
   return { command: process.execPath, prefix: [path.join(workerDir, 'node_modules', 'tsx', 'dist', 'cli.mjs'),
