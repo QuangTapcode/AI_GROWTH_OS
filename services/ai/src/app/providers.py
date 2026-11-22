@@ -186,10 +186,12 @@ class OllamaProvider:
 class GeminiProvider:
     """Official Google Gemini API provider supporting fast hybrid inference and 768-dim embeddings."""
 
-    def __init__(self, settings: Settings, *, fake_on_exhaustion: bool = True) -> None:
+    def __init__(self, settings: Settings, *, fake_on_exhaustion: bool = True, quota: Any = None) -> None:
         self.settings = settings
         # Hybrid mode hands an exhausted quota to the local model instead of returning fake output.
         self.fake_on_exhaustion = fake_on_exhaustion
+        # GeminiQuota: counts each request and skips a model already closed for today (gemini_quota.py).
+        self.quota = quota
         self.model_version = f"gemini/{settings.gemini_model}"
         self.embedding_model_version = f"gemini/{settings.gemini_embedding_model}"
         from google import genai
@@ -220,6 +222,10 @@ class GeminiProvider:
         last_exc: Exception | None = None
 
         for model_name in candidate_models:
+            if self.quota is not None and self.quota.closed_today(model_name):
+                # Its daily quota is spent (or the key cannot use it): asking again only costs a round trip.
+                last_exc = last_exc or RuntimeError(f"429 RESOURCE_EXHAUSTED: {model_name} closed for today")
+                continue
             try:
                 def _call_gemini(target_model: str = model_name):
                     cfg_kwargs: dict[str, Any] = {
@@ -241,10 +247,14 @@ class GeminiProvider:
                 content = response.text or "{}"
                 input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
                 output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
+                if self.quota is not None:
+                    self.quota.record_call(model_name)
                 break
             except Exception as exc:
                 last_exc = exc
                 err_text = str(exc)
+                if self.quota is not None:
+                    self.quota.record_failure(model_name, err_text)
                 if "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "503" in err_text or "UNAVAILABLE" in err_text or "404" in err_text or "NOT_FOUND" in err_text:
                     continue
                 break
@@ -306,8 +316,11 @@ class RoutedProvider:
     """The hybrid provider as seen by one operation: an ordered chain of chat providers."""
 
     def __init__(self, chain: list[Provider], embedder: Provider, *, quality: bool,
-                 budget: tuple[int, int] | None = None, local_input_tokens: int | None = None) -> None:
+                 budget: tuple[int, int] | None = None, local_input_tokens: int | None = None,
+                 local: Provider | None = None) -> None:
         self.chain = chain
+        # The local model: an answer from it (not from another cloud model in the chain) is the downgrade to report.
+        self.local = local if local is not None else chain[-1]
         # (input tokens, retrieved chunks) the first model in the chain can read.
         self.budget = budget
         self.local_input_tokens = local_input_tokens
@@ -329,11 +342,13 @@ class RoutedProvider:
         fake: Callable[[], dict[str, Any]],
     ) -> tuple[str, Usage]:
         last_exc: ProviderError | None = None
+        prompt_tokens = estimate_tokens(system) + estimate_tokens(user)
         for index, provider in enumerate(self.chain):
-            if index > 0 and self.local_input_tokens and estimate_tokens(system) + estimate_tokens(user) > self.local_input_tokens:
-                # A prompt sized for the cloud model would be truncated by the local context window and
-                # answered without its instructions; report the cloud failure instead.
-                break
+            limit = self.local_input_tokens if provider is self.local and index > 0 else getattr(provider, "input_limit", None)
+            if limit and prompt_tokens > limit:
+                # A prompt sized for the first model would be truncated by a smaller context window (the local
+                # model) or refused by a per-minute token limit (Groq); pass it over and report the earlier failure.
+                continue
             try:
                 content, usage = await provider.chat_json(
                     system=system, user=user, schema=schema, max_output_tokens=max_output_tokens, fake=fake
@@ -344,9 +359,10 @@ class RoutedProvider:
                 last_exc = exc
                 continue
             self.models_used.append(provider.model_version)
-            self.fell_back = self.fell_back or index > 0
+            self.fell_back = self.fell_back or (index > 0 and provider is self.local)
             return content, usage
-        assert last_exc is not None
+        if last_exc is None:
+            raise ProviderError("PROVIDER_QUOTA_EXHAUSTED", "The prompt is too long for every model left", retryable=True)
         raise last_exc
 
     async def embed(self, texts: list[str]) -> tuple[list[list[float]], Usage]:
@@ -360,11 +376,28 @@ class HybridProvider:
     operations never touch the API key, so a busy day of research and scoring costs no quota.
     """
 
-    def __init__(self, settings: Settings, *, local: Provider | None = None, cloud: Provider | None = None) -> None:
+    def __init__(self, settings: Settings, *, local: Provider | None = None, cloud: Provider | None = None,
+                 quota: Any = None, free_apis: list[Any] | None = None) -> None:
         self.settings = settings
         self.local = local or OllamaProvider(settings)
+        if free_apis is None and local is None and cloud is None:
+            from .free_providers import free_api_providers
+
+            free_apis = free_api_providers(settings)
+        # Groq and OpenRouter's free models: after Gemini's spare, before the local model (free_providers.py).
+        self.free_apis = list(free_apis or [])
+        self.free_api_operations = frozenset(op.lower() for op in settings.free_api_operations)
+        if quota is None and cloud is None and settings.gemini_api_key:
+            from .gemini_quota import GeminiQuota, parse_limits
+
+            quota = GeminiQuota(settings.run_store_path, primary_model=settings.gemini_model,
+                                default_limit=settings.gemini_daily_limit, limits=parse_limits(settings.gemini_daily_limits),
+                                agent_reserve_min=settings.gemini_agent_reserve_min,
+                                spare_operations=settings.gemini_spare_operations)
+        # Today's Gemini requests: the agents' share is kept, the spare goes to the Community bot's answers.
+        self.quota = quota
         if cloud is None and settings.gemini_api_key:
-            cloud = GeminiProvider(settings, fake_on_exhaustion=False)
+            cloud = GeminiProvider(settings, fake_on_exhaustion=False, quota=quota)
         self.cloud = cloud
         self.quality_operations = frozenset(settings.quality_operations)
         self.model_version = self.local.model_version
@@ -373,13 +406,42 @@ class HybridProvider:
     def is_quality(self, operation: str) -> bool:
         return self.cloud is not None and operation.lower() in self.quality_operations
 
+    def spare_spent(self, operation: str) -> bool:
+        """A spare-only operation (the Community bot) with no Gemini request left beyond the agents' daily share."""
+        if self.quota is None or not self.quota.uses_spare(operation) or not self.is_quality(operation):
+            return False
+        try:
+            return self.quota.spare() <= 0
+        except Exception:  # an accounting fault must never stop an answer
+            return False
+
+    def free_apis_for(self, operation: str) -> list[Any]:
+        """The free APIs with a request to spare today for this operation."""
+        if operation.lower() not in self.free_api_operations:
+            return []
+        usable = []
+        for api in self.free_apis:
+            try:
+                if api.quota.spare() > 0:
+                    usable.append(api)
+            except Exception:  # an accounting fault must never stop an answer
+                continue
+        return usable
+
     def for_operation(self, operation: str) -> RoutedProvider:
-        quality = self.is_quality(operation)
-        chain = [self.cloud, self.local] if quality else [self.local]
+        spent = self.spare_spent(operation)
+        quality = self.is_quality(operation) and not spent
+        free = self.free_apis_for(operation) if (quality or spent) else []
+        chain = [*([self.cloud] if quality else []), *free, self.local]
         budget = ((self.settings.cloud_max_input_tokens, self.settings.cloud_max_retrieved_chunks) if quality
+                  else (min(api.input_limit for api in free), self.settings.cloud_max_retrieved_chunks) if free
                   else (self.settings.max_input_tokens, self.settings.max_retrieved_chunks))
-        return RoutedProvider(chain, self.local, quality=quality, budget=budget,
-                              local_input_tokens=self.settings.max_input_tokens)
+        routed = RoutedProvider(chain, self.local, quality=quality or bool(free), budget=budget,
+                                local_input_tokens=self.settings.max_input_tokens, local=self.local)
+        # With Gemini's spare spent and no free API left, the local model writes it: reported like any downgrade.
+        routed.fell_back = spent and not free
+        routed.spare_spent = spent
+        return routed
 
     def model_version_for(self, operation: str) -> str:
         return self.cloud.model_version if self.is_quality(operation) else self.local.model_version

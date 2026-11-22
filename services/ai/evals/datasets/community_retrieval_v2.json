@@ -1,0 +1,355 @@
+{
+ "version": 2,
+ "note": "Coverage matrix (destination x topic) for the Community bot, Vietnamese-first, built 2026-11-12. History turns may carry the bot's reply: a reply that asks back lets a fragment complete the question.",
+ "questions": [
+  {
+   "topic": "follow_up",
+   "q": "Khu vực Đà Nẵng",
+   "gold": "(?i)dry season|rainy season|best time|February|March|April|May|September|typhoon",
+   "history": [
+    {
+     "q": "Khi nào thì nên đi du lịch",
+     "reply": "Thời điểm tốt nhất để du lịch Việt Nam phụ thuộc vào từng khu vực. Bạn muốn biết thêm về khu vực nào không?"
+    }
+   ]
+  },
+  {
+   "topic": "follow_up",
+   "q": "Hội An",
+   "gold": "(?i)dry season|rainy season|best time|flood|February|March|April|typhoon|lantern",
+   "history": [
+    {
+     "q": "Khi nào thì nên đi du lịch",
+     "reply": "Thời điểm tốt nhất để du lịch Việt Nam phụ thuộc vào từng khu vực. Bạn muốn biết thêm về khu vực nào không?"
+    }
+   ]
+  },
+  {
+   "topic": "follow_up",
+   "q": "còn Huế thì sao",
+   "gold": "(?i)rain|dry|season|weather|climate|hot|cold|wet",
+   "history": [
+    {
+     "q": "Khi nào thì nên đi du lịch",
+     "reply": "Thời điểm tốt nhất để du lịch Việt Nam phụ thuộc vào từng khu vực. Bạn muốn biết thêm về khu vực nào không?"
+    },
+    {
+     "q": "Khu vực Đà Nẵng",
+     "reply": "Đà Nẵng đẹp nhất từ tháng 2 đến tháng 5."
+    }
+   ]
+  },
+  {
+   "topic": "follow_up",
+   "q": "ở Hội An",
+   "gold": "(?i)cao lau|white rose|banh mi|mi quang|food|eat|dish|restaurant",
+   "history": [
+    {
+     "q": "Có món gì ngon nên thử",
+     "reply": "Mỗi vùng có đặc sản riêng. Bạn đang ở thành phố nào?"
+    }
+   ]
+  },
+  {
+   "topic": "follow_up",
+   "q": "what about Hue",
+   "gold": "(?i)train|bus|Hai Van|car|motorbike|taxi|hours|km",
+   "history": [
+    {
+     "q": "How do I get from Da Nang to Hoi An?",
+     "reply": "Take a Grab or a bus; it is about 30 km. Anything else?"
+    }
+   ]
+  },
+  {
+   "topic": "season",
+   "q": "Đà Nẵng mùa nào đẹp nhất",
+   "gold": "(?i)dry season|best time|February|March|April|May|sunny"
+  },
+  {
+   "topic": "season",
+   "q": "tháng 10 có nên đi Đà Nẵng không",
+   "gold": "(?i)October|rainy season|typhoon|flood|wet"
+  },
+  {
+   "topic": "season",
+   "q": "mùa bão miền Trung vào tháng mấy",
+   "gold": "(?i)typhoon|storm|September|October|November|rainy season"
+  },
+  {
+   "topic": "season",
+   "q": "Hội An mùa lũ tháng mấy",
+   "gold": "(?i)flood|October|November|rainy|water"
+  },
+  {
+   "topic": "season",
+   "q": "Hà Nội mùa nào đẹp",
+   "gold": "(?i)Hanoi.{0,200}(autumn|spring|winter|cool|October|November|season)|(autumn|spring|cool|season).{0,200}Hanoi"
+  },
+  {
+   "topic": "season",
+   "q": "Sài Gòn có mùa đông không",
+   "gold": "(?i)(Saigon|Ho Chi Minh|south).{0,200}(dry|wet|rainy|season|hot)|(dry|wet|rainy) season.{0,200}(south|Saigon)"
+  },
+  {
+   "topic": "season",
+   "q": "Đà Lạt lạnh không",
+   "gold": "(?i)cool|cold|temperature|climate|°C|degrees"
+  },
+  {
+   "topic": "season",
+   "q": "Sa Pa có tuyết không",
+   "gold": "(?i)Sa ?pa.{0,300}(snow|cold|winter|freez)|(snow|freez).{0,300}Sa ?pa"
+  },
+  {
+   "topic": "season",
+   "q": "Hạ Long nên đi tháng mấy",
+   "gold": "(?i)(Ha ?long).{0,300}(season|weather|month|fog|winter|summer)|(season|fog|weather).{0,300}Ha ?long"
+  },
+  {
+   "topic": "season",
+   "q": "Phú Quốc mùa khô",
+   "gold": "(?i)Ph[uú] Qu[oốô]c.{0,300}(dry|season|rain|November|April)|(dry season|rainy season).{0,300}Ph[uú] Qu[oốô]c"
+  },
+  {
+   "topic": "transport",
+   "q": "từ sân bay Đà Nẵng về trung tâm bằng gì",
+   "gold": "(?i)airport.{0,300}(taxi|Grab|bus|km|minutes)|(taxi|Grab).{0,200}airport"
+  },
+  {
+   "topic": "transport",
+   "q": "đi từ Đà Nẵng sang Hội An thế nào",
+   "gold": "(?i)Hoi An.{0,300}(bus|taxi|Grab|car|motorbike|km|minutes)|(bus|taxi|Grab).{0,300}Hoi An"
+  },
+  {
+   "topic": "transport",
+   "q": "đi tàu từ Đà Nẵng ra Huế",
+   "gold": "(?i)train|railway|station|Hai Van|Reunification"
+  },
+  {
+   "topic": "transport",
+   "q": "thuê xe máy ở Đà Nẵng",
+   "gold": "(?i)motorbike|scooter|rent|helmet|licen[cs]e"
+  },
+  {
+   "topic": "transport",
+   "q": "Grab có dùng được ở Việt Nam không",
+   "gold": "(?i)Grab|ride-hailing|Be\\b|Xanh SM|app"
+  },
+  {
+   "topic": "transport",
+   "q": "đi từ Hà Nội vào Sài Gòn mất bao lâu",
+   "gold": "(?i)(Hanoi|Ho Chi Minh|Saigon).{0,300}(flight|train|hours|bus|km)"
+  },
+  {
+   "topic": "transport",
+   "q": "how to get to Ha Long Bay from Hanoi",
+   "gold": "(?i)Ha ?long.{0,300}(bus|hours|Hanoi|car|limousine|km)|Hanoi.{0,300}Ha ?long"
+  },
+  {
+   "topic": "food",
+   "q": "Đà Nẵng có món gì ngon",
+   "gold": "(?i)mi quang|banh xeo|seafood|banh trang|bun cha ca|food|dish|eat"
+  },
+  {
+   "topic": "food",
+   "q": "đặc sản Hội An",
+   "gold": "(?i)cao l[aầ]u|white rose|banh mi|com ga|chicken rice|mi quang"
+  },
+  {
+   "topic": "food",
+   "q": "món ăn đặc sản Huế",
+   "gold": "(?i)bun bo|bánh|banh|imperial|cuisine|spicy|com hen"
+  },
+  {
+   "topic": "food",
+   "q": "phở có nguồn gốc từ đâu",
+   "gold": "(?i)ph[oở].{0,300}(Nam Dinh|Hanoi|north|origin|French|beef)"
+  },
+  {
+   "topic": "food",
+   "q": "where can I eat street food in Vietnam",
+   "gold": "(?i)street food|stall|market|vendor|eat"
+  },
+  {
+   "topic": "food",
+   "q": "ăn chay ở Việt Nam có dễ không",
+   "gold": "(?i)vegetarian|vegan|chay|tofu|Buddhist"
+  },
+  {
+   "topic": "sight",
+   "q": "Ngũ Hành Sơn có gì",
+   "gold": "(?i)Marble Mountains|cave|pagoda|Non Nuoc"
+  },
+  {
+   "topic": "sight",
+   "q": "Cầu Rồng phun lửa lúc nào",
+   "gold": "(?i)Dragon Bridge.{0,300}(fire|water|weekend|9|night|Saturday|Sunday)|(fire|breath).{0,200}Dragon"
+  },
+  {
+   "topic": "sight",
+   "q": "Bà Nà Hills có gì chơi",
+   "gold": "(?i)Ba ?Na|Golden Bridge|cable car|French village"
+  },
+  {
+   "topic": "sight",
+   "q": "bán đảo Sơn Trà",
+   "gold": "(?i)Son Tra|Monkey Mountain|Linh Ung|langur|peninsula"
+  },
+  {
+   "topic": "sight",
+   "q": "Đại Nội Huế mở cửa không",
+   "gold": "(?i)Imperial City|Citadel|Forbidden|Hue"
+  },
+  {
+   "topic": "sight",
+   "q": "Mỹ Sơn cách Hội An bao xa",
+   "gold": "(?i)My Son.{0,300}(km|Hoi An|hour|tour)|Hoi An.{0,300}My Son"
+  },
+  {
+   "topic": "sight",
+   "q": "Cù Lao Chàm đi bằng gì",
+   "gold": "(?i)Cham Islands?.{0,300}(boat|speedboat|ferry|Cua Dai|km)|(boat|ferry|speedboat).{0,300}Cham"
+  },
+  {
+   "topic": "sight",
+   "q": "đèo Hải Vân",
+   "gold": "(?i)Hai Van"
+  },
+  {
+   "topic": "sight",
+   "q": "biển Mỹ Khê",
+   "gold": "(?i)My Khe|beach"
+  },
+  {
+   "topic": "sight",
+   "q": "đi Hạ Long nên ngủ trên du thuyền không",
+   "gold": "(?i)cruise|boat|junk|overnight|Ha ?long"
+  },
+  {
+   "topic": "stay",
+   "q": "ở Đà Nẵng nên ở khu nào",
+   "gold": "(?i)An Thuong|My Khe|Son Tra|Hai Chau|beach|district|area|neighbourhood|neighborhood"
+  },
+  {
+   "topic": "stay",
+   "q": "ở Hội An nên ở phố cổ hay gần biển",
+   "gold": "(?i)Old Town|An Bang|Cua Dai|beach|homestay|stay"
+  },
+  {
+   "topic": "stay",
+   "q": "đăng ký tạm trú cho người nước ngoài",
+   "gold": "(?i)temporary residence|registration|police|landlord|hotel"
+  },
+  {
+   "topic": "visa",
+   "q": "xin e-visa Việt Nam mất bao lâu",
+   "gold": "(?i)e-?visa.{0,300}(days|working|processing)|processing time"
+  },
+  {
+   "topic": "visa",
+   "q": "hộ chiếu cần còn hạn bao lâu",
+   "gold": "(?i)passport.{0,200}(valid|months|validity)"
+  },
+  {
+   "topic": "visa",
+   "q": "có cần vé khứ hồi khi nhập cảnh không",
+   "gold": "(?i)onward|return ticket|proof"
+  },
+  {
+   "topic": "money",
+   "q": "đổi tiền ở đâu tại Đà Nẵng",
+   "gold": "(?i)exchange|gold shop|bank|ATM|currency|cash"
+  },
+  {
+   "topic": "money",
+   "q": "thẻ Visa dùng được ở Việt Nam không",
+   "gold": "(?i)credit card|card|Visa|Mastercard|cash"
+  },
+  {
+   "topic": "money",
+   "q": "mang bao nhiêu tiền mặt",
+   "gold": "(?i)cash|ATM|dong|VND|card"
+  },
+  {
+   "topic": "sim",
+   "q": "mua sim ở sân bay được không",
+   "gold": "(?i)SIM|eSIM|airport|Viettel|Mobifone|Vinaphone"
+  },
+  {
+   "topic": "safety",
+   "q": "ở Việt Nam có lừa đảo khách du lịch không",
+   "gold": "(?i)scam|overcharg|fake|taxi|cyclo"
+  },
+  {
+   "topic": "safety",
+   "q": "số điện thoại cấp cứu ở Việt Nam",
+   "gold": "(?i)\\b11[345]\\b|emergency|ambulance|police"
+  },
+  {
+   "topic": "health",
+   "q": "mua bảo hiểm y tế khi ở Việt Nam",
+   "gold": "(?i)insurance|hospital|coverage"
+  },
+  {
+   "topic": "health",
+   "q": "bệnh viện quốc tế ở Đà Nẵng",
+   "gold": "(?i)hospital|clinic|Family Medical|Hoan My|Vinmec|international"
+  },
+  {
+   "topic": "culture",
+   "q": "Tết ở Việt Nam có gì đặc biệt",
+   "gold": "(?i)T[eế]t|Lunar New Year|lucky money|family|holiday"
+  },
+  {
+   "topic": "culture",
+   "q": "Tết có nên đi du lịch không",
+   "gold": "(?i)T[eế]t.{0,300}(closed|crowd|busy|price|book|holiday|shut)"
+  },
+  {
+   "topic": "culture",
+   "q": "lễ hội đèn lồng Hội An",
+   "gold": "(?i)lantern|full moon|festival"
+  },
+  {
+   "topic": "culture",
+   "q": "nói tiếng Anh ở Việt Nam có được không",
+   "gold": "(?i)English|language|Vietnamese|phrase"
+  },
+  {
+   "topic": "cost",
+   "q": "một ngày du lịch Việt Nam tốn bao nhiêu",
+   "gold": "(?i)budget|per day|cost|backpacker|mid-range"
+  },
+  {
+   "topic": "cost",
+   "q": "chi phí sống ở Đà Nẵng một tháng",
+   "gold": "(?i)cost of living|monthly|budget|rent"
+  },
+  {
+   "topic": "shopping",
+   "q": "chợ Hàn mua gì",
+   "gold": "(?i)Han Market|market|souvenir|shopping"
+  },
+  {
+   "topic": "shopping",
+   "q": "may áo dài ở Hội An",
+   "gold": "(?i)tailor|ao dai|clothes|suit|dress"
+  },
+  {
+   "topic": "night",
+   "q": "buổi tối ở Đà Nẵng đi đâu chơi",
+   "gold": "(?i)night|bar|evening|Dragon Bridge|market|nightlife"
+  },
+  {
+   "topic": "abuse",
+   "q": "bot ngu quá",
+   "kind": "abuse"
+  },
+  {
+   "topic": "unanswerable",
+   "q": "giá cổ phiếu Vinamilk hôm nay",
+   "kind": "unanswerable"
+  }
+ ]
+}

@@ -167,6 +167,8 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                 warnings = list(outcome.warnings)
                 if getattr(run_provider, "fell_back", False):
                     warnings.append("QUALITY_MODEL_UNAVAILABLE_LOCAL_MODEL_USED")
+                if getattr(run_provider, "spare_spent", False):
+                    warnings.append("GEMINI_SPARE_SPENT_AGENTS_SHARE_KEPT")
                 result = AIResult(
                     run_id=run_id,
                     operation=job.operation,
@@ -297,6 +299,28 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             "latency": tracker.get_latency_metrics(),
             "errors": tracker.get_api_error_metrics(),
         }
+
+    @app.get("/internal/v1/quota/gemini")
+    async def gemini_quota(_: None = Depends(require_internal_auth)) -> dict:
+        """Today's Gemini requests: used, left, kept for the agents' cycle, and spare for the Community bot."""
+        quota = getattr(provider, "quota", None)
+        if quota is None:
+            return {"enabled": False, "provider_mode": settings.provider_mode}
+        return {"enabled": True, "provider_mode": settings.provider_mode, **quota.status()}
+
+    @app.get("/internal/v1/quota")
+    async def all_quotas(_: None = Depends(require_internal_auth)) -> dict:
+        """Every free tier the Community bot's answers can draw on, in the order it tries them, then the local model."""
+        quota = getattr(provider, "quota", None)
+        free = []
+        for api in getattr(provider, "free_apis", []):
+            await api.refresh()  # OpenRouter reports its count; Groq reports only on answers
+            free.append({"model": api.model_version, **api.quota.status()})
+        gemini = quota.status() if quota is not None else None
+        spare = (gemini["spare_today"] if gemini else 0) + sum(f["spare_today"] for f in free)
+        return {"provider_mode": settings.provider_mode, "gemini": gemini, "free_apis": free,
+                "community_answers_left_today": spare,
+                "order": [*(["gemini"] if gemini else []), *(f["provider"] for f in free), "local"]}
 
     @app.get("/internal/v1/agents")
     async def agent_contracts(_: None = Depends(require_internal_auth)) -> dict:

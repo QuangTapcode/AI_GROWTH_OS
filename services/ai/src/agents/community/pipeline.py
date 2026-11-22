@@ -76,6 +76,45 @@ def is_follow_up(question: str, history, own_best: float) -> bool:
     return marked if own_best >= MIN_SIMILARITY else marked or len(plain_words(question)) <= 4
 
 
+# Words that make a message ask or request something by itself (unaccented): "nào", "gì", "gợi ý", "where", "tell me".
+_ASKS_ON_ITS_OWN = {"gi", "nao", "sao", "dau", "bao", "khong", "ko", "may", "ai", "nhieu", "the", "chua", "hong",
+                    "goi", "tim", "huong", "dan", "chi", "giup", "cho", "nen", "can", "muon", "co", "duoc",
+                    "what", "where", "when", "how", "which", "who", "why", "is", "are", "do", "does", "can", "could",
+                    "should", "recommend", "suggest", "tell", "show", "find", "best", "any"}
+# "Khu vực Đà Nẵng", "ở Hội An", "còn Huế", "what about Hue": narrowing the question before to a place or a case.
+_NARROWS = re.compile(r"^(?:khu vực|vùng|miền|tỉnh|thành phố|tp\.?|ở|tại|còn|thế còn|vậy còn|với|riêng|in|at|for|about|what about|how about|and)\b",
+                      re.IGNORECASE)
+_LEANING_END = re.compile(r"\s*(?:(?:thì|thế)\s+)?(?:sao|thế nào|như nào|ra sao)?\s*(?:nhỉ|nhé|ạ|vậy|then)?\s*[?.!]*\s*$",
+                          re.IGNORECASE)
+FRAGMENT_MAX_WORDS = 6
+
+
+def is_fragment(text: str) -> bool:
+    """A few words that ask nothing by themselves, e.g. "Khu vực Đà Nẵng" or "tháng 3"."""
+    # "what about Hue", "còn Huế thì sao?" ask only through the words around the place, which lean on the question before.
+    core = _LEANING_END.sub("", _NARROWS.sub("", text.strip()))
+    words = plain_words(core)
+    return 0 < len(words) <= FRAGMENT_MAX_WORDS and "?" not in core and not words & _ASKS_ON_ITS_OWN
+
+
+def standalone_question(question: str, history) -> str:
+    """A fragment answering the bot's question back, or narrowing the last one ("Khu vực Đà Nẵng" after "Khi nào
+    nên đi du lịch?"), is read as that question narrowed to it. Anything else stands as it was typed.
+
+    The question it narrows is the asker's latest one that was not itself a fragment, so "còn Hội An" after
+    "Khu vực Đà Nẵng" still asks when to travel."""
+    if not history or not is_fragment(question) or is_greeting(question) or is_insult(question):
+        return question
+    last_reply = (history[-1].reply or "").strip()
+    asked_back = last_reply.endswith("?")
+    if not (asked_back or _NARROWS.search(question.strip()) or FOLLOW_UP.search(question.strip())):
+        return question
+    base = next((turn.question for turn in reversed(history) if not is_fragment(turn.question)), None)
+    if not base:
+        return question
+    return f"{base.strip().rstrip('?.!… ')} - {question.strip()}"
+
+
 def is_insult(text: str) -> bool:
     return bool(INSULT.search(text))
 
@@ -176,13 +215,90 @@ _VI_TO_EN_WRITTEN = {
 }
 
 
+# Words whose meaning only its accents tell ("ăn" eat / "An" in Hội An, "bão" storm / "bao giờ", "nắng" / "Nẵng"),
+# so they expand only as typed. Keys are the accented, lower-case word.
+_VI_ACCENTED_TO_EN: dict[str, set[str]] = {
+    "ăn": {"eat", "food", "dish", "restaurant", "cuisine"},
+    "đảo": {"island", "islands"},
+    "chợ": {"market", "markets", "shopping"},
+    "sắm": {"shopping", "shop", "market", "souvenir"},
+    "quà": {"souvenir", "souvenirs", "gift"},
+    "nắng": {"sunny", "sun", "hot", "dry"},
+    "lạnh": {"cold", "cool", "winter"},
+    "nóng": {"hot", "heat", "summer"},
+    "nhiệt": {"temperature", "weather", "climate", "hot", "cold"},
+    "bão": {"typhoon", "typhoons", "storm", "storms"},
+    "lũ": {"flood", "floods", "flooding"},
+    "lụt": {"flood", "floods", "flooding"},
+    "lễ": {"festival", "festivals", "holiday", "celebration"},
+    "tết": {"tet", "lunar", "new", "year", "holiday"},
+    "toàn": {"safety", "safe", "crime", "scam"},
+    "lừa": {"scam", "scams", "fraud", "overcharge", "overcharging"},
+    "đổi": {"exchange", "currency", "money", "change"},
+    "xe": {"motorbike", "scooter", "bike", "car", "taxi", "bus", "grab", "rent"},
+    "buýt": {"bus", "buses"},
+    "phòng": {"room", "hotel", "stay"},
+    "thuê": {"rent", "rental", "hire"},
+    "lặn": {"diving", "dive", "snorkelling", "snorkeling"},
+    "bơi": {"swim", "swimming", "beach"},
+    "leo": {"hiking", "trekking", "trek", "climb"},
+    "động": {"cave", "caves"},
+    "phê": {"coffee", "cafe"},
+    "đêm": {"night", "nightlife", "evening", "bar"},
+    "đình": {"family", "kids", "children"},
+    "trẻ": {"kids", "children", "child", "family"},
+    "bệnh": {"hospital", "clinic", "doctor", "health", "sick"},
+    "thuốc": {"pharmacy", "medicine"},
+    "hiểm": {"insurance"},
+    "ngân": {"bank", "banking", "atm", "budget"},
+    "thẻ": {"card", "cards", "credit", "atm"},
+    "mạng": {"internet", "wifi", "sim", "esim", "data"},
+    "thoại": {"phone", "sim", "esim"},
+    "việc": {"work", "remote", "coworking", "job"},
+    "tiếng": {"language", "vietnamese", "phrases", "english"},
+    "trình": {"itinerary", "days", "plan", "route"},
+    "phí": {"cost", "budget", "fee", "spend"},
+    "rẻ": {"cheap", "budget", "affordable"},
+    "đắt": {"expensive", "cost"},
+    # Not "hành" (hành lý): it is also the "Hành" of Ngũ Hành Sơn.
+    "lý": {"luggage", "baggage", "pack", "packing"},
+}
+
+# Vietnamese place names written differently in English guides ("Hà Nội" → Hanoi, "Sài Gòn" → Ho Chi Minh City).
+# Keys are folded (no accents, lower case) phrases.
+_PLACE_ALIASES: dict[str, set[str]] = {
+    "ha noi": {"hanoi"}, "sai gon": {"saigon", "ho", "chi", "minh", "hcmc"},
+    "ho chi minh": {"saigon", "ho", "chi", "minh", "hcmc"}, "tp hcm": {"saigon", "hcmc", "ho", "chi", "minh"},
+    "hcm": {"saigon", "hcmc"}, "da lat": {"dalat"}, "sa pa": {"sapa"}, "ha long": {"halong"},
+    "hue": {"hue"}, "mien tay": {"mekong", "delta"}, "song cuu long": {"mekong", "delta"},
+    "ba na": {"bana", "hills"}, "cu lao cham": {"cham", "islands"}, "ngu hanh son": {"marble", "mountains"},
+    "son tra": {"son", "tra", "monkey", "peninsula"}, "cau rong": {"dragon", "bridge"},
+    "cau vang": {"golden", "bridge"}, "cho han": {"han", "market"}, "cho con": {"con", "market"},
+    "hai van": {"hai", "van", "pass"}, "my son": {"my", "son", "sanctuary"}, "phong nha": {"phong", "nha", "cave"},
+    "phu quoc": {"phu", "quoc", "island"}, "nha trang": {"nha", "trang"}, "ninh binh": {"ninh", "binh"},
+    "quy nhon": {"quy", "nhon"}, "mui ne": {"mui", "ne"}, "con dao": {"con", "dao", "islands"},
+    "mien trung": {"central", "coast"}, "mien bac": {"north", "northern"}, "mien nam": {"south", "southern"},
+}
+
+
+def place_terms(text: str) -> set[str]:
+    plain = "".join(c for c in unicodedata.normalize("NFD", text.casefold()) if unicodedata.category(c) != "Mn")
+    spaced = " " + " ".join(_UNICODE_WORD.findall(plain.replace("đ", "d"))) + " "
+    found: set[str] = set()
+    for alias, words in _PLACE_ALIASES.items():
+        if f" {alias} " in spaced:
+            found |= words
+    return found
+
+
 def _unaccent(word: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", word) if unicodedata.category(c) != "Mn")
 
 
 def unicode_terms(text: str) -> set[str]:
     raw_words = {w.casefold() for w in _UNICODE_WORD.findall(text) if len(w) > 1}
-    unaccented = {_unaccent(w) for w in raw_words}
+    # "đ" is a letter of its own, not an accent: "Đà Nẵng" must still meet "Da Nang".
+    unaccented = {_unaccent(w).replace("đ", "d") for w in raw_words}
     # Without any accent the reader cannot tell "mua" from "mùa", so both readings count.
     typed_with_accents = bool(_VIETNAMESE_LETTER.search(text))
     expanded: set[str] = set()
@@ -190,7 +306,8 @@ def unicode_terms(text: str) -> set[str]:
         key = _unaccent(raw).replace("đ", "d")
         if key in _VI_TO_EN_MAP and (not typed_with_accents or raw == _VI_TO_EN_WRITTEN.get(key, raw)):
             expanded |= _VI_TO_EN_MAP[key]
-    all_words = raw_words | unaccented | expanded
+        expanded |= _VI_ACCENTED_TO_EN.get(raw, set())
+    all_words = raw_words | unaccented | expanded | place_terms(text)
     return {w for w in all_words if len(w) > 1 and (w not in _STOPWORDS or w in {"an", "in", "to", "do", "me"})}
 
 
@@ -278,6 +395,15 @@ async def similarity_by_chunk(ctx, question, chunks):
     return {chunk_id: cosine(vectors[0], vector) for chunk_id, vector in stored.items()}, warnings
 
 
+_SITE_SUFFIX = re.compile(r"\s*[(|].*$")
+
+
+def page_name(source) -> str:
+    """"Hoi An (en.wikivoyage.org)" → "Hoi An"; a TripC article keeps its own title."""
+    title = getattr(source, "title", None) or ""
+    return _SITE_SUFFIX.sub("", title).strip()
+
+
 def validate_community(job, p, settings):
     return validate_context(job, p)
 
@@ -298,7 +424,8 @@ def choose_passages(question, history, chunks, similarity, in_context, provider_
     # A new topic is judged by this question alone; only a follow-up reads it together with the earlier turn.
     follow_up = is_follow_up(question, history, max(similarity.values(), default=0.0))
     meaning_of = (lambda c: in_context.get(c.chunk_id, similarity.get(c.chunk_id, 0.0))) if follow_up else (lambda c: similarity.get(c.chunk_id, 0.0))
-    scored = [(meaning_of(c), word_score(c.text), s, c)
+    # The page a chunk comes from names its place ("Hoi An"), which a passage deep in it seldom repeats.
+    scored = [(meaning_of(c), word_score(f"{page_name(s)}\n{c.text}"), s, c)
               for s, c in chunks]
     follows_up = (lambda text: max(lexical_overlap(earlier_terms, text), lexical_overlap(earlier_u_terms, text))) if follow_up else (lambda text: 0.0)
     scored.sort(key=lambda item: item[0] + LEXICAL_WEIGHT * (item[1] + follows_up(item[3].text)), reverse=True)
@@ -378,6 +505,11 @@ async def general_reply(ctx, p) -> tuple[str, str] | None:
 
 async def run_community(ctx):
     p = ctx.payload
+    # "Khu vực Đà Nẵng" right after "Khi nào nên đi du lịch?" asks when to visit Da Nang: from here on that
+    # whole question is what is searched, answered and judged.
+    asked = standalone_question(p.question, p.history)
+    if asked != p.question:
+        p = p.model_copy(update={"question": asked})
     sensitive = sensitive_keys_in(p.question)
     sources, _ = eligible_sources(ctx.job, p.snapshot)
 
@@ -389,9 +521,12 @@ async def run_community(ctx):
     similarity, warnings = await similarity_by_chunk(ctx, p.question, chunks)
     # A follow-up ("which one...?") is searched together with the question it follows; whether a source answers it is judged on its own.
     in_context = similarity
-    if p.history:
+    if p.history and asked == ctx.payload.question:
         in_context, _ = await similarity_by_chunk(ctx, f"{p.history[-1].question} {p.question}", chunks)
-    selected = choose_passages(p.question, p.history, chunks, similarity, in_context, ctx.settings.provider_mode, sensitive)
+    history = p.history if asked == ctx.payload.question else []
+    selected = choose_passages(p.question, history, chunks, similarity, in_context, ctx.settings.provider_mode, sensitive)
+    if asked != ctx.payload.question:
+        warnings = [*warnings, "FOLLOW_UP_READ_AS_STANDALONE"]
     missing = [f"verified_fact:{fact.key}" for fact in sensitive]
     evidence = []
 
