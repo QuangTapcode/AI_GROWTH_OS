@@ -102,8 +102,10 @@ NO_ANSWER = re.compile(
 _UNICODE_WORD = re.compile(r"[\w\u00C0-\u1EF9]+", re.UNICODE)
 _GREETING_WORDS = {"hi", "hello", "hey", "chao", "morning", "afternoon", "evening", "alo"}
 # Who is greeted, or the words around a greeting. Any other word makes the message a question.
-_AROUND_A_GREETING = {"xin", "good", "there", "shop", "ad", "admin", "ban", "baj", "banj", "oi", "team", "tripc", "anh", "chi", "em", "minh"}
-_VIETNAMESE_GREETING = {"chao", "xin", "ban", "baj", "banj", "oi", "anh", "chi", "em", "alo", "minh", "toi", "du", "lich"}
+_AROUND_A_GREETING = {"xin", "good", "there", "shop", "ad", "admin", "b", "bn", "ban", "baj", "banj", "oi", "team", "tripc", "anh", "chi", "em", "minh", "page", "fanpage", "moi", "nguoi", "ca", "nha", "nhe", "a", "ak"}
+_PRAISE_SIGNAL_WORDS = {"hay", "dep", "tuyet", "voi", "huu", "ich", "cam", "thank", "thanks", "thich", "yeu", "xinh", "chuan", "good", "great", "nice", "awesome", "helpful", "love", "amazing", "wonderful"}
+_PRAISE_FILLER_WORDS = {"bai", "viet", "nay", "qua", "lam", "rat", "nhieu", "on", "ban", "ad", "admin", "shop", "page", "team", "tripc", "a", "nha", "nhe", "luon", "oi", "post", "article", "guide", "so", "very", "much", "really", "this", "it", "you", "for", "sharing", "the", "info"}
+_VIETNAMESE_GREETING = {"chao", "xin", "b", "bn", "ban", "baj", "banj", "oi", "anh", "chi", "em", "alo", "minh", "toi", "du", "lich"}
 _VIETNAMESE_INQUIRY_WORDS = {"toi", "minh", "muon", "di", "du", "lich", "tu", "van", "ho", "tro", "cho", "hoi", "da", "nang", "phu", "quoc", "hoi", "an", "visa", "evisa"}
 _CONVERSATIONAL_SIGNAL_WORDS = {
     "cam", "thank", "thanks", "bot", "ly", "giup", "help",
@@ -209,6 +211,24 @@ def is_greeting(text: str) -> bool:
     return False
 
 
+def is_praise_or_reaction(text: str) -> bool:
+    """Emoji-only reactions or pure compliments/thanks with no domain question."""
+    stripped = (text or "").strip()
+    if not stripped:
+        return True
+    words = plain_words(stripped)
+    if not words:
+        # Pure emoji/symbol reaction like "🙌", "❤️❤️", "👍"
+        return True
+    if bool(words & _PRAISE_SIGNAL_WORDS) and words <= (_PRAISE_SIGNAL_WORDS | _PRAISE_FILLER_WORDS | _GREETING_WORDS):
+        return True
+    return False
+
+
+def is_attachment_placeholder(text: str) -> bool:
+    return "[khách gửi hình ảnh" in (text or "").lower() or "[attachment]" in (text or "").lower()
+
+
 def is_conversational_opener(text: str) -> bool:
     """Conversational openers (thanks, bot identity, general help, community intro) with no ungrounded domain nouns."""
     words = plain_words(text)
@@ -220,7 +240,15 @@ def is_vietnamese_question(text: str) -> bool:
 
 
 def welcome(greeting: str) -> str:
-    return "Xin chào! Mình có thể giúp gì cho bạn?" if plain_words(greeting) & _VIETNAMESE_GREETING else "Hello! How can I help you?"
+    if is_vietnamese_question(greeting):
+        return "Chào bạn! Mình là trợ lý của TripC. Bạn đang cần tìm hiểu về lịch trình, điểm đến, quán ăn hay lưu trú cứ nhắn cụ thể để mình hỗ trợ nhé!"
+    return "Hello! I'm TripC's assistant. Let me know what you'd like help with—itineraries, destinations, local food, or stays in Vietnam!"
+
+
+def praise_reply(text: str) -> str:
+    if is_vietnamese_question(text) or not plain_words(text):
+        return "Cảm ơn bạn rất nhiều đã ủng hộ bài viết! Nếu bạn cần thêm gợi ý lịch trình, địa điểm hay kinh nghiệm du lịch thực tế, cứ bình luận hoặc nhắn tin cho tụi mình nhé!"
+    return "Thank you so much for your kind words! If you need any travel tips, destination ideas, or local recommendations in Vietnam, feel free to ask anytime!"
 
 
 def welcome_needed(reply: str, greeting: str) -> bool:
@@ -284,7 +312,14 @@ def validate_community(job, p, settings):
 
 def choose_passages(question, history, chunks, similarity, in_context, provider_mode, sensitive=()):
     """The (source, chunk) pairs a reply may quote, best first; empty when no approved source answers."""
-    if is_insult(question) or weather.weather_day(question) or asks_live_figures(question):
+    if (
+        is_insult(question)
+        or is_greeting(question)
+        or is_praise_or_reaction(question)
+        or is_attachment_placeholder(question)
+        or weather.weather_day(question)
+        or asks_live_figures(question)
+    ):
         return []
     is_vn = is_vietnamese_question(question)
     q_terms = terms(question)
@@ -399,6 +434,12 @@ async def run_community(ctx):
         if is_insult(p.question):
             # Nothing to verify and nothing to hand over: a calm reply that invites a real question.
             reply = POLITE_REPLY_VI if is_vietnamese_question(p.question) else POLITE_REPLY_EN
+        elif is_attachment_placeholder(p.question):
+            reply = "Chào bạn! Mình đã nhận được hình ảnh/nhãn dán của bạn. Bạn đang cần tư vấn thêm thông tin gì về du lịch, điểm đến hay dịch vụ cứ nhắn cụ thể để mình hỗ trợ ngay nhé!"
+        elif is_greeting(p.question):
+            reply = welcome(p.question)
+        elif is_praise_or_reaction(p.question):
+            reply = praise_reply(p.question)
         elif weather.weather_day(p.question):
             vi = is_vietnamese_question(p.question)
             reply = await weather.live_weather_reply(p.question, vi) or (LIVE_REPLY_VI if vi else LIVE_REPLY_EN)

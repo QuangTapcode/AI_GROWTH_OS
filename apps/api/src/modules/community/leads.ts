@@ -114,6 +114,7 @@ async function queueDirectReply(
 
   const communityName = settings?.community_name?.trim() || DEFAULT_COMMUNITY_NAME;
   const groupUrl = settings?.group_url?.trim() || DEFAULT_FACEBOOK_GROUP_URL;
+  const telegramUrl = process.env.TELEGRAM_COMMUNITY_URL?.trim() || 'https://t.me/tripc_community_bot';
   const dailyCap = Math.max(10, Math.min(15, Number(settings?.daily_invite_limit ?? 12)));
   const canInviteToday = settings?.auto_invite_enabled !== false && !alreadyInvited && todayInviteCount < dailyCap;
 
@@ -124,8 +125,16 @@ async function queueDirectReply(
   const recipient = message.author_contact || (isComment && commentId ? `comment:${commentId}` : null);
 
   let text = result.reply?.trim();
-  const groupFallback = `Chào bạn! Cảm ơn bạn đã bình luận và chia sẻ trong Cộng đồng. Hiện tại cẩm nang TripC đang cập nhật thêm thông tin chi tiết về chủ đề này — các thành viên và quản trị viên sẽ hỗ trợ thêm cho bạn ngay bên dưới nhé!`;
-  const pageFallback = `Chào bạn! Cảm ơn bạn đã liên hệ TripC. Hiện tại cẩm nang của chúng tôi đang liên tục cập nhật thêm dữ liệu về chủ đề này. Bạn có thể tham gia thảo luận cùng người dân địa phương và cộng đồng tại nhóm Facebook của chúng tôi: ${groupUrl} để nhận được gợi ý nhanh nhất nhé!`;
+  const isHardQuestion =
+    !text ||
+    text.includes('The verified information needed for this question is unavailable') ||
+    text.includes('A human needs to review it') ||
+    text.includes('chưa có trong cẩm nang') ||
+    text.includes('not yet in TripC') ||
+    (result as Record<string, unknown>).status === 'insufficient_data' ||
+    Boolean((result as Record<string, unknown>).escalation_required);
+  const groupFallback = `Chào bạn! Cảm ơn bạn đã bình luận và chia sẻ trong Cộng đồng. Hiện tại cẩm nang TripC đang cập nhật thêm thông tin chi tiết về chủ đề này — các thành viên và quản trị viên sẽ hỗ trợ thêm ngay bên dưới, hoặc bạn có thể nhắn nhanh qua kênh Telegram cộng đồng tại: ${telegramUrl} nhé!`;
+  const pageFallback = `Chào bạn! Cảm ơn bạn đã liên hệ TripC. Câu hỏi này cần thêm kinh nghiệm thực tế từ cộng đồng địa phương — mời bạn tham gia nhóm Facebook "${communityName}": ${groupUrl} hoặc kênh Telegram hỗ trợ nhanh: ${telegramUrl} để nhận gợi ý chi tiết nhất nhé!`;
   if (!isTelegram && (!text || text.includes("The verified information needed for this question is unavailable") || text.includes("A human needs to review it"))) {
     text = isComment && commentSource === 'group' ? groupFallback : pageFallback;
   }
@@ -169,8 +178,14 @@ async function queueDirectReply(
       author_name: message.metadata?.from_name || message.author_name || null,
     };
   } else if (isComment && commentSource === 'page' && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
-    // Only on Fanpage comments do we attach an invite link to join the Facebook Group; users in Group are already members.
-    outboxText = `${outboxText}\n\n👉 Mời bạn tham gia Cộng đồng Du lịch & Sống tại Việt Nam để hỏi đáp thêm kinh nghiệm thực tế: ${groupUrl}`;
+    // Only on Fanpage comments do we attach an invite link to join the Facebook Group + Telegram; users in Group are already members.
+    outboxText = `${outboxText}\n\n👉 Mời bạn tham gia ${communityName} (${groupUrl}) hoặc Telegram (${telegramUrl}) để hỏi đáp thêm kinh nghiệm thực tế nhé!`;
+  } else if (isComment && commentSource === 'group' && isHardQuestion && canInviteToday && !outboxText.includes('t.me/')) {
+    // Inside Facebook Group, never re-invite to the same FB Group; offer Telegram for faster Q&A.
+    outboxText = `${outboxText}\n\n💬 Bạn cũng có thể nhắn nhanh qua kênh Telegram cộng đồng (${telegramUrl}) để nhận hỗ trợ thêm nhé!`;
+  } else if (!isComment && isHardQuestion && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
+    // Hard Messenger Inbox questions: redirect naturally to Facebook Group + Telegram (respecting daily & per-user dedup cap).
+    outboxText = `${outboxText}\n\n👉 Để nhận thêm kinh nghiệm thực tế mới nhất từ cộng đồng, bạn có thể tham gia nhóm Facebook "${communityName}": ${groupUrl} hoặc kênh Telegram: ${telegramUrl} nhé!`;
   }
 
   await client.query(

@@ -44,7 +44,23 @@ export function isAutoApprovable(row: AutoArtifactRow) {
   const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
   const status = result.status;
   const inputRefs = Array.isArray(result.input_artifact_refs) ? result.input_artifact_refs : [];
-  const hasGrounding = row.evidence.length > 0 || (row.role === "performance" && inputRefs.length > 0);
+  const hasReplyText = typeof result.reply === "string" && result.reply.trim().length > 0;
+  // Community greetings/praise/reactions intentionally skip RAG (evidence=[]) to avoid hallucinating unrelated docs.
+  const isCommunityConversational =
+    row.role === "community" &&
+    hasReplyText &&
+    missing.length === 0 &&
+    (status === "ready_for_handoff" || status === "proposed" || status === "draft");
+  // Community hard questions with insufficient_data are routed to Group/Telegram community invite fallback in queueDirectReply().
+  const isCommunityFallbackInvite =
+    row.role === "community" &&
+    status === "insufficient_data" &&
+    hasReplyText;
+  const hasGrounding =
+    row.evidence.length > 0 ||
+    (row.role === "performance" && inputRefs.length > 0) ||
+    isCommunityConversational ||
+    isCommunityFallbackInvite;
   const leadConsentOnly =
     row.role === "community" &&
     status === "insufficient_data" &&
@@ -53,7 +69,7 @@ export function isAutoApprovable(row: AutoArtifactRow) {
     Boolean(result.lead_proposal);
   // An AI illustration always goes past a person: code checks lettering, not what the image shows.
   return result.synthetic !== true && !result.generated_image && hasGrounding &&
-    ((missing.length === 0 && (status === "ready_for_handoff" || status === "proposed" || status === "draft")) || leadConsentOnly);
+    ((missing.length === 0 && (status === "ready_for_handoff" || status === "proposed" || status === "draft")) || leadConsentOnly || isCommunityFallbackInvite);
 }
 
 async function queueReadyChildren(db: import("pg").PoolClient, workspaceId: string, campaignId: string | null) {
