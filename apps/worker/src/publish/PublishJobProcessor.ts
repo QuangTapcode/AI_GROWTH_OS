@@ -36,6 +36,11 @@ export interface PublishContext {
   mediaType?: 'video' | 'image';
   isAiGenerated?: boolean;
   aiImageMeta?: Record<string, any>;
+  imageContentHash?: string;
+  storageKey?: string;
+  imageFileName?: string;
+  imageFileContent?: string;
+  requiresImage?: boolean;
   /** TQ-06 gateway recheck tại execution (MY-05): approval/version/hash. */
   approvalId?: string;
   gatewayCheck?: (req: {
@@ -94,6 +99,15 @@ export class PublishJobProcessor {
       throw new Error(`No publisher registered for channel ${ctx.channel}`);
     }
 
+    // Kiểm tra tính toàn vẹn của ảnh: nếu bài viết yêu cầu ảnh mà thiếu file ảnh từ media_assets -> dừng, không đăng bài hỏng
+    if ((ctx.requiresImage || ctx.imageContentHash) && !ctx.mediaUrl && !ctx.storageKey && !ctx.imageFileContent) {
+      return {
+        success: false,
+        errorCode: 'MISSING_MEDIA_ASSET',
+        errorMessage: 'Bài viết yêu cầu hình ảnh nhưng không tìm thấy file ảnh hợp lệ từ media_assets theo content_hash đã khóa lúc duyệt. Dừng xuất bản để tránh đăng bài hỏng.',
+      };
+    }
+
     const req: CmsPublishRequest = {
       contentId: ctx.contentId,
       channel: ctx.channel,
@@ -109,6 +123,11 @@ export class PublishJobProcessor {
       mediaType: ctx.mediaType,
       isAiGenerated: ctx.isAiGenerated,
       aiImageMeta: ctx.aiImageMeta,
+      imageContentHash: ctx.imageContentHash,
+      storageKey: ctx.storageKey,
+      imageFileName: ctx.imageFileName,
+      imageFileContent: ctx.imageFileContent,
+      requiresImage: ctx.requiresImage,
     };
 
     let result: CmsPublishResult & { manualPack?: ManualPack };
@@ -147,6 +166,11 @@ export class PublishJobProcessor {
             mediaUrl: ctx.mediaUrl,
             mediaType: ctx.mediaType,
             isAiGenerated: ctx.isAiGenerated,
+            imageContentHash: ctx.imageContentHash,
+            storageKey: ctx.storageKey,
+            imageFileName: ctx.imageFileName,
+            imageFileContent: ctx.imageFileContent,
+            requiresImage: ctx.requiresImage,
           },
           ctx.channel as 'Facebook' | 'TikTok' | 'Instagram'
         );
@@ -203,6 +227,14 @@ export class PublishJobProcessor {
       utmSource: ctx.utmSource,
       utmMedium: ctx.utmMedium,
       utmCampaign: ctx.utmCampaign,
+      mediaUrl: ctx.mediaUrl,
+      mediaType: ctx.mediaType,
+      isAiGenerated: ctx.isAiGenerated,
+      imageContentHash: ctx.imageContentHash,
+      storageKey: ctx.storageKey,
+      imageFileName: ctx.imageFileName,
+      imageFileContent: ctx.imageFileContent,
+      requiresImage: ctx.requiresImage,
     };
 
     // Import dynamically to avoid circular dependency

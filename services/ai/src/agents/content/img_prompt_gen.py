@@ -10,6 +10,7 @@ Enforces the Dual-Asset Governance Policy (Section 7):
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, Sequence
@@ -25,6 +26,48 @@ MANDATORY_NEGATIVE_PROMPT: str = (
     "price tag, discount number, currency sign, dollar sign, vnd, percentage, "
     "blurry, distorted, low quality, oversaturated, deformed anatomy, bad geometry, artifacts"
 )
+
+# Juggernaut XL v9 Specialized Tokens (Section 4.3 of KE_HOACH.md)
+JUGGERNAUT_POSITIVE_TRIGGERS: str = (
+    "cinematic photography, ultra realistic, highly detailed, "
+    "realistic ambient lighting, professional travel magazine cover, "
+    "sharp focus, 8k resolution, Hasselblad medium format photography, "
+    "architectural aesthetic"
+)
+
+JUGGERNAUT_NEGATIVE_TOKENS: str = (
+    "no text, no logo, no watermark, no words, typography, font, "
+    "price tag, currency, vnd, dollar, deformed, distorted, low quality, "
+    "cartoon, anime, 3d render, extra limbs, bad anatomy, oversaturated"
+)
+
+
+def deduplicate_clauses(base: str, addition: str) -> str:
+    """Appends comma-separated clauses from addition to base without duplicate phrases."""
+    clauses = [c.strip() for c in base.split(",") if c.strip()]
+    seen_lower = {c.lower() for c in clauses}
+
+    for item in addition.split(","):
+        clean = item.strip()
+        if not clean:
+            continue
+        if clean.lower() in seen_lower:
+            continue
+        clauses.append(clean)
+        seen_lower.add(clean.lower())
+
+    return ", ".join(clauses)
+
+
+def estimate_clip_tokens(text: str) -> int:
+    """Heuristic estimate of CLIP BPE token count (including BOS and EOS tokens).
+
+    CLIP tokenizers typically produce ~1.2 tokens per word/punctuation mark.
+    Standard CLIP context limit is 77 tokens (1 chunk).
+    SDXL Compel dynamically chunks prompts into 77-token batches (1-2 chunks for up to ~150 tokens).
+    """
+    tokens = re.findall(r"\w+|[^\w\s]", text)
+    return int(len(tokens) * 1.2) + 2
 
 ASPECT_RATIO_DIMENSIONS: dict[str, tuple[int, int]] = {
     "1:1": (1080, 1080),   # Facebook post, Instagram carousel, square graphic
@@ -98,6 +141,7 @@ def generate_image_prompt(
     brand_voice: str | None = None,
     target_channel: str = "facebook",
     aspect_ratio: Literal["1:1", "9:16"] | str | None = None,
+    image_provider: str | None = None,
 ) -> ImagePromptResult:
     """Generate an AI image prompt strictly adhering to the Dual-Asset policy.
 
@@ -106,6 +150,12 @@ def generate_image_prompt(
     2. If FALSE (abstract concepts / market trends / lifestyle):
        Constructs an English artistic concept prompt with aspect ratio (1:1 for FB, 9:16 for TikTok)
        and attaches the mandatory negative prompt.
+    3. If image_provider is 'gpu_worker':
+       Optimizes prompt and negative prompt for SDXL / Juggernaut XL Checkpoint:
+       - Appends JUGGERNAUT_POSITIVE_TRIGGERS with deduplication.
+       - Enforces JUGGERNAUT_NEGATIVE_TOKENS at the head of negative prompt (suppressing text/logos/prices in Chunk 1).
+       - Keeps subject first in Chunk 1, ensuring prompt fits within 1-2 Compel chunks (<= 150 tokens).
+       For 'flux' / 'fake': preserves existing prompt and negative prompt behavior.
     """
     # 1. Dual-Asset Governance Check: Real product / room description is strictly forbidden from using AI images
     is_real, detection_method, matched_keywords = is_real_product_description(article_or_request)
@@ -151,15 +201,42 @@ def generate_image_prompt(
         aesthetic_style = "high-end editorial design, muted earth tones, refined cinematic depth"
 
     prompt_core = ", ".join(concepts[:2])
-    full_prompt = (
-        f"{prompt_core}, {aesthetic_style}, "
-        f"octane render, 8k resolution, elegant composition, peaceful atmosphere, "
-        f"empty of people, no text"
+
+    # Resolve provider mode (gpu_worker vs flux/fake)
+    resolved_provider = (
+        image_provider
+        or (article_or_request.get("image_provider") if isinstance(article_or_request, Mapping) else None)
+        or (article_or_request.get("ai_image_provider") if isinstance(article_or_request, Mapping) else None)
+        or getattr(article_or_request, "image_provider", None)
+        or getattr(article_or_request, "ai_image_provider", None)
+        or os.getenv("AI_IMAGE_PROVIDER", "flux")
     )
+    if isinstance(resolved_provider, str):
+        resolved_provider = resolved_provider.strip().lower()
+    else:
+        resolved_provider = "flux"
+
+    if resolved_provider in {"gpu_worker", "gpu-worker"}:
+        # Photorealistic Juggernaut XL v9 styling (Section 4.3):
+        # 1. Subject first: prompt_core stays in Chunk 1 of CLIP/Compel for maximum cross-attention.
+        # 2. Append JUGGERNAUT_POSITIVE_TRIGGERS with deduplication.
+        # 3. Negative prompt puts anti-text/logo/price group at head of Chunk 1 for strict suppression.
+        base_style = aesthetic_style.replace("minimalist vector art", "architectural photography")
+        base_prompt = f"{prompt_core}, {base_style}, elegant composition, peaceful atmosphere, empty of people, no text"
+        full_prompt = deduplicate_clauses(base_prompt, JUGGERNAUT_POSITIVE_TRIGGERS)
+        full_negative = deduplicate_clauses(JUGGERNAUT_NEGATIVE_TOKENS, MANDATORY_NEGATIVE_PROMPT)
+    else:
+        # Backward compatibility for flux / fake providers
+        full_prompt = (
+            f"{prompt_core}, {aesthetic_style}, "
+            f"octane render, 8k resolution, elegant composition, peaceful atmosphere, "
+            f"empty of people, no text"
+        )
+        full_negative = MANDATORY_NEGATIVE_PROMPT
 
     return ImagePromptResult(
         prompt=full_prompt,
-        negative_prompt=MANDATORY_NEGATIVE_PROMPT,
+        negative_prompt=full_negative,
         aspect_ratio=resolved_ratio,
         width=width,
         height=height,

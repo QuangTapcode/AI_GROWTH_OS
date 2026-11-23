@@ -152,5 +152,46 @@ describe('FacebookGroupPublisher (CM-28 & CM-29)', () => {
     expect(failResult.success).toBe(false);
     expect(failResult.errorCode).toBe('FACEBOOK_GROUP_RECONCILE_FAILED');
   });
+
+  it('8. Từ chối đăng bài khi bài viết yêu cầu ảnh nhưng thiếu URL ảnh (chống đăng bài hỏng)', async () => {
+    const publisher = new FacebookGroupPublisher('group_123', 'valid_token');
+    const result = await publisher.publish({
+      ...baseRequest,
+      requiresImage: true,
+      imageContentHash: 'd'.repeat(64),
+      mediaUrl: undefined,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('MISSING_MEDIA_ASSET');
+    expect(result.errorMessage).toContain('Bài viết yêu cầu hình ảnh');
+  });
+
+  it('9. ManualPack fallback đính kèm đúng content_hash và storage_key của ảnh khi Graph API từ chối quyền', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { code: 200, message: 'Permissions error: publish to group requires review' } }),
+        { status: 403 }
+      )
+    );
+
+    const hash = 'c'.repeat(64);
+    const publisher = new FacebookGroupPublisher('group_123', 'restricted_token');
+    const result = await publisher.publish({
+      ...baseRequest,
+      mediaUrl: 'http://localhost:3000/uploads/generated/danang_suite.webp',
+      imageContentHash: hash,
+      storageKey: 'generated/danang_suite.webp',
+      isAiGenerated: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.isManualFallback).toBe(true);
+    expect(result.manualPack).toBeDefined();
+    expect(result.manualPack?.imageContentHash).toBe(hash);
+    expect(result.manualPack?.storageKey).toBe('generated/danang_suite.webp');
+    expect(result.manualPack?.files['media_urls.txt']).toContain(`Content Hash (SHA-256): ${hash}`);
+    expect(result.manualPack?.files['media_urls.txt']).toContain('Storage Key: generated/danang_suite.webp');
+  });
 });
 

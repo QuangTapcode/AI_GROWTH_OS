@@ -38,6 +38,15 @@ export const EnvSchema = z.object({
   /** Poll tối đa một run; AI run cap theo PILOT_LIMITS là 600s */
   AI_HTTP_POLL_TIMEOUT_MS: z.coerce.number().default(600_000),
   AI_HTTP_REQUEST_TIMEOUT_MS: z.coerce.number().default(30_000),
+  // GPU Worker reverse-connect recovery settings (Prompt 10)
+  GPU_WORKER_CLAIM_WAIT_SECONDS: z.coerce.number().default(20),
+  GPU_JOB_LEASE_SECONDS: z.coerce.number().default(120),
+  GPU_JOB_QUEUE_TTL_SECONDS: z.coerce.number().default(600),
+  GPU_WORKER_OFFLINE_AFTER_SECONDS: z.coerce.number().default(60),
+  GPU_JOB_MAX_DELIVERIES: z.coerce.number().default(5),
+  GPU_JOB_MAX_ATTEMPTS: z.coerce.number().default(3),
+  GPU_OFFLINE_POLICY: z.enum(['queue_wait', 'reject', 'fallback_flux']).default('queue_wait'),
+  GPU_JOB_MAX_AGE_SECONDS: z.coerce.number().default(0),
 });
 
 export type EnvSchemaType = z.infer<typeof EnvSchema>;

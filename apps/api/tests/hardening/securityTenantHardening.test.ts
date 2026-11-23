@@ -21,9 +21,14 @@ const WORKSPACE_B = '20000000-0000-4000-8000-000000000002';
 const USER_A = '11111111-1111-1111-1111-111111111111';
 
 describe('TQ-08: Security, Tenant Isolation & Migration Hardening', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     memoryExceptions.clear();
     memoryOutbox.clear();
+    try {
+      const { query } = await import('../../src/lib/db');
+      await query('DELETE FROM outbox_events WHERE workspace_id IN ($1, $2)', [WORKSPACE_A, WORKSPACE_B]);
+      await query('DELETE FROM system_exceptions WHERE workspace_id IN ($1, $2)', [WORKSPACE_A, WORKSPACE_B]);
+    } catch {}
   });
 
   describe('1. Cross-Tenant Relation IDs Hardening', () => {

@@ -556,4 +556,243 @@ describe('CM-27: PublishingOutboxRunner (PgBoss) & TC-15', () => {
     assert.equal(capturedBody, 'Nội dung dành riêng cho Facebook Group');
     assert.equal(groupPostSynced, true);
   });
+
+  it('9. Lấy đúng URL và cờ AI từ media_assets theo content_hash đã khóa lúc duyệt khi xuất bản', async () => {
+    const lockedHash = '1234567890abcdef'.repeat(4);
+    let capturedReq: CmsPublishRequest | undefined;
+    const mockPublisher: CmsPublisher = {
+      channel: 'Facebook',
+      async publish(req: CmsPublishRequest): Promise<CmsPublishResult> {
+        capturedReq = req;
+        return {
+          success: true,
+          externalPostId: 'fb_post_with_asset_100',
+          publishedUrl: 'https://facebook.com/posts/100',
+          publishedAt: new Date(),
+        };
+      },
+      async reconcile(): Promise<CmsPublishResult> {
+        return { success: false };
+      },
+    };
+
+    const mockPool = {
+      query: async (sql: string, params: any[] = []) => {
+        if (sql.includes('candidate AS')) {
+          return { rows: [{ id: 'evt_asset_01', payload: { job_id: 'job_asset_01' }, retry_count: 1 }] };
+        }
+        if (sql.includes('FROM publishing_jobs j')) {
+          const result = {
+            facebook: { text: 'Khám phá căn hộ Studio view biển Đà Nẵng' },
+            generated_image: {
+              url: 'http://localhost:3000/uploads/generated/studio_preview.webp',
+              content_hash: lockedHash,
+              model_name: 'Juggernaut XL v9',
+              is_ai_generated: true,
+            },
+          };
+          return {
+            rows: [
+              {
+                id: 'job_asset_01',
+                workspace_id: 'ws_danang_01',
+                content_id: 'pack_studio_01',
+                approval_id: 'appr_01',
+                scheduled_for: new Date(Date.now() - 1000).toISOString(),
+                status: 'scheduled',
+                mode: 'automated',
+                body_markdown: 'Khám phá căn hộ Studio view biển Đà Nẵng',
+                content_title: 'Studio TripC 2026',
+                artifact_id: 'art_studio_01',
+                artifact_version: 1,
+                artifact_payload: { result, image_content_hash: lockedHash },
+                artifact_evidence: [],
+                content_hash: computeSha256Hex({ result, evidence: [] }),
+                platform_name: 'facebook',
+                channel_identifier: 'page_danang',
+                utm_url: null,
+                approval_status: 'approved',
+                external_post_id: null,
+              },
+            ],
+          };
+        }
+        if (sql.includes('FROM media_assets')) {
+          return {
+            rows: [
+              {
+                id: 'media_asset_101',
+                workspace_id: 'ws_danang_01',
+                content_hash: lockedHash,
+                url: 'https://cdn.tripc.vn/uploads/generated/studio_final_canonical.webp',
+                storage_key: 'generated/studio_final_canonical.webp',
+                is_ai_generated: true,
+                source_type: 'ai_generated',
+                status: 'approved',
+                alt_text: '[Ảnh tạo bởi AI] Căn hộ Studio view biển',
+              },
+            ],
+          };
+        }
+        if (sql.includes("UPDATE publishing_jobs SET status = 'published'")) {
+          return { rows: [] };
+        }
+        return { rows: [] };
+      },
+    };
+
+    const outcome = await new PublishingOutboxRunner(
+      mockPool as any,
+      new Map([['Facebook', mockPublisher]]) as any
+    ).runOnce();
+
+    assert.equal(outcome, 'published');
+    assert.ok(capturedReq);
+    assert.equal((capturedReq as CmsPublishRequest).mediaUrl, 'https://cdn.tripc.vn/uploads/generated/studio_final_canonical.webp');
+    assert.equal((capturedReq as CmsPublishRequest).imageContentHash, lockedHash);
+    assert.equal((capturedReq as CmsPublishRequest).isAiGenerated, true);
+    assert.equal((capturedReq as CmsPublishRequest).requiresImage, true);
+  });
+
+  it('10. Chặn xuất bản và báo lỗi MISSING_MEDIA_ASSET khi bài viết yêu cầu ảnh nhưng không có trong media_assets', async () => {
+    const missingHash = 'deadbeef'.repeat(8);
+    let failReason = '';
+    let failedStatus = '';
+
+    const mockPool = {
+      query: async (sql: string, params: any[] = []) => {
+        if (sql.includes('candidate AS')) {
+          return { rows: [{ id: 'evt_missing_asset', payload: { job_id: 'job_missing_asset' }, retry_count: 1 }] };
+        }
+        if (sql.includes('FROM publishing_jobs j')) {
+          const result = {
+            facebook: { text: 'Mô tả phòng thực tế nhưng kho asset thiếu ảnh' },
+            generated_image: {
+              url: 'http://localhost:3000/uploads/generated/missing.webp',
+              content_hash: missingHash,
+            },
+          };
+          return {
+            rows: [
+              {
+                id: 'job_missing_asset',
+                workspace_id: 'ws_danang_01',
+                content_id: 'pack_missing_01',
+                approval_id: 'appr_02',
+                scheduled_for: new Date(Date.now() - 1000).toISOString(),
+                status: 'scheduled',
+                mode: 'automated',
+                body_markdown: 'Mô tả phòng thực tế nhưng kho asset thiếu ảnh',
+                content_title: 'Missing Image Post',
+                artifact_id: 'art_missing_01',
+                artifact_version: 1,
+                artifact_payload: { result, image_content_hash: missingHash },
+                artifact_evidence: [],
+                content_hash: computeSha256Hex({ result, evidence: [] }),
+                platform_name: 'facebook',
+                channel_identifier: 'page_danang',
+                utm_url: null,
+                approval_status: 'approved',
+                external_post_id: null,
+              },
+            ],
+          };
+        }
+        if (sql.includes('FROM media_assets')) {
+          // Trả về rỗng: không tìm thấy asset với hash đã khóa lúc duyệt
+          return { rows: [] };
+        }
+        if (sql.includes("UPDATE publishing_jobs SET status = 'failed'")) {
+          failedStatus = 'failed';
+          failReason = params[1] || '';
+          return { rows: [] };
+        }
+        return { rows: [] };
+      },
+    };
+
+    const outcome = await new PublishingOutboxRunner(mockPool as any).runOnce();
+
+    assert.equal(outcome, 'failed');
+    assert.equal(failedStatus, 'failed');
+    assert.ok(failReason.includes('MISSING_MEDIA_ASSET'));
+  });
+
+  it('11. Chặn xuất bản và báo lỗi MEDIA_ASSET_FILE_NOT_FOUND khi file cục bộ của media_assets bị mất trên đĩa', async () => {
+    const existingHash = '5555aaaa'.repeat(8);
+    let failReason = '';
+    let failedStatus = '';
+
+    const mockPool = {
+      query: async (sql: string, params: any[] = []) => {
+        if (sql.includes('candidate AS')) {
+          return { rows: [{ id: 'evt_file_lost', payload: { job_id: 'job_file_lost' }, retry_count: 1 }] };
+        }
+        if (sql.includes('FROM publishing_jobs j')) {
+          const result = {
+            facebook: { text: 'Căn hộ Studio có file bị xóa mất' },
+            generated_image: {
+              url: 'http://localhost:3000/uploads/generated/non_existent_file_on_disk.webp',
+              content_hash: existingHash,
+            },
+          };
+          return {
+            rows: [
+              {
+                id: 'job_file_lost',
+                workspace_id: 'ws_danang_01',
+                content_id: 'pack_file_lost',
+                approval_id: 'appr_03',
+                scheduled_for: new Date(Date.now() - 1000).toISOString(),
+                status: 'scheduled',
+                mode: 'automated',
+                body_markdown: 'Căn hộ Studio có file bị xóa mất',
+                content_title: 'Lost File Post',
+                artifact_id: 'art_file_lost',
+                artifact_version: 1,
+                artifact_payload: { result, image_content_hash: existingHash },
+                artifact_evidence: [],
+                content_hash: computeSha256Hex({ result, evidence: [] }),
+                platform_name: 'facebook',
+                channel_identifier: 'page_danang',
+                utm_url: null,
+                approval_status: 'approved',
+                external_post_id: null,
+              },
+            ],
+          };
+        }
+        if (sql.includes('FROM media_assets')) {
+          // Trả về bản ghi có storage_key nhưng file cục bộ này hoàn toàn không tồn tại
+          return {
+            rows: [
+              {
+                id: 'media_asset_non_existent',
+                workspace_id: 'ws_danang_01',
+                content_hash: existingHash,
+                url: 'http://localhost:3000/uploads/generated/definitely_not_on_disk_9999.webp',
+                storage_key: 'generated/definitely_not_on_disk_9999.webp',
+                is_ai_generated: true,
+                source_type: 'ai_generated',
+                status: 'approved',
+                alt_text: 'Ảnh không có trên đĩa',
+              },
+            ],
+          };
+        }
+        if (sql.includes("UPDATE publishing_jobs SET status = 'failed'")) {
+          failedStatus = 'failed';
+          failReason = params[1] || '';
+          return { rows: [] };
+        }
+        return { rows: [] };
+      },
+    };
+
+    const outcome = await new PublishingOutboxRunner(mockPool as any).runOnce();
+
+    assert.equal(outcome, 'failed');
+    assert.equal(failedStatus, 'failed');
+    assert.ok(failReason.includes('MEDIA_ASSET_FILE_NOT_FOUND'));
+  });
 });

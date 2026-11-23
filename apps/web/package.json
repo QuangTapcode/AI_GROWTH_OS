@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/bootstrap.test.mjs",
+    "test:components": "npx vitest run tests/ApprovalView.test.tsx tests/MediaAssetImage.test.tsx",
     "test:e2e": "playwright test"
   },
   "dependencies": {

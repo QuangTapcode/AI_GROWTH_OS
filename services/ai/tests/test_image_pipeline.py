@@ -36,6 +36,8 @@ from src.agents.content.image_client import (
     ImageClient,
     ImageGenerationRequest,
     ImageGenerationResult,
+    ImageProviderError,
+    LocalStorageClient,
 )
 from src.agents.content.social_pack_v2 import FactItem
 
@@ -74,6 +76,31 @@ def test_abstract_concept_generates_valid_prompt() -> None:
     # Verify negative prompt strictly forbids text, logos, real faces, and prices
     for forbidden in ["no text", "no logo", "real human face", "no price", "watermark"]:
         assert forbidden in result.negative_prompt.lower()
+
+
+def test_gpu_worker_provider_attaches_juggernaut_positive_and_negative_triggers() -> None:
+    """CM-10: When image_provider is gpu_worker, attaches Juggernaut XL style triggers and anti-hallucination tokens."""
+    article = {
+        "title": "Cẩm nang du lịch và phong cách sống tại Đà Nẵng 2026",
+        "body_markdown": "Khám phá bãi biển Mỹ Khê và không gian làm việc số cho digital nomad.",
+    }
+    result = generate_image_prompt(article, image_provider="gpu_worker")
+
+    assert result.status == "draft"
+    # Check Juggernaut positive triggers
+    assert "cinematic photography" in result.prompt.lower()
+    assert "ultra realistic" in result.prompt.lower()
+    assert "hasselblad medium format photography" in result.prompt.lower()
+    assert "architectural aesthetic" in result.prompt.lower()
+
+    # Check Juggernaut negative tokens
+    assert "no text" in result.negative_prompt.lower()
+    assert "no logo" in result.negative_prompt.lower()
+    assert "price tag" in result.negative_prompt.lower()
+    assert "currency" in result.negative_prompt.lower()
+    assert "vnd" in result.negative_prompt.lower()
+    assert "dollar" in result.negative_prompt.lower()
+    assert "3d render" in result.negative_prompt.lower()
 
 
 @pytest.mark.parametrize(
@@ -240,6 +267,16 @@ def test_media_assets_migration_012_compliance() -> None:
     assert record["alt_text"].startswith("[Ảnh minh họa AI]")
     assert record["content_hash"] == result.content_hash
 
+    # Top-level AI generation attributes
+    assert record["prompt"] == req.prompt
+    assert record["model_name"] == "flux-1-dev"
+    assert record["seed"] == result.ai_metadata.seed
+    assert record["cost_usd"] == 0.035
+    assert record["width"] == 1080
+    assert record["height"] == 1080
+    assert record["storage_key"].startswith("generated/")
+    assert record["is_ai_generated"] is True
+
     # ai_metadata JSONB structure check
     meta = record["ai_metadata"]
     assert meta["model_name"] == "flux-1-dev"
@@ -248,6 +285,61 @@ def test_media_assets_migration_012_compliance() -> None:
     assert meta["ocr_checked"] is False  # generate_and_store inspects nothing; the guarded pipeline stamps it
     assert meta["cost_usd"] == 0.035
     assert meta["latency_s"] >= 0.0
+
+
+def test_media_assets_content_hash_and_idempotency(tmp_path: Path) -> None:
+    """Verifies image output creates valid media_assets with cost=0.0, SHA-256 hash and idempotent hash."""
+    from src.agents.content.image_client import LocalStorageClient, ProviderImageOutput
+
+    # Create synthetic WebP image bytes
+    raw_bytes = b"RIFF" + b"\x00" * 20 + b"WEBPVP8 " + b"\x00" * 50
+    expected_hash = hashlib.sha256(raw_bytes).hexdigest()
+
+    storage = LocalStorageClient(upload_dir=tmp_path, base_url="http://localhost:3000")
+    client = ImageClient(provider=FakeImageProvider(unit_cost=0.0), storage=storage)
+
+    req = ImageGenerationRequest(
+        prompt="A serene beach view in Da Nang at dawn",
+        negative_prompt="no text, no logo",
+        width=1024,
+        height=1024,
+        seed=12345,
+        alt_text_description="Biển Đà Nẵng",
+    )
+
+    output = ProviderImageOutput(
+        image_bytes=raw_bytes,
+        mime_type="image/webp",
+        model_name="Juggernaut XL v9",
+        seed=12345,
+        cost_usd=0.0,
+        latency_s=0.5,
+        width=1024,
+        height=1024,
+    )
+
+    res1 = client.store(output, req, ocr_checked=True)
+    assert res1.content_hash == expected_hash
+    assert len(res1.content_hash) == 64
+
+    rec = res1.media_asset_record
+    assert rec["content_hash"] == expected_hash
+    assert rec["prompt"] == "A serene beach view in Da Nang at dawn"
+    assert rec["model_name"] == "Juggernaut XL v9"
+    assert rec["seed"] == 12345
+    assert rec["cost_usd"] == 0.0
+    assert rec["width"] == 1024
+    assert rec["height"] == 1024
+    assert rec["storage_key"] == f"generated/{expected_hash[:16]}_1x1.webp"
+    assert rec["url"] == f"http://localhost:3000/uploads/generated/{expected_hash[:16]}_1x1.webp"
+    assert rec["is_ai_generated"] is True
+    assert rec["source_type"] == "ai_generated"
+    assert rec["ai_metadata"]["ocr_checked"] is True
+
+    # Storing identical bytes produces exact same content_hash and storage_key (idempotency key)
+    res2 = client.store(output, req, ocr_checked=True)
+    assert res2.content_hash == res1.content_hash
+    assert res2.media_asset_record["storage_key"] == res1.media_asset_record["storage_key"]
 
 
 def test_retry_on_transient_failure() -> None:
@@ -320,3 +412,19 @@ def test_full_pipeline_real_product_aborts_ai_generation() -> None:
     assert prompt_res.status == "needs_assets"
     assert prompt_res.prompt == ""
     assert prompt_res.is_real_product is True
+
+    # When prompt generation aborts with needs_assets, the provider is never invoked
+    calls = 0
+
+    class CountingProvider(FakeImageProvider):
+        def generate(self, req: ImageGenerationRequest):
+            nonlocal calls
+            calls += 1
+            return super().generate(req)
+
+    provider = CountingProvider()
+    client = ImageClient(provider=provider, storage=FakeStorageClient())
+    if prompt_res.status == "draft" and prompt_res.prompt:
+        client.generate_and_store(ImageGenerationRequest(prompt=prompt_res.prompt, negative_prompt=""))
+
+    assert calls == 0

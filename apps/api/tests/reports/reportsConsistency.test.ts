@@ -24,10 +24,16 @@ const OWNER_USER_ID = '11111111-1111-1111-1111-111111111111';
 const SALES_USER_ID = '22222222-2222-2222-2222-222222222222';
 
 describe('TQ-07: Reports, Real Metrics, Exceptions & Event Consistency', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     memoryExceptions.clear();
     memoryOutbox.clear();
     memorySnapshots.clear();
+    try {
+      const { query } = await import('../../src/lib/db');
+      await query('DELETE FROM outbox_events WHERE workspace_id = $1', [WORKSPACE_ID]);
+      await query('DELETE FROM system_exceptions WHERE workspace_id = $1', [WORKSPACE_ID]);
+      await query("DELETE FROM leads WHERE idempotency_key LIKE 'report-lead-%'");
+    } catch {}
   });
 
   describe('1. Reports & Real Metrics (Never Fake 0 for Missing)', () => {

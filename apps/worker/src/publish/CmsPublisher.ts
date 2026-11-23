@@ -30,6 +30,11 @@ export interface CmsPublishRequest {
   /** Flag indicated whether media or text is AI-generated (for Meta / TikTok compliance) */
   isAiGenerated?: boolean;
   aiImageMeta?: Record<string, any>;
+  imageContentHash?: string;
+  storageKey?: string;
+  imageFileName?: string;
+  imageFileContent?: string;
+  requiresImage?: boolean;
 }
 
 export interface CmsPublishResult {

@@ -76,6 +76,16 @@ def _int_env(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer") from exc
 
 
+def _float_env(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a float") from exc
+
+
 def _list_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     value = os.getenv(name)
     if value is None or value.strip() == "":
@@ -105,6 +115,11 @@ class Settings:
     max_provider_calls: int = 3
     # Paid and public, so off until a deployment turns it on and configures Replicate, R2 and Tesseract.
     ai_image_generation: bool = False
+    ai_image_provider: str = "flux"
+    image_storage_provider: str = "local"
+    local_storage_base_url: str = "http://localhost:3000"
+    cloud_api_base_url: str = "http://localhost:3000"
+    automation_internal_token: str = "dev_internal_secret_token_123"
     max_run_attempts: int = 2
     provider_timeout_seconds: int = 240
     job_deadline_seconds: int = 600
@@ -145,6 +160,11 @@ class Settings:
             max_output_tokens=_int_env("AI_MAX_OUTPUT_TOKENS", 2048),
             max_provider_calls=_int_env("AI_MAX_PROVIDER_CALLS", 3),
             ai_image_generation=os.getenv("AI_IMAGE_GENERATION", "off").strip().lower() in {"1", "true", "on"},
+            ai_image_provider=os.getenv("AI_IMAGE_PROVIDER", "flux").strip().lower(),
+            image_storage_provider=os.getenv("IMAGE_STORAGE_PROVIDER", "local").strip().lower(),
+            local_storage_base_url=os.getenv("LOCAL_STORAGE_BASE_URL", "http://localhost:3000").rstrip("/"),
+            cloud_api_base_url=os.getenv("CLOUD_API_BASE_URL", os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3000")).rstrip("/"),
+            automation_internal_token=os.getenv("AUTOMATION_INTERNAL_TOKEN", "dev_internal_secret_token_123"),
             max_run_attempts=_int_env("AI_MAX_RUN_ATTEMPTS", 2),
             provider_timeout_seconds=_int_env("AI_PROVIDER_TIMEOUT_SECONDS", 240),
             job_deadline_seconds=_int_env("AI_JOB_DEADLINE_SECONDS", 600),
@@ -179,3 +199,7 @@ class Settings:
             raise ValueError("AI timeouts must be positive")
         if self.embedding_batch_size <= 0 or self.max_chunk_tokens <= 0 or self.embedding_dim <= 0:
             raise ValueError("Embedding batch, chunk and dimension limits must be positive")
+        if self.ai_image_provider not in {"flux", "fake", "gpu_worker", "gpu-worker"}:
+            raise ValueError("AI_IMAGE_PROVIDER must be flux, fake, or gpu_worker")
+        if self.image_storage_provider not in {"local", "r2", "fake"}:
+            raise ValueError("IMAGE_STORAGE_PROVIDER must be local, r2 or fake")

@@ -34,8 +34,14 @@ def prepare_facebook_payload(
     media_type: Optional[str] = None,
     is_ai_generated: bool = False,
     access_token: str = "mock_token",
+    requires_image: bool = False,
+    image_content_hash: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Chuẩn bị payload gửi Meta Graph API theo chính sách minh bạch AI."""
+    # Chặn xuất bản bài viết hỏng khi bài yêu cầu ảnh nhưng không có ảnh
+    if (requires_image or image_content_hash) and not media_url:
+        raise ValueError("MISSING_MEDIA_ASSET: Bài viết yêu cầu đính kèm ảnh nhưng thiếu URL/file ảnh hợp lệ từ media_assets. Dừng xuất bản để tránh đăng bài hỏng.")
+
     caption = message.strip()
     if is_ai_generated and "[Ảnh tạo bởi AI]" not in caption:
         caption += "\n\n[Ảnh tạo bởi AI]\n#AIgenerated #ImaginedWithAI"
@@ -119,25 +125,78 @@ def generate_manual_pack(
     media_url: Optional[str] = None,
     media_type: Optional[str] = None,
     is_ai_generated: bool = False,
+    image_content_hash: Optional[str] = None,
+    storage_key: Optional[str] = None,
+    image_file_name: Optional[str] = None,
+    image_file_content: Optional[str] = None,
+    requires_image: bool = False,
 ) -> Dict[str, Any]:
     """Tạo gói đăng bài bằng tay ManualPack (gồm các tệp hướng dẫn) khi chưa được duyệt App Review."""
+    is_image_required = bool(requires_image or image_content_hash)
+    has_valid_media = bool(media_url or storage_key or image_file_content)
+    has_missing_asset = is_image_required and not has_valid_media
+    missing_reason = (
+        f"Thiếu file ảnh hợp lệ từ media_assets theo content_hash ({image_content_hash or 'unknown'}) đã khóa lúc duyệt."
+        if has_missing_asset else None
+    )
+
+    media_desc = [
+        f"Media URL: {media_url or 'N/A'}",
+        f"Type: {media_type or 'image'}",
+        f"Content Hash (SHA-256): {image_content_hash or 'N/A'}",
+        f"Storage Key: {storage_key or 'N/A'}",
+        f"File Name: {image_file_name or 'N/A'}",
+        f"AI Generated: {'Yes' if is_ai_generated else 'No'}",
+    ]
+
     files = {
         "caption.txt": caption,
-        "media_urls.txt": f"Media: {media_url}" if media_url else "Không có media",
-        "instructions.md": f"# Hướng dẫn đăng {channel}\n1. Mở trang quản trị {channel}.\n2. Dán caption.\n3. Đính kèm media.\n4. Bật nhãn AI: {is_ai_generated}\n5. Chọn chế độ riêng tư: Chỉ mình tôi.",
+        "media_urls.txt": "\n".join(media_desc) if has_valid_media else "Không có media đính kèm.",
+        "instructions.md": (
+            f"# Hướng dẫn đăng {channel}\n"
+            f"- Mã bài viết: {content_id}\n"
+            f"- Workspace: {workspace_id}\n"
+            f"- Nhãn AI: {'CÓ (Bắt buộc gắn nhãn AI)' if is_ai_generated else 'KHÔNG'}\n"
+            f"- Ảnh đính kèm (SHA-256): {image_content_hash or ('Có media' if has_valid_media else 'Không có')}\n\n"
+            + (f"> ⚠️ **CẢNH BÁO QUAN TRỌNG: Bài viết này bị thiếu file ảnh tương ứng với content_hash đã khóa lúc duyệt**: {missing_reason}\n\n" if has_missing_asset else "")
+            + "1. Mở trang quản trị.\n2. Dán caption.\n3. Đính kèm media.\n4. Bật nhãn AI nếu có.\n5. Chọn chế độ riêng tư: Chỉ mình tôi khi thử nghiệm.\n6. Đăng bài."
+        ),
         "metadata.json": json.dumps({
             "content_id": content_id,
             "workspace_id": workspace_id,
             "channel": channel,
             "is_ai_generated": is_ai_generated,
-        }),
+            "media_url": media_url,
+            "image_content_hash": image_content_hash,
+            "storage_key": storage_key,
+            "image_file_name": image_file_name,
+            "has_missing_asset": has_missing_asset,
+            "missing_asset_reason": missing_reason,
+        }, indent=2),
     }
+
+    if has_missing_asset:
+        files["ERROR_MISSING_IMAGE.txt"] = (
+            f"[CẢNH BÁO: KHÔNG ĐƯỢC ĐĂNG BÀI HỎNG]\n"
+            f"Lý do: {missing_reason}\n"
+            f"Mã bài viết: {content_id}\n"
+            f"Vui lòng kiểm tra lại kho media_assets để tải ảnh hợp lệ trước khi xuất bản."
+        )
+
+    if image_file_content:
+        fname = image_file_name or "attached_image.webp"
+        files[fname] = image_file_content
+
     return {
         "channel": channel,
         "content_id": content_id,
         "workspace_id": workspace_id,
         "label": "manual-pack",
         "is_ai_generated": is_ai_generated,
+        "image_content_hash": image_content_hash,
+        "storage_key": storage_key,
+        "has_missing_asset": has_missing_asset,
+        "missing_asset_reason": missing_reason,
         "files": files,
     }
 
@@ -193,6 +252,59 @@ class TestCM28FacebookPublisher:
         assert "caption.txt" in pack["files"]
         assert "instructions.md" in pack["files"]
         assert pack["is_ai_generated"] is True
+
+    def test_facebook_missing_media_when_required_fails_closed(self):
+        """Chặn xuất bản bài viết hỏng khi bài viết yêu cầu ảnh nhưng không có media URL."""
+        with pytest.raises(ValueError, match="MISSING_MEDIA_ASSET"):
+            prepare_facebook_payload(
+                message="Mô tả căn hộ Studio nhưng kho asset thiếu ảnh",
+                media_url=None,
+                requires_image=True,
+                image_content_hash="d" * 64,
+            )
+
+    def test_manual_pack_attaches_media_asset_by_content_hash(self):
+        """Gói ManualPack đính kèm đúng ảnh, content_hash và storage_key từ media_assets."""
+        fake_hash = "a" * 64
+        pack = generate_manual_pack(
+            content_id="post_studio_01",
+            workspace_id="ws_danang",
+            channel="FacebookGroup",
+            caption="Chi tiết phòng Studio view biển [Ảnh tạo bởi AI]",
+            media_url="http://localhost:3000/uploads/generated/studio.webp",
+            media_type="image",
+            is_ai_generated=True,
+            image_content_hash=fake_hash,
+            storage_key="generated/studio.webp",
+            image_file_name="studio.webp",
+            image_file_content="base64_webp_bytes",
+        )
+
+        assert pack["image_content_hash"] == fake_hash
+        assert pack["has_missing_asset"] is False
+        assert "studio.webp" in pack["files"]
+        assert pack["files"]["studio.webp"] == "base64_webp_bytes"
+        assert fake_hash in pack["files"]["media_urls.txt"]
+        assert "generated/studio.webp" in pack["files"]["media_urls.txt"]
+        assert fake_hash in pack["files"]["instructions.md"]
+
+    def test_manual_pack_missing_image_warns_and_prevents_broken_publishing(self):
+        """Khi bài viết yêu cầu ảnh nhưng thiếu ảnh trong media_assets: cảnh báo rõ ràng và chống đăng bài hỏng."""
+        fake_hash = "b" * 64
+        pack = generate_manual_pack(
+            content_id="post_studio_broken",
+            workspace_id="ws_danang",
+            channel="FacebookGroup",
+            caption="Bài viết thiếu ảnh",
+            requires_image=True,
+            image_content_hash=fake_hash,
+            media_url=None,
+        )
+
+        assert pack["has_missing_asset"] is True
+        assert "ERROR_MISSING_IMAGE.txt" in pack["files"]
+        assert "KHÔNG ĐƯỢC ĐĂNG BÀI HỎNG" in pack["files"]["ERROR_MISSING_IMAGE.txt"]
+        assert "CẢNH BÁO QUAN TRỌNG: Bài viết này bị thiếu file ảnh" in pack["files"]["instructions.md"]
 
 
 class TestCM29TikTokPublisher:

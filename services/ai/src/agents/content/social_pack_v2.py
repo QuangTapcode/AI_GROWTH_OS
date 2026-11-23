@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 ChannelType = Literal["facebook", "tiktok", "facebook_group"]
-SocialPackStatusType = Literal["draft", "needs_assets", "insufficient_data"]
+SocialPackStatusType = Literal["draft", "needs_assets", "insufficient_data", "image_pending"]
 GroupPostFormatType = Literal["case_study", "debate_discussion", "checklist_guide", "storytelling"]
 SentenceType = Literal["factual", "hook", "cta"]
 EntailmentStatusType = Literal["supported", "partial", "unsupported", "contradicted", "unverifiable"]
@@ -148,8 +148,9 @@ class SocialPack(BaseModel):
     version: int = Field(default=1, ge=1, description="Phiên bản của SocialPack")
     bundle_id: str | None = Field(default=None, max_length=100, description="Mã bundle immutable của Agent đã sinh ra SocialPack (VD: content_agent_release_v2)")
     content_hash: str = Field(default="", description="Mã băm toàn vẹn nội dung SHA-256")
-    status: SocialPackStatusType = Field(default="draft", description="Trạng thái: draft, needs_assets, insufficient_data")
+    status: SocialPackStatusType = Field(default="draft", description="Trạng thái: draft, needs_assets, insufficient_data, image_pending")
     rejection_reason: str | None = Field(default=None, max_length=1000, description="Lý do từ chối / cần bổ sung tài sản")
+    image_job_id: str | None = Field(default=None, max_length=100, description="Mã job sinh ảnh ngầm khi status='image_pending'")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Metadata bổ sung kỹ thuật/telemetry")
 
     @model_validator(mode="after")
@@ -161,7 +162,7 @@ class SocialPack(BaseModel):
                 raise ValueError(f"Kênh '{ch}' không hợp lệ. Chỉ chấp nhận 'facebook', 'tiktok' hoặc 'facebook_group'.")
 
         # 2. Ràng buộc trạng thái (status)
-        valid_statuses = {"draft", "needs_assets", "insufficient_data"}
+        valid_statuses = {"draft", "needs_assets", "insufficient_data", "image_pending"}
         if self.status not in valid_statuses:
             raise ValueError(f"Trạng thái '{self.status}' không hợp lệ. Chỉ chấp nhận: {sorted(valid_statuses)}.")
 

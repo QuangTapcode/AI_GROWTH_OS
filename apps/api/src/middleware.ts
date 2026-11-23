@@ -49,5 +49,5 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   // /public/* is called by the TripC site from the browser (posts, leads, events).
-  matcher: ["/v1/((?!health$).*)", "/public/:path*"],
+  matcher: ["/v1/((?!health$).*)", "/api/v1/:path*", "/public/:path*"],
 };

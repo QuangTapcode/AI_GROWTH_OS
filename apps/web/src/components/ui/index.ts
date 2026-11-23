@@ -8,3 +8,5 @@ export type { ButtonProps } from "./Button";
 export { default as Input } from "./Input";
 export type { InputProps } from "./Input";
 export { SectionHeader, EmptyState } from "./SectionHeader";
+export { default as MediaAssetImage } from "./MediaAssetImage";
+export type { MediaAssetData, MediaAssetImageProps } from "./MediaAssetImage";

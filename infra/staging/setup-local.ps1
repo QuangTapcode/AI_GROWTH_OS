@@ -1,4 +1,4 @@
-﻿param(
+param(
     # Bỏ qua Docker (Postgres/SearXNG đã chạy sẵn và infra/local/.env đã có)
     [switch]$SkipInfra
 )

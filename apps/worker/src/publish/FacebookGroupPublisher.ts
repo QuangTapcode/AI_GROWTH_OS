@@ -61,6 +61,15 @@ export class FacebookGroupPublisher implements CmsPublisher {
   async publish(req: CmsPublishRequest): Promise<CmsPublishResult & { manualPack?: ManualPack }> {
     // Chế độ 1: Graph API v21.0 Publisher (khi có groupId và accessToken)
     if (this.groupId && this.accessToken) {
+      // Nếu bài viết yêu cầu ảnh nhưng không có mediaUrl -> Dừng ngay, không đăng bài hỏng
+      if ((req.requiresImage || req.imageContentHash) && !req.mediaUrl) {
+        return {
+          success: false,
+          errorCode: 'MISSING_MEDIA_ASSET',
+          errorMessage: 'Bài viết yêu cầu hình ảnh nhưng thiếu file ảnh hợp lệ từ media_assets theo content_hash đã duyệt. Dừng xuất bản để tránh đăng bài hỏng.',
+        };
+      }
+
       const text = toPlainText(req.bodyMarkdown);
       let message = text;
       if (!message && !req.mediaUrl) {
@@ -112,6 +121,11 @@ export class FacebookGroupPublisher implements CmsPublisher {
               mediaUrl: req.mediaUrl,
               mediaType: req.mediaType,
               isAiGenerated,
+              imageContentHash: req.imageContentHash,
+              storageKey: req.storageKey,
+              imageFileName: req.imageFileName,
+              imageFileContent: req.imageFileContent,
+              requiresImage: req.requiresImage,
             },
             'FacebookGroup'
           );
@@ -144,6 +158,11 @@ export class FacebookGroupPublisher implements CmsPublisher {
             mediaUrl: req.mediaUrl,
             mediaType: req.mediaType,
             isAiGenerated,
+            imageContentHash: req.imageContentHash,
+            storageKey: req.storageKey,
+            imageFileName: req.imageFileName,
+            imageFileContent: req.imageFileContent,
+            requiresImage: req.requiresImage,
           },
           'FacebookGroup'
         );
@@ -160,6 +179,14 @@ export class FacebookGroupPublisher implements CmsPublisher {
     }
 
     // Chế độ 2: FacebookGroupBot (Puppeteer browser automation)
+    if ((req.requiresImage || req.imageContentHash) && !req.mediaUrl) {
+      return {
+        success: false,
+        errorCode: 'MISSING_MEDIA_ASSET',
+        errorMessage: 'Bài viết Facebook Group yêu cầu hình ảnh nhưng thiếu file ảnh hợp lệ từ media_assets theo content_hash đã duyệt. Dừng xuất bản để tránh đăng bài hỏng.',
+      };
+    }
+
     const groupUrl = resolveGroupUrl(req.linkUrl, this.groupId);
     if (!FacebookGroupBot.hasSavedSession()) {
       return {
