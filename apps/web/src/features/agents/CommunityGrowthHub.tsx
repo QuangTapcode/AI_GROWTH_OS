@@ -201,20 +201,23 @@ function TopicVideoPanel({ video, onPublishReel, busy }: { video?: TopicVideo | 
   if (!video) {
     return (
       <div className="mx-4 mb-3 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[11px] text-slate-500">
-        🎬 Chưa có video cho chủ đề này
+        Chưa có video giải thích cho chủ đề này
       </div>
     );
   }
   const src = `${API_BASE_URL}${video.path}`;
   return (
-    <div className="mx-4 mb-3 rounded-lg border border-violet-200 bg-violet-50 p-2">
-      <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-bold text-violet-900">
-        <span>
-          🎬 Video giải thích · {Math.round(video.duration_s)} giây · Lời Anh, phụ đề Việt
+    <div className="mx-4 mb-3 rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 shadow-2xs">
+      <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-slate-800">
+        <span className="flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          Video giải thích · {Math.round(video.duration_s)}s · Lời Anh, phụ đề Việt
         </span>
         <span
-          className={`shrink-0 rounded px-1.5 py-0.5 ${
-            video.status === "approved" ? "bg-emerald-600 text-white" : "bg-amber-400 text-slate-950"
+          className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
+            video.status === "approved" ? "bg-slate-900 text-white" : "border border-amber-300 bg-amber-50 text-amber-800"
           }`}
         >
           {video.status === "approved" ? "Đã duyệt" : "Chờ duyệt"}
@@ -226,40 +229,52 @@ function TopicVideoPanel({ video, onPublishReel, busy }: { video?: TopicVideo | 
         playsInline
         preload="metadata"
         src={src}
-        className="mx-auto max-h-80 rounded bg-black"
+        className="mx-auto max-h-80 rounded-lg bg-black w-full"
       />
-      <a
-        href={`${src}&download=1`}
-        className="mt-1.5 inline-block text-[11px] font-bold text-violet-800 hover:underline"
-      >
-        ⬇ Tải video
-      </a>
-      {video.facebook_reel?.status === "published" && video.facebook_reel.post_url && (
-        <a href={video.facebook_reel.post_url} target="_blank" rel="noreferrer"
-          className="ml-3 inline-block text-[11px] font-bold text-emerald-700 hover:underline">
-          ▶ Reel đã đăng trên Fanpage ↗
+      <div className="mt-2.5 flex flex-wrap items-center gap-3">
+        <a
+          href={`${src}&download=1`}
+          className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 underline underline-offset-2 transition-colors"
+        >
+          <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Tải video MP4
         </a>
-      )}
+        {video.facebook_reel?.status === "published" && video.facebook_reel.post_url && (
+          <a
+            href={video.facebook_reel.post_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:text-emerald-950 underline underline-offset-2 transition-colors"
+          >
+            Xem Reel trên Fanpage ↗
+          </a>
+        )}
+      </div>
       {video.facebook_reel?.status === "failed" && (
-        <p className="mt-1 rounded bg-red-50 px-2 py-1 text-[11px] text-red-700">
-          Reel chưa đăng được: {video.facebook_reel.error}
+        <p className="mt-2 rounded-lg bg-rose-50 border border-rose-200 px-2.5 py-1.5 text-xs text-rose-700">
+          Chưa đăng Reel được: {video.facebook_reel.error}
         </p>
       )}
       {video.facebook_reel?.status === "queued" && (
-        <p className="mt-1 text-[11px] font-semibold text-violet-800">⏳ Đang đăng video lên Fanpage dạng Reel…</p>
+        <p className="mt-2 text-xs font-medium text-slate-600 flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-slate-400 animate-pulse" />
+          Đang chuẩn bị đăng video lên Fanpage dạng Reel…
+        </p>
       )}
       {onPublishReel && video.facebook_reel?.status !== "published" && video.facebook_reel?.status !== "queued" && (
         <button
           type="button"
           disabled={busy}
           onClick={onPublishReel}
-          className="mt-1.5 block rounded-lg bg-violet-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+          className="mt-2.5 inline-flex items-center justify-center rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 active:scale-[0.98] transition-all disabled:opacity-50"
         >
-          {busy ? "Đang gửi…" : video.facebook_reel?.status === "failed" ? "🎬 Thử đăng lại video lên Fanpage" : "🎬 Đăng video lên Fanpage"}
+          {busy ? "Đang gửi…" : video.facebook_reel?.status === "failed" ? "Thử lại đăng video lên Fanpage" : "Đăng video lên Fanpage"}
         </button>
       )}
       {!video.facebook_reel && !onPublishReel && (
-        <p className="mt-1 text-[10px] text-violet-700">Khi bài được đăng lên Fanpage, video này tự đăng kèm dạng Reel.</p>
+        <p className="mt-1.5 text-[11px] text-slate-500">Video này tự động đăng kèm dạng Reel khi xuất bản bài viết lên Fanpage.</p>
       )}
     </div>
   );
@@ -2087,26 +2102,26 @@ export default function CommunityGrowthHub({
     return (
       <section
         id="published-posts-by-date"
-        className="space-y-4 rounded-2xl border-2 border-emerald-300 bg-gradient-to-b from-emerald-50/70 to-white p-4 sm:p-5 shadow-sm"
+        className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-[1_1_420px]">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-md bg-emerald-700 px-2.5 py-0.5 text-xs font-bold text-white">
-                📚 LƯU TRỮ BÀI ĐÃ ĐĂNG (KHÔNG BAO GIỜ ẨN)
+              <span className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">
+                Kho bài viết đã xuất bản
               </span>
-              <span className="rounded-md border border-emerald-300 bg-white px-2.5 py-0.5 text-xs font-bold text-emerald-900">
-                ✓ {primaryPublishedItems.length} bài đã đăng {targetMode === "fanpage" ? "Fanpage" : "Group Cộng đồng"}
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
+                Kênh chính ({targetMode === "fanpage" ? "Fanpage" : "Group"}): {primaryPublishedItems.length} bài
               </span>
-              <span className="rounded-md border border-slate-300 bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                Tổng đa kênh (Group + Web + Fanpage cũ): {anyChannelPublishedItems.length} bài
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                Tổng đa kênh: {anyChannelPublishedItems.length} bài
               </span>
             </div>
-            <h3 className="mt-2 text-lg font-bold text-slate-900">
-              Các Bài Đã Đăng Theo Ngày • Tháng • Năm
+            <h3 className="mt-2 text-base font-bold text-slate-900 tracking-tight">
+              Các bài đã đăng theo thời gian
             </h3>
-            <p className="mt-0.5 text-xs text-slate-600">
-              Tất cả bài đã đăng đều được lưu trữ cố định tại đây theo đúng mốc <b>Ngày / Tháng / Năm & Giờ:Phút</b> thực tế (không bị ẩn đi khi lọc lịch hẹn), kèm ảnh thật, nội dung đã đăng, link xem trực tiếp và nút thu hồi nếu cần.
+            <p className="mt-0.5 text-xs text-slate-500">
+              Lưu trữ cố định theo ngày, tháng, năm và giờ xuất bản thực tế, bao gồm tư liệu ảnh thật, nội dung đã duyệt và liên kết kiểm tra trực tiếp.
             </p>
           </div>
           {hasArchiveFilter && (
@@ -2119,47 +2134,47 @@ export default function CommunityGrowthHub({
                 setArchiveExactDate("");
                 setArchiveSearch("");
               }}
-              className="max-w-full self-start rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100"
+              className="max-w-full self-start rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-[0.98]"
             >
-              🔄 Xóa lọc ngày đã đăng
+              Xóa bộ lọc ngày
             </button>
           )}
         </div>
 
         {/* Bộ lọc kênh & Ngày / Tháng / Năm cho mục Các bài đã đăng */}
-        <div className="space-y-3 rounded-xl border border-emerald-200 bg-white p-3.5">
+        <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-slate-700">Kênh đã đăng:</span>
             {[
               {
                 id: "primary" as const,
-                label: `✓ Đã đăng ${targetMode === "fanpage" ? "Fanpage" : "Group Cộng đồng"} (${primaryPublishedItems.length})`,
+                label: `Kênh chính: ${targetMode === "fanpage" ? "Fanpage" : "Group"} (${primaryPublishedItems.length})`,
               },
               {
                 id: "group" as const,
-                label: `👥 Group Cộng đồng (${publishedGroupCount})`,
+                label: `Group Facebook (${publishedGroupCount})`,
               },
               {
                 id: "website" as const,
-                label: `🌐 Website (${currentHub.calendar.daily.filter((i) => Boolean(i.published_slug)).length})`,
+                label: `Website (${currentHub.calendar.daily.filter((i) => Boolean(i.published_slug)).length})`,
               },
               {
                 id: "fanpage" as const,
-                label: `📘 Fanpage (${publishedFanpageCount})`,
+                label: `Fanpage (${publishedFanpageCount})`,
               },
               {
                 id: "all_published" as const,
-                label: `📚 Tất cả kênh đã đăng (${anyChannelPublishedItems.length})`,
+                label: `Tất cả kênh (${anyChannelPublishedItems.length})`,
               },
             ].map((ch) => (
               <button
                 key={ch.id}
                 type="button"
                 onClick={() => setArchiveChannelFilter(ch.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-[0.98] ${
                   archiveChannelFilter === ch.id
-                    ? "bg-emerald-700 text-white shadow-sm"
-                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-emerald-50"
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 {ch.label}
