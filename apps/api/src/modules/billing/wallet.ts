@@ -172,14 +172,19 @@ export class MerchantWalletService {
   }
 
   async createTopup(workspaceId: string, packageName: string = 'growth'): Promise<any> {
-    const packages: Record<string, { amount: number; credits: number }> = {
-      starter: { amount: 200000, credits: 1000 },
-      growth: { amount: 500000, credits: 3000 },
-      scale: { amount: 1500000, credits: 10000 },
+    const packages: Record<string, { amount: number; credits: number; label: string }> = {
+      starter: { amount: 200000, credits: 1000, label: 'Gói Khởi Động (1.000 Credits)' },
+      growth: { amount: 500000, credits: 3000, label: 'Gói Tăng Trưởng (3.000 Credits)' },
+      enterprise: { amount: 1500000, credits: 10000, label: 'Gói Doanh Nghiệp (10.000 Credits)' },
+      scale: { amount: 1500000, credits: 10000, label: 'Gói Doanh Nghiệp (10.000 Credits)' },
     };
-    const sel = packages[packageName] || packages.growth;
-    const refCode = `AGY_GROWTH_${Date.now().toString().slice(-4)}`;
-    const qrUrl = `https://img.vietqr.io/image/970422-0905123456-compact2.png?amount=${sel.amount}&addInfo=${encodeURIComponent(refCode)}`;
+    const key = packageName.toLowerCase();
+    const sel = packages[key] || packages.growth;
+    const refCode = `AGY${key.slice(0, 3).toUpperCase()}${Date.now().toString().slice(-6)}`;
+    const bankBin = process.env.VIETQR_BANK_BIN?.trim() || '970422';
+    const bankAcc = process.env.VIETQR_ACCOUNT_NO?.trim() || '0905123456';
+    const accName = process.env.VIETQR_ACCOUNT_NAME?.trim() || 'AI GROWTH OS';
+    const qrUrl = `https://img.vietqr.io/image/${bankBin}-${bankAcc}-compact2.png?amount=${sel.amount}&addInfo=${encodeURIComponent(refCode)}&accountName=${encodeURIComponent(accName)}`;
 
     let txId = `tx_${Date.now()}`;
     try {
@@ -189,7 +194,13 @@ export class MerchantWalletService {
         ) VALUES (
           $1::uuid, 'topup', $2::numeric, $3::numeric, $4::varchar, 'pending', $5::jsonb
         ) RETURNING *`,
-        [workspaceId, sel.credits, sel.amount, `Nạp gói ${packageName.toUpperCase()}`, JSON.stringify({ qr_reference: refCode, vietqr_image_url: qrUrl })]
+        [
+          workspaceId,
+          sel.credits,
+          sel.amount,
+          sel.label,
+          JSON.stringify({ qr_reference: refCode, vietqr_image_url: qrUrl, bank_bin: bankBin, account_no: bankAcc, account_name: accName }),
+        ]
       );
       if (res.rows?.[0]?.id) txId = res.rows[0].id;
     } catch {
@@ -199,15 +210,101 @@ export class MerchantWalletService {
     return {
       id: txId,
       workspace_id: workspaceId,
+      package_name: sel.label,
       amount_vnd: sel.amount,
       credits_added: sel.credits,
       qr_reference: refCode,
       vietqr_image_url: qrUrl,
+      bank_bin: bankBin,
+      account_no: bankAcc,
+      account_name: accName,
+      is_demo_bank: !process.env.VIETQR_ACCOUNT_NO,
       status: 'pending',
     };
   }
 
-  async confirmPayment(workspaceId: string, _txId: string): Promise<WalletState> {
-    return this.confirmTopup(workspaceId, 3000, 500000, 'Nạp gói GROWTH');
+  async confirmPayment(workspaceId: string, txId: string): Promise<WalletState> {
+    try {
+      const txRes = await this.db.query(
+        `SELECT * FROM merchant_wallet_transactions
+         WHERE workspace_id = $1::uuid AND id = $2::uuid
+         LIMIT 1`,
+        [workspaceId, txId]
+      );
+      const tx = txRes.rows[0];
+      if (!tx) {
+        return this.getWallet(workspaceId);
+      }
+      if (tx.status === 'success') {
+        // Idempotent: already confirmed
+        return this.getWallet(workspaceId);
+      }
+      const credits = Number(tx.credits || 0);
+      const amountVnd = Number(tx.amount_vnd || 0);
+      const nextTier = amountVnd >= 1500000 ? 'enterprise' : amountVnd >= 500000 ? 'growth' : 'starter';
+
+      await this.db.query(
+        `UPDATE merchant_wallet_transactions SET status = 'success' WHERE workspace_id = $1::uuid AND id = $2::uuid`,
+        [workspaceId, txId]
+      );
+      await this.db.query(
+        `INSERT INTO merchant_wallet (workspace_id, balance_credits, balance_vnd, tier)
+         VALUES ($1::uuid, $2::numeric, $3::numeric, $4::varchar)
+         ON CONFLICT (workspace_id) DO UPDATE
+           SET balance_credits = merchant_wallet.balance_credits + EXCLUDED.balance_credits,
+               balance_vnd = merchant_wallet.balance_vnd + EXCLUDED.balance_vnd,
+               tier = EXCLUDED.tier,
+               updated_at = NOW()`,
+        [workspaceId, credits, amountVnd, nextTier]
+      );
+      return this.getWallet(workspaceId);
+    } catch {
+      return this.confirmTopup(workspaceId, 3000, 500000, 'Nạp gói GROWTH');
+    }
+  }
+
+  async confirmByQrReference(qrReference: string, paidAmountVnd?: number): Promise<{ matched: boolean; workspace_id?: string; credits_added?: number }> {
+    const cleanRef = (qrReference || '').trim();
+    if (!cleanRef) return { matched: false };
+    try {
+      const res = await this.db.query(
+        `SELECT * FROM merchant_wallet_transactions
+         WHERE status = 'pending' AND metadata->>'qr_reference' = $1::text
+         ORDER BY created_at DESC LIMIT 1`,
+        [cleanRef]
+      );
+      const tx = res.rows[0];
+      if (!tx) return { matched: false };
+      if (typeof paidAmountVnd === 'number' && paidAmountVnd > 0 && paidAmountVnd < Number(tx.amount_vnd || 0)) {
+        return { matched: false };
+      }
+      await this.confirmPayment(tx.workspace_id, tx.id);
+      return { matched: true, workspace_id: tx.workspace_id, credits_added: Number(tx.credits || 0) };
+    } catch {
+      return { matched: false };
+    }
+  }
+
+  async deductCredits(workspaceId: string, credits: number, description: string): Promise<void> {
+    if (!workspaceId || credits <= 0) return;
+    try {
+      await this.db.query(
+        `UPDATE merchant_wallet
+         SET balance_credits = GREATEST(0, balance_credits - $2::numeric),
+             updated_at = NOW()
+         WHERE workspace_id = $1::uuid`,
+        [workspaceId, credits]
+      );
+      await this.db.query(
+        `INSERT INTO merchant_wallet_transactions (
+          workspace_id, tx_type, credits, amount_vnd, description, status
+        ) VALUES (
+          $1::uuid, 'usage', $2::numeric, 0, $3::varchar, 'success'
+        )`,
+        [workspaceId, -Math.abs(credits), description.slice(0, 240)]
+      );
+    } catch {
+      // Non-blocking usage metering
+    }
   }
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 interface LLMConfig {
   workspace_id: string;
@@ -40,7 +41,7 @@ export function LLMAdapterAdmin({ workspaceId }: LLMAdapterAdminProps) {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/v1/workspaces/${workspaceId}/admin/llm-config`);
+        const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/admin/llm-config`);
         const json = await res.json();
         if (json.ok && json.config) {
           setConfig(json.config);
@@ -57,7 +58,7 @@ export function LLMAdapterAdmin({ workspaceId }: LLMAdapterAdminProps) {
     setIsLoading(true);
     setSaveMessage(null);
     try {
-      const res = await fetch(`/v1/workspaces/${workspaceId}/admin/llm-config`, {
+      const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/admin/llm-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -78,7 +79,7 @@ export function LLMAdapterAdmin({ workspaceId }: LLMAdapterAdminProps) {
   const handlePing = async (provider: string) => {
     setIsPinging(provider);
     try {
-      const res = await fetch(`/v1/workspaces/${workspaceId}/admin/llm-config/test-ping`, {
+      const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/admin/llm-config/test-ping`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider }),

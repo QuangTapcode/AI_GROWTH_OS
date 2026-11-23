@@ -1,12 +1,21 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 interface WalletState {
   workspace_id: string;
   balance_credits: number;
   balance_vnd: number;
   tier: string;
+  transactions?: Array<{
+    id: string;
+    type: 'topup' | 'usage';
+    credits: number;
+    amount_vnd: number;
+    description: string;
+    created_at: string;
+  }>;
 }
 
 interface WalletTopupModalProps {
@@ -32,7 +41,7 @@ export function WalletTopupModal({ workspaceId, isOpen, onClose }: WalletTopupMo
     if (!isOpen) return;
     async function load() {
       try {
-        const res = await fetch(`/v1/workspaces/${workspaceId}/wallet`);
+        const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/wallet`);
         const json = await res.json();
         if (json.ok && json.wallet) {
           setWallet(json.wallet);
@@ -48,7 +57,7 @@ export function WalletTopupModal({ workspaceId, isOpen, onClose }: WalletTopupMo
     setIsLoading(true);
     setSuccessMsg(null);
     try {
-      const res = await fetch(`/v1/workspaces/${workspaceId}/wallet/topup`, {
+      const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/wallet/topup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ package_name: selectedPackage }),
@@ -68,7 +77,7 @@ export function WalletTopupModal({ workspaceId, isOpen, onClose }: WalletTopupMo
     if (!activeTx) return;
     setIsConfirming(true);
     try {
-      const res = await fetch(`/v1/workspaces/${workspaceId}/wallet/confirm`, {
+      const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/wallet/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transaction_id: activeTx.id }),
@@ -90,7 +99,7 @@ export function WalletTopupModal({ workspaceId, isOpen, onClose }: WalletTopupMo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="p-6 bg-gradient-to-r from-emerald-800 to-teal-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -195,6 +204,37 @@ export function WalletTopupModal({ workspaceId, isOpen, onClose }: WalletTopupMo
                   {isLoading ? 'Đang tạo mã thanh toán...' : 'Tạo Mã VietQR Thanh Toán'}
                 </button>
               </div>
+
+              <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                ⚡ <strong>Cơ chế tính phí SaaS:</strong> Mỗi lượt AI Agent tạo bài viết, biên tập nội dung hoặc phản hồi tự động tiêu thụ <strong>1 credit</strong>. Số dư được trừ trực tiếp vào ví của doanh nghiệp này.
+              </div>
+
+              {wallet.transactions && wallet.transactions.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Lịch Sử Nạp &amp; Tiêu Thụ Credit Gần Đây
+                  </div>
+                  <div className="max-h-36 overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+                    {wallet.transactions.slice(0, 6).map((tx) => (
+                      <div key={tx.id} className="px-3 py-2 flex items-center justify-between text-xs">
+                        <div className="min-w-0 pr-2">
+                          <div className="font-semibold text-slate-800 truncate">{tx.description}</div>
+                          <div className="text-[10px] text-slate-400">
+                            {new Date(tx.created_at).toLocaleString('vi-VN')}
+                          </div>
+                        </div>
+                        <span
+                          className={`font-bold shrink-0 ${
+                            tx.type === 'topup' ? 'text-emerald-600' : 'text-rose-600'
+                          }`}
+                        >
+                          {tx.type === 'topup' ? `+${Math.abs(tx.credits)}` : `-${Math.abs(tx.credits)}`} cr
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             /* VietQR Payment Screen */
