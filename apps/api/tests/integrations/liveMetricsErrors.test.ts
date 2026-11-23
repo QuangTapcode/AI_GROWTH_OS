@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/db', () => ({ withTransaction: async (fn: (client: unknown) => unknown) => fn({ query: async () => ({ rows: [] }) }) }));
-vi.mock('@/modules/integrations/repository', () => ({ upsertConnection: vi.fn() }));
+vi.mock('@/modules/integrations/repository', () => ({ upsertConnection: vi.fn(), listConnections: vi.fn(async () => [
+  { provider: 'meta_ads', account_ref: 'act_1', status: 'connected' },
+]) }));
 
 const saved = { ...process.env };
 

@@ -273,6 +273,7 @@ function DistributionContent() {
     };
   });
 
+
   const handleSyncPostStats = async () => {
     setSyncingStats(true);
     try {
@@ -517,7 +518,7 @@ function DistributionContent() {
                               <div className="min-w-0 flex-1">
                                 <p className="font-bold text-slate-900 break-words">{job.content_title}</p>
                                 <p className="text-[11px] text-slate-500 mt-0.5">
-                                  {job.channel_name ?? humanize(job.platform_name)} · Đăng lúc{" "}
+                                  {job.channel_name ?? (job.platform_name ? humanize(job.platform_name) : "Kênh")} · Đăng lúc{" "}
                                   {formatDateTime(job.published_at || job.scheduled_for)}
                                 </p>
                               </div>
@@ -551,6 +552,7 @@ function DistributionContent() {
 
             <GeneratedPosts artifacts={data.artifacts} approvals={data.approvals} jobs={data.jobs} sitePosts={data.sitePosts}
               facebook={data.facebook} facebookGroup={data.facebookGroup} websiteAutoPublish={data.websiteAutoPublish} />
+
             <section className={`${card} p-6`}>
               <h2 className="text-sm font-bold text-slate-900">Ready to publish</h2>
               <p className="text-[11px] text-slate-400 mt-0.5 mb-4">Artifacts whose exact current version was approved by an owner.</p>
@@ -642,7 +644,7 @@ function DistributionContent() {
                             </p>
                           </th>
                           <td className="px-3 py-3 text-slate-700">
-                            {job.channel_name ?? humanize(job.platform_name)}
+                            {job.channel_name ?? (job.platform_name ? humanize(job.platform_name) : "Kênh")}
                             <span className="ml-1.5 text-[10px] text-slate-400">{job.mode}</span>
                           </td>
                           <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{formatDateTime(job.scheduled_for)}</td>
@@ -653,6 +655,14 @@ function DistributionContent() {
                             {matchedMetric && (
                               <p className="mt-1 text-[10px] font-bold text-rose-800 whitespace-nowrap">
                                 ❤️ {matchedMetric.likes_count} · 💬 {matchedMetric.comments_count} · ↗️ {matchedMetric.shares_count}
+                              </p>
+                            )}
+                            {job.status === "failed" && job.error_message && (
+                              <p className="mt-1 text-[10px] text-rose-700 max-w-xs break-words">{job.error_message}</p>
+                            )}
+                            {job.status === "published" && job.external_post_id && (
+                              <p className="mt-1 text-[10px] text-slate-500 font-mono truncate max-w-[160px]" title={job.external_post_id}>
+                                ID: {job.external_post_id}
                               </p>
                             )}
                             {job.published_at && <p className="text-[10px] text-slate-400 mt-0.5">{timeAgo(job.published_at)}</p>}
@@ -697,9 +707,9 @@ function DistributionContent() {
                 {data.channels.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/40">
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 truncate">{c.display_name ?? humanize(c.platform_name)}</p>
+                      <p className="text-xs font-bold text-slate-900 truncate">{c.display_name ?? (c.platform_name ? humanize(c.platform_name) : c.id)}</p>
                       <p className="text-[11px] text-slate-500 truncate">
-                        {humanize(c.platform_name)}
+                        {c.platform_name ? humanize(c.platform_name) : "Channel"}
                         {c.channel_identifier ? ` · ${c.channel_identifier}` : ""}
                       </p>
                     </div>

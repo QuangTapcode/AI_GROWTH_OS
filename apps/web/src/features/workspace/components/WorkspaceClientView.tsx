@@ -213,35 +213,99 @@ const PROVIDER_LABELS: Record<string, string> = {
   gsc: "Google Search Console",
   facebook_group: "Facebook Group (Cộng đồng)",
   facebook_page: "Facebook Page (Messenger & RAG)",
+  tiktok: "TikTok Content Posting API",
   instagram_business: "Instagram Business",
   meta_ads: "Meta Ads",
   website_cms: "Website CMS",
 };
 
-function IntegrationsCard({ data }: { data: IntegrationsResponse }) {
+function IntegrationsCard({
+  data,
+  workspaceId,
+  canEdit,
+  onUpdated,
+  onToast,
+}: {
+  data: IntegrationsResponse;
+  workspaceId: string;
+  canEdit: boolean;
+  onUpdated: () => void;
+  onToast: (message: string) => void;
+}) {
+  const [tikTokBusy, setTikTokBusy] = useState(false);
+
+  const connectTikTok = async () => {
+    setTikTokBusy(true);
+    try {
+      const auth = await growthApi.getTikTokAuthUrl(workspaceId, "/workspace#integrations");
+      window.location.assign(auth.url);
+    } catch (err) {
+      onToast(errorText(err, "Không thể tạo liên kết kết nối TikTok."));
+      setTikTokBusy(false);
+    }
+  };
+
+  const disconnectTikTok = async () => {
+    setTikTokBusy(true);
+    try {
+      await growthApi.disconnectTikTok(workspaceId);
+      onToast("Đã ngắt kết nối tài khoản TikTok.");
+      onUpdated();
+    } catch (err) {
+      onToast(errorText(err, "Không thể ngắt kết nối TikTok."));
+    } finally {
+      setTikTokBusy(false);
+    }
+  };
+
   return (
     <section id="integrations" className={card}>
       <h2 className="text-sm font-bold text-slate-900">Connection status</h2>
       <p className="text-[11px] text-slate-400 mt-0.5 mb-4">Analytics, search, social and CMS connectors for this workspace.</p>
       <ul className="space-y-2">
         {data.providers.map((p) => (
-          <li key={p.provider} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/40">
-            <div className="min-w-0">
+          <li key={p.provider} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/40">
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-slate-900">{PROVIDER_LABELS[p.provider] ?? humanize(p.provider)}</p>
               <p className="text-[11px] text-slate-500 truncate">
+                {p.property_ref ? `${p.property_ref} · ` : ""}
                 {p.capabilities.map((c) => humanize(c.capability).toLowerCase()).join(" · ")}
               </p>
             </div>
-            <span
-              title={p.missing_reason ?? undefined}
-              className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                p.status === "connected"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-amber-50 text-amber-700 border-amber-200"
-              }`}
-            >
-              {p.status === "connected" ? "Connected" : humanize((p.missing_reason ?? p.status).toLowerCase())}
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {p.provider === "tiktok" && canEdit && (
+                <>
+                  <button
+                    type="button"
+                    disabled={tikTokBusy}
+                    onClick={() => void connectTikTok()}
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white cursor-pointer disabled:opacity-50"
+                  >
+                    {tikTokBusy ? "Đang mở…" : p.status === "connected" ? "Đổi tài khoản" : "Kết nối TikTok"}
+                  </button>
+                  {(p.status === "connected" || p.status === "error") && (
+                    <button
+                      type="button"
+                      disabled={tikTokBusy}
+                      onClick={() => void disconnectTikTok()}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer disabled:opacity-50"
+                    >
+                      Ngắt
+                    </button>
+                  )}
+                </>
+              )}
+              <span
+                title={p.missing_reason ?? undefined}
+                className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  p.status === "connected"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200"
+                }`}
+              >
+                {p.status === "connected" ? "Connected" : humanize((p.missing_reason ?? p.status).toLowerCase())}
+              </span>
+            </div>
           </li>
         ))}
       </ul>
@@ -354,6 +418,34 @@ function WorkspaceContent() {
     if (data && window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ behavior: "smooth" });
   }, [data]);
 
+  // Hiển thị thông báo khi quay về từ TikTok OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tt = params.get("tiktok");
+    const ttName = params.get("tiktok_name");
+    const ttError = params.get("tiktok_error");
+    if (tt !== "connected" && !ttError) return;
+
+    const message =
+      tt === "connected"
+        ? `Đã kết nối TikTok thành công${ttName ? ` (${ttName})` : ""}.`
+        : `Lỗi kết nối TikTok: ${ttError}`;
+
+    const timer = window.setTimeout(() => {
+      setToast(message);
+      params.delete("tiktok");
+      params.delete("tiktok_name");
+      params.delete("tiktok_error");
+      const nextSearch = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
@@ -385,7 +477,13 @@ function WorkspaceContent() {
             <MembersCard members={data.members} />
           </div>
           <div className="xl:col-span-5 space-y-6">
-            <IntegrationsCard data={data.integrations} />
+            <IntegrationsCard
+              data={data.integrations}
+              workspaceId={workspace.id}
+              canEdit={canEdit}
+              onUpdated={reload}
+              onToast={setToast}
+            />
             <AccountCard />
           </div>
         </div>

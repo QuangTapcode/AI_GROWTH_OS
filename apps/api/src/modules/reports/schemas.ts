@@ -1,21 +1,16 @@
 import { z } from 'zod';
 import type { MissingReason } from '../integrations/types';
+import { isoDate, timezoneSchema } from '../metrics/period';
 
 /**
  * TQ-07 — Schemas for Reports, Metrics, Exceptions & Outbox Events
  */
 
 export const reportQuerySchema = z.object({
-  from: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'from must be YYYY-MM-DD')
-    .optional(),
-  to: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'to must be YYYY-MM-DD')
-    .optional(),
-  timezone: z.string().trim().default('Asia/Bang_Chi_Minh'),
-  currency: z.string().trim().default('VND'),
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+  timezone: timezoneSchema.default('Asia/Ho_Chi_Minh'),
+  currency: z.string().trim().regex(/^[A-Z]{3}$/).default('VND'),
 });
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
 export type ReportQueryInput = z.input<typeof reportQuerySchema>;
@@ -26,6 +21,7 @@ export interface MetricItem {
   availability: 'available' | 'missing' | 'partial' | 'delayed';
   missing_reason: MissingReason | string | null;
   currency?: string;
+  timezone?: string;
 }
 
 export const exceptionSeveritySchema = z.enum(['low', 'medium', 'high', 'critical']);

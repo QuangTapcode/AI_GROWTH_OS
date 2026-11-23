@@ -26,7 +26,14 @@ export interface CmsPublishRequest {
   /** Optional canonical URL/media supplied by the approved artifact. */
   linkUrl?: string;
   mediaUrl?: string;
+  mediaPath?: string;
   mediaType?: 'video' | 'image';
+  /** Runtime workspace OAuth override loaded from encrypted DB storage. */
+  authOverride?: {
+    accessToken: string;
+    openId?: string;
+    privacyLevel?: string;
+  };
   /** Flag indicated whether media or text is AI-generated (for Meta / TikTok compliance) */
   isAiGenerated?: boolean;
   aiImageMeta?: Record<string, any>;
@@ -53,7 +60,10 @@ export interface CmsPublishResult {
 export abstract class CmsPublisher {
   abstract channel: PublishChannel;
   abstract publish(req: CmsPublishRequest): Promise<CmsPublishResult>;
-  abstract reconcile(externalPostId: string): Promise<CmsPublishResult>;
+  abstract reconcile(
+    externalPostId: string,
+    authOverride?: CmsPublishRequest['authOverride']
+  ): Promise<CmsPublishResult>;
 }
 
 /**
@@ -179,10 +189,11 @@ if ((process.env.INTEGRATION_MODE || 'fake') === 'production') {
     // Register FacebookGroupPublisher dynamically so newly saved .fb-session.json works without restarting the worker
     defaultRegistry.register('FacebookGroup', new FacebookGroupPublisher());
   }
-  const tiktokToken = process.env.TIKTOK_ACCESS_TOKEN;
-  defaultRegistry.register('TikTok', tiktokToken
-    ? new TikTokPublisher(tiktokToken, process.env.TIKTOK_OPEN_ID)
-    : new UnavailablePublisher('TikTok', 'TIKTOK_ACCOUNT_NOT_CONNECTED'));
+  // Register TikTokPublisher dynamically so newly saved sessions / DB OAuth tokens work without restarting the worker
+  defaultRegistry.register(
+    'TikTok',
+    new TikTokPublisher(process.env.TIKTOK_ACCESS_TOKEN || '', process.env.TIKTOK_OPEN_ID)
+  );
 } else {
   // Register mock publishers for local deterministic tests only.
   defaultRegistry.register('Website', new MockCmsPublisher('Website', 'success'));

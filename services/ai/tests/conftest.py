@@ -18,6 +18,17 @@ from src.app.config import Settings  # noqa: E402
 from src.app.main import create_app  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def no_live_weather(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests never call the real forecast service; a test that needs a forecast patches its own."""
+    from src.agents.community import weather
+
+    async def offline(lat: float, lon: float) -> dict:
+        raise weather.httpx.ConnectError("tests are offline")
+
+    monkeypatch.setattr(weather, "fetch_forecast", offline)
+
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return replace(Settings(), run_store_path=str(tmp_path / "runs.sqlite3"))

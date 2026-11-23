@@ -89,7 +89,33 @@ export default function DashboardSidebar({
   };
 
   const navItems = [
-    { id: "agents", label: "Agent Operations", href: "/agents", icon: <span className="text-lg" aria-hidden="true">↗</span> },
+    {
+      id: "agents",
+      label: "Agent Operations",
+      href: "/agents",
+      icon: (
+        <svg
+          className="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+          <rect x="9" y="9" width="6" height="6" />
+          <line x1="9" y1="1" x2="9" y2="4" />
+          <line x1="15" y1="1" x2="15" y2="4" />
+          <line x1="9" y1="20" x2="9" y2="23" />
+          <line x1="15" y1="20" x2="15" y2="23" />
+          <line x1="20" y1="9" x2="23" y2="9" />
+          <line x1="20" y1="14" x2="23" y2="14" />
+          <line x1="1" y1="9" x2="4" y2="9" />
+          <line x1="1" y1="14" x2="4" y2="14" />
+        </svg>
+      ),
+    },
     {
       id: "overview",
       label: "Overview",
@@ -472,6 +498,58 @@ export default function DashboardSidebar({
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Channel & Data Connections */}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/onboarding")}
+            className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
+          >
+            <span className="text-sm">🔗</span>
+            <span className="text-xs font-medium text-white">
+              Kết Nối Kênh & Dữ Liệu
+            </span>
+          </div>
+
+          {/* Agent 2 & 5: Google Maps & Drive */}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/gmaps")}
+            className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
+          >
+            <span className="text-sm">📍</span>
+            <span className="text-xs font-medium text-white">
+              Google Maps & Kho Drive
+            </span>
+          </div>
+
+          {/* Agent 7: Omnichannel Inbox & Lead Concierge */}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/booking-leads")}
+            className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
+          >
+            <span className="text-sm">🛎️</span>
+            <span className="text-xs font-medium text-white">
+              Inbox 1-1 & Chốt Lead
+            </span>
+          </div>
+
+          {/* Multi-LLM Auto-Switch Admin */}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/admin/llm")}
+            className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
+          >
+            <span className="text-sm">🎛️</span>
+            <span className="text-xs font-medium text-white">
+              Multi-LLM Auto-Switch
+            </span>
           </div>
 
           {/* Knowledge Contexts */}

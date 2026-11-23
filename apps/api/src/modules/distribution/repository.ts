@@ -24,6 +24,10 @@ export interface PublishingJobRow {
   utm_url: string | null;
   external_post_id: string | null;
   error_message: string | null;
+  media_url: string | null;
+  media_type: string | null;
+  custom_caption: string | null;
+  tiktok_video_id: string | null;
   created_by: string | null;
   created_at: string;
   content_title: string;
@@ -34,7 +38,8 @@ export interface PublishingJobRow {
 
 const JOB_SELECT = `
   SELECT j.id, j.workspace_id, j.content_id, j.channel_id, j.artifact_id, j.approval_id, j.scheduled_for,
-         j.published_at, j.status, j.mode, j.utm_url, j.external_post_id, j.error_message, j.created_by, j.created_at,
+         j.published_at, j.status, j.mode, j.utm_url, j.external_post_id, j.error_message,
+         j.media_url, j.media_type, j.custom_caption, j.tiktok_video_id, j.created_by, j.created_at,
          c.title AS content_title, a.version AS artifact_version, ch.platform_name, ch.display_name AS channel_name
   FROM publishing_jobs j
   JOIN contents c ON c.id = j.content_id AND c.workspace_id = j.workspace_id

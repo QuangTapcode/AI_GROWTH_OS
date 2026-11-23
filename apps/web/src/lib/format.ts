@@ -31,7 +31,8 @@ export function operationLabel(operation: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-export function humanize(value: string): string {
+export function humanize(value?: string | null): string {
+  if (!value) return "";
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 

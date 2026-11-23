@@ -2,9 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Pool } from 'pg';
 import { createGatewayCheck } from './GatewayRecheckClient';
-import { defaultRegistry, type PublisherRegistry } from './CmsPublisher';
+import { defaultRegistry, type CmsPublishRequest, type PublisherRegistry } from './CmsPublisher';
 import { PublishJobProcessor, type PublishContext } from './PublishJobProcessor';
+import { SocialTokenManager } from './SocialTokenManager';
 import { recheckBeforeOutbox } from './gateway_recheck';
+import { enqueueReel } from './ReelOutboxRunner';
+import { resolveTikTokMediaPath } from './TikTokPublisher';
+import {
+  ensureAutoTikTokVideo,
+  extractSourceIdFromEvidence,
+  type AutoTikTokVideoInput,
+} from './TikTokAutoVideoRenderer';
 
 type PublishChannel = PublishContext['channel'];
 
@@ -12,6 +20,7 @@ export interface OutboxRunnerOptions {
   maxRetries?: number;
   baseBackoffSeconds?: number;
   maxBackoffSeconds?: number;
+  autoVideoRenderer?: (input: AutoTikTokVideoInput) => Promise<string>;
 }
 
 /**
@@ -28,6 +37,7 @@ export class PublishingOutboxRunner {
   private readonly processor: PublishJobProcessor;
   private readonly maxRetries: number;
   private readonly maxBackoffSeconds: number;
+  private readonly customAutoVideoRenderer?: (input: AutoTikTokVideoInput) => Promise<string>;
 
   constructor(
     pool: Pool,
@@ -39,6 +49,7 @@ export class PublishingOutboxRunner {
     this.processor = new PublishJobProcessor(this.registry);
     this.maxRetries = options.maxRetries ?? 5;
     this.maxBackoffSeconds = options.maxBackoffSeconds ?? 300;
+    this.customAutoVideoRenderer = options.autoVideoRenderer;
   }
 
   async runOnce(): Promise<'idle' | 'published' | 'deferred' | 'failed'> {
@@ -71,6 +82,11 @@ export class PublishingOutboxRunner {
       scheduled_for: string;
       status: string;
       mode: string;
+      media_url?: string | null;
+      media_path?: string | null;
+      media_type?: string | null;
+      custom_caption?: string | null;
+      tiktok_video_id?: string | null;
       body_markdown: string | null;
       content_title: string;
       artifact_id: string | null;
@@ -86,6 +102,7 @@ export class PublishingOutboxRunner {
       external_post_id: string | null;
     }>(`
       SELECT j.id, j.workspace_id, j.content_id, j.approval_id, j.scheduled_for, j.status, j.mode,
+             j.media_url, j.media_path, j.media_type, j.custom_caption, j.tiktok_video_id,
              c.body_markdown, c.title AS content_title, j.artifact_id,
              a.version AS artifact_version, a.content_hash, a.payload AS artifact_payload, a.evidence AS artifact_evidence,
              j.channel_id, ch.platform_name, ch.channel_identifier, j.utm_url,
@@ -220,6 +237,16 @@ export class PublishingOutboxRunner {
       `UPDATE publishing_jobs SET status = 'publishing' WHERE id = $1 AND status = 'scheduled'`,
       [job.id]
     );
+    if (job.tiktok_video_id) {
+      try {
+        await this.pool.query(
+          `UPDATE tiktok_videos SET status = 'publishing', error_message = NULL, updated_at = NOW() WHERE id = $1`,
+          [job.tiktok_video_id]
+        );
+      } catch {
+        // Ignore if table doesn't exist in mock tests
+      }
+    }
 
     const payload = job.artifact_payload ?? {};
     // The approved post carries its images in the artifact result; pick the first approved image that has
@@ -256,7 +283,7 @@ export class PublishingOutboxRunner {
       payload.media_content_hash
     );
 
-    const postRequiresImage = Boolean(
+    const postRequiresImage = channel !== 'TikTok' && channel !== 'InstagramReel' && Boolean(
       lockedImageHash ||
       approvedPost?.generated_image ||
       (approvedPost?.image_assets && approvedPost.image_assets.length > 0) ||
@@ -349,13 +376,16 @@ export class PublishingOutboxRunner {
       payloadResult.facebook && typeof payloadResult.facebook === 'object' ? payloadResult.facebook : {}
     ) as Record<string, unknown>;
     const resolvedBodyMarkdown =
+      asString(job.custom_caption) ??
       asString(job.body_markdown) ??
       (channel === 'Facebook' || channel === 'FacebookGroup' ? asString(payloadFacebook.text) : undefined) ??
       asString(payloadResult.caption) ??
       asString(payloadResult.body_markdown) ??
       asString(payload.document_markdown) ??
       '';
-    const resolvedMediaUrl = asString(mediaAssetRow?.url ?? payload.media_url ?? payload.mediaUrl ?? image?.url);
+    let resolvedMediaUrl = asString(
+      mediaAssetRow?.url ?? job.media_url ?? payload.media_url ?? payload.mediaUrl ?? payloadResult.media_url ?? image?.url
+    );
 
     // Chặn xuất bản nếu bài viết yêu cầu ảnh mà không thể lấy được URL hoặc file ảnh hợp lệ
     if (postRequiresImage && !resolvedMediaUrl && !imageFileContent) {
@@ -367,6 +397,83 @@ export class PublishingOutboxRunner {
       );
     }
 
+    // The API stores the path inside its container; find the same upload on this machine.
+    let resolvedMediaPath = resolveTikTokMediaPath(asString(job.media_path ?? payload.media_path ?? payload.mediaPath));
+    let resolvedMediaType = asMediaType(
+      job.media_type ?? payload.media_type ?? payload.mediaType ?? payloadResult.media_type ?? (image || mediaAssetRow ? 'image' : undefined)
+    );
+    const hasLocalMediaFile = Boolean(resolvedMediaPath && fs.existsSync(resolvedMediaPath));
+    const hasDirectVideoUrl = Boolean(
+      resolvedMediaUrl &&
+      resolvedMediaType === 'video' &&
+      /\.(mp4|mov|webm)(\?|$)/i.test(resolvedMediaUrl)
+    );
+    const shouldRenderTikTokVideo =
+      channel === 'TikTok' &&
+      !hasLocalMediaFile &&
+      !hasDirectVideoUrl &&
+      ((process.env.INTEGRATION_MODE || 'fake') === 'production' || Boolean(this.customAutoVideoRenderer));
+    if (shouldRenderTikTokVideo) {
+      try {
+        const tiktokObj = (
+          payloadResult.tiktok && typeof payloadResult.tiktok === 'object' ? payloadResult.tiktok : {}
+        ) as Record<string, unknown>;
+        const hookText =
+          asString(tiktokObj.hook) ??
+          asString(payloadFacebook.hook) ??
+          asString(payloadResult.caption)?.split(/\r?\n/)[0]?.trim() ??
+          job.content_title;
+        const rawTitle = asString(job.content_title);
+        const resolvedTitle =
+          rawTitle && !['content', 'seo', 'social_post'].includes(rawTitle.toLowerCase())
+            ? rawTitle
+            : (hookText || 'TripC Growth OS');
+        const renderFn = this.customAutoVideoRenderer ?? ensureAutoTikTokVideo;
+        const renderedPath = await renderFn({
+          workspaceId: job.workspace_id,
+          jobId: job.id,
+          title: resolvedTitle,
+          hook: hookText,
+          cta: asString(tiktokObj.cta) ?? asString(payloadResult.cta) ?? 'Follow TripC on TikTok',
+          imageUrl: asString(image?.url) ?? resolvedMediaUrl ?? null,
+          sourceId: extractSourceIdFromEvidence(job.artifact_evidence),
+        });
+        resolvedMediaPath = renderedPath;
+        resolvedMediaType = 'video';
+        resolvedMediaUrl = undefined;
+        const fileSize = fs.existsSync(renderedPath) ? fs.statSync(renderedPath).size : null;
+        try {
+          await this.pool.query(
+            `UPDATE publishing_jobs SET media_path = $2, media_type = 'video' WHERE id = $1`,
+            [job.id, renderedPath]
+          );
+          if (job.tiktok_video_id) {
+            await this.pool.query(
+              `UPDATE tiktok_videos SET file_path = $2, file_size_bytes = COALESCE($3, file_size_bytes), updated_at = NOW() WHERE id = $1`,
+              [job.tiktok_video_id, renderedPath, fileSize]
+            );
+          }
+        } catch {
+          // Non-fatal in mock pools without these columns
+        }
+      } catch (renderErr) {
+        return this.failEvent(
+          event.id,
+          job.id,
+          'TIKTOK_VIDEO_RENDER_FAILED',
+          renderErr instanceof Error ? renderErr.message : 'Auto TikTok video render failed',
+          {
+            ...job,
+            body_text: resolvedBodyMarkdown,
+            image_url: resolvedMediaUrl,
+          }
+        );
+      }
+    }
+    const resolvedTikTokAuth =
+      channel === 'TikTok'
+        ? await this.resolveTikTokAuth(job.workspace_id, asString(payloadResult.privacy_level))
+        : undefined;
     const gatewayCheck = createGatewayCheck();
 
     const resolvedIsAi = Boolean(
@@ -391,7 +498,9 @@ export class PublishingOutboxRunner {
         metaTitle: job.content_title,
         linkUrl: job.utm_url ?? undefined,
         mediaUrl: resolvedMediaUrl,
-        mediaType: asMediaType(payload.media_type ?? payload.mediaType ?? (image || mediaAssetRow ? 'image' : undefined)),
+        mediaPath: resolvedMediaPath,
+        mediaType: resolvedMediaType ?? asMediaType(payload.media_type ?? payload.mediaType ?? (image || mediaAssetRow ? 'image' : undefined)),
+        authOverride: resolvedTikTokAuth,
         expectedVersion: job.artifact_version,
         contentHash: job.content_hash,
         approvalId: job.approval_id ?? undefined,
@@ -425,7 +534,10 @@ export class PublishingOutboxRunner {
           const publisher = this.registry.get(channel);
           if (publisher) {
             try {
-              const reconciled = await publisher.reconcile(result.externalPostId || idempotencyKey);
+              const queryKey = result.externalPostId || idempotencyKey;
+              const reconciled = resolvedTikTokAuth
+                ? await publisher.reconcile(queryKey, resolvedTikTokAuth)
+                : await publisher.reconcile(queryKey);
               if (reconciled.success && reconciled.externalPostId) {
                 // Bài ĐÃ lên platform! Hoàn tất xuất bản, không thử lại
                 return this.markPublished(event.id, job, reconciled.externalPostId, reconciled.publishedAt, {
@@ -488,7 +600,9 @@ export class PublishingOutboxRunner {
       body_markdown?: string | null;
       platform_name?: string;
       utm_url?: string | null;
+      tiktok_video_id?: string | null;
       artifact_payload?: Record<string, unknown> | null;
+      artifact_evidence?: unknown;
     },
     externalPostId: string | null,
     publishedAt?: Date,
@@ -500,6 +614,22 @@ export class PublishingOutboxRunner {
       [job.id, at, externalPostId]
     );
     await this.pool.query(`UPDATE contents SET status = 'published', published_at = $2 WHERE id = $1`, [job.content_id, at]);
+
+    if (job.tiktok_video_id) {
+      try {
+        await this.pool.query(
+          `UPDATE tiktok_videos
+              SET status = 'published',
+                  tiktok_publish_id = COALESCE($2, tiktok_publish_id),
+                  error_message = NULL,
+                  updated_at = NOW()
+            WHERE id = $1`,
+          [job.tiktok_video_id, externalPostId]
+        );
+      } catch {
+        // Ignore if table doesn't exist in mock tests
+      }
+    }
 
     // Sync community_group_posts when the published channel is facebook_group
     if (job.workspace_id && job.platform_name?.toLowerCase() === 'facebook_group') {
@@ -533,8 +663,8 @@ export class PublishingOutboxRunner {
       }
     }
 
-    // Tự động mở chủ đề thảo luận Cộng đồng khi bài đã hẹn giờ được xuất bản
-    if (job.workspace_id && job.content_title) {
+    // Tự động mở chủ đề thảo luận Cộng đồng khi bài đã hẹn giờ được xuất bản (bỏ qua TikTok)
+    if (job.workspace_id && job.content_title && job.platform_name?.toLowerCase() !== 'tiktok') {
       try {
         const exists = await this.pool.query(
           `SELECT 1 FROM community_hub_discussions WHERE workspace_id = $1 AND title = $2 LIMIT 1`,
@@ -578,6 +708,16 @@ export class PublishingOutboxRunner {
       }
     }
 
+    // The topic's explainer video follows as its own Reel (ReelOutboxRunner). The post is already out, so a failure
+    // here is logged and never turns the published post into a failure.
+    if (job.platform_name?.toLowerCase() === 'facebook' && job.workspace_id && externalPostId) {
+      try {
+        await enqueueReel(this.pool, { id: job.id, workspace_id: job.workspace_id, content_title: job.content_title,
+          artifact_payload: job.artifact_payload, artifact_evidence: job.artifact_evidence });
+      } catch (error) {
+        console.error('[publishing-outbox] could not queue the Reel:', (error as Error).message);
+      }
+    }
     return this.completeEvent(eventId);
   }
 
@@ -602,7 +742,21 @@ export class PublishingOutboxRunner {
     }
   ): Promise<'failed'> {
     const detail = message ? `${code}: ${message}` : code;
-    if (jobId) await this.pool.query(`UPDATE publishing_jobs SET status = 'failed', error_message = $2 WHERE id = $1`, [jobId, detail]);
+    if (jobId) {
+      await this.pool.query(`UPDATE publishing_jobs SET status = 'failed', error_message = $2 WHERE id = $1`, [jobId, detail]);
+      try {
+        await this.pool.query(
+          `UPDATE tiktok_videos
+              SET status = 'failed',
+                  error_message = $2,
+                  updated_at = NOW()
+            WHERE publishing_job_id = $1`,
+          [jobId, detail]
+        );
+      } catch {
+        // Ignore if table doesn't exist in mock tests
+      }
+    }
     if (jobId && jobMeta?.workspace_id && jobMeta.platform_name?.toLowerCase() === 'facebook_group') {
       try {
         await this.pool.query(
@@ -632,6 +786,76 @@ export class PublishingOutboxRunner {
     }
     await this.pool.query(`UPDATE outbox_events SET status = 'failed', published_at = NOW() WHERE id = $1`, [eventId]);
     return 'failed';
+  }
+
+  private async resolveTikTokAuth(
+    workspaceId: string,
+    preferredPrivacy?: string
+  ): Promise<CmsPublishRequest['authOverride'] | undefined> {
+    try {
+      const res = await this.pool.query<{
+        open_id: string;
+        encrypted_access_token: string;
+        encrypted_refresh_token: string | null;
+        expires_at: string;
+        refresh_expires_at: string | null;
+      }>(
+        `SELECT open_id, encrypted_access_token, encrypted_refresh_token, expires_at, refresh_expires_at
+           FROM tiktok_oauth_tokens
+          WHERE workspace_id = $1
+          LIMIT 1`,
+        [workspaceId]
+      );
+      const row = res.rows[0];
+      if (!row?.encrypted_access_token) return undefined;
+
+      const tokenManager = new SocialTokenManager();
+      let accessToken = tokenManager.decrypt(row.encrypted_access_token);
+      const privacyLevel = preferredPrivacy || process.env.TIKTOK_PRIVACY_LEVEL || 'SELF_ONLY';
+
+      const expiresAtMs = new Date(row.expires_at).getTime();
+      const expiringSoon = Number.isFinite(expiresAtMs) && expiresAtMs - Date.now() < 300_000;
+      const clientId = process.env.TIKTOK_CLIENT_KEY?.trim();
+      const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
+
+      if (expiringSoon && row.encrypted_refresh_token && clientId && clientSecret) {
+        const refreshToken = tokenManager.decrypt(row.encrypted_refresh_token);
+        const refreshed = await tokenManager.refreshToken({
+          channel: 'TikTok',
+          accessToken,
+          refreshToken,
+          clientId,
+          clientSecret,
+        });
+        if (refreshed.success && refreshed.accessToken) {
+          accessToken = refreshed.accessToken;
+          const nextAccessEnc = tokenManager.encrypt(refreshed.accessToken);
+          const nextRefreshEnc = refreshed.refreshToken ? tokenManager.encrypt(refreshed.refreshToken) : null;
+          const nextExpiresAt = new Date(Date.now() + (refreshed.expiresIn ?? 86400) * 1000).toISOString();
+          const nextRefreshExpiresAt = refreshed.refreshExpiresIn
+            ? new Date(Date.now() + refreshed.refreshExpiresIn * 1000).toISOString()
+            : null;
+          await this.pool.query(
+            `UPDATE tiktok_oauth_tokens
+                SET encrypted_access_token = $2,
+                    encrypted_refresh_token = COALESCE($3, encrypted_refresh_token),
+                    expires_at = $4,
+                    refresh_expires_at = COALESCE($5, refresh_expires_at),
+                    updated_at = NOW()
+              WHERE workspace_id = $1`,
+            [workspaceId, nextAccessEnc, nextRefreshEnc, nextExpiresAt, nextRefreshExpiresAt]
+          );
+        }
+      }
+
+      return {
+        accessToken,
+        openId: row.open_id,
+        privacyLevel,
+      };
+    } catch {
+      return undefined;
+    }
   }
 }
 

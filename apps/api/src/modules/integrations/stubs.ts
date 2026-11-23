@@ -3,19 +3,42 @@ import path from 'node:path';
 import type { IntegrationProvider, MissingReason, MetricAvailability } from './types';
 import { INTEGRATION_MATRIX, matrixFor } from './matrix';
 import { getConnection } from './repository';
+import { getTikTokConnectionSummary } from './tiktok';
 
 export function resolveGroupBotSessionCandidates(): string[] {
+  const explicit = process.env.FB_SESSION_FILE?.trim();
+  if (explicit) return [explicit];
   return [
-    process.env.FB_SESSION_FILE?.trim(),
     path.resolve(process.cwd(), '../worker/.fb-session.json'),
     path.resolve(process.cwd(), 'apps/worker/.fb-session.json'),
     path.resolve(__dirname, '../../../../worker/.fb-session.json'),
   ].filter(Boolean) as string[];
 }
 
+function hasValidFacebookAuthCookiesInFile(filePath: string): boolean {
+  try {
+    if (!fs.existsSync(filePath)) return false;
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(raw) as {
+      cookies?: Array<{ name?: string; value?: string; domain?: string; expires?: number }>;
+    };
+    const nowSec = Math.floor(Date.now() / 1000);
+    const fbCookies = (parsed.cookies ?? []).filter(
+      (c) =>
+        (!c.domain || c.domain.toLowerCase().includes('facebook.com')) &&
+        (!c.expires || c.expires < 0 || c.expires > nowSec),
+    );
+    const cUser = fbCookies.find((c) => c.name === 'c_user')?.value?.trim() || '';
+    const xs = fbCookies.find((c) => c.name === 'xs')?.value?.trim() || '';
+    return Boolean(cUser && xs);
+  } catch {
+    return false;
+  }
+}
+
 export function hasGroupBotSessionSync(): boolean {
   if (process.env.FB_ADMIN_COOKIE?.trim()) return true;
-  return resolveGroupBotSessionCandidates().some((p) => fs.existsSync(p));
+  return resolveGroupBotSessionCandidates().some((p) => hasValidFacebookAuthCookiesInFile(p));
 }
 
 type FacebookProbe = { checkedAt: number; status: 'connected' | 'error'; name?: string };
@@ -122,6 +145,33 @@ export async function getWorkspaceConnectionStatus(workspaceId: string, provider
       };
     }
     return base;
+  }
+  if (provider === 'tiktok') {
+    try {
+      const summary = await getTikTokConnectionSummary(workspaceId);
+      if (summary.connected) {
+        return {
+          ...base,
+          status: 'connected',
+          missing_reason: null,
+          property_ref: summary.display_name || summary.open_id,
+          scopes: summary.scopes,
+          capabilities: base.capabilities.map((capability) => ({ capability: capability.capability, status: 'connected' })),
+        };
+      }
+      if (summary.expired) {
+        return {
+          ...base,
+          status: 'error',
+          missing_reason: 'TIKTOK_ACCOUNT_NOT_CONNECTED',
+          property_ref: summary.display_name || summary.open_id,
+          scopes: summary.scopes,
+          capabilities: base.capabilities.map((capability) => ({ capability: capability.capability, status: 'error' })),
+        };
+      }
+    } catch {
+      // Ignore DB lookup errors in isolated stub/unit-test environments without Postgres
+    }
   }
   if (!connection) return base;
   const effectiveStatus = connection.status === 'connected' && !connection.verified_at

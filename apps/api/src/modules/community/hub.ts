@@ -1,3 +1,4 @@
+import { PgGapStore } from './gaps';
 import { createHash, randomUUID } from 'node:crypto';
 import dns from 'node:dns';
 import fs from 'node:fs';
@@ -8,6 +9,11 @@ import type { Pool, PoolClient } from 'pg';
 import { canonicalJson, sha256Hex } from '../../lib/hash';
 import { planSchema } from '../campaignPlans/schemas';
 import { getWorkspaceConnectionStatus } from '../integrations/stubs';
+import {
+  buildTikTokCaptionFromArtifact,
+  getTikTokConnectionSummary,
+  validatePrivacyLevel,
+} from '../integrations/tiktok';
 import { publishSeoArtifact } from '../site/publish';
 import { processReceivedCommunityMessages } from './service';
 import {
@@ -19,6 +25,28 @@ import {
   type TargetSource,
   type WeeklyTargetPlanItem,
 } from './targets';
+import { AppError } from '../../lib/errors';
+import { groupBotBridgeUrl, groupBotTmpDir, spawnGroupBot } from './groupBotProcess';
+import { COMMUNITY_VIDEO_POSTS_SQL, readVideoManifest, reelRequest, signedVideoPath, videoDir } from './videos';
+
+// Created once per process; the hub is polled every few seconds.
+let videoPostsTable: Promise<unknown> | null = null;
+const globalForCommunityCache = globalThis as typeof globalThis & {
+  __agosSchemaInitCache?: Map<string, number>;
+  __agosHubResponseCache?: Map<string, { ts: number; data: any }>;
+};
+const schemaInitCache = (globalForCommunityCache.__agosSchemaInitCache ??= new Map<string, number>());
+const hubResponseCache = (globalForCommunityCache.__agosHubResponseCache ??= new Map<string, { ts: number; data: any }>());
+
+export function invalidateCommunityHubCache(workspaceId?: string) {
+  if (workspaceId) {
+    hubResponseCache.delete(workspaceId);
+    schemaInitCache.delete(workspaceId);
+  } else {
+    hubResponseCache.clear();
+    schemaInitCache.clear();
+  }
+}
 
 try {
   dns.setDefaultResultOrder('ipv4first');
@@ -366,21 +394,6 @@ export const PLAYBOOK_OFFERS = [
   'visa',
 ];
 
-const PLAYBOOK_TREND_TOPICS = [
-  { query: 'Vietnam apartment viewing checklist expats', title: 'Apartment Viewing Checklist in Vietnam for Expats', url: 'https://tripc.ai/blog/apartment-viewing-checklist-vietnam' },
-  { query: 'Vietnam working remotely setup expats', title: 'Working Remotely from Vietnam: Reliable Setup Guide', url: 'https://tripc.ai/blog/working-remotely-from-vietnam-setup-guide' },
-  { query: 'Vietnam esim sim card expats', title: 'eSIM or Local SIM in Vietnam: Complete Comparison', url: 'https://tripc.ai/blog/vietnam-esim-vs-sim-card' },
-  { query: 'Vietnam bank account foreigner expats', title: 'Opening a Bank Account in Vietnam as a Foreigner', url: 'https://tripc.ai/blog/open-bank-account-vietnam-foreigner-guide' },
-  { query: 'Vietnam health insurance expats', title: 'Health Insurance in Vietnam: Local vs International Coverage', url: 'https://tripc.ai/blog/health-insurance-vietnam-local-vs-international' },
-  { query: 'Vietnam grocery shopping expats', title: 'Grocery Shopping in Vietnam: Supermarkets, Markets & Apps', url: 'https://tripc.ai/blog/grocery-shopping-in-vietnam-expat-guide' },
-  { query: 'Vietnam first two weeks accommodation expats', title: 'Where to Stay During Your First Two Weeks in Vietnam', url: 'https://tripc.ai/blog/first-two-weeks-in-vietnam-accommodation-guide' },
-  { query: 'Vietnam temporary residence registration expats', title: 'Temporary Residence Registration in Vietnam for Foreigners', url: 'https://tripc.ai/blog/temporary-residence-registration-guide' },
-  { query: 'Vietnam essential apps living expats', title: 'Essential Apps for Living in Vietnam', url: 'https://tripc.ai/blog/essential-apps-for-living-in-vietnam' },
-  { query: 'Vietnam travel budget cost expats', title: 'How Much Does a Day in Vietnam Cost? Travel Budget Guide', url: 'https://tripc.ai/blog/vietnam-travel-budget-per-day' },
-  { query: 'Vietnam packing list moving expats', title: 'What to Pack When Moving to Vietnam', url: 'https://tripc.ai/blog/packing-list-moving-to-vietnam' },
-  { query: 'Vietnam common scams safety expats', title: 'Common Scams in Vietnam: What New Arrivals Should Watch For', url: 'https://tripc.ai/blog/common-scams-in-vietnam-guide' },
-];
-
 function matchesTagInText(lowerText: string, tag: string): boolean {
   const clean = tag.trim().toLowerCase();
   if (!clean) return false;
@@ -670,6 +683,8 @@ function resolveGroupBotSessionFile(workerDir: string): { exists: boolean; fileP
 }
 
 function resolveGroupBotRunner(workerDir: string): { command: string; prefixArgs: string[] } {
+  // In the API container the worker's bridge runs the bot on the host; it adds the runner itself.
+  if (groupBotBridgeUrl()) return { command: 'group-bot-bridge', prefixArgs: [] };
   const srcRunner = path.join(workerDir, 'src', 'publish', 'runFacebookGroupBot.ts');
   const distRunner = path.join(workerDir, 'dist', 'publish', 'runFacebookGroupBot.js');
   const localTsx = path.join(workerDir, 'node_modules', 'tsx', 'dist', 'cli.mjs');
@@ -847,6 +862,23 @@ function formatVnDateTime(date: Date, includeTime = true): { full: string; short
     short: `${dateOnly} • ${hh}:${min}`,
     dateOnly,
   };
+}
+
+/** Why the Growth Lead targets were not applied, and what to do about it. */
+export function growthLeadSyncMessage(reason: string): string {
+  if (reason === 'RESEARCH_NOT_READY_FOR_CONTEXT') {
+    return 'Bộ nguồn vừa thay đổi (có nguồn mới được duyệt) nên Research chưa chạy cho bộ nguồn này. '
+      + 'Growth Lead phải dựa trên Research của đúng bộ nguồn hiện tại: chạy Research trước (hoặc đợi chu kỳ tự động hằng ngày), rồi bấm lại.';
+  }
+  if (reason === 'NO_CURRENT_CONTEXT') return 'Chưa có bộ nguồn (knowledge context) nào đang dùng. Duyệt nguồn và tạo context trước.';
+  if (reason.startsWith('GROWTH_LEAD_RUN_RUNNING') || reason.startsWith('GROWTH_LEAD_RUN_QUEUED')) {
+    return 'Growth Lead chạy quá 45 giây chưa xong. Đợi một lát rồi bấm lại.';
+  }
+  if (reason.startsWith('GROWTH_LEAD_RUN_')) return `Growth Lead chạy nhưng thất bại (${reason.replace('GROWTH_LEAD_RUN_', '')}).`;
+  if (reason.startsWith('GROWTH_LEAD_AI_HTTP_')) return 'Không gọi được dịch vụ AI. Kiểm tra container AI đang chạy.';
+  if (reason === 'GROWTH_LEAD_PLAN_INVALID') return 'Growth Lead trả về kế hoạch không hợp lệ nên không áp dụng.';
+  if (reason === 'GROWTH_LEAD_ARTIFACT_MISMATCH') return 'Kết quả Growth Lead không khớp chữ ký kiểm tra nên không áp dụng.';
+  return 'Growth Lead chưa chạy được.';
 }
 
 export class CommunityHubService {
@@ -1122,6 +1154,175 @@ export class CommunityHubService {
     return moved.length;
   }
 
+  /**
+   * Pairs any active/failed scheduled `facebook_group` jobs with a `facebook` (Fanpage) job
+   * sharing the same `scheduled_for` slot when `publish_target === 'both'`.
+   */
+  async syncScheduledGroupJobsToFanpage(workspaceId: string): Promise<number> {
+    const fbChannel = (
+      await this.pool.query<{ id: string }>(
+        "SELECT id FROM channels WHERE workspace_id = $1 AND platform_name = 'facebook' ORDER BY created_at LIMIT 1",
+        [workspaceId],
+      )
+    ).rows[0];
+    if (!fbChannel) return 0;
+
+    const fbConnRow = (
+      await this.pool
+        .query<{ status: string | null; verified_at: Date | string | null }>(
+          `SELECT status, verified_at
+             FROM integration_connections
+            WHERE workspace_id = $1 AND provider = 'facebook_page'
+            ORDER BY updated_at DESC LIMIT 1`,
+          [workspaceId],
+        )
+        .catch(() => ({ rows: [] as { status: string | null; verified_at: Date | string | null }[] }))
+    ).rows[0];
+    const hasEnvFanpage =
+      (process.env.INTEGRATION_MODE ?? 'fake') === 'production' &&
+      Boolean(process.env.FACEBOOK_PAGE_ID?.trim()) &&
+      Boolean(process.env.FACEBOOK_PAGE_ACCESS_TOKEN?.trim());
+    const fanpageConnected =
+      Boolean(fbConnRow?.status === 'connected' && fbConnRow?.verified_at) || (!fbConnRow && hasEnvFanpage);
+    const mode = fanpageConnected ? 'live' : 'manual';
+
+    const groupJobs = (
+      await this.pool.query<{
+        id: string;
+        content_id: string | null;
+        artifact_id: string | null;
+        approval_id: string | null;
+        scheduled_for: Date | string;
+        utm_url: string | null;
+        source_id: string | null;
+      }>(
+        `SELECT j.id, j.content_id, j.artifact_id, j.approval_id, j.scheduled_for, j.utm_url,
+                a.evidence->0->>'source_id' AS source_id
+           FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id AND ch.workspace_id = j.workspace_id
+           LEFT JOIN content_artifacts a ON a.id = j.artifact_id
+          WHERE j.workspace_id = $1
+            AND ch.platform_name = 'facebook_group'
+            AND j.status IN ('scheduled', 'failed', 'publishing')
+          ORDER BY j.scheduled_for ASC`,
+        [workspaceId],
+      )
+    ).rows;
+
+    if (groupJobs.length === 0) return 0;
+
+    const existingFanpageRows = (
+      await this.pool.query<{
+        id: string;
+        artifact_id: string | null;
+        source_id: string | null;
+        status: string;
+        error_message: string | null;
+      }>(
+        `SELECT j.id, j.artifact_id, a.evidence->0->>'source_id' AS source_id, j.status, j.error_message
+           FROM publishing_jobs j
+           JOIN channels ch ON ch.id = j.channel_id AND ch.workspace_id = j.workspace_id
+           LEFT JOIN content_artifacts a ON a.id = j.artifact_id
+          WHERE j.workspace_id = $1
+            AND ch.platform_name = 'facebook'
+            AND COALESCE(j.external_post_id, '') NOT LIKE 'newsletter_%'`,
+        [workspaceId],
+      )
+    ).rows;
+
+    const activeOrPublishedArtifactIds = new Set(
+      existingFanpageRows
+        .filter((r) => r.status === 'published' || r.status === 'scheduled' || r.status === 'publishing')
+        .map((r) => r.artifact_id)
+        .filter(Boolean) as string[],
+    );
+    const activeOrPublishedSourceIds = new Set(
+      existingFanpageRows
+        .filter((r) => r.status === 'published' || r.status === 'scheduled' || r.status === 'publishing')
+        .map((r) => r.source_id)
+        .filter(Boolean) as string[],
+    );
+
+    let pairedCount = 0;
+    for (const gJob of groupJobs) {
+      if (!gJob.content_id || !gJob.artifact_id) continue;
+      if (activeOrPublishedArtifactIds.has(gJob.artifact_id)) continue;
+      if (gJob.source_id && activeOrPublishedSourceIds.has(gJob.source_id)) continue;
+
+      const scheduledIso =
+        gJob.scheduled_for instanceof Date
+          ? gJob.scheduled_for.toISOString()
+          : new Date(gJob.scheduled_for).toISOString();
+
+      const reusableRow = existingFanpageRows.find(
+        (r) =>
+          r.artifact_id === gJob.artifact_id &&
+          (r.status === 'cancelled' || (r.status === 'failed' && (r.error_message || '').includes('PUBLISH_TARGET_GROUP_ONLY'))),
+      );
+
+      let fanpageJobId: string | undefined;
+      if (reusableRow) {
+        await this.pool.query(
+          `UPDATE publishing_jobs
+              SET scheduled_for = $2,
+                  status = 'scheduled',
+                  mode = $3,
+                  utm_url = COALESCE($4, utm_url),
+                  error_message = NULL
+            WHERE id = $1 AND workspace_id = $5`,
+          [reusableRow.id, scheduledIso, mode, gJob.utm_url, workspaceId],
+        );
+        fanpageJobId = reusableRow.id;
+      } else {
+        const inserted = (
+          await this.pool.query<{ id: string }>(
+            `INSERT INTO publishing_jobs
+               (content_id, channel_id, scheduled_for, status, workspace_id, artifact_id, approval_id, mode, created_by, utm_url)
+             VALUES ($1, $2, $3, 'scheduled', $4, $5, $6, $7, $8, $9)
+             RETURNING id`,
+            [
+              gJob.content_id,
+              fbChannel.id,
+              scheduledIso,
+              workspaceId,
+              gJob.artifact_id,
+              gJob.approval_id,
+              mode,
+              '11111111-1111-4000-8000-000000000001',
+              gJob.utm_url,
+            ],
+          )
+        ).rows[0];
+        fanpageJobId = inserted?.id;
+      }
+
+      if (fanpageJobId) {
+        await this.pool.query(
+          `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
+           VALUES ($1, 'publishing.scheduled', $2, $3, 'pending', 0)
+           ON CONFLICT (workspace_id, dedup_key)
+           DO UPDATE SET status = 'pending', retry_count = 0, payload = EXCLUDED.payload`,
+          [
+            workspaceId,
+            `publish:${fanpageJobId}`,
+            JSON.stringify({
+              job_id: fanpageJobId,
+              artifact_id: gJob.artifact_id,
+              approval_id: gJob.approval_id,
+              channel_id: fbChannel.id,
+              mode,
+            }),
+          ],
+        );
+        activeOrPublishedArtifactIds.add(gJob.artifact_id);
+        if (gJob.source_id) activeOrPublishedSourceIds.add(gJob.source_id);
+        pairedCount++;
+      }
+    }
+
+    return pairedCount;
+  }
+
   async updateCommunitySettings(
     workspaceId: string,
     input: {
@@ -1237,6 +1438,7 @@ export class CommunityHubService {
       await this.migrateScheduledJobsToGroupChannel(workspaceId, nextGroupUrl, nextName);
     } else if (nextPublishTarget === 'both') {
       await this.ensureGroupChannel(workspaceId, nextGroupUrl, nextName);
+      await this.syncScheduledGroupJobsToFanpage(workspaceId);
     }
 
     return this.getCommunitySettings(workspaceId);
@@ -1244,6 +1446,11 @@ export class CommunityHubService {
 
   async ensureSchemaAndContext(workspaceId: string): Promise<CommunitySettings> {
     const settings = await this.getCommunitySettings(workspaceId);
+    const isRealPool = Boolean((this.pool as any)?.connect && (this.pool as any)?.totalCount !== undefined);
+    const lastInit = schemaInitCache.get(workspaceId) ?? 0;
+    if (isRealPool && Date.now() - lastInit < 300_000) {
+      return settings;
+    }
 
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS community_hub_members (
@@ -1333,123 +1540,28 @@ export class CommunityHubService {
 
     const all30Assets = getPlaybookImageAssets(workspaceId).map(({ topic_tags, match_slug, ...rest }) => rest);
 
-    const profileRow = (
-      await this.pool.query<{ products_services: string[]; version: number }>(
-        'SELECT products_services, version FROM business_profiles WHERE workspace_id = $1',
-        [workspaceId],
-      )
-    ).rows[0];
-
-    if (profileRow && (!profileRow.products_services || profileRow.products_services.length < 10)) {
-      await this.pool.query(
-        `UPDATE business_profiles
-            SET products_services = $2::text[],
-                target_locations = $3::text[],
-                target_audiences = $4::text[],
-                overview = $5,
-                updated_at = NOW()
-          WHERE workspace_id = $1`,
-        [
-          workspaceId,
-          PLAYBOOK_OFFERS,
-          ['Vietnam', 'Da Nang', 'Hanoi', 'Ho Chi Minh City'],
-          ['Travelers, expats, digital nomads, and remote workers visiting or living in Vietnam'],
-          `${settings.community_name}: cộng đồng hỗ trợ du lịch, lưu trú, ẩm thực, di chuyển và kinh nghiệm sống thực tế tại Đà Nẵng & Việt Nam.`,
-        ],
-      );
-    }
-
-    const goalRow = (
-      await this.pool.query<{ id: string; title: string }>(
-        "SELECT id, title FROM growth_goals WHERE workspace_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1",
-        [workspaceId],
-      )
-    ).rows[0];
-    if (goalRow && (/\be-?visa\b/i.test(goalRow.title) || /Playbook|2 chiều/i.test(goalRow.title))) {
-      await this.pool.query(
-        `UPDATE growth_goals
-            SET title = 'Phát triển Cộng đồng Du lịch & Sống tại Việt Nam và chuỗi bài cẩm nang du lịch, lưu trú thực tế'
-          WHERE id = $1`,
-        [goalRow.id],
-      );
-    }
-
+    // The hub only supplies post illustrations to the current context. It never rewrites the owner's
+    // business profile, growth goal or the pinned profile/goal, and never writes search signals:
+    // Research must see the owner's profile and real search results only.
     const currentCtx = (
-      await this.pool.query<{ snapshot_id: string; profile: Record<string, any>; goal: Record<string, any> | null; assets: unknown[] }>(
-        'SELECT snapshot_id, profile, goal, assets FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
+      await this.pool.query<{ snapshot_id: string; assets: unknown[] }>(
+        'SELECT snapshot_id, assets FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
         [workspaceId],
       )
     ).rows[0];
-
-    if (currentCtx) {
-      const currentAssetsLen = Array.isArray(currentCtx.assets) ? currentCtx.assets.length : 0;
-      const currentProductsLen = Array.isArray(currentCtx.profile?.products) ? currentCtx.profile.products.length : 0;
-      const currentFocusLen = Array.isArray(currentCtx.goal?.focus_offers) ? currentCtx.goal.focus_offers.length : 0;
-
-      if (currentAssetsLen < 30 || currentProductsLen < 10 || currentFocusLen > 0) {
-        const updatedProfile = {
-          ...(currentCtx.profile ?? {}),
-          products: PLAYBOOK_OFFERS,
-          locations: ['Vietnam', 'Da Nang', 'Hanoi', 'Ho Chi Minh City'],
-          audiences: ['Travelers, expats, digital nomads, and remote workers visiting or living in Vietnam'],
-          overview: `${settings.community_name}: cộng đồng hỗ trợ du lịch, lưu trú, di chuyển và kinh nghiệm sống thực tế tại Việt Nam.`,
-        };
-        const updatedGoal = currentCtx.goal
-          ? {
-            ...currentCtx.goal,
-            objective:
-              'Phát triển Cộng đồng Du lịch & Sống tại Việt Nam và chuỗi bài cẩm nang du lịch, lưu trú thực tế',
-            focus_offers: [],
-          }
-          : null;
-
-        await this.pool.query(
-          `UPDATE knowledge_contexts
-              SET profile = $2::jsonb,
-                  goal = $3::jsonb,
-                  assets = $4::jsonb
-            WHERE workspace_id = $1 AND snapshot_id = $5`,
-          [workspaceId, JSON.stringify(updatedProfile), JSON.stringify(updatedGoal), JSON.stringify(all30Assets), currentCtx.snapshot_id],
-        );
-      }
-    }
-
-    const latestRun = (
-      await this.pool.query<{ discovery_run_id: string; count: string }>(
-        `SELECT discovery_run_id, count(*)::text AS count
-           FROM trend_signals
-          WHERE workspace_id = $1
-          GROUP BY discovery_run_id
-          ORDER BY max(observed_at) DESC
-          LIMIT 1`,
-        [workspaceId],
-      )
-    ).rows[0];
-
-    const runId = latestRun?.discovery_run_id ?? randomUUID();
-    const existingQueries = new Set(
-      (
-        await this.pool.query<{ query: string }>(
-          'SELECT DISTINCT query FROM trend_signals WHERE workspace_id = $1 AND discovery_run_id = $2',
-          [workspaceId, runId],
-        )
-      ).rows.map((r) => r.query),
-    );
-
-    for (let i = 0; i < PLAYBOOK_TREND_TOPICS.length; i++) {
-      const item = PLAYBOOK_TREND_TOPICS[i];
-      if (!existingQueries.has(item.query)) {
-        await this.pool.query(
-          `INSERT INTO trend_signals (id, workspace_id, discovery_run_id, query, rank, title, url, domain, observed_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'tripc.ai', NOW() - INTERVAL '5 minutes')`,
-          [randomUUID(), workspaceId, runId, item.query, i + 1, item.title, item.url],
-        );
-      }
+    if (currentCtx && (Array.isArray(currentCtx.assets) ? currentCtx.assets.length : 0) < all30Assets.length) {
+      await this.pool.query(
+        'UPDATE knowledge_contexts SET assets = $2::jsonb WHERE workspace_id = $1 AND snapshot_id = $3',
+        [workspaceId, JSON.stringify(all30Assets), currentCtx.snapshot_id],
+      );
     }
 
     await this.seedInitialDiscussionsIfEmpty(workspaceId, settings);
     await this.deduplicateExistingDiscussionAndArtifactImages(workspaceId);
     await this.syncMembersFromInteractions(workspaceId, settings);
+    if (Boolean((this.pool as any)?.connect && (this.pool as any)?.totalCount !== undefined)) {
+      schemaInitCache.set(workspaceId, Date.now());
+    }
     return settings;
   }
 
@@ -2186,6 +2298,415 @@ export class CommunityHubService {
     }
   }
 
+  /**
+   * Posts an official comment reply to a Facebook Page post comment using Meta Graph API.
+   * Endpoint: POST https://graph.facebook.com/{version}/{commentId}/comments
+   */
+  async replyToPageComment(
+    commentId: string,
+    replyText: string,
+  ): Promise<{ success: boolean; replyId?: string; error?: string }> {
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN?.trim();
+    if (!token) {
+      return { success: false, error: 'FACEBOOK_PAGE_ACCESS_TOKEN chưa được cấu hình' };
+    }
+    const version = (process.env.META_GRAPH_API_VERSION || 'v20.0').replace(/^\/+|\/+$/g, '');
+    const cleanCommentId = commentId.trim();
+    if (!cleanCommentId) {
+      return { success: false, error: 'Thiếu comment_id để phản hồi' };
+    }
+
+    try {
+      const url = `https://graph.facebook.com/${version}/${encodeURIComponent(cleanCommentId)}/comments`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: replyText,
+          access_token: token,
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+
+      const json = (await res.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+      if (!res.ok || !json.id) {
+        return {
+          success: false,
+          error: json.error?.message || `Graph API error HTTP ${res.status}`,
+        };
+      }
+
+      return { success: true, replyId: json.id };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  }
+
+  /**
+   * Replies to a comment in the Facebook Group using the Playwright Group Bot (`reply-comment` command).
+   */
+  async replyToGroupCommentViaBot(
+    workspaceId: string,
+    options: {
+      postUrl: string;
+      commentSnippet?: string;
+      authorName?: string;
+      replyText: string;
+    },
+  ): Promise<{ success: boolean; errorCode?: string; message?: string }> {
+    const settings = await this.getCommunitySettings(workspaceId);
+    const workerDir = resolveWorkerDir();
+    const session = resolveGroupBotSessionFile(workerDir);
+    const hasSession = this.hasValidGroupBotSession(session);
+    if (!hasSession) {
+      return {
+        success: false,
+        errorCode: 'FACEBOOK_GROUP_SESSION_MISSING',
+        message: 'Chưa có phiên đăng nhập Group Bot.',
+      };
+    }
+
+    const runner = resolveGroupBotRunner(workerDir);
+    const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-group-reply-${randomUUID()}.json`);
+    fs.writeFileSync(
+      tmpPayloadFile,
+      JSON.stringify({
+        groupUrl: settings.group_url,
+        postUrl: options.postUrl,
+        replyText: options.replyText,
+        commentSnippet: options.commentSnippet,
+        authorName: options.authorName,
+        headless: true,
+      }),
+      'utf8',
+    );
+
+    try {
+      const botOutput = await new Promise<{
+        code: number | null;
+        stdout: string;
+        stderr: string;
+        spawnErr?: string;
+        timedOut?: boolean;
+      }>((resolve) => {
+        const child = spawnGroupBot(
+          runner.command,
+          [...runner.prefixArgs, 'reply-comment', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
+          {
+            cwd: workerDir,
+            env: { ...process.env, FB_SESSION_FILE: session.filePath },
+            shell: false,
+            windowsHide: true,
+          },
+        );
+
+        let stdout = '';
+        let stderr = '';
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            try {
+              child.kill();
+            } catch {
+              // ignore
+            }
+            resolve({ code: null, stdout, stderr, timedOut: true });
+          }
+        }, 75_000);
+
+        child.stdout?.on('data', (d) => {
+          stdout += d.toString();
+        });
+        child.stderr?.on('data', (d) => {
+          stderr += d.toString();
+        });
+        child.on('error', (err) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve({ code: 1, stdout, stderr, spawnErr: err.message });
+          }
+        });
+        child.on('close', (code) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve({ code, stdout, stderr });
+          }
+        });
+      });
+
+      const parsed = parseGroupBotResultLine(botOutput.stdout);
+      if (!parsed || parsed.success !== true) {
+        return {
+          success: false,
+          errorCode: (parsed?.errorCode as string) || 'REPLY_FAILED',
+          message: (typeof parsed?.message === 'string' && parsed.message) || botOutput.stderr.trim() || 'Trả lời bình luận Group thất bại',
+        };
+      }
+      return { success: true, message: (parsed.message as string) || 'Đã gửi câu trả lời bình luận trong Group' };
+    } catch (err) {
+      return { success: false, errorCode: 'EXEC_ERROR', message: (err as Error).message };
+    } finally {
+      try {
+        fs.unlinkSync(tmpPayloadFile);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Generates a concise, polite, brand-safe grounded reply for a social comment.
+   */
+  async generateSocialCommentReply(
+    question: string,
+    authorName: string,
+    settings: CommunitySettings,
+  ): Promise<string> {
+    const firstName = authorName.split(' ').pop() || 'bạn';
+    const key = process.env.GEMINI_API_KEY;
+    if (key) {
+      try {
+        const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+        const systemPrompt = `Bạn là Trợ lý AI Chăm sóc Khách hàng chuyên nghiệp của "${settings.page_name || 'TripC'}".
+Hãy viết 1 câu phản hồi bình luận tiếng Việt cực kỳ tự nhiên, thân thiện, giải đáp thỏa đáng câu hỏi của khách hàng (dưới 50 từ).
+Quy tắc:
+- Xưng hô "mình" hoặc "${settings.page_name || 'TripC'}" và gọi khách là "${firstName}".
+- Không bịa đặt giá cả cụ thể hoặc hứa hẹn những gì chưa rõ.
+- Luôn giữ thái độ chào đón nồng hậu, nếu cần tư vấn sâu hãy mời khách nhắn tin vào Inbox hoặc tham gia nhóm: ${settings.group_url}.
+- Không dùng markdown hoa mỹ, xuất bản dưới dạng text thuần phù hợp bình luận Facebook.`;
+
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+          signal: AbortSignal.timeout(6000),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: 'user', parts: [{ text: `Khách hàng ${authorName} hỏi: "${question}"` }] }],
+            generationConfig: { maxOutputTokens: 250 },
+          }),
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          const text = json.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
+          if (text && text.length >= 10) {
+            return text;
+          }
+        }
+      } catch {
+        // Fallback to grounded template heuristics below
+      }
+    }
+
+    const cleanQ = question.trim().toLowerCase();
+    if (cleanQ.includes('giá') || cleanQ.includes('bao nhiêu') || cleanQ.includes('chi phí') || cleanQ.includes('cost')) {
+      return `Chào ${firstName}! Chi phí ăn uống và trải nghiệm tại đây rất hợp lý và có nhiều lựa chọn phong phú. Bạn có thể nhắn tin trực tiếp vào Inbox hoặc tham gia giao lưu cùng các thành viên trong nhóm để được tư vấn chi tiết nhé: ${settings.group_url}`;
+    }
+    if (cleanQ.includes('địa chỉ') || cleanQ.includes('ở đâu') || cleanQ.includes('chỗ nào') || cleanQ.includes('location')) {
+      return `Chào ${firstName}! Quán/địa điểm nằm ngay khu vực trung tâm rất thuận tiện đi lại. Bạn có thể nhắn tin trực tiếp để tụi mình gửi định vị bản đồ và chỉ đường chi tiết nhất nhé!`;
+    }
+    if (cleanQ.includes('menu') || cleanQ.includes('thực đơn') || cleanQ.includes('món') || cleanQ.includes('đặt bàn') || cleanQ.includes('book')) {
+      return `Chào ${firstName}! Cảm ơn bạn đã quan tâm. Bạn nhắn tin vào mục Inbox của Page để tụi mình gửi thực đơn mới nhất và hỗ trợ giữ bàn đẹp cho bạn nhé! Chúc bạn có trải nghiệm thật tuyệt vời.`;
+    }
+    return `Chào ${firstName}! Cảm ơn bạn đã để lại bình luận chia sẻ. Bạn có thể tham gia thảo luận thêm kinh nghiệm thực tế cùng cộng đồng tại: ${settings.group_url} nhé!`;
+  }
+
+  /**
+   * Dispatches automated comment replies to pending user comments across Fanpage and Group.
+   */
+  async dispatchPendingCommentReplies(
+    workspaceId: string,
+    options: { maxBatch?: number } = {},
+  ): Promise<{
+    total_checked: number;
+    replies_sent: number;
+    page_replies: number;
+    group_replies: number;
+    failed_count: number;
+    details: Array<{
+      id: string;
+      platform: string;
+      comment_source: 'page' | 'group';
+      author_name: string;
+      comment_text: string;
+      reply_text: string;
+      status: 'replied' | 'failed' | 'skipped';
+      published_reply_id?: string;
+      error?: string;
+    }>;
+  }> {
+    const limit = Math.max(1, Math.min(options.maxBatch ?? 10, 25));
+    const settings = await this.getCommunitySettings(workspaceId);
+
+    const pending = (
+      await this.pool.query<{
+        id: string;
+        platform: string;
+        external_id: string;
+        author_name: string;
+        author_contact: string | null;
+        content: string;
+        post_url: string | null;
+        metadata: Record<string, any> | null;
+        rag_reply_text: string | null;
+      }>(
+        `SELECT m.id, m.platform, m.external_id, m.author_name, m.author_contact, m.content, m.post_url, m.metadata,
+                COALESCE(a.payload->'result'->>'reply', m.metadata->>'reply_text') AS rag_reply_text
+           FROM community_messages m
+           LEFT JOIN workflow_tasks t ON t.id = m.task_id
+           LEFT JOIN content_artifacts a ON a.id = t.result_ref
+          WHERE m.workspace_id = $1
+            AND m.platform = 'facebook_comment'
+            AND m.status IN ('received', 'queued')
+          ORDER BY m.received_at ASC
+          LIMIT $2`,
+        [workspaceId, limit],
+      )
+    ).rows;
+
+    let repliesSent = 0;
+    let pageReplies = 0;
+    let groupReplies = 0;
+    let failedCount = 0;
+    const details: Array<{
+      id: string;
+      platform: string;
+      comment_source: 'page' | 'group';
+      author_name: string;
+      comment_text: string;
+      reply_text: string;
+      status: 'replied' | 'failed' | 'skipped';
+      published_reply_id?: string;
+      error?: string;
+    }> = [];
+
+    for (const msg of pending) {
+      const meta = msg.metadata || {};
+      const commentSource: 'page' | 'group' = (meta.comment_source === 'group' || (msg.post_url && msg.post_url.includes('/groups/')))
+        ? 'group'
+        : 'page';
+
+      let replyText = (msg.rag_reply_text || meta.reply_text || '').trim();
+      if (!replyText) {
+        replyText = await this.generateSocialCommentReply(msg.content, msg.author_name, settings);
+      }
+
+      if (!replyText) {
+        details.push({
+          id: msg.id,
+          platform: msg.platform,
+          comment_source: commentSource,
+          author_name: msg.author_name,
+          comment_text: msg.content,
+          reply_text: '',
+          status: 'skipped',
+          error: 'Không thể tạo nội dung phản hồi',
+        });
+        continue;
+      }
+
+      if (commentSource === 'page') {
+        const pageRes = await this.replyToPageComment(msg.external_id, replyText);
+        if (pageRes.success && pageRes.replyId) {
+          repliesSent++;
+          pageReplies++;
+          await this.pool.query(
+            `UPDATE community_messages
+                SET status = 'replied',
+                    updated_at = NOW(),
+                    metadata = jsonb_set(
+                      jsonb_set(
+                        jsonb_set(COALESCE(metadata, '{}'::jsonb), '{reply_text}', to_jsonb($2::text)),
+                        '{published_reply_id}', to_jsonb($3::text)
+                      ),
+                      '{replied_at}', to_jsonb(NOW()::text)
+                    )
+              WHERE id = $1 AND workspace_id = $4`,
+            [msg.id, replyText, pageRes.replyId, workspaceId],
+          );
+          details.push({
+            id: msg.id,
+            platform: msg.platform,
+            comment_source: 'page',
+            author_name: msg.author_name,
+            comment_text: msg.content,
+            reply_text: replyText,
+            status: 'replied',
+            published_reply_id: pageRes.replyId,
+          });
+        } else {
+          failedCount++;
+          details.push({
+            id: msg.id,
+            platform: msg.platform,
+            comment_source: 'page',
+            author_name: msg.author_name,
+            comment_text: msg.content,
+            reply_text: replyText,
+            status: 'failed',
+            error: pageRes.error || 'Gửi comment Page thất bại',
+          });
+        }
+      } else {
+        const postUrl = msg.post_url || settings.group_url;
+        const groupRes = await this.replyToGroupCommentViaBot(workspaceId, {
+          postUrl,
+          commentSnippet: msg.content,
+          authorName: msg.author_name,
+          replyText,
+        });
+        if (groupRes.success) {
+          repliesSent++;
+          groupReplies++;
+          await this.pool.query(
+            `UPDATE community_messages
+                SET status = 'replied',
+                    updated_at = NOW(),
+                    metadata = jsonb_set(
+                      jsonb_set(COALESCE(metadata, '{}'::jsonb), '{reply_text}', to_jsonb($2::text)),
+                      '{replied_at}', to_jsonb(NOW()::text)
+                    )
+              WHERE id = $1 AND workspace_id = $3`,
+            [msg.id, replyText, workspaceId],
+          );
+          details.push({
+            id: msg.id,
+            platform: msg.platform,
+            comment_source: 'group',
+            author_name: msg.author_name,
+            comment_text: msg.content,
+            reply_text: replyText,
+            status: 'replied',
+          });
+        } else {
+          failedCount++;
+          details.push({
+            id: msg.id,
+            platform: msg.platform,
+            comment_source: 'group',
+            author_name: msg.author_name,
+            comment_text: msg.content,
+            reply_text: replyText,
+            status: 'failed',
+            error: groupRes.message || 'Gửi comment Group thất bại',
+          });
+        }
+      }
+    }
+
+    return {
+      total_checked: pending.length,
+      replies_sent: repliesSent,
+      page_replies: pageReplies,
+      group_replies: groupReplies,
+      failed_count: failedCount,
+      details,
+    };
+  }
+
   private normalizePostUrlKey(raw?: string | null): string {
     if (!raw) return '';
     return raw.trim().split('?')[0].split('#')[0].replace(/\/+$/, '').toLowerCase();
@@ -2624,7 +3145,7 @@ export class CommunityHubService {
     if (options.includeGroupBot !== false) {
       const workerDir = resolveWorkerDir();
       const session = resolveGroupBotSessionFile(workerDir);
-      const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+      const hasSession = this.hasValidGroupBotSession(session);
       if (hasSession) {
         const recentGroupPosts = (
           await this.pool.query<{ facebook_post_url: string }>(
@@ -2640,7 +3161,7 @@ export class CommunityHubService {
         ).rows.map((r) => r.facebook_post_url);
 
         const runner = resolveGroupBotRunner(workerDir);
-        const tmpPayloadFile = path.join(os.tmpdir(), `fb-scan-stats-${randomUUID()}.json`);
+        const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-scan-stats-${randomUUID()}.json`);
         fs.writeFileSync(
           tmpPayloadFile,
           JSON.stringify({
@@ -2653,7 +3174,7 @@ export class CommunityHubService {
         );
         try {
           const botOutput = await new Promise<{ stdout: string; stderr: string }>((resolve) => {
-            const child = spawn(
+            const child = spawnGroupBot(
               runner.command,
               [...runner.prefixArgs, 'scan-stats', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
               {
@@ -2749,7 +3270,7 @@ export class CommunityHubService {
     const settings = await this.getCommunitySettings(workspaceId);
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
-    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = this.hasValidGroupBotSession(session);
     if (!hasSession) {
       return { ingested: 0, scanned_posts: 0, skipped: 'FACEBOOK_GROUP_SESSION_MISSING' };
     }
@@ -2768,7 +3289,7 @@ export class CommunityHubService {
     ).rows.map((r) => r.facebook_post_url);
 
     const runner = resolveGroupBotRunner(workerDir);
-    const tmpPayloadFile = path.join(os.tmpdir(), `fb-scan-comments-${randomUUID()}.json`);
+    const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-scan-comments-${randomUUID()}.json`);
     fs.writeFileSync(
       tmpPayloadFile,
       JSON.stringify({
@@ -2783,7 +3304,7 @@ export class CommunityHubService {
     try {
       const botOutput = await new Promise<{ code: number | null; stdout: string; stderr: string; spawnErr?: string; timedOut?: boolean }>(
         (resolve) => {
-          const child = spawn(
+          const child = spawnGroupBot(
             runner.command,
             [...runner.prefixArgs, 'scan-comments', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
             {
@@ -2925,6 +3446,9 @@ export class CommunityHubService {
     group_ingested: number;
     queued_for_rag: number;
     auto_reply_comments: boolean;
+    auto_replies_sent?: number;
+    page_replies_sent?: number;
+    group_replies_sent?: number;
     warnings: string[];
   }> {
     const settings = await this.getCommunitySettings(workspaceId);
@@ -2945,6 +3469,7 @@ export class CommunityHubService {
     await this.syncPostEngagementStats(workspaceId, { includeGroupBot: false }).catch(() => {});
 
     let queuedForRag = 0;
+    let autoRepliesResult: { replies_sent: number; page_replies: number; group_replies: number } | null = null;
     if (settings.auto_reply_comments) {
       const ctxRow = (
         await this.pool.query<{ snapshot_id: string }>(
@@ -2955,6 +3480,8 @@ export class CommunityHubService {
       if (ctxRow?.snapshot_id) {
         queuedForRag = await processReceivedCommunityMessages(this.pool, workspaceId, actorId, ctxRow.snapshot_id, 15);
       }
+      // Tự động gửi câu trả lời cho các bình luận tồn đọng / vừa quét
+      autoRepliesResult = await this.dispatchPendingCommentReplies(workspaceId, { maxBatch: 10 }).catch(() => null);
     }
 
     return {
@@ -2962,6 +3489,9 @@ export class CommunityHubService {
       group_ingested: groupIngested,
       queued_for_rag: queuedForRag,
       auto_reply_comments: settings.auto_reply_comments,
+      auto_replies_sent: autoRepliesResult?.replies_sent ?? 0,
+      page_replies_sent: autoRepliesResult?.page_replies ?? 0,
+      group_replies_sent: autoRepliesResult?.group_replies ?? 0,
       warnings,
     };
   }
@@ -3057,7 +3587,7 @@ export class CommunityHubService {
     if (options.includeNativeGroupUi !== false && remaining > 0) {
       const workerDir = resolveWorkerDir();
       const session = resolveGroupBotSessionFile(workerDir);
-      const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+      const hasSession = this.hasValidGroupBotSession(session);
       if (hasSession) {
         const alreadyInvitedNames = new Set(
           (
@@ -3069,7 +3599,7 @@ export class CommunityHubService {
         );
         const runner = resolveGroupBotRunner(workerDir);
         const nativeLimit = Math.min(remaining, Math.max(1, batchCap - invitedCount));
-        const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-invite-${randomUUID()}.json`);
+        const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-group-invite-${randomUUID()}.json`);
         fs.writeFileSync(
           tmpPayloadFile,
           JSON.stringify({
@@ -3084,7 +3614,7 @@ export class CommunityHubService {
         try {
           const botOutput = await new Promise<{ code: number | null; stdout: string; stderr: string; spawnErr?: string; timedOut?: boolean }>(
             (resolve) => {
-              const child = spawn(
+              const child = spawnGroupBot(
                 runner.command,
                 [...runner.prefixArgs, 'invite', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
                 {
@@ -3232,6 +3762,8 @@ export class CommunityHubService {
   ): Promise<{
     applied: boolean;
     reason?: string;
+    /** What the owner can do about `reason`, in Vietnamese. */
+    message?: string;
     artifact_id?: string | null;
     week1_target: number;
     week2_target: number;
@@ -3289,6 +3821,8 @@ export class CommunityHubService {
     }
 
     // Run real Growth Lead Agent (strategy.generate) against current knowledge context + research + community_context
+    // Why no plan was applied, named per step so the owner knows what to do next.
+    let reason = 'GROWTH_LEAD_RUN_UNAVAILABLE';
     const contextRow = (
       await this.pool.query<{ snapshot_id: string; profile_version: number; profile: unknown; snapshot: unknown; goal: unknown }>(
         'SELECT snapshot_id, profile_version, profile, snapshot, goal FROM knowledge_contexts WHERE workspace_id = $1 AND current LIMIT 1',
@@ -3308,6 +3842,10 @@ export class CommunityHubService {
         [workspaceId, contextRow?.snapshot_id],
       )
     ).rows[0];
+
+    // Growth Lead must read Research made from these same sources; approving sources starts a new context.
+    if (!contextRow) reason = 'NO_CURRENT_CONTEXT';
+    else if (!researchRow?.payload?.artifact || !researchRow.payload.result) reason = 'RESEARCH_NOT_READY_FOR_CONTEXT';
 
     if (contextRow && researchRow?.payload?.artifact && researchRow.payload.result) {
       const communityContext = await loadCommunityGrowthContext(this.pool, workspaceId);
@@ -3401,6 +3939,7 @@ export class CommunityHubService {
             prompt_version?: string;
           };
           provider_calls?: number;
+          error_code?: string | null;
         };
         const pollDeadline = Date.now() + 45_000;
         while ((runStatus.status === 'queued' || runStatus.status === 'running') && Date.now() < pollDeadline) {
@@ -3413,7 +3952,11 @@ export class CommunityHubService {
           runStatus = (await getRes.json()) as typeof runStatus;
         }
 
-        if (runStatus.status === 'completed' && runStatus.result?.artifact && runStatus.result?.result) {
+        const completed = runStatus.status === 'completed' && runStatus.result?.artifact && runStatus.result?.result;
+        if (!completed) {
+          reason = `GROWTH_LEAD_RUN_${String(runStatus.status || 'unknown').toUpperCase()}${runStatus.error_code ? `:${runStatus.error_code}` : ''}`;
+        }
+        if (completed && runStatus.result?.artifact && runStatus.result?.result) {
           const artifact = runStatus.result.artifact as {
             artifact_id: string;
             workspace_id: string;
@@ -3474,15 +4017,21 @@ export class CommunityHubService {
                 target_rationale: refreshed.target_rationale,
               };
             }
+            reason = 'GROWTH_LEAD_PLAN_INVALID';
+          } else {
+            reason = 'GROWTH_LEAD_ARTIFACT_MISMATCH';
           }
         }
+      } else {
+        reason = `GROWTH_LEAD_AI_HTTP_${postRes.status}`;
       }
     }
 
     const refreshed = await this.getCommunitySettings(workspaceId);
     return {
       applied: false,
-      reason: 'GROWTH_LEAD_RUN_UNAVAILABLE',
+      reason,
+      message: growthLeadSyncMessage(reason),
       artifact_id: refreshed.strategy_artifact_id,
       week1_target: refreshed.week1_target,
       week2_target: refreshed.week2_target,
@@ -3495,6 +4044,11 @@ export class CommunityHubService {
   }
 
   async getHubData(workspaceId: string) {
+    const isRealPool = Boolean((this.pool as any)?.connect && (this.pool as any)?.totalCount !== undefined);
+    const cached = hubResponseCache.get(workspaceId);
+    if (isRealPool && cached && Date.now() - cached.ts < 300_000) {
+      return cached.data;
+    }
     const settings = await this.ensureSchemaAndContext(workspaceId);
 
     const members = (
@@ -3957,6 +4511,33 @@ export class CommunityHubService {
     let publishedGroupCount = 0;
     let publishedFanpageCount = 0;
     let failedGroupCount = 0;
+    // Explainer videos rendered for topics (Video3D pipeline), keyed by the same source id as the cards.
+    const topicVideos = readVideoManifest(videoDir(), workspaceId);
+    // Reels the worker posted after each Facebook post (apps/worker ReelOutboxRunner); latest per topic.
+    videoPostsTable ??= this.pool.query(COMMUNITY_VIDEO_POSTS_SQL).catch((error) => {
+      videoPostsTable = null;
+      throw error;
+    });
+    await videoPostsTable;
+    const reelBySource = new Map(
+      (
+        await this.pool.query<{ source_id: string; status: string; post_url: string | null; error: string | null }>(
+          `SELECT DISTINCT ON (source_id) source_id, status, post_url, error
+             FROM community_video_posts WHERE workspace_id = $1 ORDER BY source_id, updated_at DESC`,
+          [workspaceId],
+        )
+      ).rows.map((r) => [r.source_id, { status: r.status, post_url: r.post_url, error: r.error }]),
+    );
+    // A Reel waiting in the worker's queue shows as "queued" until it is posted or fails.
+    for (const r of (
+      await this.pool.query<{ source_id: string }>(
+        `SELECT DISTINCT payload->>'source_id' AS source_id FROM outbox_events
+          WHERE workspace_id = $1 AND event_type = 'publishing.reel' AND status IN ('pending', 'processing')`,
+        [workspaceId],
+      )
+    ).rows) {
+      if (reelBySource.get(r.source_id)?.status !== 'published') reelBySource.set(r.source_id, { status: 'queued', post_url: null, error: null });
+    }
 
     const dailyCalendar = orderedSources.map((source, index) => {
       const groupPub = getGroupPub(source);
@@ -4153,6 +4734,13 @@ export class CommunityHubService {
           (targetMode === 'fanpage' ? fanpagePub?.published_at : groupPub?.published_at ?? webPub?.published_at)?.toISOString() ??
           null,
         facebook_post_url: targetMode === 'fanpage' ? fanpagePostUrl : groupPostUrl ?? fanpagePostUrl,
+        video: (() => {
+          const v = topicVideos.get(source.id);
+          return v
+            ? { path: signedVideoPath(workspaceId, source.id), title: v.title, duration_s: v.duration_s, status: v.status, created_at: v.created_at,
+                facebook_reel: reelBySource.get(source.id) ?? null }
+            : null;
+        })(),
         unique_topic_verified: true,
         unique_image_verified: isUniqueImage,
         engagement: {
@@ -4178,6 +4766,11 @@ export class CommunityHubService {
     const manualProspects = members.filter((m) => m.external_ref.startsWith('manual:')).length;
     const fallbackGroupCount = Math.max(settings.group_member_count ?? 5, realIdentifiedPeople);
 
+    const withFastTimeout = <T>(p: Promise<T>, fallback: T, ms = 2500): Promise<T> =>
+      isRealPool
+        ? Promise.race([p.catch(() => fallback), new Promise<T>((r) => setTimeout(() => r(fallback), ms))])
+        : p;
+
     const [
       pageStats,
       groupStats,
@@ -4190,8 +4783,10 @@ export class CommunityHubService {
       engagementSnapshotQueryRes,
       telegramBotStatus,
     ] = await Promise.all([
-        this.fetchRealPageStats(),
-        this.fetchRealGroupStats(settings.group_url, fallbackGroupCount, workspaceId),
+        withFastTimeout(this.fetchRealPageStats(), { followers_count: null, fan_count: null }),
+        withFastTimeout(this.fetchRealGroupStats(settings.group_url, fallbackGroupCount, workspaceId), {
+          member_count: fallbackGroupCount,
+        }),
         this.pool.query<{
           approved_sources: number;
           total_chunks: number;
@@ -4330,7 +4925,20 @@ export class CommunityHubService {
             [workspaceId],
           )
           .catch(() => ({ rows: [] })),
-        this.getTelegramBotStatus(workspaceId),
+        withFastTimeout(this.getTelegramBotStatus(workspaceId), {
+          configured: false,
+          mode: 'polling' as const,
+          bot_username: null,
+          bot_name: null,
+          t_me_url: null,
+          webhook_url: null,
+          pending_update_count: 0,
+          last_error_message: null,
+          conversations_count: 0,
+          messages_received_count: 0,
+          messages_replied_count: 0,
+          invites_sent_count: 0,
+        }),
       ]);
 
     if (groupStats.live_description) {
@@ -4678,7 +5286,7 @@ export class CommunityHubService {
           (firstEngSnap.total_likes + firstEngSnap.total_comments + firstEngSnap.total_shares)
         : 0;
 
-    return {
+    const hubPayload = {
       synced_at: new Date().toISOString(),
       group: {
         name: settings.community_name,
@@ -4814,6 +5422,7 @@ export class CommunityHubService {
         },
       },
       telegram_bot: telegramBotStatus,
+      knowledge_gaps: await this.knowledgeGaps(workspaceId),
       weekly_campaigns: weeklyCampaigns,
       matched_members: members,
       discussions,
@@ -4857,6 +5466,10 @@ export class CommunityHubService {
         monthly: monthlyCalendar,
       },
     };
+    if (isRealPool) {
+      hubResponseCache.set(workspaceId, { ts: Date.now(), data: hubPayload });
+    }
+    return hubPayload;
   }
 
   async addProspectMember(
@@ -5068,6 +5681,9 @@ export class CommunityHubService {
     const targetMode = settings.publish_target;
 
     await this.ensurePlaybookTopicsScheduled(workspaceId, undefined, actorId, settings);
+    if (targetMode === 'both') {
+      await this.syncScheduledGroupJobsToFanpage(workspaceId);
+    }
 
     const intervalMs = Math.max(1, Number(options.interval_hours ?? 24)) * 3600_000;
     const nowUtc = new Date();
@@ -5121,25 +5737,43 @@ export class CommunityHubService {
     }
 
     const scheduledRows = (
-      await this.pool.query<{ id: string; title: string; platform_name: string }>(
-        `SELECT j.id, c.title, ch.platform_name
+      await this.pool.query<{
+        id: string;
+        title: string;
+        platform_name: string;
+        source_id: string | null;
+        content_id: string | null;
+      }>(
+        `SELECT j.id, c.title, ch.platform_name,
+                a.evidence->0->>'source_id' AS source_id,
+                j.content_id
            FROM publishing_jobs j
            JOIN channels ch ON ch.id = j.channel_id
            JOIN contents c ON c.id = j.content_id
+           LEFT JOIN content_artifacts a ON a.id = j.artifact_id
           WHERE j.workspace_id = $1
             AND ${targetPlatformClause}
             AND j.status IN ('scheduled', 'failed')
-          ORDER BY j.scheduled_for ASC, c.title ASC`,
+          ORDER BY j.scheduled_for ASC, c.title ASC, ch.platform_name DESC`,
         [workspaceId],
       )
     ).rows;
 
+    const slotIndexByTopicKey = new Map<string, number>();
+    let nextSlotIndex = 0;
+
     for (let i = 0; i < scheduledRows.length; i++) {
       const row = scheduledRows[i];
+      const topicKey = row.source_id || row.content_id || row.title?.trim().toLowerCase() || row.id;
+      let slotIndex = slotIndexByTopicKey.get(topicKey);
+      if (slotIndex === undefined) {
+        slotIndex = nextSlotIndex++;
+        slotIndexByTopicKey.set(topicKey, slotIndex);
+      }
       const slotUtc =
-        snapFutureSlotsToNineAmVn && i >= 1 && intervalMs === 24 * 3600_000
-          ? new Date(Date.UTC(vnYear, vnMonth, vnDay + i, 2, 0, 0))
-          : new Date(startUtc.getTime() + i * intervalMs);
+        snapFutureSlotsToNineAmVn && slotIndex >= 1 && intervalMs === 24 * 3600_000
+          ? new Date(Date.UTC(vnYear, vnMonth, vnDay + slotIndex, 2, 0, 0))
+          : new Date(startUtc.getTime() + slotIndex * intervalMs);
       if (row.platform_name === 'facebook_group') {
         await this.pool.query(
           `UPDATE publishing_jobs
@@ -5200,6 +5834,54 @@ export class CommunityHubService {
    * a 100% fresh, non-duplicate article + post for the configured community destination
    * (Facebook Group by default; Fanpage only when `publish_target` is `'fanpage'` or `'both'`).
    */
+/**
+   * Posts a topic's video as a Reel for a Facebook post that is already out (posts published before Reels existed,
+   * or a Reel that failed). Only queues it: the worker's ReelOutboxRunner uploads it within seconds.
+   */
+  async queueReelForPublishedPost(workspaceId: string, sourceId: string) {
+    if (!readVideoManifest(videoDir(), workspaceId).has(sourceId)) {
+      throw new AppError(409, 'VIDEO_NOT_READY', 'This topic has no video yet.');
+    }
+    const job = (
+      await this.pool.query<{ id: string; workspace_id: string; content_title: string | null; hook: string | null }>(
+        `SELECT j.id, j.workspace_id, c.title AS content_title, a.payload->'result'->'facebook'->>'hook' AS hook
+           FROM publishing_jobs j
+           JOIN content_artifacts a ON a.id = j.artifact_id
+           JOIN contents c ON c.id = j.content_id
+           JOIN channels ch ON ch.id = j.channel_id
+          WHERE j.workspace_id = $1 AND j.status = 'published' AND j.external_post_id IS NOT NULL
+            AND ch.platform_name = 'facebook' AND a.evidence->0->>'source_id' = $2
+          ORDER BY j.published_at DESC NULLS LAST LIMIT 1`,
+        [workspaceId, sourceId],
+      )
+    ).rows[0];
+    if (!job) throw new AppError(409, 'POST_NOT_PUBLISHED', 'This topic has no Facebook post yet. Use "Đăng ngay hôm nay" to post it with its video.');
+
+    videoPostsTable ??= this.pool.query(COMMUNITY_VIDEO_POSTS_SQL).catch((error) => {
+      videoPostsTable = null;
+      throw error;
+    });
+    await videoPostsTable;
+    const done = (await this.pool.query<{ status: string }>('SELECT status FROM community_video_posts WHERE publishing_job_id = $1', [job.id])).rows[0];
+    if (done?.status === 'published') throw new AppError(409, 'REEL_ALREADY_PUBLISHED', 'This video is already on the Fanpage.');
+
+    const events = (
+      await this.pool.query<{ status: string }>(
+        `SELECT status FROM outbox_events WHERE workspace_id = $1 AND event_type = 'publishing.reel' AND payload->>'job_id' = $2`,
+        [workspaceId, job.id],
+      )
+    ).rows;
+    if (events.some((e) => e.status === 'pending' || e.status === 'processing')) return { status: 'queued' as const, job_id: job.id };
+
+    const request = reelRequest({ ...job, source_id: sourceId }, events.length);
+    await this.pool.query(
+      `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload) VALUES ($1, 'publishing.reel', $2, $3)
+       ON CONFLICT (workspace_id, dedup_key) DO NOTHING`,
+      [workspaceId, request.dedup_key, JSON.stringify(request.payload)],
+    );
+    return { status: 'queued' as const, job_id: job.id };
+  }
+
   async publishFreshPlaybookPost(
     workspaceId: string,
     actorId: string,
@@ -5292,7 +5974,7 @@ export class CommunityHubService {
 
     const cleanTitle = targetSource.title.replace(/\s*\(tripc\.ai\)\s*$/i, '').trim();
 
-    const findExistingJob = async (platformName: 'facebook_group' | 'facebook') =>
+    const findExistingJob = async (platformName: 'facebook_group' | 'facebook' | 'tiktok') =>
       (
         await this.pool.query<{
           job_id: string;
@@ -5319,23 +6001,40 @@ export class CommunityHubService {
         )
       ).rows[0];
 
+    let wantTikTok = false;
+    try {
+      const tiktokConn = await getWorkspaceConnectionStatus(workspaceId, 'tiktok');
+      if (tiktokConn.status === 'connected') {
+        const autoTikTokRes = await this.pool.query<{ auto_publish_tiktok?: boolean }>(
+          'SELECT auto_publish_tiktok FROM agent_automation WHERE workspace_id = $1 LIMIT 1',
+          [workspaceId],
+        );
+        wantTikTok = autoTikTokRes.rows[0]?.auto_publish_tiktok !== false;
+      }
+    } catch {
+      wantTikTok = false;
+    }
+
     const existingGroupJob = wantGroup ? await findExistingJob('facebook_group') : undefined;
     const existingFanpageJob = wantFanpage ? await findExistingJob('facebook') : undefined;
+    const existingTikTokJob = wantTikTok ? await findExistingJob('tiktok') : undefined;
 
     // Fast path for non-immediate rescheduling when the target channel job already exists
     if (!isImmediate) {
       const canReuseGroupOnly = targetMode === 'group' && Boolean(existingGroupJob);
       const canReuseFanpageOnly = targetMode === 'fanpage' && Boolean(existingFanpageJob);
       const canReuseBoth = targetMode === 'both' && Boolean(existingGroupJob) && Boolean(existingFanpageJob);
+      const tikTokReady = !wantTikTok || Boolean(existingTikTokJob);
 
-      if (canReuseGroupOnly || canReuseFanpageOnly || canReuseBoth) {
+      if (tikTokReady && (canReuseGroupOnly || canReuseFanpageOnly || canReuseBoth)) {
         const primaryJob = existingGroupJob ?? existingFanpageJob!;
-        const jobsToReschedule = [existingGroupJob, existingFanpageJob].filter(Boolean) as NonNullable<
+        const jobsToReschedule = [existingGroupJob, existingFanpageJob, existingTikTokJob].filter(Boolean) as NonNullable<
           typeof existingGroupJob
         >[];
 
         for (const jobRow of jobsToReschedule) {
           const isGroupJob = jobRow === existingGroupJob;
+          const isTikTokJob = jobRow === existingTikTokJob;
           await this.pool.query(
             isGroupJob
               ? `UPDATE publishing_jobs
@@ -5348,6 +6047,13 @@ export class CommunityHubService {
               ? [jobRow.job_id, scheduledForDate.toISOString(), workspaceId, settings.group_url]
               : [jobRow.job_id, scheduledForDate.toISOString(), workspaceId],
           );
+          if (isTikTokJob) {
+            await this.pool.query(
+              `UPDATE tiktok_videos SET status = 'scheduled', error_message = NULL, updated_at = NOW()
+                WHERE publishing_job_id = $1 AND workspace_id = $2`,
+              [jobRow.job_id, workspaceId],
+            );
+          }
           await this.pool.query(
             `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
              VALUES ($1, 'publishing.scheduled', $2, $3, 'pending', 0)
@@ -5361,7 +6067,7 @@ export class CommunityHubService {
                 artifact_id: jobRow.artifact_id,
                 approval_id: jobRow.approval_id,
                 channel_id: jobRow.channel_id,
-                mode: isGroupJob ? 'live' : jobRow.mode,
+                mode: isGroupJob || isTikTokJob ? 'live' : jobRow.mode,
               }),
             ],
           );
@@ -5540,6 +6246,7 @@ export class CommunityHubService {
     let contentArtifactId = existingApprovedContent?.artifact_id ?? randomUUID();
     let contentHash = existingApprovedContent?.content_hash ?? '';
     let contentApprovalId = existingApprovedContent?.approval_id ?? '';
+    let resolvedContentPayload: Record<string, any> | undefined = existingApprovedContent?.payload;
     let resolvedImageUrl =
       (existingApprovedContent?.payload?.result?.image_assets?.[0]?.url as string | undefined) ?? chosenAsset.url;
     let resolvedAttribution =
@@ -5556,6 +6263,7 @@ export class CommunityHubService {
     let socialContentId: string | null = null;
     let groupJobId: string | null = null;
     let fanpageJobId: string | null = null;
+    let tiktokJobId: string | null = null;
 
     try {
       await db.query('BEGIN');
@@ -5621,6 +6329,7 @@ export class CommunityHubService {
           context_snapshot_id: ctx.snapshot_id,
           role: 'content',
         };
+        resolvedContentPayload = { artifact: contentArtifactRef, result: contentResult };
 
         await db.query(
           `INSERT INTO content_artifacts
@@ -5795,6 +6504,129 @@ export class CommunityHubService {
         }
       }
 
+      // 3) TikTok Channel Job (Automatically scheduled when TikTok is connected and auto-publish is enabled)
+      if (wantTikTok && socialContentId) {
+        let tikTokChannel = (
+          await db.query<{ id: string }>(
+            "SELECT id FROM channels WHERE workspace_id = $1 AND platform_name = 'tiktok' ORDER BY created_at LIMIT 1",
+            [workspaceId],
+          )
+        ).rows[0];
+        if (!tikTokChannel) {
+          const summary = await getTikTokConnectionSummary(workspaceId);
+          const displayName = summary.display_name ? `TikTok (${summary.display_name})` : 'TripC TikTok';
+          tikTokChannel = (
+            await db.query<{ id: string }>(
+              `INSERT INTO channels (workspace_id, platform_name, display_name, channel_identifier)
+               VALUES ($1, 'tiktok', $2, $3) RETURNING id`,
+              [workspaceId, displayName, summary.open_id ?? null],
+            )
+          ).rows[0];
+        }
+
+        if (tikTokChannel) {
+          const ttCaptionPack = buildTikTokCaptionFromArtifact({
+            title: cleanTitle,
+            payload: resolvedContentPayload ?? {},
+          });
+          const privacyLevel = validatePrivacyLevel(process.env.TIKTOK_PRIVACY_LEVEL || 'SELF_ONLY');
+          const cleanTikTokTitle = ttCaptionPack.title.slice(0, 255);
+
+          if (existingTikTokJob) {
+            await db.query(
+              `UPDATE publishing_jobs
+                  SET scheduled_for = $2, status = 'scheduled', mode = 'live', error_message = NULL
+                WHERE id = $1 AND workspace_id = $3`,
+              [existingTikTokJob.job_id, scheduledForDate.toISOString(), workspaceId],
+            );
+            await db.query(
+              `UPDATE tiktok_videos
+                  SET status = 'scheduled', error_message = NULL, updated_at = NOW()
+                WHERE publishing_job_id = $1 AND workspace_id = $2`,
+              [existingTikTokJob.job_id, workspaceId],
+            );
+            tiktokJobId = existingTikTokJob.job_id;
+          } else {
+            const existingVideoForArtifact = (
+              await db.query<{ id: string; publishing_job_id: string | null }>(
+                `SELECT id, publishing_job_id FROM tiktok_videos
+                  WHERE workspace_id = $1 AND artifact_id = $2 AND publishing_job_id IS NOT NULL
+                  ORDER BY created_at DESC LIMIT 1`,
+                [workspaceId, contentArtifactId],
+              )
+            ).rows[0];
+            if (existingVideoForArtifact?.publishing_job_id) {
+              tiktokJobId = existingVideoForArtifact.publishing_job_id;
+            } else {
+              const ttVideo = (
+                await db.query<{ id: string }>(
+                  `INSERT INTO tiktok_videos
+                     (workspace_id, title, caption, hashtags, source_artifact_id, video_source_type,
+                      media_url, privacy_level, is_aigc, status, artifact_id, created_by)
+                   VALUES ($1, $2, $3, $4, $5, 'file_upload', $6, $7, true, 'scheduled', $8, $9)
+                   RETURNING id`,
+                  [
+                    workspaceId,
+                    cleanTikTokTitle,
+                    ttCaptionPack.caption,
+                    ttCaptionPack.hashtags,
+                    seoArtifactId,
+                    resolvedImageUrl,
+                    privacyLevel,
+                    contentArtifactId,
+                    actorId,
+                  ],
+                )
+              ).rows[0];
+              const ttJob = (
+                await db.query<{ id: string }>(
+                  `INSERT INTO publishing_jobs
+                     (content_id, channel_id, scheduled_for, status, workspace_id, artifact_id, approval_id,
+                      mode, created_by, media_url, media_type, custom_caption, tiktok_video_id, utm_url)
+                   VALUES ($1, $2, $3, 'scheduled', $4, $5, $6, 'live', $7, $8, 'video', $9, $10, $11)
+                   RETURNING id`,
+                  [
+                    socialContentId,
+                    tikTokChannel.id,
+                    scheduledForDate.toISOString(),
+                    workspaceId,
+                    contentArtifactId,
+                    contentApprovalId,
+                    actorId,
+                    resolvedImageUrl,
+                    ttCaptionPack.caption,
+                    ttVideo.id,
+                    settings.group_url,
+                  ],
+                )
+              ).rows[0];
+              await db.query(`UPDATE tiktok_videos SET publishing_job_id = $1 WHERE id = $2`, [ttJob.id, ttVideo.id]);
+              tiktokJobId = ttJob.id;
+            }
+          }
+
+          if (tiktokJobId) {
+            await db.query(
+              `INSERT INTO outbox_events (workspace_id, event_type, dedup_key, payload, status, retry_count)
+               VALUES ($1, 'publishing.scheduled', $2, $3, 'pending', 0)
+               ON CONFLICT (workspace_id, dedup_key)
+               DO UPDATE SET status = 'pending', retry_count = 0, payload = EXCLUDED.payload`,
+              [
+                workspaceId,
+                `publish:${tiktokJobId}`,
+                JSON.stringify({
+                  job_id: tiktokJobId,
+                  artifact_id: contentArtifactId,
+                  approval_id: contentApprovalId,
+                  channel_id: tikTokChannel.id,
+                  mode: 'live',
+                }),
+              ],
+            );
+          }
+        }
+      }
+
       if (shouldCreateDiscussionNow && !wantGroup) {
         const discExists = (
           await db.query('SELECT 1 FROM community_hub_discussions WHERE workspace_id = $1 AND title = $2 LIMIT 1', [
@@ -5958,6 +6790,7 @@ export class CommunityHubService {
   }
 
   private inspectGroupBotSessionFileSafe(filePath: string): {
+    hasAuthCookies: boolean;
     usingPageProfile: boolean;
     accountIdMask?: string;
   } {
@@ -5969,25 +6802,36 @@ export class CommunityHubService {
       const nowSec = Math.floor(Date.now() / 1000);
       const fbCookies = (parsed.cookies ?? []).filter(
         (c) =>
-          typeof c?.domain === 'string' &&
-          c.domain.toLowerCase().includes('facebook.com') &&
+          (!c?.domain || c.domain.toLowerCase().includes('facebook.com')) &&
           (!c.expires || c.expires < 0 || c.expires > nowSec),
       );
       const cUser = fbCookies.find((c) => c.name === 'c_user')?.value?.trim() || '';
+      const xs = fbCookies.find((c) => c.name === 'xs')?.value?.trim() || '';
       const iUser = fbCookies.find((c) => c.name === 'i_user')?.value?.trim() || '';
+      const hasAuthCookies = Boolean(cUser && xs);
       const activeId = iUser || cUser;
-      const accountIdMask = activeId.length >= 4 ? `***${activeId.slice(-4)}` : activeId ? '***' : undefined;
+      const accountIdMask =
+        hasAuthCookies && activeId ? (activeId.length >= 4 ? `***${activeId.slice(-4)}` : '***') : undefined;
       return {
-        usingPageProfile: Boolean(iUser && iUser !== cUser),
+        hasAuthCookies,
+        usingPageProfile: hasAuthCookies && Boolean(iUser && iUser !== cUser),
         ...(accountIdMask ? { accountIdMask } : {}),
       };
     } catch {
-      return { usingPageProfile: false };
+      return { hasAuthCookies: false, usingPageProfile: false };
     }
   }
 
+  private hasValidGroupBotSession(session: { exists: boolean; filePath: string }): boolean {
+    if (session.exists && this.inspectGroupBotSessionFileSafe(session.filePath).hasAuthCookies) {
+      return true;
+    }
+    return Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+  }
+
   /**
-   * Fast synchronous check for whether a saved Edge Group Bot session file or FB_ADMIN_COOKIE exists.
+   * Fast synchronous check for whether a saved Edge Group Bot session file or FB_ADMIN_COOKIE exists
+   * with active authentication cookies (`c_user` + `xs`).
    * Never exposes local filesystem paths or secret cookie contents.
    */
   async getGroupBotSessionStatus(): Promise<GroupBotSessionStatus> {
@@ -5998,13 +6842,15 @@ export class CommunityHubService {
     const session = resolveGroupBotSessionFile(workerDir);
     if (session.exists) {
       const meta = this.inspectGroupBotSessionFileSafe(session.filePath);
-      return {
-        isLoggedIn: true,
-        sessionSource: 'file',
-        ...(loginInProgress ? { loginInProgress: true } : {}),
-        ...(meta.usingPageProfile ? { usingPageProfile: true } : {}),
-        ...(meta.accountIdMask ? { accountIdMask: meta.accountIdMask } : {}),
-      };
+      if (meta.hasAuthCookies) {
+        return {
+          isLoggedIn: true,
+          sessionSource: 'file',
+          ...(loginInProgress ? { loginInProgress: true } : {}),
+          ...(meta.usingPageProfile ? { usingPageProfile: true } : {}),
+          ...(meta.accountIdMask ? { accountIdMask: meta.accountIdMask } : {}),
+        };
+      }
     }
     if (process.env.FB_ADMIN_COOKIE?.trim()) {
       return {
@@ -6022,6 +6868,27 @@ export class CommunityHubService {
   /**
    * Server-side Telegram Bot status & conversation metrics (never exposes TELEGRAM_BOT_TOKEN).
    */
+  /** Questions the bot could not answer, with the state of each source proposed for them (open questions first). */
+  async knowledgeGaps(workspaceId: string) {
+    try {
+      const store = new PgGapStore(this.pool);
+      const gaps = (await store.list(workspaceId)).slice(0, 30);
+      const ids = gaps.flatMap((g) => g.proposed.map((p) => p.source_id));
+      const rows = ids.length
+        ? (await this.pool.query<{ id: string; status: string; version: number }>(
+            `SELECT id::text, status, version FROM sources WHERE id::text = ANY($1::text[]) AND deleted_at IS NULL`, [ids])).rows
+        : [];
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      return gaps.map((g) => ({
+        id: g.id, question: g.question, ask_count: g.ask_count, status: g.status, topic: g.topic, reopened: g.reopened,
+        last_asked_at: new Date(g.last_asked_at).toISOString(),
+        sources: g.proposed.map((p) => ({ ...p, status: byId.get(p.source_id)?.status ?? 'missing', version: byId.get(p.source_id)?.version ?? null })),
+      }));
+    } catch {
+      return []; // Table not migrated yet: the hub still loads.
+    }
+  }
+
   async getTelegramBotStatus(workspaceId: string): Promise<{
     configured: boolean;
     mode: 'polling' | 'webhook';
@@ -6208,7 +7075,7 @@ export class CommunityHubService {
     const runner = resolveGroupBotRunner(workerDir);
 
     const verified = await new Promise<GroupBotSessionStatus>((resolve) => {
-      const child = spawn(runner.command, [...runner.prefixArgs, 'check'], {
+      const child = spawnGroupBot(runner.command, [...runner.prefixArgs, 'check'], {
         cwd: workerDir,
         env: { ...process.env, FB_SESSION_FILE: session.filePath },
         shell: false,
@@ -6473,7 +7340,7 @@ if ($found) { 'FOCUSED' } else { 'NONE' }
 
     const runner = resolveGroupBotRunner(workerDir);
     const signalFile = waitForConfirm
-      ? path.join(os.tmpdir(), `fb-login-done-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}.sig`)
+      ? path.join(groupBotTmpDir(), `fb-login-done-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}.sig`)
       : '';
     activeLoginSignalFile = signalFile || null;
 
@@ -6554,7 +7421,7 @@ exit $p.ExitCode
           stdio: ['ignore', 'pipe', 'pipe'],
         });
       } else {
-        child = spawn(runner.command, runnerArgs, {
+        child = spawnGroupBot(runner.command, runnerArgs, {
           cwd: workerDir,
           env: { ...process.env, FB_SESSION_FILE: session.filePath },
           shell: false,
@@ -6791,7 +7658,7 @@ exit $p.ExitCode
     const settings = await this.ensureSchemaAndContext(workspaceId);
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
-    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = this.hasValidGroupBotSession(session);
 
     const upsertGroupPostRecord = async (record: {
       status: 'published' | 'failed';
@@ -6860,7 +7727,12 @@ exit $p.ExitCode
     }
 
     const runner = resolveGroupBotRunner(workerDir);
-    const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-post-${randomUUID()}.json`);
+    const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-group-post-${randomUUID()}.json`);
+    // The topic's explainer video goes with the post. Only its file name: the bot finds it in its own
+    // COMMUNITY_VIDEO_DIR, since this process may see that folder under another path (container).
+    const video = options.source_id ? readVideoManifest(videoDir(), workspaceId).get(options.source_id) : undefined;
+    // Facebook keeps "Post" disabled while a video uploads. Stays under fetch's 300 s header timeout (bridge).
+    const postTimeoutMs = video ? 270_000 : 120_000;
     fs.writeFileSync(
       tmpPayloadFile,
       JSON.stringify({
@@ -6869,6 +7741,7 @@ exit $p.ExitCode
         body: options.body,
         discussionPrompt: options.discussion_prompt,
         imageUrl: options.image_url,
+        ...(video ? { videoFile: video.file } : {}),
         headless: true,
       }),
       'utf8',
@@ -6882,7 +7755,7 @@ exit $p.ExitCode
         spawnErr?: string;
         timedOut?: boolean;
       }>((resolve) => {
-        const child = spawn(
+        const child = spawnGroupBot(
           runner.command,
           [...runner.prefixArgs, 'post', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
           {
@@ -6906,7 +7779,7 @@ exit $p.ExitCode
             }
             resolve({ code: null, stdout, stderr, timedOut: true });
           }
-        }, 120_000);
+        }, postTimeoutMs);
 
         child.stdout?.on('data', (d) => {
           stdout += d.toString();
@@ -6950,7 +7823,7 @@ exit $p.ExitCode
 
       const rawError =
         botOutput.timedOut
-          ? 'Group Bot đăng bài quá thời gian chờ (120s).'
+          ? `Group Bot đăng bài quá thời gian chờ (${postTimeoutMs / 1000}s).`
           : botOutput.spawnErr ||
           (typeof parsed?.message === 'string' ? parsed.message : '') ||
           botOutput.stderr.trim() ||
@@ -7000,7 +7873,7 @@ exit $p.ExitCode
     const settings = await this.ensureSchemaAndContext(workspaceId);
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
-    const hasSession = session.exists || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = this.hasValidGroupBotSession(session);
 
     let existingRow: {
       id: string;
@@ -7058,7 +7931,7 @@ exit $p.ExitCode
     }
 
     const runner = resolveGroupBotRunner(workerDir);
-    const tmpPayloadFile = path.join(os.tmpdir(), `fb-group-del-${randomUUID()}.json`);
+    const tmpPayloadFile = path.join(groupBotTmpDir(), `fb-group-del-${randomUUID()}.json`);
     fs.writeFileSync(
       tmpPayloadFile,
       JSON.stringify({
@@ -7078,7 +7951,7 @@ exit $p.ExitCode
         spawnErr?: string;
         timedOut?: boolean;
       }>((resolve) => {
-        const child = spawn(
+        const child = spawnGroupBot(
           runner.command,
           [...runner.prefixArgs, 'delete', '--group-url', settings.group_url, '--payload-file', tmpPayloadFile],
           {

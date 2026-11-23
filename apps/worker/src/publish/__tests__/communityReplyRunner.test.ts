@@ -55,6 +55,14 @@ describe('CommunityReplyRunner', () => {
     expect(sql.some((s) => s.text.includes("status = 'replied'"))).toBe(true);
   });
 
+  it('answers a group question as a reply to the message that asked it', async () => {
+    const groupEvent = { ...event, payload: { ...event.payload, recipient: '-100123', platform: 'telegram_message', reply_to_message_id: 11 } };
+    const { pool } = harness(groupEvent);
+    const telegram = vi.fn(async () => ({ message_id: '43' }));
+    expect(await new CommunityReplyRunner(pool, vi.fn(), telegram).runOnce()).toBe('sent');
+    expect(telegram).toHaveBeenCalledWith('-100123', 'Street food stalls open every evening.', undefined, { reply_to_message_id: 11 });
+  });
+
   it('forwards inline keyboard markup on Telegram reply and records community_invite_logs when invited', async () => {
     const markup = {
       inline_keyboard: [[{ text: '👥 Tham gia Cộng đồng trên Facebook', url: 'https://www.facebook.com/groups/1134282109069209' }]],

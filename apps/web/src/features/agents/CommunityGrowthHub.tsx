@@ -7,7 +7,8 @@ const getSwitchFallbackSnapshot = () =>
   typeof HTMLInputElement !== "undefined" && !("switch" in HTMLInputElement.prototype);
 const getSwitchFallbackServerSnapshot = () => false;
 import Link from "next/link";
-import { apiRequest } from "@/lib/api";
+import { API_BASE_URL, apiRequest } from "@/lib/api";
+import KnowledgeGapsPanel, { type KnowledgeGap } from "./KnowledgeGapsPanel";
 
 type WeeklyTargetPlanItem = {
   week: number;
@@ -186,6 +187,98 @@ type EngagementSnapshotItem = {
   group_members: number;
   captured_at: string;
 };
+type TopicVideo = {
+  path: string;
+  title: string;
+  duration_s: number;
+  status: "draft" | "approved";
+  created_at: string;
+  /** The Reel the worker posted after the card's Facebook post, if any. */
+  facebook_reel?: { status: "published" | "failed" | "no_video" | string; post_url: string | null; error: string | null } | null;
+};
+
+function TopicVideoPanel({ video, onPublishReel, busy }: { video?: TopicVideo | null; onPublishReel?: () => void; busy?: boolean }) {
+  if (!video) {
+    return (
+      <div className="mx-4 mb-3 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[11px] text-slate-500">
+        Chưa có video giải thích cho chủ đề này
+      </div>
+    );
+  }
+  const src = `${API_BASE_URL}${video.path}`;
+  return (
+    <div className="mx-4 mb-3 rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 shadow-2xs">
+      <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-slate-800">
+        <span className="flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          Video giải thích · {Math.round(video.duration_s)}s · Lời Anh, phụ đề Việt
+        </span>
+        <span
+          className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
+            video.status === "approved" ? "bg-slate-900 text-white" : "border border-amber-300 bg-amber-50 text-amber-800"
+          }`}
+        >
+          {video.status === "approved" ? "Đã duyệt" : "Chờ duyệt"}
+        </span>
+      </div>
+      <video
+        key={src}
+        controls
+        playsInline
+        preload="metadata"
+        src={src}
+        className="mx-auto max-h-80 rounded-lg bg-black w-full"
+      />
+      <div className="mt-2.5 flex flex-wrap items-center gap-3">
+        <a
+          href={`${src}&download=1`}
+          className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 underline underline-offset-2 transition-colors"
+        >
+          <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Tải video MP4
+        </a>
+        {video.facebook_reel?.status === "published" && video.facebook_reel.post_url && (
+          <a
+            href={video.facebook_reel.post_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:text-emerald-950 underline underline-offset-2 transition-colors"
+          >
+            Xem Reel trên Fanpage ↗
+          </a>
+        )}
+      </div>
+      {video.facebook_reel?.status === "failed" && (
+        <p className="mt-2 rounded-lg bg-rose-50 border border-rose-200 px-2.5 py-1.5 text-xs text-rose-700">
+          Chưa đăng Reel được: {video.facebook_reel.error}
+        </p>
+      )}
+      {video.facebook_reel?.status === "queued" && (
+        <p className="mt-2 text-xs font-medium text-slate-600 flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-slate-400 animate-pulse" />
+          Đang chuẩn bị đăng video lên Fanpage dạng Reel…
+        </p>
+      )}
+      {onPublishReel && video.facebook_reel?.status !== "published" && video.facebook_reel?.status !== "queued" && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onPublishReel}
+          className="mt-2.5 inline-flex items-center justify-center rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 active:scale-[0.98] transition-all disabled:opacity-50"
+        >
+          {busy ? "Đang gửi…" : video.facebook_reel?.status === "failed" ? "Thử lại đăng video lên Fanpage" : "Đăng video lên Fanpage"}
+        </button>
+      )}
+      {!video.facebook_reel && !onPublishReel && (
+        <p className="mt-1.5 text-[11px] text-slate-500">Video này tự động đăng kèm dạng Reel khi xuất bản bài viết lên Fanpage.</p>
+      )}
+    </div>
+  );
+}
 
 type DailyCalendarItem = {
   day_index: number;
@@ -232,6 +325,8 @@ type DailyCalendarItem = {
   published_at: string | null;
   facebook_post_url?: string | null;
   post_body_preview?: string | null;
+  /** Explainer video for the topic; `path` is a signed link under API_BASE_URL. */
+  video?: TopicVideo | null;
   unique_topic_verified: boolean;
   unique_image_verified: boolean;
   engagement?: PostEngagementSummary;
@@ -381,6 +476,7 @@ type HubResponse = {
     monthly: MonthlyCalendarItem[];
   };
   telegram_bot?: TelegramBotStatus;
+  knowledge_gaps?: KnowledgeGap[];
 };
 
 type WeekFilterId = `week${number}`;
@@ -895,6 +991,7 @@ export default function CommunityGrowthHub({
         sync_result: {
           applied: boolean;
           reason?: string;
+          message?: string;
           week1_target: number;
           week2_target: number;
           week3_target: number;
@@ -918,7 +1015,7 @@ export default function CommunityGrowthHub({
         res.sync_result.applied ? "success" : "warning",
         res.sync_result.applied
           ? `🤖 Growth Lead Agent đã phân tích số liệu thực tế & tự động áp dụng mục tiêu mới: Tuần 1 (${res.sync_result.week1_target}) → Tuần 2 (${res.sync_result.week2_target}) → Tuần 3 (${res.sync_result.week3_target}) → Tuần 4 (${res.sync_result.week4_target}) thành viên • Giới hạn mời an toàn: ${res.sync_result.daily_invite_limit} lượt/ngày.`
-          : `⚠️ Không thể áp dụng tự động mục tiêu Growth Lead (${res.sync_result.reason || "locked_manual"}).`
+          : `⚠️ Không thể áp dụng tự động mục tiêu Growth Lead (${res.sync_result.reason || "locked_manual"}).${res.sync_result.message ? ` ${res.sync_result.message}` : ""}`
       );
       onUpdated?.();
     } catch (err) {
@@ -984,6 +1081,9 @@ export default function CommunityGrowthHub({
           group_ingested: number;
           queued_for_rag: number;
           auto_reply_comments: boolean;
+          auto_replies_sent?: number;
+          page_replies_sent?: number;
+          group_replies_sent?: number;
           warnings: string[];
         };
         data: HubResponse;
@@ -997,10 +1097,53 @@ export default function CommunityGrowthHub({
         res.scan_result.warnings.length > 0
           ? ` (Lưu ý: ${res.scan_result.warnings.join(" | ")})`
           : "";
+      const replySentInfo =
+        res.scan_result.auto_replies_sent !== undefined && res.scan_result.auto_replies_sent > 0
+          ? ` • ĐÃ TỰ ĐỘNG ĐĂNG ${res.scan_result.auto_replies_sent} TRẢ LỜI LÊN FACEBOOK (Page: ${res.scan_result.page_replies_sent ?? 0}, Group: ${res.scan_result.group_replies_sent ?? 0})`
+          : "";
       showBanner(
         res.scan_result.warnings.length > 0 ? "warning" : "success",
-        `💬 Đã quét bình luận thật (Fanpage: +${res.scan_result.page_ingested}, Group: +${res.scan_result.group_ingested}) • Đã xếp hàng ${res.scan_result.queued_for_rag} bình luận chờ trả lời RAG${res.scan_result.auto_reply_comments ? " (Auto-Reply ĐANG BẬT)" : " (Auto-Reply đang tắt)"}.${warnSuffix}`
+        `💬 Đã quét bình luận thật (Fanpage: +${res.scan_result.page_ingested}, Group: +${res.scan_result.group_ingested})${replySentInfo} • Đã xếp hàng ${res.scan_result.queued_for_rag} bình luận chờ trả lời RAG${res.scan_result.auto_reply_comments ? " (Auto-Reply ĐANG BẬT)" : " (Auto-Reply đang tắt)"}.${warnSuffix}`
       );
+      onUpdated?.();
+    } catch (err) {
+      showBanner("error", (err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleDispatchCommentReplies() {
+    setBusyAction("dispatch_replies");
+    setBannerMessage("");
+    setBannerRecovery(null);
+    try {
+      const res = await apiRequest<{
+        status: string;
+        reply_result: {
+          total_checked: number;
+          replies_sent: number;
+          page_replies: number;
+          group_replies: number;
+          failed_count: number;
+        };
+        data: HubResponse;
+      }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "dispatch_comment_replies", max_batch: 10 },
+      });
+      setHub(res.data);
+      setLastSyncedDisplay(new Date().toLocaleTimeString("vi-VN", { hour12: false }));
+      if (res.reply_result.replies_sent > 0) {
+        showBanner(
+          "success",
+          `✅ Đã tự động đăng thành công ${res.reply_result.replies_sent} câu trả lời bình luận lên Facebook (Fanpage: ${res.reply_result.page_replies}, Group: ${res.reply_result.group_replies})!`
+        );
+      } else if (res.reply_result.total_checked === 0) {
+        showBanner("success", "👍 Hiện không có bình luận nào đang chờ trả lời.");
+      } else {
+        showBanner("warning", `⚠️ Đã kiểm tra ${res.reply_result.total_checked} bình luận nhưng chưa thể đăng (Lỗi/chờ: ${res.reply_result.failed_count}).`);
+      }
       onUpdated?.();
     } catch (err) {
       showBanner("error", (err as Error).message);
@@ -1505,7 +1648,30 @@ export default function CommunityGrowthHub({
     }
   }
 
-  async function handleCopyAndOpenGroup(title: string, bodyText: string, promptText: string) {
+  /** Posts the topic's video as a Reel for a card that is already on the Fanpage (posts from before Reels existed). */
+  async function handlePublishReel(sourceId: string, title: string) {
+    if (!window.confirm(`Đăng video của "${title}" lên Fanpage dạng Reel? Video sẽ công khai ngay.`)) return;
+    setBusyAction(`reel:${sourceId}`);
+    setBannerMessage("");
+    try {
+      const res = await apiRequest<{ data: HubResponse }>(`/workspaces/${workspaceId}/community/hub`, {
+        method: "POST",
+        body: { action: "publish_reel", source_id: sourceId },
+      });
+      setHub(res.data);
+      setBannerMessage(`Đã gửi video "${title}" lên hàng đợi; Reel sẽ xuất hiện trên Fanpage trong ít phút.`);
+    } catch (err) {
+      setBannerMessage((err as Error).message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  /**
+   * Facebook removed the Groups API (Graph API v19, April 2024), so nothing can post to a Group for us. This does every
+   * step but the last: copy the text, download the topic's video, open the Group; the person pastes, attaches, posts.
+   */
+  async function handleCopyAndOpenGroup(title: string, bodyText: string, promptText: string, video?: TopicVideo | null) {
     if (!hub) return;
     const postContent = [
       `🇻🇳 [CẨM NANG CỘNG ĐỒNG] ${title}`,
@@ -1516,16 +1682,26 @@ export default function CommunityGrowthHub({
       "",
       `#CongDongDuLich #DichVuHoTroDuLich #DaNang #ExploreVietnam`,
     ].join("\n");
+    if (video) {
+      // The API answers download=1 with Content-Disposition: attachment, so this saves the file without leaving the page.
+      const a = document.createElement("a");
+      a.href = `${API_BASE_URL}${video.path}&download=1`;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    const videoNote = video ? " Video của chủ đề đang tải về thư mục Downloads: kéo file vào ô bài viết." : "";
     try {
       await navigator.clipboard.writeText(postContent);
       showBanner(
         "success",
-        `Đã copy sẵn toàn bộ nội dung bài "${title}" vào bộ nhớ tạm! Cửa sổ Group "${hub.group.name}" đã mở — bạn chỉ cần bấm vào ô "Bạn viết gì đi..." và nhấn Ctrl + V để đăng vào Nhóm.`
+        `Đã copy sẵn toàn bộ nội dung bài "${title}" vào bộ nhớ tạm! Cửa sổ Group "${hub.group.name}" đã mở — bạn chỉ cần bấm vào ô "Bạn viết gì đi..." và nhấn Ctrl + V để đăng vào Nhóm.${videoNote}`
       );
     } catch {
       showBanner(
         "warning",
-        `Đã mở Group "${hub.group.name}". Bạn có thể sao chép nội dung bài "${title}" để dán trực tiếp vào Nhóm.`
+        `Đã mở Group "${hub.group.name}". Bạn có thể sao chép nội dung bài "${title}" để dán trực tiếp vào Nhóm.${videoNote}`
       );
     }
     window.open(hub.group.group_url, "_blank", "noopener,noreferrer");
@@ -1926,26 +2102,26 @@ export default function CommunityGrowthHub({
     return (
       <section
         id="published-posts-by-date"
-        className="space-y-4 rounded-2xl border-2 border-emerald-300 bg-gradient-to-b from-emerald-50/70 to-white p-4 sm:p-5 shadow-sm"
+        className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-[1_1_420px]">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-md bg-emerald-700 px-2.5 py-0.5 text-xs font-bold text-white">
-                📚 LƯU TRỮ BÀI ĐÃ ĐĂNG (KHÔNG BAO GIỜ ẨN)
+              <span className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">
+                Kho bài viết đã xuất bản
               </span>
-              <span className="rounded-md border border-emerald-300 bg-white px-2.5 py-0.5 text-xs font-bold text-emerald-900">
-                ✓ {primaryPublishedItems.length} bài đã đăng {targetMode === "fanpage" ? "Fanpage" : "Group Cộng đồng"}
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
+                Kênh chính ({targetMode === "fanpage" ? "Fanpage" : "Group"}): {primaryPublishedItems.length} bài
               </span>
-              <span className="rounded-md border border-slate-300 bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                Tổng đa kênh (Group + Web + Fanpage cũ): {anyChannelPublishedItems.length} bài
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                Tổng đa kênh: {anyChannelPublishedItems.length} bài
               </span>
             </div>
-            <h3 className="mt-2 text-lg font-bold text-slate-900">
-              Các Bài Đã Đăng Theo Ngày • Tháng • Năm
+            <h3 className="mt-2 text-base font-bold text-slate-900 tracking-tight">
+              Các bài đã đăng theo thời gian
             </h3>
-            <p className="mt-0.5 text-xs text-slate-600">
-              Tất cả bài đã đăng đều được lưu trữ cố định tại đây theo đúng mốc <b>Ngày / Tháng / Năm & Giờ:Phút</b> thực tế (không bị ẩn đi khi lọc lịch hẹn), kèm ảnh thật, nội dung đã đăng, link xem trực tiếp và nút thu hồi nếu cần.
+            <p className="mt-0.5 text-xs text-slate-500">
+              Lưu trữ cố định theo ngày, tháng, năm và giờ xuất bản thực tế, bao gồm tư liệu ảnh thật, nội dung đã duyệt và liên kết kiểm tra trực tiếp.
             </p>
           </div>
           {hasArchiveFilter && (
@@ -1958,47 +2134,47 @@ export default function CommunityGrowthHub({
                 setArchiveExactDate("");
                 setArchiveSearch("");
               }}
-              className="max-w-full self-start rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100"
+              className="max-w-full self-start rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-[0.98]"
             >
-              🔄 Xóa lọc ngày đã đăng
+              Xóa bộ lọc ngày
             </button>
           )}
         </div>
 
         {/* Bộ lọc kênh & Ngày / Tháng / Năm cho mục Các bài đã đăng */}
-        <div className="space-y-3 rounded-xl border border-emerald-200 bg-white p-3.5">
+        <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-slate-700">Kênh đã đăng:</span>
             {[
               {
                 id: "primary" as const,
-                label: `✓ Đã đăng ${targetMode === "fanpage" ? "Fanpage" : "Group Cộng đồng"} (${primaryPublishedItems.length})`,
+                label: `Kênh chính: ${targetMode === "fanpage" ? "Fanpage" : "Group"} (${primaryPublishedItems.length})`,
               },
               {
                 id: "group" as const,
-                label: `👥 Group Cộng đồng (${publishedGroupCount})`,
+                label: `Group Facebook (${publishedGroupCount})`,
               },
               {
                 id: "website" as const,
-                label: `🌐 Website (${currentHub.calendar.daily.filter((i) => Boolean(i.published_slug)).length})`,
+                label: `Website (${currentHub.calendar.daily.filter((i) => Boolean(i.published_slug)).length})`,
               },
               {
                 id: "fanpage" as const,
-                label: `📘 Fanpage (${publishedFanpageCount})`,
+                label: `Fanpage (${publishedFanpageCount})`,
               },
               {
                 id: "all_published" as const,
-                label: `📚 Tất cả kênh đã đăng (${anyChannelPublishedItems.length})`,
+                label: `Tất cả kênh (${anyChannelPublishedItems.length})`,
               },
             ].map((ch) => (
               <button
                 key={ch.id}
                 type="button"
                 onClick={() => setArchiveChannelFilter(ch.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-[0.98] ${
                   archiveChannelFilter === ch.id
-                    ? "bg-emerald-700 text-white shadow-sm"
-                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-emerald-50"
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 {ch.label}
@@ -3582,6 +3758,13 @@ export default function CommunityGrowthHub({
           </div>
         </div>
 
+      <KnowledgeGapsPanel
+        workspaceId={workspaceId}
+        gaps={hub.knowledge_gaps}
+        canEdit={canEdit}
+        onChanged={() => void syncFromServer({ showErrorOnFailure: true })}
+      />
+
       {/* Navigation Tabs (Accessible Single-Row Scrollable Tablist) */}
       <div
         role="tablist"
@@ -4450,6 +4633,14 @@ export default function CommunityGrowthHub({
                           </div>
                         </div>
 
+                        <TopicVideoPanel
+                          video={item.video}
+                          busy={busyAction === `reel:${item.source_id}`}
+                          onPublishReel={
+                            isFanpagePublished && canEdit ? () => handlePublishReel(item.source_id, item.topic_title) : undefined
+                          }
+                        />
+
                         {/* VÙNG 5: CHÂN THẺ (LINK BÀI ĐÃ ĐĂNG GROUP/WEB HOẶC BỘ ĐỔI NGÀY GIỜ & NÚT ĐĂNG GROUP) */}
                         <div className="space-y-2.5 border-t border-slate-200 bg-slate-50 px-4 py-3">
                           {isPublished ? (
@@ -5080,7 +5271,15 @@ export default function CommunityGrowthHub({
                       onClick={() => void handleScanComments()}
                       className="rounded-lg bg-blue-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50"
                     >
-                      {busyAction === "scan_comments" ? "Đang quét bình luận…" : "💬 Quét & Trả lời Comment RAG"}
+                      {busyAction === "scan_comments" ? "Đang quét & trả lời…" : "💬 Quét & Trả lời Comment Tự Động"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canEdit || !!busyAction}
+                      onClick={() => void handleDispatchCommentReplies()}
+                      className="rounded-lg border border-blue-600 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      {busyAction === "dispatch_replies" ? "Đang đăng phản hồi…" : "⚡ Đăng ngay câu trả lời tồn đọng"}
                     </button>
                   </div>
                 </div>

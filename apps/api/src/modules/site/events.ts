@@ -3,6 +3,11 @@ import type { Pool } from 'pg';
 import { resolveSite } from '../../lib/sites';
 
 export const siteEventSchema = z.object({
+  event_id: z.string().uuid().optional(),
+  attribution: z.object({
+    utm_source: z.string().max(128).optional(), utm_medium: z.string().max(128).optional(),
+    utm_campaign: z.string().max(128).optional(), utm_content: z.string().max(128).optional(),
+  }).strict().optional(),
   event_type: z.enum(['page_view', 'cta_click']),
   session_id: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
   path: z.string().startsWith('/').max(300),
@@ -35,12 +40,12 @@ export async function recordSiteEvent(pool: Pool, siteId: string, input: SiteEve
     ? (await pool.query("SELECT id FROM contents WHERE site_id=$1 AND slug=$2 AND status='published'", [siteId, input.content_slug])).rows[0]
     : null;
   const inserted = await pool.query(
-    `INSERT INTO site_events (workspace_id, site_id, content_id, event_type, session_id, path, referrer_host, internal)
-     SELECT $1::uuid, $2::varchar, $3::uuid, $4::varchar, $5::varchar, $6::varchar, $7::varchar, $8::boolean
+    `INSERT INTO site_events (workspace_id, site_id, content_id, event_type, session_id, path, referrer_host, internal, event_id, attribution)
+     SELECT $1::uuid, $2::varchar, $3::uuid, $4::varchar, $5::varchar, $6::varchar, $7::varchar, $8::boolean, $9::uuid, $10::jsonb
      WHERE $4::varchar <> 'page_view' OR NOT EXISTS (SELECT 1 FROM site_events WHERE site_id=$2::varchar AND session_id=$5::varchar AND path=$6::varchar
-       AND event_type='page_view' AND occurred_at > now() - interval '30 minutes')`,
+       AND event_type='page_view' AND occurred_at > now() - interval '30 minutes') ON CONFLICT (site_id,event_id) DO NOTHING`,
     [site.workspace_id, siteId, content?.id ?? null, input.event_type, input.session_id, input.path,
-      referrerHost(input.referrer), internal],
+      referrerHost(input.referrer), internal, input.event_id ?? null, JSON.stringify(input.attribution ?? {})],
   );
   return { recorded: inserted.rowCount === 1, internal };
 }

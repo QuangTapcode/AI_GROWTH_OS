@@ -1287,5 +1287,215 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
       vi.unstubAllEnvs();
     }
   });
+
+  it('getGroupBotSessionStatus & hasGroupBotSessionSync return logged-out when .fb-session.json lacks c_user/xs', async () => {
+    const { hasGroupBotSessionSync } = await import('../../src/modules/integrations/stubs');
+    const tmpSession = path.join(os.tmpdir(), `vitest-anon-session-${Date.now()}.json`);
+    process.env.FB_SESSION_FILE = tmpSession;
+    try {
+      fs.writeFileSync(
+        tmpSession,
+        JSON.stringify({
+          cookies: [
+            { name: 'datr', value: 'anon-datr', domain: '.facebook.com' },
+            { name: 'sb', value: 'anon-sb', domain: '.facebook.com' },
+            { name: 'fr', value: 'anon-fr', domain: '.facebook.com' },
+          ],
+        }),
+        'utf8',
+      );
+      expect(hasGroupBotSessionSync()).toBe(false);
+      const service = new CommunityHubService({ query: vi.fn(), connect: vi.fn() } as unknown as Pool);
+      const status = await service.getGroupBotSessionStatus();
+      expect(status).toEqual({ isLoggedIn: false, sessionSource: 'none' });
+    } finally {
+      try {
+        if (fs.existsSync(tmpSession)) fs.unlinkSync(tmpSession);
+      } catch {}
+    }
+  });
+
+  it('scheduleAllPlaybookPosts keeps Group and Fanpage jobs on the same daily slot when publish_target = "both"', async () => {
+    const updatedSchedules: { jobId: string; scheduledFor: string }[] = [];
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM integration_connections')) {
+        return { rows: [{ account_ref: '1381196421750749', display_name: 'Dịch vụ hỗ trợ du lịch' }] };
+      }
+      if (sql.includes('SELECT * FROM community_hub_settings')) {
+        return {
+          rows: [
+            {
+              community_name: 'Cộng đồng Du lịch & Sống tại Việt Nam',
+              group_url: 'https://www.facebook.com/groups/1134282109069209',
+              publish_target: 'both',
+              page_name: 'Dịch vụ hỗ trợ du lịch',
+              page_url: 'https://www.facebook.com/profile.php?id=61596152213281',
+              positioning: 'Cộng đồng',
+              group_member_count: 5,
+              week1_target: 5,
+              week2_target: 10,
+              week3_target: 18,
+              week4_target: 30,
+              updated_at: new Date(),
+            },
+          ],
+        };
+      }
+      if (sql.includes("platform_name = 'facebook_group'")) {
+        return {
+          rows: [
+            {
+              id: GROUP_CHANNEL_ID,
+              channel_identifier: 'https://www.facebook.com/groups/1134282109069209',
+              display_name: 'Cộng đồng Du lịch & Sống tại Việt Nam',
+            },
+          ],
+        };
+      }
+      if (sql.includes("platform_name = 'facebook'")) {
+        return { rows: [{ id: FANPAGE_CHANNEL_ID }] };
+      }
+      if (sql.includes('SELECT count(*)::int AS n FROM community_hub_discussions')) return { rows: [{ n: 1 }] };
+      if (sql.includes('FROM community_hub_discussions') && sql.includes('LIKE')) return { rows: [{ n: 0 }] };
+      if (sql.includes('FROM sources') && sql.includes("https://tripc.ai/blog/%")) {
+        return { rows: [] };
+      }
+      if (sql.includes('SELECT count(*)::int AS cnt') && sql.includes('FROM publishing_jobs')) {
+        return { rows: [{ cnt: 0 }] };
+      }
+      if (sql.includes('ch.platform_name,') && sql.includes('FROM publishing_jobs j')) {
+        return {
+          rows: [
+            {
+              id: 'job-grp-a',
+              title: 'Topic A',
+              platform_name: 'facebook_group',
+              source_id: 'src-a',
+              content_id: 'cnt-a',
+            },
+            {
+              id: 'job-fp-a',
+              title: 'Topic A',
+              platform_name: 'facebook',
+              source_id: 'src-a',
+              content_id: 'cnt-a',
+            },
+            {
+              id: 'job-grp-b',
+              title: 'Topic B',
+              platform_name: 'facebook_group',
+              source_id: 'src-b',
+              content_id: 'cnt-b',
+            },
+          ],
+        };
+      }
+      if (sql.includes('UPDATE publishing_jobs') && sql.includes('SET scheduled_for = $2')) {
+        updatedSchedules.push({
+          jobId: String(params?.[0]),
+          scheduledFor: String(params?.[1]),
+        });
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const service = new CommunityHubService({ query, connect: vi.fn() } as unknown as Pool);
+    const res = await service.scheduleAllPlaybookPosts(WORKSPACE_ID, ACTOR_ID, {
+      start_date_iso: '2026-11-12T02:00:00.000Z',
+      interval_hours: 24,
+    });
+
+    expect(res.publish_target).toBe('both');
+    expect(updatedSchedules).toEqual([
+      { jobId: 'job-grp-a', scheduledFor: '2026-11-12T02:00:00.000Z' },
+      { jobId: 'job-fp-a', scheduledFor: '2026-11-12T02:00:00.000Z' },
+      { jobId: 'job-grp-b', scheduledFor: '2026-11-13T02:00:00.000Z' },
+    ]);
+  });
+
+  it('replyToPageComment posts an official reply to Facebook Graph API and returns the new reply ID', async () => {
+    process.env.FACEBOOK_PAGE_ACCESS_TOKEN = 'test-token-xyz';
+    process.env.META_GRAPH_API_VERSION = 'v21.0';
+
+    let capturedUrl = '';
+    let capturedBody: Record<string, unknown> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        capturedUrl = url;
+        capturedBody = JSON.parse((init?.body as string) || '{}');
+        return new Response(JSON.stringify({ id: 'reply_cmt_99999' }), { status: 200 });
+      }),
+    );
+
+    const service = new CommunityHubService({ query: vi.fn() } as unknown as Pool);
+    const res = await service.replyToPageComment('cmt_orig_12345', 'Chào bạn! Cảm ơn bạn đã quan tâm đến quán.');
+
+    expect(res.success).toBe(true);
+    expect(res.replyId).toBe('reply_cmt_99999');
+    expect(capturedUrl).toContain('/v21.0/cmt_orig_12345/comments');
+    expect(capturedBody.message).toBe('Chào bạn! Cảm ơn bạn đã quan tâm đến quán.');
+    expect(capturedBody.access_token).toBe('test-token-xyz');
+  });
+
+  it('dispatchPendingCommentReplies dispatches pending Page comments and marks them as replied', async () => {
+    process.env.FACEBOOK_PAGE_ACCESS_TOKEN = 'test-token-xyz';
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ id: 'reply_live_888' }), { status: 200 })),
+    );
+
+    const updateQueries: unknown[][] = [];
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT * FROM community_hub_settings')) {
+        return {
+          rows: [
+            {
+              community_name: 'Cộng đồng Ẩm thực & Du lịch',
+              group_url: 'https://www.facebook.com/groups/1134282109069209',
+              page_name: 'Quán Ăn Ngon',
+              auto_reply_comments: true,
+            },
+          ],
+        };
+      }
+      if (sql.includes('SELECT m.id, m.platform, m.external_id')) {
+        return {
+          rows: [
+            {
+              id: 'msg-pending-1',
+              platform: 'facebook_comment',
+              external_id: 'fb_cmt_555',
+              author_name: 'Trần Văn Nam',
+              author_contact: 'user-nam-123',
+              content: 'Quán mình có món lẩu cua đồng không ạ?',
+              post_url: 'https://www.facebook.com/page-1/posts/100',
+              metadata: { comment_source: 'page' },
+              rag_reply_text: 'Chào Nam! Quán có món lẩu cua đồng rất tươi ngon phục vụ mỗi ngày bạn nhé!',
+            },
+          ],
+        };
+      }
+      if (sql.includes('UPDATE community_messages')) {
+        updateQueries.push(params ?? []);
+        return { rowCount: 1, rows: [] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+
+    const service = new CommunityHubService({ query } as unknown as Pool);
+    const result = await service.dispatchPendingCommentReplies(WORKSPACE_ID, { maxBatch: 5 });
+
+    expect(result.total_checked).toBe(1);
+    expect(result.replies_sent).toBe(1);
+    expect(result.page_replies).toBe(1);
+    expect(result.failed_count).toBe(0);
+    expect(updateQueries).toHaveLength(1);
+    expect(updateQueries[0][0]).toBe('msg-pending-1');
+    expect(updateQueries[0][1]).toContain('lẩu cua đồng');
+    expect(updateQueries[0][2]).toBe('reply_live_888');
+  });
 });
 

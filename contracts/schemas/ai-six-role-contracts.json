@@ -1307,9 +1307,47 @@
                 "maxItems": 5,
                 "title": "Weak Titles",
                 "type": "array"
+              },
+              "channel_observations": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "title": "Channel Observations",
+                "type": "array"
               }
             },
             "title": "LearningLessons",
+            "type": "object"
+          },
+          "PerformanceAction": {
+            "additionalProperties": false,
+            "description": "Owner-approved investigation guidance, never source evidence or a causal claim.",
+            "properties": {
+              "metric_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Metric Name",
+                "type": "string"
+              },
+              "reason": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "report_artifact_id": {
+                "format": "uuid",
+                "title": "Report Artifact Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "metric_name",
+              "reason",
+              "report_artifact_id"
+            ],
+            "title": "PerformanceAction",
             "type": "object"
           },
           "PriorityTopic": {
@@ -2151,6 +2189,14 @@
             "title": "Trend Signals",
             "type": "array"
           },
+          "own_domains": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Own Domains",
+            "type": "array"
+          },
           "search_metrics": {
             "anyOf": [
               {
@@ -2180,6 +2226,17 @@
             "anyOf": [
               {
                 "$ref": "#/$defs/LearningLessons"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "performance_action": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PerformanceAction"
               },
               {
                 "type": "null"
@@ -2743,6 +2800,24 @@
                 "minimum": 0,
                 "title": "Distinct Domains",
                 "type": "integer"
+              },
+              "business_present": {
+                "default": false,
+                "title": "Business Present",
+                "type": "boolean"
+              },
+              "business_has_article": {
+                "default": false,
+                "title": "Business Has Article",
+                "type": "boolean"
+              },
+              "leading_domains": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "title": "Leading Domains",
+                "type": "array"
               }
             },
             "required": [
@@ -3254,6 +3329,115 @@
               "company"
             ],
             "title": "BusinessProfile",
+            "type": "object"
+          },
+          "CommunityContextInput": {
+            "additionalProperties": false,
+            "properties": {
+              "group_name": {
+                "anyOf": [
+                  {
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Group Name"
+              },
+              "current_members": {
+                "maximum": 10000000,
+                "minimum": 0,
+                "title": "Current Members",
+                "type": "integer"
+              },
+              "week1_baseline_members": {
+                "anyOf": [
+                  {
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Week1 Baseline Members"
+              },
+              "page_followers": {
+                "anyOf": [
+                  {
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Page Followers"
+              },
+              "identified_prospects": {
+                "default": 0,
+                "maximum": 1000000,
+                "minimum": 0,
+                "title": "Identified Prospects",
+                "type": "integer"
+              },
+              "invites_sent_7d": {
+                "default": 0,
+                "maximum": 100000,
+                "minimum": 0,
+                "title": "Invites Sent 7D",
+                "type": "integer"
+              },
+              "comments_replied_7d": {
+                "default": 0,
+                "maximum": 100000,
+                "minimum": 0,
+                "title": "Comments Replied 7D",
+                "type": "integer"
+              },
+              "pending_questions": {
+                "default": 0,
+                "maximum": 100000,
+                "minimum": 0,
+                "title": "Pending Questions",
+                "type": "integer"
+              },
+              "current_campaign_week": {
+                "default": 1,
+                "maximum": 52,
+                "minimum": 1,
+                "title": "Current Campaign Week",
+                "type": "integer"
+              },
+              "daily_invite_cap": {
+                "default": 12,
+                "maximum": 20,
+                "minimum": 1,
+                "title": "Daily Invite Cap",
+                "type": "integer"
+              },
+              "auto_reply_comments": {
+                "default": true,
+                "title": "Auto Reply Comments",
+                "type": "boolean"
+              },
+              "auto_invite_enabled": {
+                "default": true,
+                "title": "Auto Invite Enabled",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "current_members"
+            ],
+            "title": "CommunityContextInput",
             "type": "object"
           },
           "EvidenceRef": {
@@ -4833,6 +5017,24 @@
                 "minimum": 0,
                 "title": "Distinct Domains",
                 "type": "integer"
+              },
+              "business_present": {
+                "default": false,
+                "title": "Business Present",
+                "type": "boolean"
+              },
+              "business_has_article": {
+                "default": false,
+                "title": "Business Has Article",
+                "type": "boolean"
+              },
+              "leading_domains": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "title": "Leading Domains",
+                "type": "array"
               }
             },
             "required": [
@@ -5013,6 +5215,17 @@
             },
             "title": "Score Factors",
             "type": "object"
+          },
+          "community_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CommunityContextInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -5119,6 +5332,112 @@
               "brief"
             ],
             "title": "CampaignTask",
+            "type": "object"
+          },
+          "CommunityGrowthPlan": {
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "const": "growth_lead_agent",
+                "default": "growth_lead_agent",
+                "title": "Source",
+                "type": "string"
+              },
+              "auto_apply": {
+                "const": true,
+                "default": true,
+                "title": "Auto Apply",
+                "type": "boolean"
+              },
+              "current_members": {
+                "minimum": 0,
+                "title": "Current Members",
+                "type": "integer"
+              },
+              "pacing_status": {
+                "enum": [
+                  "ahead",
+                  "on_track",
+                  "behind",
+                  "baseline"
+                ],
+                "title": "Pacing Status",
+                "type": "string"
+              },
+              "recommended_daily_invite_limit": {
+                "maximum": 15,
+                "minimum": 10,
+                "title": "Recommended Daily Invite Limit",
+                "type": "integer"
+              },
+              "recommended_auto_reply_comments": {
+                "default": true,
+                "title": "Recommended Auto Reply Comments",
+                "type": "boolean"
+              },
+              "recommended_auto_invite_enabled": {
+                "default": true,
+                "title": "Recommended Auto Invite Enabled",
+                "type": "boolean"
+              },
+              "week1_target": {
+                "minimum": 1,
+                "title": "Week1 Target",
+                "type": "integer"
+              },
+              "week2_target": {
+                "minimum": 1,
+                "title": "Week2 Target",
+                "type": "integer"
+              },
+              "week3_target": {
+                "minimum": 1,
+                "title": "Week3 Target",
+                "type": "integer"
+              },
+              "week4_target": {
+                "minimum": 1,
+                "title": "Week4 Target",
+                "type": "integer"
+              },
+              "weekly_targets": {
+                "items": {
+                  "$ref": "#/$defs/WeeklyCommunityTarget"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "title": "Weekly Targets",
+                "type": "array"
+              },
+              "rationale": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Rationale",
+                "type": "string"
+              },
+              "focus_channels": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "minItems": 1,
+                "title": "Focus Channels",
+                "type": "array"
+              }
+            },
+            "required": [
+              "current_members",
+              "pacing_status",
+              "recommended_daily_invite_limit",
+              "week1_target",
+              "week2_target",
+              "week3_target",
+              "week4_target",
+              "weekly_targets",
+              "rationale",
+              "focus_channels"
+            ],
+            "title": "CommunityGrowthPlan",
             "type": "object"
           },
           "EvidenceRef": {
@@ -5803,6 +6122,57 @@
             ],
             "title": "TrendSignal",
             "type": "object"
+          },
+          "WeeklyCommunityTarget": {
+            "additionalProperties": false,
+            "properties": {
+              "week": {
+                "maximum": 4,
+                "minimum": 1,
+                "title": "Week",
+                "type": "integer"
+              },
+              "label": {
+                "maxLength": 120,
+                "minLength": 1,
+                "title": "Label",
+                "type": "string"
+              },
+              "member_target": {
+                "maximum": 10000000,
+                "minimum": 1,
+                "title": "Member Target",
+                "type": "integer"
+              },
+              "weekly_new_target": {
+                "maximum": 1000000,
+                "minimum": 0,
+                "title": "Weekly New Target",
+                "type": "integer"
+              },
+              "focus": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Focus",
+                "type": "string"
+              },
+              "channel_tactic": {
+                "maxLength": 300,
+                "minLength": 1,
+                "title": "Channel Tactic",
+                "type": "string"
+              }
+            },
+            "required": [
+              "week",
+              "label",
+              "member_target",
+              "weekly_new_target",
+              "focus",
+              "channel_tactic"
+            ],
+            "title": "WeeklyCommunityTarget",
+            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -5964,6 +6334,17 @@
             ],
             "default": null,
             "title": "Strategy Alignment"
+          },
+          "community_growth_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CommunityGrowthPlan"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -5999,7 +6380,7 @@
         "opportunity.score": "growth-lead-v1",
         "strategy.generate": "growth-lead-v1",
         "brief.generate": "growth-lead-v1",
-        "learning.analyze": "learning-v1"
+        "learning.analyze": "learning-v2"
       },
       "learning_contract": {
         "input_schema": {
@@ -15895,6 +16276,32 @@
                 "minimum": 0,
                 "title": "Cta Clicks",
                 "type": "integer"
+              },
+              "qualified_visits": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Qualified Visits"
+              },
+              "leads": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Leads"
               }
             },
             "required": [
@@ -16064,6 +16471,106 @@
             "title": "GoalKpi",
             "type": "object"
           },
+          "GroupMetricsEvidence": {
+            "additionalProperties": false,
+            "description": "Native group period, never silently aligned with website or ads windows.",
+            "properties": {
+              "workspace_id": {
+                "format": "uuid",
+                "title": "Workspace Id",
+                "type": "string"
+              },
+              "group_id": {
+                "pattern": "^\\d{5,30}$",
+                "title": "Group Id",
+                "type": "string"
+              },
+              "source": {
+                "const": "facebook_group_browser",
+                "title": "Source",
+                "type": "string"
+              },
+              "captured_at": {
+                "format": "date-time",
+                "title": "Captured At",
+                "type": "string"
+              },
+              "period_from": {
+                "format": "date",
+                "title": "Period From",
+                "type": "string"
+              },
+              "period_to": {
+                "format": "date",
+                "title": "Period To",
+                "type": "string"
+              },
+              "timezone": {
+                "const": "provider_unspecified",
+                "title": "Timezone",
+                "type": "string"
+              },
+              "source_url": {
+                "title": "Source Url",
+                "type": "string"
+              },
+              "total_members": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Total Members"
+              },
+              "metrics": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "propertyNames": {
+                  "enum": [
+                    "posts",
+                    "comments",
+                    "reactions",
+                    "new_members"
+                  ]
+                },
+                "title": "Metrics",
+                "type": "object"
+              },
+              "missing_reasons": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Missing Reasons",
+                "type": "object"
+              }
+            },
+            "required": [
+              "workspace_id",
+              "group_id",
+              "source",
+              "captured_at",
+              "period_from",
+              "period_to",
+              "timezone",
+              "source_url",
+              "metrics"
+            ],
+            "title": "GroupMetricsEvidence",
+            "type": "object"
+          },
           "KpiMeasurement": {
             "additionalProperties": false,
             "properties": {
@@ -16170,6 +16677,152 @@
               "content_hash"
             ],
             "title": "RunArtifact",
+            "type": "object"
+          },
+          "SocialPostEvidence": {
+            "additionalProperties": false,
+            "description": "Counters as observed, not reach or conversions during the report window.",
+            "properties": {
+              "workspace_id": {
+                "format": "uuid",
+                "title": "Workspace Id",
+                "type": "string"
+              },
+              "publishing_job_id": {
+                "format": "uuid",
+                "title": "Publishing Job Id",
+                "type": "string"
+              },
+              "content_id": {
+                "format": "uuid",
+                "title": "Content Id",
+                "type": "string"
+              },
+              "artifact_id": {
+                "format": "uuid",
+                "title": "Artifact Id",
+                "type": "string"
+              },
+              "artifact_version": {
+                "minimum": 1,
+                "title": "Artifact Version",
+                "type": "integer"
+              },
+              "campaign_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Campaign Id"
+              },
+              "external_post_id": {
+                "pattern": "^\\d+(?:_\\d+)?$",
+                "title": "External Post Id",
+                "type": "string"
+              },
+              "published_at": {
+                "format": "date-time",
+                "title": "Published At",
+                "type": "string"
+              },
+              "captured_at": {
+                "format": "date-time",
+                "title": "Captured At",
+                "type": "string"
+              },
+              "provider": {
+                "default": "facebook_page",
+                "enum": [
+                  "facebook_page",
+                  "facebook_group"
+                ],
+                "title": "Provider",
+                "type": "string"
+              },
+              "group_id": {
+                "anyOf": [
+                  {
+                    "pattern": "^\\d{5,30}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Group Id"
+              },
+              "external_content_modified": {
+                "default": false,
+                "title": "External Content Modified",
+                "type": "boolean"
+              },
+              "observed_text_hash": {
+                "anyOf": [
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Observed Text Hash"
+              },
+              "scope": {
+                "const": "post_lifetime",
+                "default": "post_lifetime",
+                "title": "Scope",
+                "type": "string"
+              },
+              "counters": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "propertyNames": {
+                  "enum": [
+                    "reactions",
+                    "comments",
+                    "shares"
+                  ]
+                },
+                "title": "Counters",
+                "type": "object"
+              },
+              "missing_reasons": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Missing Reasons",
+                "type": "object"
+              }
+            },
+            "required": [
+              "workspace_id",
+              "publishing_job_id",
+              "content_id",
+              "artifact_id",
+              "artifact_version",
+              "external_post_id",
+              "published_at",
+              "captured_at",
+              "counters"
+            ],
+            "title": "SocialPostEvidence",
             "type": "object"
           }
         },
@@ -16378,6 +17031,60 @@
             },
             "title": "Content Metrics",
             "type": "array"
+          },
+          "coverage": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Coverage",
+            "type": "object"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Currency"
+          },
+          "actions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "channel_metrics": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Channel Metrics",
+            "type": "object"
+          },
+          "social_posts": {
+            "items": {
+              "$ref": "#/$defs/SocialPostEvidence"
+            },
+            "maxItems": 20,
+            "title": "Social Posts",
+            "type": "array"
+          },
+          "group_metrics": {
+            "items": {
+              "$ref": "#/$defs/GroupMetricsEvidence"
+            },
+            "maxItems": 10,
+            "title": "Group Metrics",
+            "type": "array"
           }
         },
         "required": [
@@ -16401,10 +17108,10 @@
         "experiment.hypothesis": "dedicated"
       },
       "prompt_versions": {
-        "analytics.report": "performance-v2",
-        "experiment.hypothesis": "performance-v2"
+        "analytics.report": "performance-v3",
+        "experiment.hypothesis": "performance-v3"
       },
-      "prompt_version": "performance-v2",
+      "prompt_version": "performance-v3",
       "schema_operations": [
         "analytics.report",
         "experiment.hypothesis"

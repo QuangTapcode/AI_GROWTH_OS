@@ -5,14 +5,20 @@
  */
 import './loadApiEnv';
 import { Pool } from 'pg';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { HttpAiAdapter } from './adapters/HttpAiAdapter';
 import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
 import { TelegramBotRunner } from './publish/TelegramBotRunner';
+import { startGroupBotBridge } from './publish/GroupBotBridge';
+import { defaultReelRunner } from './publish/ReelOutboxRunner';
+import { defaultVideoBuilder } from './publish/VideoBuilder';
 import { listLinksWithBrowser } from './workflow/BrowserRenderer';
 import { FirstPartyBlogSync } from './workflow/FirstPartyBlogSync';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
+import { GroupMetricsScheduler,loadGroupSchedule,groupErrorCode } from './metrics/GroupMetricsScheduler';
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
@@ -25,11 +31,11 @@ async function main() {
   });
   await pool.query('SELECT 1');
   const ai = new HttpAiAdapter({ baseUrl, token: process.env.INTERNAL_AI_AUTH_TOKEN || undefined,
-    pollIntervalMs: 1000, pollTimeoutMs: 650000, requestTimeoutMs: 15000 });
+    pollIntervalMs: 250, pollTimeoutMs: 650000, requestTimeoutMs: 15000 });
   const plan = new PlanOutboxRunner(pool, ai), ingest = new SourceIngestRunner(pool, ai);
   let planBusy = false, ingestBusy = false;
   let triggerTick = () => {};
-  const timers = [setInterval(() => {
+  const runPlan = () => {
     if (planBusy) return;
     planBusy = true;
     void plan.runOnce().then(result => {
@@ -38,7 +44,8 @@ async function main() {
         triggerTick();
       }
     }).catch(error => console.error('[draft-worker]', error.message)).finally(() => { planBusy = false; });
-  }, 1000), setInterval(() => {
+  };
+  const timers = [setInterval(runPlan, 500), setInterval(() => {
     if (ingestBusy) return;
     ingestBusy = true;
     void ingest.runOnce().then(result => { if (result) console.log('[draft-ingest]', result.source_id, result.status); })
@@ -53,6 +60,18 @@ async function main() {
   syncBlog();
   timers.push(setInterval(syncBlog, Number(process.env.BLOG_SYNC_HOURS ?? 6) * 3_600_000));
 
+  // Group metrics run only when a schedule file is configured (see GroupMetricsScheduler).
+  const localGroupConfig=resolve(__dirname,'../.fb-group-metrics.json');
+  const groupConfig=process.env.FACEBOOK_GROUP_METRICS_CONFIG||(existsSync(localGroupConfig)?localGroupConfig:undefined);
+  if(groupConfig){
+    try{
+      const config=loadGroupSchedule(groupConfig);
+      const groups=new GroupMetricsScheduler(pool,config,process.env.API_BASE_URL||'http://127.0.0.1:4000',process.env.AUTOMATION_INTERNAL_TOKEN||'');
+      const sync=()=>void groups.tick().catch(error=>console.warn('[group-metrics]',groupErrorCode(error)));
+      sync();timers.push(setInterval(sync,30000));
+      console.log('[group-metrics] enabled; interval minutes:',config.interval_minutes,'targets:',config.targets.length);
+    }catch(error){console.warn('[group-metrics] disabled:',groupErrorCode(error));}
+  }
   const autopilot = process.env.AUTOPILOT !== '0';
   if (autopilot) {
     const apiBase = (process.env.API_BASE_URL || 'http://127.0.0.1:4000').replace(/\/v1\/?$/, '').replace(/\/$/, '');
@@ -67,7 +86,7 @@ async function main() {
       void replies.runOnce().then((result) => { if (result !== 'idle') console.log('[community-reply]', result); })
         .catch((error) => console.error('[community-reply]', (error as Error).message)).finally(() => { replyBusy = false; });
     };
-    timers.push(setInterval(runReplies, 2000));
+    timers.push(setInterval(runReplies, 1000));
     let tickBusy = false, publishBusy = false;
     triggerTick = () => {
       if (tickBusy) return;
@@ -75,10 +94,11 @@ async function main() {
       void fetch(`${apiBase}/internal/automation/tick`, { method: 'POST', headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(25000) }).then(response => {
         if (!response.ok) throw new Error(`scheduler HTTP ${response.status}`);
+        runPlan();
         runReplies();
       }).catch(error => console.error('[autopilot]', (error as Error).message)).finally(() => { tickBusy = false; });
     };
-    timers.push(setInterval(triggerTick, 10000), setInterval(() => {
+    timers.push(setInterval(triggerTick, 2500), setInterval(() => {
       if (publishBusy) return;
       publishBusy = true;
       void publishing.runOnce().then(result => { if (result !== 'idle') console.log('[publishing-outbox]', result); })
@@ -102,7 +122,54 @@ async function main() {
         .finally(() => { communityAutopilotBusy = false; });
     };
     timers.push(setTimeout(triggerCommunityAutopilot, 15_000), setInterval(triggerCommunityAutopilot, 180_000));
+
+    // Periodic incremental Google Drive -> Existing Agents drafting autopilot (only processes newly added photos)
+    let gmapsDriveBusy = false;
+    const gmapsDriveIntervalMs = Number(process.env.GMAPS_DRIVE_SYNC_MINUTES ?? 5) * 60_000;
+    const triggerGmapsDriveAutopilot = () => {
+      if (gmapsDriveBusy) return;
+      gmapsDriveBusy = true;
+      void fetch(`${apiBase}/internal/gmaps/autopilot`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(120_000),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`gmaps drive autopilot HTTP ${res.status}`);
+          const data = (await res.json().catch(() => null)) as { results?: Array<Record<string, unknown>> } | null;
+          if (data?.results && data.results.length > 0) {
+            console.log('[gmaps-drive-autopilot]', JSON.stringify(data.results));
+          }
+        })
+        .catch((error) => console.error('[gmaps-drive-autopilot]', (error as Error).message))
+        .finally(() => { gmapsDriveBusy = false; });
+    };
+    timers.push(setTimeout(triggerGmapsDriveAutopilot, 25_000), setInterval(triggerGmapsDriveAutopilot, gmapsDriveIntervalMs));
+    // Each published Facebook post's topic video follows as its own Reel.
+    const reels = defaultReelRunner(pool);
+    let reelBusy = false;
+    timers.push(setInterval(() => {
+      if (reelBusy) return;
+      reelBusy = true;
+      void reels.runOnce().then(result => { if (result !== 'idle') console.log('[reels]', result); })
+        .catch(error => console.error('[reels]', (error as Error).message)).finally(() => { reelBusy = false; });
+    }, 5000));
   }
+  // Videos are rendered ahead of the calendar (one per tick), so each new post has its video ready (VIDEO_BUILDER_DIR).
+  const videos = defaultVideoBuilder();
+  if (videos) {
+    const everyMs = Number(process.env.VIDEO_BUILDER_MINUTES ?? 10) * 60_000;
+    setTimeout(() => videos.tick(), 60_000);
+    timers.push(setInterval(() => videos.tick(), everyMs));
+  }
+  // The API container cannot drive Edge; it sends Group Bot commands to this host (loopback only).
+  const bridgeToken = process.env.AUTOMATION_INTERNAL_TOKEN;
+  const bridgePort = Number(process.env.GROUP_BOT_BRIDGE_PORT ?? 4105);
+  const bridge = bridgeToken && bridgePort > 0
+    ? await startGroupBotBridge({ port: bridgePort, token: bridgeToken, workerDir: resolve(__dirname, '..') })
+      .then((server) => { console.log('[group-bot-bridge] listening on 127.0.0.1:' + bridgePort); return server; })
+      .catch((error) => { console.warn('[group-bot-bridge] disabled:', (error as Error).message); return null; })
+    : null;
   const telegramBot = new TelegramBotRunner(pool, {
     onMessageIngested: () => {
       if (autopilot) triggerTick();
@@ -111,6 +178,7 @@ async function main() {
   telegramBot.start();
   const stop = () => {
     telegramBot.stop();
+    bridge?.close();
     timers.forEach(clearInterval);
     void pool.end().finally(() => process.exit(0));
   };

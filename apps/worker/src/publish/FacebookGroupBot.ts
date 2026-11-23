@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { chromium, type Browser, type BrowserContext } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
 
 export interface GroupPostOptions {
   groupUrl?: string;
@@ -11,6 +11,8 @@ export interface GroupPostOptions {
   discussionPrompt?: string;
   hashtags?: string[];
   imageUrl?: string;
+  /** File name of the topic's video in COMMUNITY_VIDEO_DIR; posted instead of the image when present. */
+  videoFile?: string;
   headless?: boolean;
 }
 
@@ -191,11 +193,29 @@ export class FacebookGroupBot {
     );
   }
 
+  static hasAuthCookiesInFile(filePath: string): boolean {
+    if (!filePath || !fs.existsSync(filePath)) return false;
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const parsed = JSON.parse(raw) as {
+        cookies?: Array<{ name?: string; value?: string; domain?: string; expires?: number }>;
+      };
+      const nowSec = Math.floor(Date.now() / 1000);
+      const fbCookies = (parsed.cookies ?? []).filter(
+        (c) =>
+          (!c.domain || c.domain.toLowerCase().includes('facebook.com')) &&
+          (!c.expires || c.expires < 0 || c.expires > nowSec),
+      );
+      const cUser = fbCookies.find((c) => c.name === 'c_user')?.value?.trim() || '';
+      const xs = fbCookies.find((c) => c.name === 'xs')?.value?.trim() || '';
+      return Boolean(cUser && xs);
+    } catch {
+      return false;
+    }
+  }
+
   static hasSavedSession(customStateFile?: string): boolean {
-    return (
-      fs.existsSync(FacebookGroupBot.resolveStateFile(customStateFile)) ||
-      Boolean(process.env.FB_ADMIN_COOKIE?.trim())
-    );
+    return FacebookGroupBot.getSessionStatusSync(customStateFile).ready;
   }
 
   static getSessionStatusSync(customStateFile?: string): SavedSessionMetadata {
@@ -211,21 +231,32 @@ export class FacebookGroupBot {
       try {
         updatedAt = fs.statSync(stateFile).mtime.toISOString();
         const raw = fs.readFileSync(stateFile, 'utf8');
-        const parsed = JSON.parse(raw) as { cookies?: Array<{ name?: string; value?: string; domain?: string }> };
-        const fbCookies = (parsed.cookies ?? []).filter((c) => !c.domain || c.domain.includes('facebook.com'));
+        const parsed = JSON.parse(raw) as {
+          cookies?: Array<{ name?: string; value?: string; domain?: string; expires?: number }>;
+        };
+        const nowSec = Math.floor(Date.now() / 1000);
+        const fbCookies = (parsed.cookies ?? []).filter(
+          (c) =>
+            (!c.domain || c.domain.toLowerCase().includes('facebook.com')) &&
+            (!c.expires || c.expires < 0 || c.expires > nowSec),
+        );
         const cUser = fbCookies.find((c) => c.name === 'c_user')?.value?.trim() || '';
         const xs = fbCookies.find((c) => c.name === 'xs')?.value?.trim() || '';
         const iUser = fbCookies.find((c) => c.name === 'i_user')?.value?.trim() || '';
         hasAuthCookies = Boolean(cUser && xs);
-        usingPageProfile = Boolean(iUser && iUser !== cUser);
-        const activeId = iUser || cUser;
-        if (activeId) {
-          accountIdMask = activeId.length > 4 ? `***${activeId.slice(-4)}` : `***${activeId}`;
+        if (hasAuthCookies) {
+          usingPageProfile = Boolean(iUser && iUser !== cUser);
+          const activeId = iUser || cUser;
+          if (activeId) {
+            accountIdMask = activeId.length > 4 ? `***${activeId.slice(-4)}` : `***${activeId}`;
+          }
         }
       } catch {
         // Ignore malformed state file when computing non-secret metadata
       }
-    } else if (hasEnvCookie) {
+    }
+
+    if (!hasAuthCookies && hasEnvCookie) {
       hasAuthCookies = true;
     }
 
@@ -233,7 +264,7 @@ export class FacebookGroupBot {
       stateFile,
       fileExists,
       hasEnvCookie,
-      ready: fileExists || hasEnvCookie,
+      ready: hasAuthCookies,
       hasAuthCookies,
       usingPageProfile,
       accountIdMask,
@@ -334,6 +365,13 @@ export class FacebookGroupBot {
     }
 
     return 0;
+  }
+
+  /** The topic video named by the API, inside this host's COMMUNITY_VIDEO_DIR; anything else is ignored. */
+  static resolveVideoFile(videoFile: string | undefined, dir = process.env.COMMUNITY_VIDEO_DIR?.trim()): string | null {
+    if (!videoFile || !dir || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.mp4$/.test(videoFile)) return null;
+    const file = path.join(path.resolve(dir), videoFile);
+    return fs.existsSync(file) ? file : null;
   }
 
   static buildPostText(options: GroupPostOptions): string {
@@ -452,7 +490,7 @@ export class FacebookGroupBot {
     options?: { fullViewport?: boolean; fresh?: boolean },
   ): Promise<BrowserContext> {
     const fresh = options?.fresh === true;
-    const hasState = !fresh && fs.existsSync(this.stateFile);
+    const hasState = !fresh && FacebookGroupBot.hasAuthCookiesInFile(this.stateFile);
     const context = await browser.newContext({
       storageState: hasState ? this.stateFile : undefined,
       viewport: options?.fullViewport ? null : { width: 1280, height: 850 },
@@ -472,6 +510,109 @@ export class FacebookGroupBot {
     return context;
   }
 
+  private async getLiveAuthCookieStatus(context: BrowserContext): Promise<{
+    authenticated: boolean;
+    cUser: string;
+    xs: string;
+    iUser: string;
+  }> {
+    const cookies = await context.cookies('https://www.facebook.com').catch(() => []);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const activeCookies = cookies.filter((c) => !c.expires || c.expires < 0 || c.expires > nowSec);
+    const cUser = activeCookies.find((c) => c.name === 'c_user')?.value?.trim() || '';
+    const xs = activeCookies.find((c) => c.name === 'xs')?.value?.trim() || '';
+    const iUser = activeCookies.find((c) => c.name === 'i_user')?.value?.trim() || '';
+    return {
+      authenticated: Boolean(cUser && xs),
+      cUser,
+      xs,
+      iUser,
+    };
+  }
+
+  private async assertAuthenticatedPage(
+    context: BrowserContext,
+    page: Page,
+    contextLabel = 'thao tác Group',
+  ): Promise<void> {
+    const cur = page.url();
+    if (
+      cur.includes('/login') ||
+      cur.includes('/checkpoint') ||
+      cur.includes('/two_step') ||
+      cur.includes('/recover')
+    ) {
+      throw new Error(
+        `FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn hoặc bị yêu cầu xác minh khi ${contextLabel}. Vui lòng đăng nhập lại Group Bot.`,
+      );
+    }
+    const loginFormVisible = await page
+      .$('input#email, input[name="email"], input[type="password"]')
+      .catch(() => null);
+    if (loginFormVisible) {
+      throw new Error(
+        `FACEBOOK_GROUP_SESSION_MISSING: Facebook đang yêu cầu đăng nhập lại khi ${contextLabel}. Vui lòng mở Edge đăng nhập lại Group Bot.`,
+      );
+    }
+    const authCookies = await this.getLiveAuthCookieStatus(context);
+    if (!authCookies.authenticated) {
+      throw new Error(
+        `FACEBOOK_GROUP_SESSION_MISSING: Thiếu cookie xác thực Facebook (c_user/xs) khi ${contextLabel}. Vui lòng đăng nhập lại Group Bot.`,
+      );
+    }
+  }
+
+  /**
+   * Persist browser storageState ONLY when the live context is genuinely authenticated
+   * (contains valid `c_user` + `xs` and is not on a login/checkpoint page). Never overwrites
+   * `.fb-session.json` with logged-out cookies.
+   */
+  private async persistAuthenticatedState(context: BrowserContext, page?: Page): Promise<boolean> {
+    if (page && !page.isClosed()) {
+      const cur = page.url();
+      if (
+        cur.includes('/login') ||
+        cur.includes('/checkpoint') ||
+        cur.includes('/two_step') ||
+        cur.includes('/recover')
+      ) {
+        console.warn('[FacebookGroupBot] Bỏ qua lưu .fb-session.json vì trang đang ở /login hoặc /checkpoint.');
+        return false;
+      }
+      const loginFormVisible = await page
+        .$('input#email, input[name="email"], input[type="password"]')
+        .catch(() => null);
+      if (loginFormVisible) {
+        console.warn('[FacebookGroupBot] Bỏ qua lưu .fb-session.json vì trang hiển thị form đăng nhập.');
+        return false;
+      }
+    }
+
+    const authCookies = await this.getLiveAuthCookieStatus(context);
+    if (!authCookies.authenticated) {
+      console.warn('[FacebookGroupBot] Bỏ qua lưu .fb-session.json vì thiếu cookie xác thực Facebook (c_user/xs).');
+      return false;
+    }
+
+    fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
+    const tmpFile = `${this.stateFile}.saving.tmp`;
+    try {
+      await context.storageState({ path: tmpFile });
+      if (!FacebookGroupBot.hasAuthCookiesInFile(tmpFile)) {
+        console.warn('[FacebookGroupBot] File phiên tạm không chứa cookie xác thực (c_user/xs); giữ nguyên .fb-session.json.');
+        return false;
+      }
+      fs.copyFileSync(tmpFile, this.stateFile);
+      return true;
+    } finally {
+      try {
+        if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+      } catch {
+        // Ignore cleanup failure
+      }
+    }
+  }
+
   /**
    * Check if session has active Facebook authentication
    */
@@ -483,6 +624,15 @@ export class FacebookGroupBot {
     adminName?: string | null;
   }> {
     const meta = FacebookGroupBot.getSessionStatusSync(this.stateFile);
+    if (!meta.hasAuthCookies && !meta.hasEnvCookie) {
+      return {
+        isLoggedIn: false,
+        detail: meta.fileExists
+          ? 'Tệp phiên .fb-session.json thiếu cookie đăng nhập Facebook (c_user/xs) hoặc đã hết hạn. Vui lòng đăng nhập lại Group Bot.'
+          : 'Chưa tìm thấy tệp phiên .fb-session.json hoặc FB_ADMIN_COOKIE. Hãy mở Edge đăng nhập Group Bot.',
+      };
+    }
+
     const browser = await this.launchBrowser(true);
     try {
       const context = await this.createContext(browser);
@@ -498,6 +648,14 @@ export class FacebookGroupBot {
       const hasLoginForm = await page.$('input#email, input[name="email"], input[type="password"]');
       if (hasLoginForm) {
         return { isLoggedIn: false, detail: 'Facebook đang ở trạng thái chưa đăng nhập (xuất hiện form email/password).' };
+      }
+
+      const cookieStatus = await this.getLiveAuthCookieStatus(context);
+      if (!cookieStatus.authenticated) {
+        return {
+          isLoggedIn: false,
+          detail: 'Không còn cookie xác thực Facebook hợp lệ (c_user/xs) trong trình duyệt. Vui lòng đăng nhập lại Group Bot.',
+        };
       }
 
       // Check for elements that only exist when logged in
@@ -519,15 +677,14 @@ export class FacebookGroupBot {
         };
       }
 
-      const isAuthedFallback = !hasLoginForm && !url.includes('login');
-      const fallbackNames = isAuthedFallback ? await this.extractActiveAccountNames(page).catch(() => []) : [];
+      const fallbackNames = await this.extractActiveAccountNames(page).catch(() => []);
       const fallbackAdmin = fallbackNames[0] ?? null;
       return {
-        isLoggedIn: isAuthedFallback,
+        isLoggedIn: true,
         usingPageProfile: meta.usingPageProfile,
         accountIdMask: meta.accountIdMask,
         ...(fallbackAdmin ? { adminName: fallbackAdmin } : {}),
-        detail: `URL hiện tại: ${url}`,
+        detail: `Đã xác nhận cookie phiên Facebook (${meta.accountIdMask ?? 'FB'}) tại ${url}`,
       };
     } catch (err) {
       return { isLoggedIn: false, detail: (err as Error).message };
@@ -654,7 +811,7 @@ export class FacebookGroupBot {
               if (names[0]) capturedAdminName = names[0];
             }
             await context.storageState({ path: pendingStateFile }).catch(() => {});
-            hasCapturedValidState = fs.existsSync(pendingStateFile);
+            hasCapturedValidState = FacebookGroupBot.hasAuthCookiesInFile(pendingStateFile);
           }
           break;
         }
@@ -671,7 +828,7 @@ export class FacebookGroupBot {
 
           if (state.sig !== lastCapturedSig) {
             await context.storageState({ path: pendingStateFile }).catch(() => {});
-            if (fs.existsSync(pendingStateFile)) {
+            if (FacebookGroupBot.hasAuthCookiesInFile(pendingStateFile)) {
               lastCapturedSig = state.sig;
               hasCapturedValidState = true;
             }
@@ -692,11 +849,21 @@ export class FacebookGroupBot {
             navigatedToGroup = true;
             await state.activePage.goto(groupUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
             await state.activePage.bringToFront().catch(() => {});
-            const names = await this.extractActiveAccountNames(state.activePage).catch(() => []);
-            if (names[0]) capturedAdminName = names[0];
-            await context.storageState({ path: pendingStateFile }).catch(() => {});
-            if (fs.existsSync(pendingStateFile)) {
-              hasCapturedValidState = true;
+            const postNavAuth = await inspectAuth().catch(() => ({
+              alive: false,
+              authenticated: false,
+              sig: '',
+              activePage: undefined,
+            }));
+            if (postNavAuth.authenticated) {
+              if (postNavAuth.activePage) {
+                const names = await this.extractActiveAccountNames(postNavAuth.activePage).catch(() => []);
+                if (names[0]) capturedAdminName = names[0];
+              }
+              await context.storageState({ path: pendingStateFile }).catch(() => {});
+              if (FacebookGroupBot.hasAuthCookiesInFile(pendingStateFile)) {
+                hasCapturedValidState = true;
+              }
             }
           }
 
@@ -712,7 +879,7 @@ export class FacebookGroupBot {
         await new Promise((r) => setTimeout(r, 1000));
       }
 
-      if (hasCapturedValidState && fs.existsSync(pendingStateFile)) {
+      if (hasCapturedValidState && FacebookGroupBot.hasAuthCookiesInFile(pendingStateFile)) {
         fs.copyFileSync(pendingStateFile, this.stateFile);
         try {
           fs.unlinkSync(pendingStateFile);
@@ -741,7 +908,7 @@ export class FacebookGroupBot {
         message: 'Chưa phát hiện đăng nhập Facebook hoàn tất trước khi hết thời gian hoặc đóng cửa sổ Edge.',
       };
     } catch (err) {
-      if (fs.existsSync(pendingStateFile)) {
+      if (FacebookGroupBot.hasAuthCookiesInFile(pendingStateFile)) {
         fs.copyFileSync(pendingStateFile, this.stateFile);
         try {
           fs.unlinkSync(pendingStateFile);
@@ -779,8 +946,8 @@ export class FacebookGroupBot {
     const groupUrl = options.groupUrl || 'https://www.facebook.com/groups/1134282109069209';
     const headless = options.headless !== undefined ? options.headless : true;
 
-    // Check if session file or env cookie exists — fail closed, never silently fallback to Fanpage
-    const hasSession = fs.existsSync(this.stateFile) || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    // Check if valid session cookies or env cookie exist — fail closed, never silently fallback to Fanpage
+    const hasSession = FacebookGroupBot.hasSavedSession(this.stateFile);
     if (!hasSession) {
       throw new Error(
         'FACEBOOK_GROUP_SESSION_MISSING: Chưa tìm thấy phiên đăng nhập Quản trị viên Group Facebook (.fb-session.json hoặc FB_ADMIN_COOKIE). Vui lòng mở cửa sổ đăng nhập Group Bot 1 lần trước khi đăng.'
@@ -789,8 +956,14 @@ export class FacebookGroupBot {
 
     const fullText = FacebookGroupBot.buildPostText(options);
 
+    // The topic's video goes up instead of the image (same as the Fanpage Reel). No video file → image as before.
+    const videoPath = FacebookGroupBot.resolveVideoFile(options.videoFile);
+    if (options.videoFile && !videoPath) {
+      console.warn(`[FacebookGroupBot] Không thấy video ${options.videoFile} trong COMMUNITY_VIDEO_DIR, đăng kèm ảnh.`);
+    }
+
     let tempImagePath: string | null = null;
-    if (options.imageUrl) {
+    if (options.imageUrl && !videoPath) {
       try {
         const res = await fetch(options.imageUrl);
         if (res.ok) {
@@ -811,13 +984,7 @@ export class FacebookGroupBot {
       await page.goto(groupUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(3000);
 
-      const currentUrl = page.url();
-      const loginFormVisible = await page.$('input#email, input[name="email"], input[type="password"]');
-      if (currentUrl.includes('/login') || currentUrl.includes('/checkpoint') || loginFormVisible) {
-        throw new Error(
-          'FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn hoặc bị yêu cầu xác minh. Vui lòng đăng nhập lại Group Bot.'
-        );
-      }
+      await this.assertAuthenticatedPage(context, page, 'đăng bài lên Group');
 
       // Look for the "Write something..." / "Bạn viết gì đi..." trigger
       const postBoxSelectors = [
@@ -867,6 +1034,34 @@ export class FacebookGroupBot {
       await page.keyboard.insertText(fullText);
       console.log('[FacebookGroupBot] Đã điền xong nội dung bài viết.');
       await page.waitForTimeout(1500);
+
+      if (videoPath) {
+        // A video that fails to attach must fail the post: a text-only post would look done but miss the video.
+        const inputSelector = 'div[role="dialog"] input[type="file"][accept*="video"]';
+        let inputs = await page.$$(inputSelector);
+        if (inputs.length === 0) {
+          for (const btnSel of [
+            'div[role="dialog"] div[aria-label*="Ảnh/video"]',
+            'div[role="dialog"] div[aria-label*="Photo/video"]',
+          ]) {
+            const button = await page.$(btnSel);
+            if (!button) continue;
+            await button.click();
+            await page.waitForTimeout(1200);
+            inputs = await page.$$(inputSelector);
+            if (inputs.length > 0) break;
+          }
+        }
+        const input = inputs[inputs.length - 1];
+        if (!input) {
+          throw new Error('FACEBOOK_GROUP_PUBLISH_FAILED: Không tìm thấy chỗ tải video trong hộp thoại đăng bài.');
+        }
+        await input.setInputFiles(videoPath);
+        console.log(`[FacebookGroupBot] Đã chọn video ${path.basename(videoPath)}, đang chờ Facebook tải lên...`);
+        await page.waitForSelector('div[role="dialog"] video', { timeout: 60000 }).catch(() => {
+          throw new Error('FACEBOOK_GROUP_PUBLISH_FAILED: Facebook không hiện video trong hộp thoại sau 60 giây.');
+        });
+      }
 
       // Attach image strictly inside the composer dialog (never match cover-photo inputs outside div[role="dialog"])
       if (tempImagePath && fs.existsSync(tempImagePath)) {
@@ -918,21 +1113,31 @@ export class FacebookGroupBot {
       ];
 
       let posted = false;
-      for (const sel of postBtnSelectors) {
-        const btn = await page.$(sel);
-        if (btn) {
-          const isDisabled = await btn.getAttribute('aria-disabled');
-          if (isDisabled !== 'true') {
-            await btn.click();
-            posted = true;
-            console.log('[FacebookGroupBot] Đã bấm nút "Đăng bài"!');
-            break;
+      // "Post" stays disabled while a video uploads; give it up to 3 minutes (the API waits 270 s in all).
+      const postDeadline = Date.now() + (videoPath ? 180_000 : 0);
+      for (;;) {
+        for (const sel of postBtnSelectors) {
+          const btn = await page.$(sel);
+          if (btn) {
+            const isDisabled = await btn.getAttribute('aria-disabled');
+            if (isDisabled !== 'true') {
+              await btn.click();
+              posted = true;
+              console.log('[FacebookGroupBot] Đã bấm nút "Đăng bài"!');
+              break;
+            }
           }
         }
+        if (posted || Date.now() >= postDeadline) break;
+        await page.waitForTimeout(2000);
       }
 
       if (!posted) {
-        throw new Error('FACEBOOK_GROUP_PUBLISH_FAILED: Nút "Đăng" bị vô hiệu hóa hoặc không tìm thấy trong hộp thoại.');
+        throw new Error(
+          videoPath
+            ? 'FACEBOOK_GROUP_PUBLISH_FAILED: Video chưa tải xong sau 3 phút, nút "Đăng" vẫn bị khóa.'
+            : 'FACEBOOK_GROUP_PUBLISH_FAILED: Nút "Đăng" bị vô hiệu hóa hoặc không tìm thấy trong hộp thoại.',
+        );
       }
 
       // Confirm submission: wait for composer dialog to close rather than guessing after a static sleep
@@ -973,9 +1178,8 @@ export class FacebookGroupBot {
         // Optional permalink extraction if feed markup differs
       }
 
-      // Save latest session state
-      fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
-      await context.storageState({ path: this.stateFile });
+      // Save latest authenticated session state safely (never overwrite with logged-out cookies)
+      await this.persistAuthenticatedState(context, page);
 
       return {
         success: true,
@@ -1003,7 +1207,7 @@ export class FacebookGroupBot {
     const groupUrl = options.groupUrl || 'https://www.facebook.com/groups/1134282109069209';
     const headless = options.headless !== undefined ? options.headless : true;
 
-    const hasSession = fs.existsSync(this.stateFile) || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = FacebookGroupBot.hasSavedSession(this.stateFile);
     if (!hasSession) {
       throw new Error(
         'FACEBOOK_GROUP_SESSION_MISSING: Chưa tìm thấy phiên đăng nhập Quản trị viên Group Facebook (.fb-session.json hoặc FB_ADMIN_COOKIE).'
@@ -1155,25 +1359,18 @@ export class FacebookGroupBot {
       if (options.postUrl && /^https?:\/\/(www\.|m\.)?facebook\.com\/groups\//i.test(options.postUrl)) {
         console.log(`[FacebookGroupBot] Đang mở bài viết cần thu hồi: ${options.postUrl}`);
         await page.goto(options.postUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        const cur = page.url();
-        if (cur.includes('/login') || cur.includes('/checkpoint')) {
-          throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn.');
-        }
+        await this.assertAuthenticatedPage(context, page, 'thu hồi bài viết');
         outcome = await tryDeleteOnCurrentPage(options.titleSnippet);
       }
 
       if (outcome === 'not_found') {
         console.log(`[FacebookGroupBot] Đang tìm bài trên trang Group để thu hồi: ${groupUrl}`);
         await page.goto(groupUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        const cur = page.url();
-        if (cur.includes('/login') || cur.includes('/checkpoint')) {
-          throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn.');
-        }
+        await this.assertAuthenticatedPage(context, page, 'thu hồi bài viết trên Group');
         outcome = await tryDeleteOnCurrentPage(options.titleSnippet);
       }
 
-      fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
-      await context.storageState({ path: this.stateFile });
+      await this.persistAuthenticatedState(context, page);
 
       if (outcome === 'deleted') {
         return {
@@ -1394,16 +1591,14 @@ export class FacebookGroupBot {
   }
 
   private async collectGroupFeedUrlsAndStats(
-    page: import('playwright-core').Page,
+    context: BrowserContext,
+    page: Page,
     groupUrl: string,
     maxPosts: number,
   ): Promise<{ feedUrls: string[]; feedStats: Map<string, ScannedGroupPostStat>; groupMemberCount?: number; adminNames: string[] }> {
     await page.goto(groupUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForTimeout(2500);
-    const cur = page.url();
-    if (cur.includes('/login') || cur.includes('/checkpoint')) {
-      throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn.');
-    }
+    await this.assertAuthenticatedPage(context, page, 'quét bài viết Group');
 
     // Light scroll so top 5-8 posts hydrate reaction/comment bars
     await page.evaluate(() => window.scrollBy(0, 650)).catch(() => {});
@@ -1601,7 +1796,7 @@ export class FacebookGroupBot {
     const maxPosts = Math.min(Math.max(1, options.maxPosts ?? 5), 10);
     const headless = options.headless !== undefined ? options.headless : true;
 
-    const hasSession = fs.existsSync(this.stateFile) || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = FacebookGroupBot.hasSavedSession(this.stateFile);
     if (!hasSession) {
       throw new Error(
         'FACEBOOK_GROUP_SESSION_MISSING: Chưa tìm thấy phiên đăng nhập Quản trị viên Group Facebook.'
@@ -1615,6 +1810,7 @@ export class FacebookGroupBot {
 
       // Always collect Group feed URLs, member count & baseline engagement cards first
       const { feedUrls, feedStats, groupMemberCount, adminNames } = await this.collectGroupFeedUrlsAndStats(
+        context,
         page,
         groupUrl,
         maxPosts,
@@ -1638,10 +1834,7 @@ export class FacebookGroupBot {
         try {
           await page.goto(postUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
           await page.waitForTimeout(2200);
-          const cur = page.url();
-          if (cur.includes('/login') || cur.includes('/checkpoint')) {
-            throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn.');
-          }
+          await this.assertAuthenticatedPage(context, page, 'đọc bình luận Group');
 
           await this.expandCommentsOnCurrentPost(page);
 
@@ -1734,8 +1927,7 @@ export class FacebookGroupBot {
         }
       }
 
-      fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
-      await context.storageState({ path: this.stateFile });
+      await this.persistAuthenticatedState(context, page);
 
       return {
         success: true,
@@ -1767,7 +1959,7 @@ export class FacebookGroupBot {
    */
   async replyToGroupComment(options: ReplyGroupCommentOptions): Promise<ReplyGroupCommentResult> {
     const headless = options.headless !== undefined ? options.headless : true;
-    const hasSession = fs.existsSync(this.stateFile) || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = FacebookGroupBot.hasSavedSession(this.stateFile);
     if (!hasSession) {
       throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Chưa có phiên đăng nhập Group Bot.');
     }
@@ -1781,10 +1973,7 @@ export class FacebookGroupBot {
       const page = await context.newPage();
       await page.goto(options.postUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(2500);
-      const cur = page.url();
-      if (cur.includes('/login') || cur.includes('/checkpoint')) {
-        throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn.');
-      }
+      await this.assertAuthenticatedPage(context, page, 'trả lời bình luận Group');
 
       await this.expandCommentsOnCurrentPost(page);
 
@@ -1930,8 +2119,7 @@ export class FacebookGroupBot {
         }
       }
 
-      fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
-      await context.storageState({ path: this.stateFile });
+      await this.persistAuthenticatedState(context, page);
 
       if (!verified) {
         return {
@@ -1963,7 +2151,7 @@ export class FacebookGroupBot {
     const excludeSet = new Set((options.excludeNames ?? []).map((n) => n.trim().toLowerCase()).filter(Boolean));
     const headless = options.headless !== undefined ? options.headless : true;
 
-    const hasSession = fs.existsSync(this.stateFile) || Boolean(process.env.FB_ADMIN_COOKIE?.trim());
+    const hasSession = FacebookGroupBot.hasSavedSession(this.stateFile);
     if (!hasSession) {
       throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Chưa có phiên đăng nhập Group Bot.');
     }
@@ -1974,10 +2162,7 @@ export class FacebookGroupBot {
       const page = await context.newPage();
       await page.goto(groupUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(3000);
-      const cur = page.url();
-      if (cur.includes('/login') || cur.includes('/checkpoint')) {
-        throw new Error('FACEBOOK_GROUP_SESSION_MISSING: Phiên đăng nhập Facebook đã hết hạn.');
-      }
+      await this.assertAuthenticatedPage(context, page, 'mời thành viên vào Group');
 
       const inviteTriggerSelectors = [
         'div[role="main"] div[role="button"][aria-label="Mời"]',
@@ -2057,8 +2242,7 @@ export class FacebookGroupBot {
         });
       }
 
-      fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
-      await context.storageState({ path: this.stateFile });
+      await this.persistAuthenticatedState(context, page);
 
       return {
         success: true,

@@ -9,6 +9,8 @@ interface DashboardHeaderProps {
   searchPlaceholder?: string;
   user?: { name: string; role: string };
   notificationsCount?: number;
+  onOpenWallet?: () => void;
+  onOpenDailyReport?: () => void;
 }
 
 export default function DashboardHeader({
@@ -17,6 +19,8 @@ export default function DashboardHeader({
   searchPlaceholder,
   user = { name: "Owner", role: "Owner" },
   notificationsCount = 0,
+  onOpenWallet,
+  onOpenDailyReport,
 }: DashboardHeaderProps) {
   const placeholderText =
     searchPlaceholder ||
@@ -62,6 +66,40 @@ export default function DashboardHeader({
           <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
           <span>API connected</span>
         </div>
+
+        {/* Quick Merchant Actions */}
+        <a
+          href="/onboarding"
+          className="flex items-center gap-1.5 bg-blue-500/80 hover:bg-blue-500 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-white font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+          title="Quản lý liên kết Fanpage, Google Maps, Kho ảnh Drive và Group cộng đồng"
+        >
+          <span>🔗</span>
+          <span className="hidden md:inline">Kết Nối Kênh</span>
+        </a>
+
+        {onOpenDailyReport && (
+          <button
+            type="button"
+            onClick={onOpenDailyReport}
+            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl px-3 py-1.5 text-xs text-white font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Xem Báo Cáo Điều Hành Ngày của 8 AI Agent"
+          >
+            <span>📊</span>
+            <span className="hidden md:inline">Báo Cáo Ngày</span>
+          </button>
+        )}
+
+        {onOpenWallet && (
+          <button
+            type="button"
+            onClick={onOpenWallet}
+            className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 border border-emerald-400/40 rounded-xl px-3 py-1.5 text-xs text-white font-bold transition-all shadow-md shadow-emerald-900/20 active:scale-95 cursor-pointer"
+            title="Nạp Tín Dụng Marketing qua VietQR"
+          >
+            <span>💳</span>
+            <span className="hidden md:inline">Nạp Ví VietQR</span>
+          </button>
+        )}
 
         {/* Notification Bell */}
         <button

@@ -49,7 +49,8 @@ describe('document topic strategy', () => {
     const profile = { locations: ['Da Nang'], audiences: ['Expats'], products: ['housing', 'food'], strategy };
     const queries = buildDiscoveryQueries(profile, 3, ['food']);
     expect(queries).toHaveLength(3);
-    expect(queries[0]).toBe('Da Nang food expats');
+    // Offset 3 is the second run, which phrases the audience as "for foreigners".
+    expect(queries[0]).toBe('Da Nang food for foreigners');
     // The remaining slots keep the strategy rotation instead of repeating the focus.
     expect(queries.slice(1)).toEqual(buildDiscoveryQueries(profile, 3).filter((q) => q !== queries[0]).slice(0, 2));
   });

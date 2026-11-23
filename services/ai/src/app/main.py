@@ -52,8 +52,9 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
     app.state.provider = provider
     app.state.store = store
     app.state.run_tasks: dict[UUID, asyncio.Task[None]] = {}
-    # PILOT_LIMITS: one AI job running at a time on the shared GPU.
+    # PILOT_LIMITS: one background campaign AI job running at a time; interactive community replies get a fast lane.
     concurrency = asyncio.Semaphore(1)
+    community_concurrency = asyncio.Semaphore(2)
 
     def require_internal_auth(authorization: str | None = Header(default=None)) -> None:
         expected = settings.internal_ai_auth_token
@@ -117,8 +118,9 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
 
     async def execute_run(run_id: UUID, job: JobRequest, operation: Operation, payload: Any) -> None:
         fields = {"run_id": str(run_id), "job_id": str(job.job_id), "workspace_id": str(job.workspace_id), "operation": job.operation}
+        lane = community_concurrency if job.operation == "community.response" else concurrency
         try:
-            async with concurrency:
+            async with lane:
                 row = store.get(run_id)
                 remaining = (datetime.fromisoformat(row["deadline_at"]) - datetime.now(timezone.utc)).total_seconds()
                 if remaining <= 0:

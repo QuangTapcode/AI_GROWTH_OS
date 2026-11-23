@@ -96,6 +96,30 @@ class InventedQuoteProvider:
         return json.dumps(draft), Usage(llm_calls=1)
 
 
+def test_owner_approved_performance_action_reaches_the_research_prompt(make_client):
+    from src.app.schemas import Usage
+
+    class CapturingProvider:
+        model_version = "test/performance-investigation"
+        embedding_model_version = "test/embed"
+
+        async def chat_json(self, *, user, fake, **kwargs):
+            prompt = json.loads(user)
+            assert prompt["performance_investigation"]["metric_name"] == "leads"
+            assert prompt["performance_investigation"]["reason"] == "Investigate the measured decline"
+            assert "not source evidence" in prompt["performance_investigation"]["instruction"]
+            self.called = True
+            return json.dumps(fake()), Usage(llm_calls=1)
+
+    provider = CapturingProvider()
+    request = research_job()
+    request["payload"]["performance_action"] = {"metric_name": "leads", "reason": "Investigate the measured decline",
+                                                "report_artifact_id": str(uuid4())}
+    body = run_job(make_client(provider=provider), request)
+    assert body["status"] == "completed", body
+    assert provider.called
+
+
 def test_fabricated_quote_is_not_handed_off(make_client):
     body = run_job(make_client(provider=InventedQuoteProvider()), research_job())
     assert body["result"]["result"]["status"] == "insufficient_data"

@@ -182,26 +182,31 @@ function createWiredHandler(operation: 'publish' | 'lead' | 'metrics' | 'integra
       return { lead: res.lead, duplicate: res.duplicate ?? false };
     }
     if (operation === 'metrics') {
+      if (process.env.INTEGRATION_MODE === 'production' && !process.env.API_BASE_URL) throw new PermanentJobError('API_BASE_URL is required for live metrics', 'METRICS_API_MISSING');
       if (process.env.INTEGRATION_MODE === 'production' && process.env.API_BASE_URL) {
-        const base = process.env.API_BASE_URL.replace(/\/$/, '');
-        const range = {
-          from: typeof payload['from'] === 'string' ? payload['from'] : undefined,
-          to: typeof payload['to'] === 'string' ? payload['to'] : undefined,
-        };
+        const base = process.env.API_BASE_URL.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+        if (!process.env.AUTOMATION_INTERNAL_TOKEN) throw new PermanentJobError('AUTOMATION_INTERNAL_TOKEN is required', 'METRICS_AUTH_MISSING');
+        const to = typeof payload['to'] === 'string' ? payload['to'] : new Date(ctx.job.created_at).toISOString().slice(0,10);
+        const range = { to, from: typeof payload['from'] === 'string' ? payload['from']
+          : new Date(Date.parse(`${to}T00:00:00Z`) - 29 * 86_400_000).toISOString().slice(0,10) };
         const response = await fetch(`${base}/internal/metrics/sync`, {
           method: 'POST',
           headers: {
             accept: 'application/json',
             'content-type': 'application/json',
-            ...(process.env.WORKER_GATEWAY_TOKEN ? { authorization: `Bearer ${process.env.WORKER_GATEWAY_TOKEN}` } : {}),
+            authorization: `Bearer ${process.env.AUTOMATION_INTERNAL_TOKEN}`,
           },
           body: JSON.stringify({ ...range, workspace_id: ctx.job.workspace_id }),
-          signal: AbortSignal.timeout(Number(process.env.GATEWAY_REQUEST_TIMEOUT_MS ?? 5000)),
+          signal: AbortSignal.timeout(Number(process.env.METRICS_REQUEST_TIMEOUT_MS ?? 180000)),
         });
         const result = await response.json().catch(() => null) as Record<string, unknown> | null;
         if (!response.ok) {
           const error = result?.error as { message?: string; code?: string } | undefined;
+          if (response.status === 429 || response.status >= 500) throw new Error(error?.message ?? `metrics sync failed (${response.status})`);
           throw new PermanentJobError(error?.message ?? `metrics sync failed (${response.status})`, error?.code ?? 'METRICS_SYNC_FAILED');
+        }
+        if (Array.isArray(result?.results) && result.results.some((provider: { status?: string }) => provider.status === 'error')) {
+          throw new Error('One or more metrics providers failed; retry will reconcile the same bounded date range');
         }
         await ctx.progress(90);
         return result ?? { points_saved: 0, results: [] };

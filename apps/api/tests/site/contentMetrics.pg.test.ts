@@ -58,8 +58,8 @@ describe.skipIf(process.env.RUN_AUTOMATION_DB !== '1')('per-article measurement 
     const result = (await db.query('SELECT payload FROM content_artifacts WHERE id=$1', [id])).rows[0].payload.result;
 
     expect(result.content_metrics).toEqual([
-      { slug: 'street-food', title: 'Street Food in Da Nang', page_views: 2, cta_clicks: 1 },
-      { slug: 'cafes', title: 'Cafes for Remote Work', page_views: 3, cta_clicks: 0 },
+      { slug: 'street-food', title: 'Street Food in Da Nang', page_views: 2, cta_clicks: 1, qualified_visits: 1, leads: 0 },
+      { slug: 'cafes', title: 'Cafes for Remote Work', page_views: 3, cta_clicks: 0, qualified_visits: 0, leads: 0 },
     ]);
   });
 });

@@ -1,0 +1,19 @@
+# Docker build context for infra/docker: code only, never secrets or local state.
+.git
+**/node_modules
+**/.next
+**/.env
+**/.env.*
+!**/.env.example
+**/.fb-session*.json
+**/*.token
+infra/local/.env
+infra/staging/.runtime
+services/ai/var
+services/ai/.venv
+**/__pycache__
+qa
+reports
+docs
+research_notes
+data

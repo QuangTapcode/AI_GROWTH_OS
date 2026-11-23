@@ -193,7 +193,7 @@ export default function WorkflowPipelineCard({
             return (
               <button
                 key={stage.id}
-                type="button"
+                type="button" data-test-id={`stage-${stage.id}`}
                 onClick={() => onSelectStage(stage)}
                 className={`relative text-left rounded-xl p-3.5 transition-all cursor-pointer border ${
                   isSelected
@@ -267,7 +267,7 @@ export default function WorkflowPipelineCard({
               </span>
             </div>
             <button
-              type="button"
+              type="button" data-test-id="view-execution-trace"
               onClick={onViewTrace}
               className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1 cursor-pointer mt-0.5"
             >

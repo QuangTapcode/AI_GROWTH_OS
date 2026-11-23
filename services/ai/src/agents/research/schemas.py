@@ -67,6 +67,15 @@ class LearningLessons(BaseModel):
     model_config = ConfigDict(extra="forbid")
     promising_titles: list[str] = Field(default_factory=list, max_length=5)
     weak_titles: list[str] = Field(default_factory=list, max_length=5)
+    channel_observations: list[str] = Field(default_factory=list, max_length=5)
+
+
+class PerformanceAction(BaseModel):
+    """Owner-approved investigation guidance, never source evidence or a causal claim."""
+    model_config = ConfigDict(extra="forbid")
+    metric_name: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=1, max_length=1000)
+    report_artifact_id: UUID
 
 
 class ResearchPayload(BaseModel):
@@ -79,11 +88,15 @@ class ResearchPayload(BaseModel):
     # Search landscape: what currently ranks for the profile's queries. It guides topic
     # choice only; every finding must still quote an approved snapshot excerpt.
     trend_signals: list[TrendSignal] = Field(default_factory=list, max_length=30)
+    # The business's own website domains (from its approved first-party sources), to tell which
+    # searched topics it is absent from.
+    own_domains: list[str] = Field(default_factory=list, max_length=10)
     search_metrics: ArtifactInput | None = None
     search_metrics_missing_reason: str = Field(default="gsc_not_connected", max_length=100)
     # Voice-of-customer questions/topics captured from community inbox and leads.
     customer_signals: list[str] = Field(default_factory=list, max_length=20)
     lessons: LearningLessons | None = None
+    performance_action: PerformanceAction | None = None
 
 
 class ResearchIdea(BaseModel):
@@ -142,6 +155,10 @@ class TrendCoverage(BaseModel):
     covered_chunks: int = Field(ge=0)
     # Distinct domains ranking for the query: how crowded the topic already is.
     distinct_domains: int = Field(default=0, ge=0)
+    # The business's own site is among the results / already has an article on the topic.
+    business_present: bool = False
+    business_has_article: bool = False
+    leading_domains: list[str] = Field(default_factory=list, max_length=3)
 
 
 class ResearchBrief(BaseModel):

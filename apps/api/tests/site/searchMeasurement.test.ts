@@ -38,7 +38,8 @@ describe('search metrics in the first-party snapshot', () => {
     const [from, to] = fetchGscTotals.mock.calls[0];
     expect(metrics.measurement.search_console).toEqual({ site_url: 'https://tripc.ai/', from, to });
     expect(to < metrics.result.window_end.slice(0, 10)).toBe(true);
-    expect(from).toBe(metrics.result.window_start.slice(0, 10));
+    expect((Date.parse(to) - Date.parse(from)) / 86_400_000).toBe(6);
+    expect(metrics.result.coverage.clicks).toMatchObject({ from, to, status: 'available', timezone: 'America/Los_Angeles' });
   });
 
   it('a connected property with no rows measured zero', async () => {

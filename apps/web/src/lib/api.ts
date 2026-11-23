@@ -18,6 +18,9 @@ import type {
   PublishingJob,
   ReviewApprovalInput,
   SystemException,
+  TikTokAuthUrlResponse,
+  TikTokVideo,
+  TikTokVideosResponse,
   UpdateBusinessProfileInput,
   WorkflowTask,
   WorkspaceReport,
@@ -97,6 +100,75 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
 const ws = (workspaceId: string) => `/workspaces/${encodeURIComponent(workspaceId)}`;
 
+function uploadTikTokVideo(
+  workspaceId: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void
+): Promise<{ video: TikTokVideo; job_id: string | null }> {
+  const session = getSession();
+  if (!session) {
+    redirectToLogin();
+    return Promise.reject(new ApiError(401, "UNAUTHORIZED", "Your session has expired. Please sign in again."));
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE_URL}${ws(workspaceId)}/tiktok/videos`);
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("Authorization", `Bearer ${session.token}`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        const pct = Math.min(100, Math.round((event.loaded / event.total) * 100));
+        onProgress(pct);
+      }
+    };
+
+    xhr.onload = () => {
+      let data: unknown;
+      try {
+        data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        data = null;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve(data as { video: TikTokVideo; job_id: string | null });
+        return;
+      }
+      const error = (data as { error?: { code?: string; message?: string; field_errors?: Record<string, string[]> } })?.error;
+      if (xhr.status === 401) {
+        clearSession();
+        redirectToLogin();
+      }
+      reject(
+        new ApiError(
+          xhr.status,
+          error?.code ?? "HTTP_ERROR",
+          error?.message ?? `Request failed with status ${xhr.status}`,
+          error?.field_errors
+        )
+      );
+    };
+
+    xhr.onerror = () => {
+      reject(
+        new ApiError(
+          0,
+          "NETWORK_ERROR",
+          `Cannot reach the API at ${API_BASE_URL}. Check that the API server is running.`
+        )
+      );
+    };
+
+    xhr.onabort = () => {
+      reject(new ApiError(0, "ABORTED", "Upload đã bị hủy."));
+    };
+
+    xhr.send(formData);
+  });
+}
+
 export const growthApi = {
   login: (email: string, password: string) =>
     apiRequest<LoginResponse>("/auth/login", { method: "POST", body: { email, password }, auth: false }),
@@ -132,8 +204,8 @@ export const growthApi = {
     apiRequest<MetricSeries>(`${ws(workspaceId)}/metrics?metric=${encodeURIComponent(metric)}&from=${range.from}&to=${range.to}`, { signal }),
   syncMetrics: (workspaceId: string, range?: { from?: string; to?: string }) =>
     apiRequest<MetricSyncResponse>(`${ws(workspaceId)}/metrics/sync`, { method: "POST", body: range ?? {} }),
-  listLeads: (workspaceId: string, signal?: AbortSignal) =>
-    apiRequest<{ items: Lead[]; total: number }>(`${ws(workspaceId)}/leads?limit=100`, { signal }),
+  listLeads: (workspaceId: string, signal?: AbortSignal, range?: { from: string; to: string }, offset = 0) =>
+    apiRequest<{ items: Lead[]; total: number }>(`${ws(workspaceId)}/leads?limit=100&offset=${offset}${range ? `&from=${range.from}&to=${range.to}&timezone=Asia/Ho_Chi_Minh&exclude_synthetic=true` : ''}`, { signal }),
   retryTask: (workspaceId: string, taskId: string) =>
     apiRequest<WorkflowTask>(`${ws(workspaceId)}/tasks/${encodeURIComponent(taskId)}/retry`, { method: "POST", body: {} }),
   createAiRun: (workspaceId: string, body: { operation: "research.run" }) =>
@@ -159,6 +231,22 @@ export const growthApi = {
 
   listApprovals: (workspaceId: string, signal?: AbortSignal) =>
     apiRequest<ListResponse<Approval>>(`${ws(workspaceId)}/approvals`, { signal }),
+  getTikTokAuthUrl: (workspaceId: string, returnTo = "/distribution") => {
+    const originParam =
+      typeof window !== "undefined" ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
+    return apiRequest<TikTokAuthUrlResponse>(
+      `${ws(workspaceId)}/integrations/tiktok/auth-url?return_to=${encodeURIComponent(returnTo)}${originParam}`
+    );
+  },
+  disconnectTikTok: (workspaceId: string) =>
+    apiRequest<{ disconnected: true }>(`${ws(workspaceId)}/integrations/tiktok/disconnect`, {
+      method: "POST",
+      body: {},
+    }),
+  listTikTokVideos: (workspaceId: string, signal?: AbortSignal) =>
+    apiRequest<TikTokVideosResponse>(`${ws(workspaceId)}/tiktok/videos`, { signal }),
+  uploadTikTokVideo: (workspaceId: string, formData: FormData, onProgress?: (percent: number) => void) =>
+    uploadTikTokVideo(workspaceId, formData, onProgress),
   requestApproval: (workspaceId: string, artifact: Pick<ContentArtifact, "id" | "version" | "content_hash">) =>
     apiRequest<Approval>(`${ws(workspaceId)}/approvals`, {
       method: "POST",

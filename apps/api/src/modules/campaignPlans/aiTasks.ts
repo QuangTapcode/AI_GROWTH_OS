@@ -32,7 +32,7 @@ export async function enqueueAiTask(pool: Pool, workspaceId: string, actorId: st
   if (!parsed.success) throw new PlanError('INVALID_AI_TASK', 'Unsupported draft operation/input');
   const body = parsed.data, taskId = body.task_id ?? randomUUID();
   if (body.input.operation === 'strategy.generate' && Date.parse(body.input.deadline) <= Date.now()) throw new PlanError('INVALID_DEADLINE', 'Future deadline required');
-  if (body.input.operation === 'experiment.hypothesis' && (Date.parse(body.input.experiment.period.end) > Date.now() || Date.parse(body.input.experiment.period.end) <= Date.parse(body.input.experiment.period.start))) throw new PlanError('INVALID_PERIOD', 'Experiment period must be ordered and not in the future');
+  if (body.input.operation === 'experiment.hypothesis' && Date.parse(body.input.experiment.period.end) <= Date.parse(body.input.experiment.period.start)) throw new PlanError('INVALID_PERIOD', 'Experiment period must be ordered');
   const roles: Record<string, string> = { 'research.run': 'research', 'strategy.generate': 'growth_lead', 'community.response': 'community', 'analytics.report': 'performance', 'experiment.hypothesis': 'performance', 'learning.analyze': 'growth_lead', 'seo.audit': 'seo', 'content.refresh': 'seo' };
   const db = await pool.connect();
   try {

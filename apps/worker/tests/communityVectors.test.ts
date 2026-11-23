@@ -4,10 +4,12 @@ import { expect, it, vi } from 'vitest';
 import type { AiAdapter } from '../src/adapters/AiAdapter';
 import { PlanOutboxRunner, packEmbedding } from '../src/workflow/PlanOutboxRunner';
 
-const ws = randomUUID(), ctx = randomUUID(), taskId = randomUUID(), sourceId = randomUUID();
+const ws = randomUUID(), taskId = randomUUID(), sourceId = randomUUID();
 
 /** Stops at the AI call: what the question is sent with is all this test looks at. */
 async function dispatched(chunkIds: string[], stored: { id: string; model: string; embedding: string }[]) {
+  // Vectors are cached per pinned context, so every call gets its own context.
+  const ctx = randomUUID();
   const snapshot = { workspace_id: ws, snapshot_id: ctx, sources: [{ source_id: sourceId, version: 1,
     chunks: chunkIds.map((id) => ({ chunk_id: id, text: 'Da Nang guide', locator: null })) }] };
   const query = vi.fn(async (sql: string) => {
@@ -15,7 +17,7 @@ async function dispatched(chunkIds: string[], stored: { id: string; model: strin
     if (sql.includes('SELECT * FROM workflow_tasks')) return { rows: [{ id: taskId, role: 'community', operation: 'community.response', status: 'queued', input_version: 1, context_snapshot_id: ctx, payload: { input: { question: 'Which area?' } }, created_at: new Date() }] };
     if (sql.includes('SELECT * FROM knowledge_contexts')) return { rows: [{ snapshot_id: ctx, profile_version: 1, profile: { version: 1 }, snapshot, goal: null }] };
     if (sql.includes('SELECT version FROM business_profiles')) return { rows: [{ version: 1 }] };
-    if (sql.includes('SELECT id FROM sources')) return { rows: [{ id: sourceId }] };
+    if (/SELECT id(, version)? FROM sources/.test(sql)) return { rows: [{ id: sourceId, version: 1 }] };
     if (sql.includes('FROM source_chunks')) return { rows: stored };
     return { rows: [], rowCount: 1 };
   });

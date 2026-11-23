@@ -54,6 +54,11 @@ export function parseTelegramCommand(text?: string | null, botUsername?: string 
   return 'unknown';
 }
 
+/** The word that calls the bot in a group (TELEGRAM_TRIGGER_WORD, default "MyLe"), matched in any case. */
+export function groupTriggerWord(): string {
+  return process.env.TELEGRAM_TRIGGER_WORD?.trim() || 'MyLe';
+}
+
 export function analyzeTelegramGroupMessage(
   message: TelegramMessage,
   botIdentity: { id?: number | null; username?: string | null } = {},
@@ -96,37 +101,19 @@ export function analyzeTelegramGroupMessage(
     return { shouldRespond: true, kind: 'command', command, cleanedText: text };
   }
 
-  let isMentioned = false;
-  if (normalizedBotUsername) {
-    const mentionRegex = new RegExp(`(^|[\\s,.;:!?()\\[\\]])@${escapeRegExp(normalizedBotUsername)}(?=$|[\\s,.;:!?()\\[\\]])`, 'i');
-    const entityHit = Array.isArray(message.entities)
-      ? message.entities.some((e) => {
-          if (e.type !== 'mention' || typeof e.offset !== 'number' || typeof e.length !== 'number') return false;
-          return text.slice(e.offset, e.offset + e.length).toLowerCase() === `@${normalizedBotUsername}`;
-        })
-      : false;
-    isMentioned = entityHit || mentionRegex.test(text);
-  }
-
-  const replyFrom = message.reply_to_message?.from;
-  const isReplyToBot = Boolean(
-    replyFrom?.is_bot &&
-      ((botId !== null && replyFrom.id === botId) ||
-        (normalizedBotUsername !== null && replyFrom.username?.toLowerCase() === normalizedBotUsername) ||
-        (botId === null && normalizedBotUsername === null)),
-  );
-
-  let stripped = text;
-  if (normalizedBotUsername && isMentioned) {
-    const stripRegex = new RegExp(`@${escapeRegExp(normalizedBotUsername)}(?=$|[\\s,.;:!?()\\[\\]])`, 'gi');
-    stripped = text.replace(stripRegex, ' ').replace(/\s+/g, ' ').replace(/^[\s,.:;!?-]+/, '').trim();
-  }
-
-  const isBotAddressPhrase = /(?<![\p{L}\p{N}])bot(?![\p{L}\p{N}])/iu.test(stripped);
-
-  if (!isMentioned && !isReplyToBot && !isBotAddressPhrase) {
+  // Owner's rule (2026-11-11): in a group only a message that says the trigger word calls the bot.
+  // An @mention, a reply to the bot or the word "bot" alone no longer do.
+  const trigger = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(groupTriggerWord())}(?![\\p{L}\\p{N}])`, 'giu');
+  if (!text.match(trigger)) {
     return { shouldRespond: false };
   }
+  const stripped = text
+    .replace(trigger, ' ')
+    .replace(/(?<![\p{L}\p{N}])ơi(?![\p{L}\p{N}])/iu, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s,.:;!?-]+/, '')
+    .replace(/[\s,.:;-]+$/, '')
+    .trim();
 
   if (!/\p{L}|\p{N}/u.test(stripped)) {
     return { shouldRespond: true, kind: 'ping', cleanedText: text };
@@ -149,7 +136,7 @@ export function buildGroupWelcomeReply(
   text: string;
   reply_markup?: TelegramInlineKeyboardMarkup;
 } {
-  const handle = options.botUsername?.trim().replace(/^@/, '') || DEFAULT_BOT_USERNAME;
+  const trigger = groupTriggerWord();
   const communityName = options.communityName?.trim() || DEFAULT_COMMUNITY_NAME;
   const groupUrl = normalizeGroupUrl(options.groupUrl);
   const rawName = options.userName?.trim();
@@ -162,7 +149,7 @@ export function buildGroupWelcomeReply(
   if (kind === 'bot_joined') {
     return {
       text:
-        `Chào cả nhà${chatTitle ? ` trong ${chatTitle}` : ''}! Mình là trợ lý AI của TripC & ${communityName} 🤖\n\nMọi người có thể trò chuyện với mình bất cứ lúc nào bằng cách:\n• Tag @${handle} kèm câu hỏi (vd: @${handle} Đà Nẵng có bãi biển nào đẹp?)\n• Hoặc bấm Reply trực tiếp vào tin nhắn của mình để hỏi tiếp\n• Nhắn /community để lấy link cộng đồng Facebook hoặc /help để xem gợi ý nhé!`,
+        `Chào cả nhà${chatTitle ? ` trong ${chatTitle}` : ''}! Mình là trợ lý AI của TripC & ${communityName} 🤖\n\nMuốn hỏi mình, mọi người chỉ cần có chữ "${trigger}" trong tin nhắn (vd: ${trigger} ơi, Đà Nẵng có bãi biển nào đẹp?)\n• Nhắn /community để lấy link cộng đồng Facebook hoặc /help để xem gợi ý nhé!`,
       reply_markup,
     };
   }
@@ -171,14 +158,14 @@ export function buildGroupWelcomeReply(
     const names = options.memberNames?.filter(Boolean).join(', ') || 'bạn mới';
     return {
       text:
-        `Chào mừng ${names} gia nhập nhóm${chatTitle ? ` ${chatTitle}` : ''}! 🎉\n\nNếu cần gợi ý địa điểm du lịch, ẩm thực hay kinh nghiệm sống tại Việt Nam, bạn cứ tag @${handle} kèm câu hỏi (hoặc nhắn /help) để mình hỗ trợ ngay nhé!`,
+        `Chào mừng ${names} gia nhập nhóm${chatTitle ? ` ${chatTitle}` : ''}! 🎉\n\nNếu cần gợi ý địa điểm du lịch, ẩm thực hay kinh nghiệm sống tại Việt Nam, bạn cứ nhắn kèm chữ "${trigger}" (vd: ${trigger} ơi, ăn gì ngon ở Đà Nẵng?) hoặc nhắn /help để mình hỗ trợ ngay nhé!`,
       reply_markup,
     };
   }
 
   return {
     text:
-      `Chào${greetingName}! Mình là trợ lý AI của TripC & ${communityName} đây 👋\n\nBạn cứ nhắn tự nhiên theo 1 trong 2 cách:\n• Tag @${handle} kèm điều bạn muốn hỏi (vd: @${handle} ăn gì ngon ở Đà Nẵng?)\n• Hoặc bấm Reply trực tiếp vào tin nhắn này của mình để trò chuyện tiếp!\n\n📌 Dùng /community để lấy link cộng đồng Facebook hoặc /help để xem hướng dẫn nhanh.`,
+      `Chào${greetingName}! Mình là trợ lý AI của TripC & ${communityName} đây 👋\n\nMuốn hỏi mình, bạn cứ nhắn kèm chữ "${trigger}" nhé (vd: ${trigger} ơi, ăn gì ngon ở Đà Nẵng?).\n\n📌 Dùng /community để lấy link cộng đồng Facebook hoặc /help để xem hướng dẫn nhanh.`,
     reply_markup,
   };
 }

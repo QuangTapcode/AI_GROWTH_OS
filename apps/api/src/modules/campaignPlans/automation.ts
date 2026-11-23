@@ -9,6 +9,11 @@ import { acceptLearningTasks } from "./learningTasks";
 import { PgPlanRepository } from "./pgRepository";
 import { submitCampaignPlan, PlanError } from "./service";
 import { getWorkspaceConnectionStatus } from "../integrations/stubs";
+import {
+  buildTikTokCaptionFromArtifact,
+  getTikTokConnectionSummary,
+  validatePrivacyLevel,
+} from "../integrations/tiktok";
 import { propagateUpstreamTaskFailure } from "../tasks/dag";
 import { persistCommunityLead } from "../community/leads";
 import { processReceivedCommunityMessages } from "../community/service";
@@ -39,7 +44,23 @@ export function isAutoApprovable(row: AutoArtifactRow) {
   const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
   const status = result.status;
   const inputRefs = Array.isArray(result.input_artifact_refs) ? result.input_artifact_refs : [];
-  const hasGrounding = row.evidence.length > 0 || (row.role === "performance" && inputRefs.length > 0);
+  const hasReplyText = typeof result.reply === "string" && result.reply.trim().length > 0;
+  // Community greetings/praise/reactions intentionally skip RAG (evidence=[]) to avoid hallucinating unrelated docs.
+  const isCommunityConversational =
+    row.role === "community" &&
+    hasReplyText &&
+    missing.length === 0 &&
+    (status === "ready_for_handoff" || status === "proposed" || status === "draft");
+  // Community hard questions with insufficient_data are routed to Group/Telegram community invite fallback in queueDirectReply().
+  const isCommunityFallbackInvite =
+    row.role === "community" &&
+    status === "insufficient_data" &&
+    hasReplyText;
+  const hasGrounding =
+    row.evidence.length > 0 ||
+    (row.role === "performance" && inputRefs.length > 0) ||
+    isCommunityConversational ||
+    isCommunityFallbackInvite;
   const leadConsentOnly =
     row.role === "community" &&
     status === "insufficient_data" &&
@@ -52,7 +73,7 @@ export function isAutoApprovable(row: AutoArtifactRow) {
   }
   // An AI illustration always goes past a person: code checks lettering, not what the image shows.
   return result.synthetic !== true && !result.generated_image && hasGrounding &&
-    ((missing.length === 0 && (status === "ready_for_handoff" || status === "proposed" || status === "draft")) || leadConsentOnly);
+    ((missing.length === 0 && (status === "ready_for_handoff" || status === "proposed" || status === "draft")) || leadConsentOnly || isCommunityFallbackInvite);
 }
 
 async function queueReadyChildren(db: import("pg").PoolClient, workspaceId: string, campaignId: string | null) {
@@ -200,13 +221,27 @@ async function scheduleFacebookArtifact(
   // Prefer the Facebook-specific post (hook, body, question, exact CTA) over the generic caption.
   const facebook = result.facebook as { text?: unknown } | null | undefined;
   const body = typeof facebook?.text === "string" ? facebook.text : typeof result.caption === "string" ? result.caption : typeof result.body_markdown === "string" ? result.body_markdown : "";
+  const refs = result.input_artifact_refs;
+  const parentId = Array.isArray(refs) ? (refs[0] as { artifact_id?: string } | undefined)?.artifact_id : undefined;
+  const parentTitle = parentId
+    ? (await db.query<{ title: string | null }>(
+        "SELECT COALESCE(payload->'result'->>'title', NULLIF(title, 'seo')) AS title FROM content_artifacts WHERE workspace_id=$1 AND id=$2 LIMIT 1",
+        [workspaceId, parentId],
+      )).rows[0]?.title
+    : null;
+  const socialTitle = (
+    (typeof result.title === "string" && result.title.trim() && result.title.trim() !== "content" ? result.title.trim() : null) ||
+    (parentTitle && parentTitle.trim() ? parentTitle.trim() : null) ||
+    body.split(/\r?\n/).find((l) => l.trim().length > 5)?.trim().slice(0, 120) ||
+    row.title
+  );
   const resolvedLink = await articleLink(db, workspaceId, row);
   const utmUrl = targetPlatform === "facebook_group" ? (resolvedLink ?? groupInfo?.groupUrl ?? "https://www.facebook.com/groups/1134282109069209") : resolvedLink;
   const content = (await db.query<{ id: string }>(
     `INSERT INTO contents (workspace_id,title,body_markdown,type,status,created_by,approved_by,current_version,content_hash,artifact_id)
      VALUES($1,$2,$3,'social_post','approved','ai',$4,$5,$6,$7)
      ON CONFLICT DO NOTHING RETURNING id`,
-    [workspaceId, row.title, body, actorId, row.version, row.content_hash, row.result_ref],
+    [workspaceId, socialTitle, body, actorId, row.version, row.content_hash, row.result_ref],
   )).rows[0] ?? (await db.query<{ id: string }>(
     "SELECT id FROM contents WHERE workspace_id=$1 AND artifact_id=$2",
     [workspaceId, row.result_ref],
@@ -230,6 +265,219 @@ async function scheduleFacebookArtifact(
      ON CONFLICT(workspace_id,dedup_key) DO NOTHING`,
     [workspaceId, `publish:${job.id}`, JSON.stringify({ job_id: job.id, artifact_id: row.result_ref, approval_id: approvalId, channel_id: channel.id, mode })],
   );
+}
+
+async function scheduleTikTokArtifact(
+  db: import("pg").PoolClient,
+  workspaceId: string,
+  actorId: string,
+  row: AutoArtifactRow,
+  approvalId: string,
+) {
+  if (row.role !== "content" || !row.payload?.result) return;
+  if (row.artifact_type === "tiktok_video") return;
+
+  let channel = (
+    await db.query<{ id: string }>(
+      "SELECT id FROM channels WHERE workspace_id=$1 AND platform_name='tiktok' ORDER BY created_at LIMIT 1",
+      [workspaceId],
+    )
+  ).rows[0];
+  if (!channel) {
+    const summary = await getTikTokConnectionSummary(workspaceId);
+    const displayName = summary.display_name ? `TikTok (${summary.display_name})` : "TripC TikTok";
+    channel = (
+      await db.query<{ id: string }>(
+        `INSERT INTO channels (workspace_id, platform_name, display_name, channel_identifier)
+         VALUES ($1, 'tiktok', $2, $3) RETURNING id`,
+        [workspaceId, displayName, summary.open_id ?? null],
+      )
+    ).rows[0];
+  }
+  if (!channel) return;
+
+  const existing = (
+    await db.query(
+      "SELECT id FROM publishing_jobs WHERE workspace_id=$1 AND artifact_id=$2 AND channel_id=$3",
+      [workspaceId, row.result_ref, channel.id],
+    )
+  ).rows[0];
+  if (existing) return;
+
+  const result = row.payload.result as Record<string, unknown>;
+  const { title: rawTitle, caption, hashtags } = buildTikTokCaptionFromArtifact({
+    title: row.title,
+    payload: row.payload as Record<string, unknown>,
+  });
+  const imageAssets = Array.isArray(result.image_assets)
+    ? (result.image_assets as Array<{ url?: unknown }>)
+    : [];
+  const generatedImage =
+    result.generated_image && typeof result.generated_image === "object"
+      ? (result.generated_image as { url?: unknown })
+      : null;
+  const mediaUrl =
+    (typeof imageAssets[0]?.url === "string" && imageAssets[0].url.trim()) ||
+    (typeof generatedImage?.url === "string" && generatedImage.url.trim()) ||
+    null;
+  const refs = Array.isArray(result.input_artifact_refs)
+    ? (result.input_artifact_refs as Array<{ artifact_id?: unknown }>)
+    : [];
+  const rawParentId = typeof refs[0]?.artifact_id === "string" ? refs[0].artifact_id : null;
+  const sourceArtifactId =
+    rawParentId && /^[0-9a-f-]{36}$/i.test(rawParentId) ? rawParentId : null;
+  const privacyLevel = validatePrivacyLevel(process.env.TIKTOK_PRIVACY_LEVEL || "SELF_ONLY");
+  const isAigc = Boolean(result.is_ai_generated ?? result.generated_image ?? true);
+  const facebookObj =
+    result.facebook && typeof result.facebook === "object"
+      ? (result.facebook as Record<string, unknown>)
+      : null;
+  const fallbackHeadline =
+    (typeof facebookObj?.hook === "string" && facebookObj.hook.trim()) ||
+    caption.split(/\r?\n/)[0]?.trim() ||
+    "TripC TikTok Video";
+  const cleanTitle = (
+    rawTitle && !["content", "seo", "social_post"].includes(rawTitle.trim().toLowerCase())
+      ? rawTitle
+      : fallbackHeadline
+  ).slice(0, 255);
+
+  const content =
+    (
+      await db.query<{ id: string }>(
+        `INSERT INTO contents (workspace_id,title,body_markdown,type,status,created_by,approved_by,current_version,content_hash,artifact_id)
+         VALUES($1,$2,$3,'social_post','approved','ai',$4,$5,$6,$7)
+         ON CONFLICT DO NOTHING RETURNING id`,
+        [workspaceId, cleanTitle, caption, actorId, row.version, row.content_hash, row.result_ref],
+      )
+    ).rows[0] ??
+    (
+      await db.query<{ id: string }>(
+        "SELECT id FROM contents WHERE workspace_id=$1 AND artifact_id=$2 LIMIT 1",
+        [workspaceId, row.result_ref],
+      )
+    ).rows[0];
+  if (!content) return;
+
+  const vidInsert = (
+    await db.query<{ id: string }>(
+      `INSERT INTO tiktok_videos
+         (workspace_id, title, caption, hashtags, source_artifact_id, video_source_type,
+          media_url, privacy_level, is_aigc, status, artifact_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'file_upload', $6, $7, $8, 'scheduled', $9, $10)
+       RETURNING id`,
+      [
+        workspaceId,
+        cleanTitle,
+        caption,
+        hashtags,
+        sourceArtifactId,
+        mediaUrl,
+        privacyLevel,
+        isAigc,
+        row.result_ref,
+        actorId,
+      ],
+    )
+  ).rows[0];
+
+  const job = (
+    await db.query<{ id: string }>(
+      `INSERT INTO publishing_jobs
+         (content_id, channel_id, scheduled_for, status, workspace_id, artifact_id, approval_id,
+          mode, created_by, media_url, media_type, custom_caption, tiktok_video_id)
+       VALUES ($1, $2, now(), 'scheduled', $3, $4, $5, 'live', $6, $7, 'video', $8, $9)
+       RETURNING id`,
+      [
+        content.id,
+        channel.id,
+        workspaceId,
+        row.result_ref,
+        approvalId,
+        actorId,
+        mediaUrl,
+        caption,
+        vidInsert.id,
+      ],
+    )
+  ).rows[0];
+
+  await db.query(`UPDATE tiktok_videos SET publishing_job_id = $1 WHERE id = $2`, [
+    job.id,
+    vidInsert.id,
+  ]);
+
+  await db.query(
+    `INSERT INTO outbox_events(workspace_id,event_type,dedup_key,payload)
+     VALUES($1,'publishing.scheduled',$2,$3)
+     ON CONFLICT(workspace_id,dedup_key) DO NOTHING`,
+    [
+      workspaceId,
+      `publish:${job.id}`,
+      JSON.stringify({
+        job_id: job.id,
+        artifact_id: row.result_ref,
+        approval_id: approvalId,
+        channel_id: channel.id,
+        mode: "live",
+        tiktok_video_id: vidInsert.id,
+      }),
+    ],
+  );
+}
+
+async function scheduleApprovedTikTokArtifacts(
+  pool: Pool,
+  workspaceId: string,
+  actorId: string,
+  contextSnapshotId: string,
+) {
+  const status = await getWorkspaceConnectionStatus(workspaceId, "tiktok");
+  if (status.status !== "connected") return 0;
+
+  const rows = (
+    await pool.query<AutoArtifactRow & { approval_id: string }>(
+      `SELECT t.id AS task_id,t.role,t.campaign_id,t.status,t.result_ref,
+              a.version,a.content_hash,a.title,a.artifact_type,a.payload,a.evidence,
+              ap.id AS approval_id
+         FROM workflow_tasks t
+         JOIN content_artifacts a ON a.id=t.result_ref AND a.workspace_id=t.workspace_id
+         JOIN approvals ap ON ap.workspace_id=t.workspace_id
+            AND ap.target_type='artifact' AND ap.target_id=a.id
+            AND ap.target_version=a.version AND ap.target_hash=a.content_hash
+            AND ap.status='approved'
+        WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2
+          AND t.role='content' AND t.status='completed'
+          AND a.artifact_type <> 'tiktok_video'
+          AND NOT EXISTS (
+            SELECT 1 FROM publishing_jobs pj
+             JOIN channels ch ON ch.id=pj.channel_id
+             WHERE pj.workspace_id=t.workspace_id AND pj.artifact_id=a.id
+               AND ch.platform_name='tiktok'
+          )
+        ORDER BY t.updated_at DESC
+        LIMIT 5`,
+      [workspaceId, contextSnapshotId],
+    )
+  ).rows;
+
+  let scheduled = 0;
+  for (const row of rows) {
+    if (!isAutoApprovable(row)) continue;
+    const db = await pool.connect();
+    try {
+      await db.query("BEGIN");
+      await scheduleTikTokArtifact(db, workspaceId, actorId, row, row.approval_id);
+      await db.query("COMMIT");
+      scheduled++;
+    } catch (error) {
+      await db.query("ROLLBACK");
+      throw error;
+    } finally {
+      db.release();
+    }
+  }
+  return scheduled;
 }
 
 /**
@@ -294,7 +542,7 @@ async function scheduleApprovedFacebookArtifacts(
  * current context; work pinned to an older context is never approved or published unattended.
  */
 async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: string, contextSnapshotId: string,
-  publishFacebook: boolean, publishWebsite = false) {
+  publishFacebook: boolean, publishWebsite = false, publishTikTok = false) {
   const rows = (await pool.query<AutoArtifactRow>(
     `SELECT t.id AS task_id,t.role,t.campaign_id,t.status,t.result_ref,a.version,a.content_hash,a.title,a.artifact_type,a.payload,a.evidence
        FROM workflow_tasks t JOIN content_artifacts a ON a.id=t.result_ref AND a.workspace_id=t.workspace_id
@@ -309,6 +557,9 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
     const status = await getWorkspaceConnectionStatus(workspaceId, target.provider);
     targetModes.push({ target, mode: status.status === "connected" ? "live" : "manual" });
   }
+  const tiktokConnected = publishTikTok
+    ? (await getWorkspaceConnectionStatus(workspaceId, "tiktok")).status === "connected"
+    : false;
   for (const row of rows) {
     if (!isAutoApprovable(row)) continue;
     const db = await pool.connect();
@@ -337,6 +588,9 @@ async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: stri
           for (const { target, mode } of targetModes) {
             await scheduleFacebookArtifact(db, workspaceId, actorId, row, approvalId, mode, target.platform, target);
           }
+        }
+        if (tiktokConnected && row.role === "content") {
+          await scheduleTikTokArtifact(db, workspaceId, actorId, row, approvalId);
         }
         // The owner opted into publishing approved SEO articles to the workspace's own site.
         if (publishWebsite && row.role === "seo") {
@@ -534,13 +788,23 @@ export async function tickAutomation(
         "Create a current knowledge context with approved sources first",
       );
     if (settings.auto_approve_outputs) {
-      const publishWarnings = await autoApproveOutputs(pool, workspaceId, settings.actor_id, context.snapshot_id, settings.auto_publish_facebook === true,
-        settings.auto_publish_website === true);
+      const publishWarnings = await autoApproveOutputs(
+        pool,
+        workspaceId,
+        settings.actor_id,
+        context.snapshot_id,
+        settings.auto_publish_facebook === true,
+        settings.auto_publish_website === true,
+        settings.auto_publish_tiktok === true,
+      );
       if (publishWarnings.length) discoveryWarning = publishWarnings.join('; ');
       await autoAcceptLearning(pool, workspaceId, settings.actor_id, context.snapshot_id);
     }
     if (settings.auto_publish_facebook === true) {
       await scheduleApprovedFacebookArtifacts(pool, workspaceId, settings.actor_id, context.snapshot_id);
+    }
+    if (settings.auto_publish_tiktok === true) {
+      await scheduleApprovedTikTokArtifacts(pool, workspaceId, settings.actor_id, context.snapshot_id);
     }
     await closeTasksBehindDeadParents(pool, workspaceId);
     await closeDeadReviews(pool, workspaceId, context.snapshot_id);
@@ -588,7 +852,7 @@ export async function tickAutomation(
       if (task.operation === "research.run" && task.artifact_payload.result?.status === "ready_for_handoff") {
         // First-party measurement (site events + leads) pinned to this context for Growth Lead, Performance and Learning;
         // taken before the strategy task exists, so the plan can see it.
-        await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
+        const measured = await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
         const child = await enqueue(`strategy:${task.id}`, {
           operation: "strategy.generate",
           research_artifact_id: task.result_ref,
@@ -601,12 +865,7 @@ export async function tickAutomation(
           "INSERT INTO agent_automation_handoffs(workspace_id,task_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
           [workspaceId, child.task_id],
         );
-        const metric = (
-          await pool.query(
-            "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='metrics.snapshot' ORDER BY created_at DESC LIMIT 1",
-            [workspaceId, context.snapshot_id],
-          )
-        ).rows[0];
+        const metric = { id: measured.metrics_artifact_id };
         const baseline = metric ? await ensureBaselineArtifact(pool, workspaceId, context.snapshot_id, metric.id) : undefined;
         const report = await enqueue(`performance:${child.task_id}`, {
           operation: "analytics.report",
@@ -642,11 +901,10 @@ export async function tickAutomation(
         const iteration = await learningRoundsThisCycle(pool, workspaceId, context.snapshot_id);
         if (iteration < MAX_LEARNING_ROUNDS &&
             !(await measurementAlreadyLearned(pool, workspaceId, context.snapshot_id, task.payload?.input?.metrics_artifact_id))) {
-          await ensureMeasurementArtifacts(pool, workspaceId, context.snapshot_id, settings.interval_hours);
           const leads = (
             await pool.query(
-              "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='lead.aggregate' ORDER BY created_at DESC LIMIT 1",
-              [workspaceId, context.snapshot_id],
+              "SELECT id FROM content_artifacts WHERE workspace_id=$1 AND context_snapshot_id=$2 AND operation='lead.aggregate' AND payload->'result'->>'metrics_artifact_id'=$3 ORDER BY created_at DESC LIMIT 1",
+              [workspaceId, context.snapshot_id, task.payload?.input?.metrics_artifact_id],
             )
           ).rows[0];
           await enqueue(`learning:${task.id}`, {
