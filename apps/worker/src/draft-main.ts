@@ -122,6 +122,29 @@ async function main() {
         .finally(() => { communityAutopilotBusy = false; });
     };
     timers.push(setTimeout(triggerCommunityAutopilot, 15_000), setInterval(triggerCommunityAutopilot, 180_000));
+
+    // Periodic incremental Google Drive -> Existing Agents drafting autopilot (only processes newly added photos)
+    let gmapsDriveBusy = false;
+    const gmapsDriveIntervalMs = Number(process.env.GMAPS_DRIVE_SYNC_MINUTES ?? 5) * 60_000;
+    const triggerGmapsDriveAutopilot = () => {
+      if (gmapsDriveBusy) return;
+      gmapsDriveBusy = true;
+      void fetch(`${apiBase}/internal/gmaps/autopilot`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(120_000),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`gmaps drive autopilot HTTP ${res.status}`);
+          const data = (await res.json().catch(() => null)) as { results?: Array<Record<string, unknown>> } | null;
+          if (data?.results && data.results.length > 0) {
+            console.log('[gmaps-drive-autopilot]', JSON.stringify(data.results));
+          }
+        })
+        .catch((error) => console.error('[gmaps-drive-autopilot]', (error as Error).message))
+        .finally(() => { gmapsDriveBusy = false; });
+    };
+    timers.push(setTimeout(triggerGmapsDriveAutopilot, 25_000), setInterval(triggerGmapsDriveAutopilot, gmapsDriveIntervalMs));
     // Each published Facebook post's topic video follows as its own Reel.
     const reels = defaultReelRunner(pool);
     let reelBusy = false;

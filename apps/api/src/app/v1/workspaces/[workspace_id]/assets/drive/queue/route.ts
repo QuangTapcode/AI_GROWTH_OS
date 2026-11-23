@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DriveAssetIngestionService } from '../../../../../../../modules/assets/drive';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { workspace_id: string } }
 ) {
   try {
+    const allowSeed = request.nextUrl.searchParams.get('seed') !== 'false';
     const service = new DriveAssetIngestionService();
-    const assets = await service.listStagedAssets(params.workspace_id);
-    return NextResponse.json({ ok: true, assets });
+    const [assets, folderUrl] = await Promise.all([
+      service.listStagedAssets(params.workspace_id, allowSeed),
+      service.getConfiguredDriveUrl(params.workspace_id),
+    ]);
+    return NextResponse.json({ ok: true, assets, folder_url: folderUrl });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error?.message || 'Failed to list drive assets' }, { status: 500 });
   }
@@ -37,5 +41,19 @@ export async function POST(
     return NextResponse.json({ ok: true, asset: created }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error?.message || 'Failed to upload drive asset' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { workspace_id: string } }
+) {
+  try {
+    const service = new DriveAssetIngestionService();
+    const deleted = await service.clearMockAssets(params.workspace_id);
+    const remaining = await service.listStagedAssets(params.workspace_id, false);
+    return NextResponse.json({ ok: true, deleted_count: deleted, assets: remaining });
+  } catch (error: any) {
+    return NextResponse.json({ ok: false, error: error?.message || 'Failed to clear mock assets' }, { status: 500 });
   }
 }

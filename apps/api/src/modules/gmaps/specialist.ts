@@ -78,6 +78,20 @@ export class GoogleMapsSpecialistService {
 
   async listItems(workspaceId: string, itemType?: 'review' | 'local_post'): Promise<GMapsItem[]> {
     try {
+      // Auto-clean any legacy generic concierge fallback sentences from local_post rows
+      await this.db
+        .query(
+          `DELETE FROM gmaps_reputation
+           WHERE workspace_id = $1::uuid
+             AND item_type = 'local_post'
+             AND (content LIKE 'Cảm ơn bạn đã kết nối%' OR content LIKE 'Dạ chào anh/chị%')`,
+          [workspaceId]
+        )
+        .catch(() => {});
+
+      // Autonomous Zero-Touch Pipeline: automatically publish any staged real Google Drive assets
+      await this.autoPublishAllStagedDriveAssets(workspaceId).catch(() => {});
+
       const values: any[] = [workspaceId];
       let typeCondition = '';
       if (itemType) {
@@ -104,6 +118,449 @@ export class GoogleMapsSpecialistService {
       }
       const list = memoryGmaps.get(workspaceId)!;
       return itemType ? list.filter((i) => i.item_type === itemType) : list;
+    }
+  }
+
+  async listExistingAgentArtifacts(
+    workspaceId: string,
+    limit = 30
+  ): Promise<
+    Array<{
+      id: string;
+      role: string;
+      operation: string;
+      title: string;
+      excerpt: string;
+      created_at: string;
+    }>
+  > {
+    try {
+      const res = await this.db.query(
+        `SELECT id, role, operation, title, payload, created_at
+         FROM content_artifacts
+         WHERE workspace_id = $1::uuid
+           AND operation IN ('content.generate', 'seo.local_draft', 'content.repurpose', 'research.run')
+         ORDER BY created_at DESC
+         LIMIT $2::int`,
+        [workspaceId, limit]
+      );
+      return res.rows.map((r: any) => {
+        const result = r.payload?.result || r.payload || {};
+        const rawText =
+          result.caption ||
+          result.body_markdown ||
+          result.summary ||
+          (Array.isArray(result.findings) ? result.findings.map((f: any) => f.topic).join('; ') : '') ||
+          '';
+        return {
+          id: r.id,
+          role: r.role || 'content',
+          operation: r.operation || 'content.generate',
+          title: r.title || result.title || 'Bài viết từ Agent hệ thống',
+          excerpt: String(rawText).replace(/\s+/g, ' ').trim().slice(0, 320),
+          created_at: new Date(r.created_at).toISOString(),
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  private async findMatchingAgentArtifact(
+    workspaceId: string,
+    spotName: string,
+    sourceArtifactId?: string
+  ): Promise<{ id: string; role: string; operation: string; title: string; fullText: string } | null> {
+    try {
+      let row: any = null;
+      if (sourceArtifactId) {
+        const direct = await this.db.query(
+          `SELECT id, role, operation, title, payload
+           FROM content_artifacts
+           WHERE workspace_id = $1::uuid AND id = $2::uuid
+           LIMIT 1`,
+          [workspaceId, sourceArtifactId]
+        );
+        row = direct.rows[0] || null;
+      } else {
+        const keywords = spotName
+          .replace(/^\[[^\]]+\]\s*/, '')
+          .split(/[\s—\-(),]+/)
+          .map((w) => w.trim())
+          .filter((w) => w.length >= 4)
+          .slice(0, 4);
+        if (keywords.length > 0) {
+          const pattern = `%${keywords[0]}%`;
+          const matched = await this.db.query(
+            `SELECT id, role, operation, title, payload
+             FROM content_artifacts
+             WHERE workspace_id = $1::uuid
+               AND operation IN ('content.generate', 'seo.local_draft', 'content.repurpose')
+               AND (title ILIKE $2::text OR payload::text ILIKE $2::text)
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [workspaceId, pattern]
+          );
+          row = matched.rows[0] || null;
+        }
+      }
+      if (!row) return null;
+      const result = row.payload?.result || row.payload || {};
+      const fullText = String(result.caption || result.body_markdown || result.summary || '').trim();
+      return {
+        id: row.id,
+        role: row.role || 'content',
+        operation: row.operation || 'content.generate',
+        title: row.title || result.title || spotName,
+        fullText,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async composeReviewWithExistingAgents(
+    workspaceId: string,
+    params: {
+      spotName: string;
+      folderName: string;
+      notes: string;
+      visionTags: string[];
+      sourceArtifactId?: string;
+    }
+  ): Promise<{
+    content: string;
+    writtenByAgent: string;
+    sourceArtifactId?: string;
+    sourceArtifactTitle?: string;
+    providerUsed?: string;
+  }> {
+    const matchedArtifact = await this.findMatchingAgentArtifact(
+      workspaceId,
+      params.spotName,
+      params.sourceArtifactId
+    );
+    const cleanSpot = params.spotName.replace(/^\[[^\]]+\]\s*/, '').trim();
+    const cleanNotes = params.notes.replace(/\s*\(File gốc Google Drive:[^)]+\)\.?/i, '').trim();
+
+    const llm = new MultiLLMAdapterService(this.db);
+    const systemPrompt =
+      `Bạn là Content Marketing Agent phối hợp cùng Agent 5 (Google Maps Specialist) của AI Growth OS. ` +
+      `Nhiệm vụ: Viết một bài đánh giá / cập nhật Google Maps tự nhiên bằng tiếng Việt dựa HOÀN TOÀN vào chủ đề và tư liệu nguồn có sẵn được cung cấp. ` +
+      `QUY TẮC BẮT BUỘC:\n` +
+      `1. TUYỆT ĐỐI KHÔNG tự bịa chủ đề mới, KHÔNG bịa giá vé, giờ mở cửa hay thông tin không có trong nguồn.\n` +
+      `2. Viết theo giọng văn du khách/người trải nghiệm thực tế: tự nhiên, chân thật, 3-4 câu ngắn gọn, dễ đọc.\n` +
+      `3. TUYỆT ĐỐI KHÔNG viết các cụm từ máy móc/kỹ thuật như "Agent 2", "Agent 5", "đồng bộ từ Google Drive", "xuất bản tự động", "GoogleMapsLocalSEO", "Tư liệu hình ảnh thực tế".\n` +
+      `4. Chỉ trả về đúng nội dung bài viết (không thêm lời mở đầu như "Dưới đây là..."). Có thể kết thúc bằng 2-3 hashtag địa danh ngắn gọn.`;
+
+    const prompt = matchedArtifact
+      ? `Chủ đề & bài viết gốc từ Agent có sẵn (${matchedArtifact.role} / ${matchedArtifact.operation}):\n` +
+        `- Tiêu đề gốc: ${matchedArtifact.title}\n` +
+        `- Nội dung nguồn từ Agent: ${matchedArtifact.fullText.slice(0, 1200)}\n` +
+        `- Địa điểm gắn ảnh Google Maps: ${cleanSpot} (${params.folderName})\n\n` +
+        `Hãy biên tập nội dung trên thành 1 bài đánh giá Google Maps tự nhiên bằng tiếng Việt (3-4 câu), giữ đúng chủ đề và thông tin từ bài gốc của Agent.`
+      : `Tư liệu ảnh thực tế của khách hàng từ Google Drive (không được bịa thêm chủ đề ngoài tư liệu này):\n` +
+        `- Địa điểm / Tên ảnh: ${cleanSpot}\n` +
+        `- Khu vực (thư mục): ${params.folderName}\n` +
+        `- Mô tả thực tế: ${cleanNotes}\n\n` +
+        `Hãy viết 1 bài đánh giá Google Maps tự nhiên bằng tiếng Việt (3-4 câu) đúng theo địa điểm và mô tả thực tế ở trên.`;
+
+    const gen = await llm.generateTextWithAutoSwitch(workspaceId, prompt, {
+      systemPrompt,
+      temperature: 0.6,
+      maxTokens: 420,
+    });
+
+    const isGenericFallback =
+      !gen.text ||
+      gen.text.includes('Cảm ơn bạn đã kết nối!') ||
+      gen.text.includes('Hệ thống AI Concierge đã tiếp nhận') ||
+      gen.text.includes('Hệ thống AI Marketing & Concierge 24/7 đã ghi nhận') ||
+      gen.text.includes('Cảm ơn bạn rất nhiều vì đã tin tưởng trải nghiệm dịch vụ và để lại đánh giá 5 sao');
+
+    const agentLabel = matchedArtifact
+      ? matchedArtifact.role === 'seo'
+        ? `SEO Worker Agent (${matchedArtifact.operation}) → Content Agent`
+        : `Content Marketing Agent (${matchedArtifact.operation})`
+      : `Agent 5 + Content Agent (${gen.provider_used?.toUpperCase() || 'LLM'})`;
+
+    if (!isGenericFallback) {
+      const cleanedOutput = gen.text
+        .replace(/^(Dưới đây là|Đây là)[^\n]*:\s*/i, '')
+        .replace(/^["“]|["”]$/g, '')
+        .trim();
+      return {
+        content: cleanedOutput,
+        writtenByAgent: agentLabel,
+        sourceArtifactId: matchedArtifact?.id,
+        sourceArtifactTitle: matchedArtifact?.title,
+        providerUsed: gen.provider_used,
+      };
+    }
+
+    if (matchedArtifact && matchedArtifact.fullText) {
+      const cleanFromArtifact = matchedArtifact.fullText
+        .replace(/^#+\s*/gm, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 480);
+      return {
+        content: `${matchedArtifact.title}\n\n${cleanFromArtifact}`,
+        writtenByAgent: `${matchedArtifact.role.toUpperCase()} Agent (${matchedArtifact.operation})`,
+        sourceArtifactId: matchedArtifact.id,
+        sourceArtifactTitle: matchedArtifact.title,
+      };
+    }
+
+    const shortTags = params.visionTags
+      .filter((t) => !/^Thư mục:/i.test(String(t)))
+      .slice(0, 3)
+      .map((t) => `#${String(t).replace(/\s+/g, '')}`)
+      .join(' ');
+    return {
+      content: `${cleanSpot} tại ${params.folderName} mang lại trải nghiệm rất ấn tượng. ${cleanNotes} Không gian đẹp, rất đáng để ghé thăm và lưu lại kỷ niệm khi du lịch ${params.folderName}.\n\n${shortTags}`.trim(),
+      writtenByAgent: 'Agent 5 (Grounded Drive Asset)',
+    };
+  }
+
+  async rewritePostsWithExistingAgents(
+    workspaceId: string,
+    options: { postId?: string; sourceArtifactId?: string; rewriteAllTemplates?: boolean }
+  ): Promise<{ updated_count: number; posts: GMapsItem[] }> {
+    let rows: any[] = [];
+    if (options.postId) {
+      const r = await this.db.query(
+        `SELECT * FROM gmaps_reputation WHERE workspace_id = $1::uuid AND id = $2::uuid LIMIT 1`,
+        [workspaceId, options.postId]
+      );
+      rows = r.rows;
+    } else if (options.rewriteAllTemplates) {
+      const r = await this.db.query(
+        `SELECT * FROM gmaps_reputation
+         WHERE workspace_id = $1::uuid
+           AND item_type = 'local_post'
+           AND (content LIKE '%Agent 2 & Agent 5%' OR content LIKE '%GoogleMapsLocalSEO%' OR metadata->>'written_by_agent' IS NULL)
+         ORDER BY created_at DESC
+         LIMIT 25`,
+        [workspaceId]
+      );
+      rows = r.rows;
+    }
+
+    const updatedPosts: GMapsItem[] = [];
+    for (const row of rows) {
+      const meta = row.metadata || {};
+      const spotName = meta.spot_name || 'Điểm đến Đà Nẵng - Hội An';
+      const folderName = meta.folder_name || 'Đà Nẵng';
+      const visionTags = Array.isArray(meta.seo_tags) ? meta.seo_tags : [];
+      let notes = 'Trải nghiệm thực tế tại điểm đến.';
+      if (meta.asset_id) {
+        const aRes = await this.db.query(
+          `SELECT flavor_notes FROM drive_asset_queue WHERE id = $1::uuid LIMIT 1`,
+          [meta.asset_id]
+        ).catch(() => ({ rows: [] as any[] }));
+        if (aRes.rows[0]?.flavor_notes) notes = aRes.rows[0].flavor_notes;
+      }
+
+      const composed = await this.composeReviewWithExistingAgents(workspaceId, {
+        spotName,
+        folderName,
+        notes,
+        visionTags,
+        sourceArtifactId: options.sourceArtifactId,
+      });
+
+      const nextMeta = {
+        ...meta,
+        written_by_agent: composed.writtenByAgent,
+        source_artifact_id: composed.sourceArtifactId || meta.source_artifact_id || null,
+        source_artifact_title: composed.sourceArtifactTitle || meta.source_artifact_title || null,
+        rewritten_at: new Date().toISOString(),
+      };
+
+      const upd = await this.db.query(
+        `UPDATE gmaps_reputation
+         SET content = $3::text,
+             metadata = $4::jsonb
+         WHERE workspace_id = $1::uuid AND id = $2::uuid
+         RETURNING *`,
+        [workspaceId, row.id, composed.content, JSON.stringify(nextMeta)]
+      );
+      if (upd.rows[0]) {
+        updatedPosts.push(this.mapItemRow(upd.rows[0]));
+      }
+    }
+
+    return { updated_count: updatedPosts.length, posts: updatedPosts };
+  }
+
+  async createPostFromExistingAgentArtifact(
+    workspaceId: string,
+    params: { sourceArtifactId: string; assetId?: string; spotName?: string }
+  ): Promise<GMapsItem | null> {
+    const artifact = await this.findMatchingAgentArtifact(workspaceId, params.spotName || '', params.sourceArtifactId);
+    if (!artifact) return null;
+
+    let imageUrl: string | undefined;
+    let driveFileId: string | undefined;
+    let fileName = '';
+    let folderName = 'Đà Nẵng';
+    let spotName = params.spotName || artifact.title;
+    let visionTags: string[] = [];
+
+    if (params.assetId) {
+      const aRes = await this.db.query(
+        `SELECT * FROM drive_asset_queue WHERE workspace_id = $1::uuid AND id = $2::uuid LIMIT 1`,
+        [workspaceId, params.assetId]
+      );
+      if (aRes.rows[0]) {
+        const asset = aRes.rows[0];
+        imageUrl = asset.file_url;
+        driveFileId = asset.drive_file_id || undefined;
+        fileName = asset.file_name || '';
+        spotName = params.spotName || asset.dish_name || artifact.title;
+        const folderMatch = String(spotName).match(/^\[([^\]]+)\]/);
+        folderName = folderMatch ? folderMatch[1] : fileName.includes('/') ? fileName.split('/')[0] : 'Đà Nẵng';
+        visionTags = Array.isArray(asset.vision_tags) ? asset.vision_tags : [];
+      }
+    }
+
+    const composed = await this.composeReviewWithExistingAgents(workspaceId, {
+      spotName,
+      folderName,
+      notes: artifact.fullText.slice(0, 400),
+      visionTags,
+      sourceArtifactId: artifact.id,
+    });
+
+    const cleanLocationName = spotName
+      .replace(/^\[[^\]]+\]\s*/, '')
+      .replace(/\([^)]*\)/g, '')
+      .split('—')[0]
+      .replace(/\s+/g, ' ')
+      .trim();
+    const regionSuffix = folderName.toLowerCase().includes('bà nà')
+      ? 'Bà Nà Hills, Đà Nẵng, Việt Nam'
+      : folderName.toLowerCase().includes('hội an')
+      ? 'Hội An, Quảng Nam, Việt Nam'
+      : `${folderName}, Đà Nẵng, Việt Nam`;
+    const mapsQuery = `${cleanLocationName}, ${regionSuffix}`;
+
+    return this.createLocalPost(workspaceId, composed.content, imageUrl, {
+      asset_id: params.assetId,
+      spot_name: spotName,
+      folder_name: folderName,
+      drive_file_id: driveFileId,
+      file_name: fileName,
+      maps_query: mapsQuery,
+      google_maps_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`,
+      seo_tags: visionTags,
+      written_by_agent: composed.writtenByAgent,
+      source_artifact_id: artifact.id,
+      source_artifact_title: artifact.title,
+    });
+  }
+
+  async autoPublishAllStagedDriveAssets(workspaceId: string): Promise<{
+    auto_published_count: number;
+    newly_created_count?: number;
+    posts: GMapsItem[];
+  }> {
+    try {
+      const stagedRes = await this.db.query(
+        `SELECT * FROM drive_asset_queue
+         WHERE workspace_id = $1::uuid
+         ORDER BY created_at DESC`,
+        [workspaceId]
+      );
+      if (!stagedRes?.rows || stagedRes.rows.length === 0) {
+        return { auto_published_count: 0, newly_created_count: 0, posts: [] };
+      }
+
+      const publishedPosts: GMapsItem[] = [];
+      let newlyCreatedCount = 0;
+      for (const asset of stagedRes.rows) {
+        const spotName: string = asset.dish_name || asset.file_name || 'Điểm đến Du lịch TripC';
+        const notes: string = asset.flavor_notes || 'Trải nghiệm thực tế tại điểm đến.';
+        const imageUrl: string = asset.file_url;
+        const driveFileId: string | undefined = asset.drive_file_id || undefined;
+        const fileName: string = asset.file_name || '';
+        const visionTags: string[] = Array.isArray(asset.vision_tags)
+          ? asset.vision_tags
+          : typeof asset.vision_tags === 'string'
+          ? JSON.parse(asset.vision_tags)
+          : ['Du lịch Đà Nẵng'];
+
+        const cleanLocationName = spotName
+          .replace(/^\[[^\]]+\]\s*/, '')
+          .replace(/\([^)]*\)/g, '')
+          .split('—')[0]
+          .replace(/\s+/g, ' ')
+          .trim();
+        const folderMatch = spotName.match(/^\[([^\]]+)\]/);
+        const folderName = folderMatch ? folderMatch[1] : fileName.includes('/') ? fileName.split('/')[0] : 'Đà Nẵng';
+        const regionSuffix = folderName.toLowerCase().includes('bà nà')
+          ? 'Bà Nà Hills, Đà Nẵng, Việt Nam'
+          : folderName.toLowerCase().includes('hội an')
+          ? 'Hội An, Quảng Nam, Việt Nam'
+          : `${folderName}, Đà Nẵng, Việt Nam`;
+        const mapsQuery = `${cleanLocationName}, ${regionSuffix}`;
+        const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
+
+        await this.db.query(
+          `UPDATE drive_asset_queue
+           SET status = 'published',
+               suggested_channels = ARRAY['google_maps', 'facebook', 'tiktok']::text[],
+               updated_at = NOW()
+           WHERE id = $1::uuid`,
+          [asset.id]
+        );
+
+        // Avoid duplicate local_post for the same asset_id or drive_file_id
+        const existingPost = await this.db.query(
+          `SELECT * FROM gmaps_reputation
+           WHERE workspace_id = $1::uuid
+             AND item_type = 'local_post'
+             AND (metadata->>'asset_id' = $2::text OR ($3::text IS NOT NULL AND metadata->>'drive_file_id' = $3::text))
+           LIMIT 1`,
+          [workspaceId, String(asset.id), driveFileId || null]
+        );
+
+        if (existingPost.rows.length > 0) {
+          publishedPosts.push(this.mapItemRow(existingPost.rows[0]));
+        } else {
+          const composed = await this.composeReviewWithExistingAgents(workspaceId, {
+            spotName,
+            folderName,
+            notes,
+            visionTags,
+          });
+          const created = await this.createLocalPost(workspaceId, composed.content, imageUrl, {
+            asset_id: asset.id,
+            spot_name: spotName,
+            folder_name: folderName,
+            drive_file_id: driveFileId,
+            file_name: fileName,
+            maps_query: mapsQuery,
+            google_maps_url: googleMapsUrl,
+            seo_tags: visionTags,
+            auto_published: true,
+            written_by_agent: composed.writtenByAgent,
+            source_artifact_id: composed.sourceArtifactId || null,
+            source_artifact_title: composed.sourceArtifactTitle || null,
+          });
+          newlyCreatedCount++;
+          publishedPosts.push(created);
+        }
+      }
+
+      return {
+        auto_published_count: publishedPosts.length,
+        newly_created_count: newlyCreatedCount,
+        posts: publishedPosts,
+      };
+    } catch {
+      return { auto_published_count: 0, newly_created_count: 0, posts: [] };
     }
   }
 
@@ -171,16 +628,34 @@ export class GoogleMapsSpecialistService {
   async createLocalPost(
     workspaceId: string,
     content: string,
-    imageUrl?: string
+    imageUrl?: string,
+    extraMeta?: Record<string, any>
   ): Promise<GMapsItem> {
+    const cleanSpot =
+      extraMeta?.spot_name ||
+      content.split('\n')[0]?.replace(/^[📍☀️✨\s[\]]+/, '').slice(0, 80) ||
+      'Điểm đến Du lịch TripC Đà Nẵng';
+    const mapsQuery = extraMeta?.maps_query || `${cleanSpot.replace(/^\[[^\]]+\]\s*/, '')}, Đà Nẵng - Hội An, Việt Nam`;
+    const googleMapsUrl =
+      extraMeta?.google_maps_url ||
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
+    const metadata = {
+      image_url: imageUrl,
+      published_to_maps: true,
+      spot_name: cleanSpot,
+      maps_query: mapsQuery,
+      google_maps_url: googleMapsUrl,
+      ...extraMeta,
+    };
+
     try {
       const res = await this.db.query(
         `INSERT INTO gmaps_reputation (
           workspace_id, item_type, author_name, rating, content, status, metadata
         ) VALUES (
-          $1::uuid, 'local_post', 'Chủ điểm đến Du lịch TripC Đà Nẵng', 5, $2::text, 'replied', $3::jsonb
+          $1::uuid, 'local_post', 'TripC — Google Business Profile', 5, $2::text, 'replied', $3::jsonb
         ) RETURNING *`,
-        [workspaceId, content, JSON.stringify({ image_url: imageUrl, published_to_maps: true })]
+        [workspaceId, content, JSON.stringify(metadata)]
       );
 
       return this.mapItemRow(res.rows[0]);
@@ -189,13 +664,13 @@ export class GoogleMapsSpecialistService {
         id: `post_${Date.now()}`,
         workspace_id: workspaceId,
         item_type: 'local_post',
-        author_name: 'Chủ điểm đến Du lịch TripC Đà Nẵng',
+        author_name: 'TripC — Google Business Profile',
         rating: 5,
         content,
-        seo_keywords: ['Du lịch trải nghiệm Đà Nẵng', 'Bán đảo Sơn Trà', 'Biển Mỹ Khê'],
+        seo_keywords: extraMeta?.seo_tags || ['Du lịch trải nghiệm Đà Nẵng', 'Bán đảo Sơn Trà', 'Biển Mỹ Khê'],
         status: 'replied',
         created_at: new Date().toISOString(),
-        metadata: { image_url: imageUrl, published_to_maps: true },
+        metadata,
       };
       const cur = memoryGmaps.get(workspaceId) || this.getDemoGmapsData(workspaceId);
       memoryGmaps.set(workspaceId, [newPost, ...cur]);
@@ -210,6 +685,10 @@ export class GoogleMapsSpecialistService {
     let spotName = 'Bán đảo Sơn Trà - Đà Nẵng';
     let notes = 'Khung cảnh thiên nhiên ngoạn mục và trải nghiệm du lịch đáng nhớ.';
     let imageUrl = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800';
+    let caption = '';
+    let driveFileId: string | undefined;
+    let fileName = '';
+    let visionTags: string[] = ['Du lịch trải nghiệm Đà Nẵng', 'Check-in Đà Nẵng'];
 
     try {
       const assetRes = await this.db.query(
@@ -221,25 +700,47 @@ export class GoogleMapsSpecialistService {
         spotName = asset.dish_name || spotName;
         notes = asset.flavor_notes || notes;
         imageUrl = asset.file_url || imageUrl;
+        caption = asset.generated_caption || '';
+        driveFileId = asset.drive_file_id || undefined;
+        fileName = asset.file_name || '';
+        if (Array.isArray(asset.vision_tags)) {
+          visionTags = asset.vision_tags;
+        } else if (typeof asset.vision_tags === 'string') {
+          try {
+            visionTags = JSON.parse(asset.vision_tags);
+          } catch {
+            // Keep default
+          }
+        }
       }
     } catch {
       // Use fallback defaults
     }
 
-    const llm = new MultiLLMAdapterService(this.db);
-    const systemPrompt =
-      `Bạn là Chủ cơ sở / Trưởng ban điều hành điểm đến du lịch bản địa tại Đà Nẵng. ` +
-      `Hãy viết một bài cập nhật (Google Maps Local Post / Blog tin tức điểm đến) chuẩn SEO Local. ` +
-      `Văn phong: Tươi sáng, hào hứng, nồng nhiệt, khuyên du khách nên trải nghiệm, lồng các hashtag và từ khóa du lịch Đà Nẵng.`;
+    const cleanLocationName = spotName
+      .replace(/^\[[^\]]+\]\s*/, '')
+      .replace(/\([^)]*\)/g, '')
+      .split('—')[0]
+      .replace(/\s+/g, ' ')
+      .trim();
+    const folderMatch = spotName.match(/^\[([^\]]+)\]/);
+    const folderName = folderMatch ? folderMatch[1] : fileName.includes('/') ? fileName.split('/')[0] : 'Đà Nẵng';
+    const regionSuffix =
+      folderName.toLowerCase().includes('bà nà')
+        ? 'Bà Nà Hills, Đà Nẵng, Việt Nam'
+        : folderName.toLowerCase().includes('hội an')
+        ? 'Hội An, Quảng Nam, Việt Nam'
+        : `${folderName}, Đà Nẵng, Việt Nam`;
+    const mapsQuery = `${cleanLocationName}, ${regionSuffix}`;
+    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
 
-    const prompt =
-      `Hãy viết bài cập nhật điểm đến dựa trên bức ảnh chụp thật mới nhất từ Drive:\n` +
-      `- Điểm đến/Dịch vụ: ${spotName}\n` +
-      `- Điểm nhấn: ${notes}\n` +
-      `- Hashtags gợi ý: #DuLichDaNang #TourSonTra #CheckinDaNang #KhamPhaVietNam\n` +
-      `Độ dài bài: 3 - 4 đoạn ngắn có icon bắt mắt.`;
-
-    const gen = await llm.generateTextWithAutoSwitch(workspaceId, prompt, { systemPrompt });
+    const composed = await this.composeReviewWithExistingAgents(workspaceId, {
+      spotName,
+      folderName,
+      notes,
+      visionTags,
+    });
+    const finalContent = composed.content;
 
     try {
       await this.db.query(
@@ -254,7 +755,19 @@ export class GoogleMapsSpecialistService {
       // Handled silently
     }
 
-    return this.createLocalPost(workspaceId, gen.text, imageUrl);
+    return this.createLocalPost(workspaceId, finalContent, imageUrl, {
+      asset_id: assetId,
+      spot_name: spotName,
+      folder_name: folderName,
+      drive_file_id: driveFileId,
+      file_name: fileName,
+      maps_query: mapsQuery,
+      google_maps_url: googleMapsUrl,
+      seo_tags: visionTags,
+      written_by_agent: composed.writtenByAgent,
+      source_artifact_id: composed.sourceArtifactId || null,
+      source_artifact_title: composed.sourceArtifactTitle || null,
+    });
   }
 
   async syncAndAutoReplyAllReviews(workspaceId: string): Promise<{
