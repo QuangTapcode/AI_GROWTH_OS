@@ -96,7 +96,7 @@ export async function query<T extends QueryResultRow = any>(
   }
   const duration = Date.now() - start;
 
-  if (process.env.NODE_ENV === "development") {
+  if (process.env.LOG_SQL === "true") {
     console.log(`[SQL Query] (${duration}ms) ${text}`);
   }
   return res;

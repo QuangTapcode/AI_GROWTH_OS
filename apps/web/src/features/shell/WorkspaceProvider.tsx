@@ -50,10 +50,37 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
   const [attentionVersion, setAttentionVersion] = useState(0);
 
   useEffect(() => {
-    if (!getSession()) {
+    const sess = getSession();
+    if (!sess) {
       const next = encodeURIComponent(window.location.pathname + window.location.search);
       router.replace(`/login?next=${next}`);
       return;
+    }
+    const storedId = getSelectedWorkspaceId() || "10000000-0000-4000-8000-000000000001";
+    if (sess.user) {
+      setSelectedId(storedId);
+      setState((prev) =>
+        prev.status === "ready"
+          ? prev
+          : {
+              status: "ready",
+              me: {
+                user: {
+                  ...sess.user,
+                  avatar_url: sess.user.avatar_url ?? null,
+                  last_login_at: null,
+                },
+                workspaces: [
+                  {
+                    workspace_id: storedId,
+                    name: "TripC",
+                    slug: "tripc",
+                    role: "owner",
+                  },
+                ],
+              },
+            }
+      );
     }
     const controller = new AbortController();
     growthApi

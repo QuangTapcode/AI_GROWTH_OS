@@ -25,8 +25,20 @@ export async function POST(
   try {
     const body = await request.json();
     const service = new BookingLeadsService();
+    let replyText: string | undefined;
+
+    if (body.action === 'auto_reply_and_capture' || body.customer_message) {
+      const consult = await service.generate1on1ConsultationReply(
+        params.workspace_id,
+        String(body.customer_message || body.special_notes || ''),
+        String(body.customer_name || 'Khách tương tác Inbox')
+      );
+      replyText = consult.reply_text;
+      body.consultation_summary = replyText;
+    }
+
     const created = await service.createLead(params.workspace_id, body);
-    return NextResponse.json({ ok: true, lead: created }, { status: 201 });
+    return NextResponse.json({ ok: true, lead: created, reply: replyText }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error?.message || 'Failed to create booking lead' }, { status: 500 });
   }

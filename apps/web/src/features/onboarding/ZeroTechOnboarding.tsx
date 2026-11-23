@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 interface AgentRosterItem {
   id: string;
@@ -26,13 +27,13 @@ const DEFAULT_AGENTS: AgentRosterItem[] = [
 ];
 
 const DEFAULT_WELCOME =
-  'Xin chào Bạn! Tôi là AI Growth Lead phụ trách chiến lược tăng trưởng toàn diện cho thương hiệu & điểm đến du lịch của bạn. Tôi đã kích hoạt thành công đội ngũ 8 AI Agent chuyên trách và bắt đầu quét tư liệu thực tế để tối ưu tiếp thị ngay hôm nay.';
+  'Xin chào! Tôi là AI Growth Lead — Trưởng nhóm điều phối Phòng Marketing AI Tự Hành của doanh nghiệp bạn. Đội ngũ 8 AI Agent chuyên trách đã kết nối trực tiếp với Fanpage, Google Maps, Kho tư liệu Drive và Group Cộng đồng để vận hành tự động 24/7 mà con người không cần can thiệp thủ công.';
 
 export function ZeroTechOnboarding({ workspaceId, onCompleted }: ZeroTechOnboardingProps) {
-  const [fanpageUrl, setFanpageUrl] = useState('https://facebook.com/dulich.trainghiem.danang');
-  const [gmapsUrl, setGmapsUrl] = useState('https://maps.app.goo.gl/danang-travel-experience');
-  const [gdriveUrl, setGdriveUrl] = useState('https://drive.google.com/drive/folders/danang-travel-real-photos');
-  const [groupUrl, setGroupUrl] = useState('https://facebook.com/groups/cam-nang-du-lich-da-nang');
+  const [fanpageUrl, setFanpageUrl] = useState('https://www.facebook.com/profile.php?id=61596152213281');
+  const [gmapsUrl, setGmapsUrl] = useState('https://www.google.com/maps/search/?api=1&query=Da+Nang+Vietnam');
+  const [gdriveUrl, setGdriveUrl] = useState('https://drive.google.com/drive/folders/tripc-vietnam-playbook-assets');
+  const [groupUrl, setGroupUrl] = useState('https://www.facebook.com/groups/1134282109069209');
   const [isLoading, setIsLoading] = useState(false);
   const [isCompleted, setIsCompleted] = useState(true);
   const [welcomeMessage, setWelcomeMessage] = useState(DEFAULT_WELCOME);
@@ -42,7 +43,7 @@ export function ZeroTechOnboarding({ workspaceId, onCompleted }: ZeroTechOnboard
   useEffect(() => {
     async function loadStatus() {
       try {
-        const res = await fetch(`/v1/workspaces/${workspaceId}/onboarding`);
+        const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/onboarding`);
         const json = await res.json();
         if (json.ok && json.state) {
           if (json.state.fanpage_url) setFanpageUrl(json.state.fanpage_url);
@@ -66,7 +67,7 @@ export function ZeroTechOnboarding({ workspaceId, onCompleted }: ZeroTechOnboard
     setError(null);
 
     try {
-      const res = await fetch(`/v1/workspaces/${workspaceId}/onboarding`, {
+      const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/onboarding`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -269,51 +270,51 @@ export function ZeroTechOnboarding({ workspaceId, onCompleted }: ZeroTechOnboard
                 const AGENT_WORKSPACE_ROUTES: Record<string, { href: string; label: string; icon: string; desc: string }> = {
                   growth_lead: {
                     href: '/agents/growth_lead',
-                    label: 'Mở Growth Lead',
+                    label: 'Mở Agent 1: Growth Lead',
                     icon: '🎩',
-                    desc: 'Điều phối campaign, scoring cơ hội & daily report',
+                    desc: 'Trưởng nhóm AI: Điều phối chiến lược, chấm điểm cơ hội & Báo cáo điều hành ngày',
                   },
                   asset_manager: {
-                    href: '/gmaps',
-                    label: 'Mở Drive & Media',
+                    href: '/gmaps?tab=drive_assets',
+                    label: 'Mở Agent 2: Drive & Vision',
                     icon: '📁',
-                    desc: 'Quét kho ảnh Drive & Gemini Vision gắn tag tư liệu',
+                    desc: 'Tự động quét kho ảnh Google Drive định kỳ & phân tích bối cảnh bằng Gemini Vision',
                   },
                   content_planner: {
                     href: '/agents/content',
-                    label: 'Mở Content Studio',
+                    label: 'Mở Agent 3: Content Planner',
                     icon: '✍️',
-                    desc: 'Lập kế hoạch nội dung, sinh bài viết & Social Pack',
+                    desc: 'Nghiên cứu xu hướng thị trường, viết bài SEO & lập Content Calendar đa kênh',
                   },
                   publisher: {
                     href: '/distribution',
-                    label: 'Mở Lịch Distribution',
+                    label: 'Mở Agent 4: Auto-Publisher',
                     icon: '🚀',
-                    desc: 'Xếp lịch xuất bản đa kênh & Auto-Publish TikTok',
+                    desc: 'Tự động xuất bản bài viết & dựng video ngắn 9:16 lên Facebook, Website, Maps, TikTok',
                   },
                   gmaps_specialist: {
                     href: '/gmaps',
-                    label: 'Mở Google Maps',
+                    label: 'Mở Agent 5: Google Maps SEO',
                     icon: '📍',
-                    desc: 'Google Business Profile, Local SEO & phản hồi review',
+                    desc: 'Quản lý Google Business Profile, tự động đăng Local Post & phản hồi 100% Review',
                   },
                   comment_reply: {
-                    href: '/agents/community',
-                    label: 'Mở Phản Hồi Bình Luận',
+                    href: '/agents/community#comments',
+                    label: 'Mở Agent 6: Comment Reply 24/7',
                     icon: '💬',
-                    desc: 'Túc trực 24/7 tự động trả lời comment mạng xã hội',
+                    desc: 'Túc trực 24/7 tự động trả lời 100% comment công khai (SLA < 3 phút) bằng RAG',
                   },
                   inbox_concierge: {
-                    href: '/agents/community',
-                    label: 'Mở Inbox & Leads',
-                    icon: '🔔',
-                    desc: 'Tư vấn hội thoại 1-1 Messenger & bắt Lead CRM',
+                    href: '/booking-leads',
+                    label: 'Mở Agent 7: Inbox & Lead CRM',
+                    icon: '🛎️',
+                    desc: 'Trợ lý tư vấn hội thoại 1-1 tự động trên Messenger/Telegram/Web & thu thập Lead',
                   },
                   community_growth: {
                     href: '/agents/community',
-                    label: 'Mở Community Group',
+                    label: 'Mở Agent 8: Community Growth',
                     icon: '👥',
-                    desc: 'Phát triển Group Facebook / Zalo & tăng trưởng thành viên',
+                    desc: 'Vận hành Group Cộng đồng, thảo luận hàng ngày & tự động mời thành viên theo xu hướng',
                   },
                 };
 

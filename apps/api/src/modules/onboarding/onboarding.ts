@@ -24,36 +24,57 @@ export class ZeroTechOnboardingService {
         `SELECT * FROM merchant_onboarding WHERE workspace_id = $1::uuid`,
         [workspaceId]
       );
-
       const row = res?.rows?.[0];
+
+      let realGroupUrl = 'https://www.facebook.com/groups/1134282109069209';
+      let realPageUrl = 'https://www.facebook.com/profile.php?id=61596152213281';
+      try {
+        const commRes = await this.db.query(
+          `SELECT group_url, page_url FROM community_hub_settings WHERE workspace_id = $1::uuid LIMIT 1`,
+          [workspaceId]
+        );
+        if (commRes?.rows?.[0]?.group_url) realGroupUrl = commRes.rows[0].group_url;
+        if (commRes?.rows?.[0]?.page_url) realPageUrl = commRes.rows[0].page_url;
+      } catch {
+        // Optional table lookup
+      }
+
+      const storedGroupUrl =
+        row?.community_group_url && !row.community_group_url.includes('cam-nang-du-lich-da-nang')
+          ? row.community_group_url
+          : realGroupUrl;
+      const storedPageUrl =
+        row?.fanpage_url && !row.fanpage_url.includes('dulich.trainghiem.danang')
+          ? row.fanpage_url
+          : realPageUrl;
       const completed = row?.onboarding_completed ?? true;
 
       return {
         workspace_id: workspaceId,
-        fanpage_url: row?.fanpage_url || 'https://facebook.com/dulich.trainghiem.danang',
-        gmaps_url: row?.gmaps_url || 'https://maps.app.goo.gl/danang-travel-experience',
-        gdrive_url: row?.gdrive_url || 'https://drive.google.com/drive/folders/danang-travel-real-photos',
-        community_group_url: row?.community_group_url || 'https://facebook.com/groups/cam-nang-du-lich-da-nang',
+        fanpage_url: storedPageUrl,
+        gmaps_url: row?.gmaps_url || 'https://www.google.com/maps/search/?api=1&query=Da+Nang+Vietnam',
+        gdrive_url: row?.gdrive_url || 'https://drive.google.com/drive/folders/tripc-vietnam-playbook-assets',
+        community_group_url: storedGroupUrl,
         onboarding_completed: completed,
-        ai_lead_assigned: row?.ai_lead_assigned || 'AI Growth Lead (Trưởng Nhóm AI)',
+        ai_lead_assigned: row?.ai_lead_assigned || 'AI Growth Lead (Trưởng Nhóm Marketing AI)',
         welcome_message:
-          'Xin chào Bạn! Tôi là AI Growth Lead phụ trách chiến lược tăng trưởng toàn diện cho thương hiệu & điểm đến du lịch của bạn. ' +
-          'Tôi đã kích hoạt thành công đội ngũ 8 AI Agent chuyên trách và bắt đầu quét tư liệu thực tế để tối ưu tiếp thị ngay hôm nay.',
+          'Xin chào! Tôi là AI Growth Lead — Trưởng nhóm điều phối Phòng Marketing AI Tự Hành của doanh nghiệp bạn. ' +
+          'Đội ngũ 8 AI Agent chuyên trách đã kết nối trực tiếp với Fanpage, Google Maps, Kho tư liệu Drive và Group Cộng đồng để vận hành tự động 24/7 mà bạn không cần thao tác thủ công.',
         active_agents: this.getAgentsRoster(completed),
         updated_at: row?.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
       };
     } catch {
       return {
         workspace_id: workspaceId,
-        fanpage_url: 'https://facebook.com/dulich.trainghiem.danang',
-        gmaps_url: 'https://maps.app.goo.gl/danang-travel-experience',
-        gdrive_url: 'https://drive.google.com/drive/folders/danang-travel-real-photos',
-        community_group_url: 'https://facebook.com/groups/cam-nang-du-lich-da-nang',
+        fanpage_url: 'https://www.facebook.com/profile.php?id=61596152213281',
+        gmaps_url: 'https://www.google.com/maps/search/?api=1&query=Da+Nang+Vietnam',
+        gdrive_url: 'https://drive.google.com/drive/folders/tripc-vietnam-playbook-assets',
+        community_group_url: 'https://www.facebook.com/groups/1134282109069209',
         onboarding_completed: true,
-        ai_lead_assigned: 'AI Growth Lead (Trưởng Nhóm AI)',
+        ai_lead_assigned: 'AI Growth Lead (Trưởng Nhóm Marketing AI)',
         welcome_message:
-          'Xin chào Bạn! Tôi là AI Growth Lead phụ trách chiến lược tăng trưởng toàn diện cho thương hiệu & điểm đến du lịch của bạn. ' +
-          'Tôi đã kích hoạt thành công đội ngũ 8 AI Agent chuyên trách và bắt đầu quét tư liệu thực tế để tối ưu tiếp thị ngay hôm nay.',
+          'Xin chào! Tôi là AI Growth Lead — Trưởng nhóm điều phối Phòng Marketing AI Tự Hành của doanh nghiệp bạn. ' +
+          'Đội ngũ 8 AI Agent chuyên trách đã kết nối trực tiếp với Fanpage, Google Maps, Kho tư liệu Drive và Group Cộng đồng để vận hành tự động 24/7 mà bạn không cần thao tác thủ công.',
         active_agents: this.getAgentsRoster(true),
         updated_at: new Date().toISOString(),
       };

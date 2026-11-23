@@ -58,7 +58,6 @@ export class BookingLeadsService {
         values
       );
 
-      // If empty, seed 3 realistic demo booking leads so UI is never blank
       if (res.rows.length === 0) {
         return this.seedDemoLeads(workspaceId);
       }
@@ -77,7 +76,7 @@ export class BookingLeadsService {
       const res = await this.db.query(
         `INSERT INTO booking_leads (
           workspace_id, customer_name, customer_phone, customer_email,
-          platform, party_size, booking_time, special_notes, status, deposit_amount
+          platform, party_size, booking_time, special_notes, status, deposit_amount, metadata
         ) VALUES (
           $1::uuid, $2::varchar, $3::varchar, $4::varchar,
           COALESCE($5::varchar, 'messenger'),
@@ -85,7 +84,8 @@ export class BookingLeadsService {
           COALESCE($7::timestamptz, NOW() + INTERVAL '3 hours'),
           $8::text,
           COALESCE($9::varchar, 'confirmed'),
-          COALESCE($10::numeric, 0)
+          COALESCE($10::numeric, 0),
+          $11::jsonb
         ) RETURNING *`,
         [
           workspaceId,
@@ -98,6 +98,7 @@ export class BookingLeadsService {
           input.special_notes || null,
           input.status || 'confirmed',
           input.deposit_amount || 0,
+          JSON.stringify({ consultation_summary: (input as any).consultation_summary || '' }),
         ]
       );
 
@@ -107,7 +108,7 @@ export class BookingLeadsService {
         id: `lead_${Date.now()}`,
         workspace_id: workspaceId,
         customer_name: input.customer_name,
-        customer_phone: input.customer_phone || '0905123456',
+        customer_phone: input.customer_phone,
         customer_email: input.customer_email,
         platform: input.platform || 'messenger',
         party_size: input.party_size || 2,
@@ -206,9 +207,9 @@ export class BookingLeadsService {
       for (const d of demo) {
         const res = await this.db.query(
           `INSERT INTO booking_leads (
-            workspace_id, customer_name, customer_phone, platform, party_size, booking_time, special_notes, status, deposit_amount
+            workspace_id, customer_name, customer_phone, platform, party_size, booking_time, special_notes, status, deposit_amount, metadata
           ) VALUES (
-            $1::uuid, $2::varchar, $3::varchar, $4::varchar, $5::int, $6::timestamptz, $7::text, $8::varchar, $9::numeric
+            $1::uuid, $2::varchar, $3::varchar, $4::varchar, $5::int, $6::timestamptz, $7::text, $8::varchar, $9::numeric, $10::jsonb
           ) RETURNING *`,
           [
             workspaceId,
@@ -220,6 +221,7 @@ export class BookingLeadsService {
             d.special_notes,
             d.status,
             d.deposit_amount,
+            JSON.stringify({ consultation_summary: d.consultation_summary || '' }),
           ]
         );
         results.push(this.mapLeadRow(res.rows[0]));
@@ -279,7 +281,10 @@ export class BookingLeadsService {
       special_notes: row.special_notes || undefined,
       status: row.status || 'confirmed',
       deposit_amount: Number(row.deposit_amount || 0),
-      consultation_summary: row.consultation_summary || undefined,
+      consultation_summary:
+        row.consultation_summary ||
+        row.metadata?.consultation_summary ||
+        'AI Agent 7 đã tự động tư vấn 1-1 theo kho tri thức RAG, giải đáp lộ trình và ghi nhận thông tin liên hệ.',
       created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
       updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
     };
