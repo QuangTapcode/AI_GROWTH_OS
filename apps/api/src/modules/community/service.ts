@@ -182,20 +182,30 @@ async function syncInboundMessengerMessages(pool: Pool, workspaceId: string): Pr
   if (!token || !pageId) return;
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v20.0/me/conversations?fields=participants,messages.limit(2){id,message,from,created_time}&limit=10&access_token=${encodeURIComponent(token)}`,
+      `https://graph.facebook.com/v20.0/me/conversations?fields=participants,messages.limit(2){id,message,attachments.limit(1){mime_type},from,created_time}&limit=10&access_token=${encodeURIComponent(token)}`,
       { signal: AbortSignal.timeout(5000) },
     );
     if (!res.ok) return;
     const json = (await res.json()) as {
       data?: {
         participants?: { data?: { id: string; name?: string }[] };
-        messages?: { data?: { id?: string; message?: string; from?: { id?: string; name?: string }; created_time?: string }[] };
+        messages?: {
+          data?: {
+            id?: string;
+            message?: string;
+            attachments?: { data?: { mime_type?: string }[] };
+            from?: { id?: string; name?: string };
+            created_time?: string;
+          }[];
+        };
       }[];
     };
     for (const conv of json.data ?? []) {
       const msgs = conv.messages?.data ?? [];
       const latest = msgs[0];
-      if (!latest?.id || !latest.message?.trim() || !latest.from?.id || latest.from.id === pageId) continue;
+      if (!latest?.id || !latest.from?.id || latest.from.id === pageId) continue;
+      const textBody = latest.message?.trim() || (latest.attachments?.data?.length ? '[Khách gửi hình ảnh/nhãn dán]' : '');
+      if (!textBody) continue;
       const senderId = latest.from.id;
       const senderName = latest.from.name || 'Facebook user';
       await pool.query(
@@ -210,7 +220,7 @@ async function syncInboundMessengerMessages(pool: Pool, workspaceId: string): Pr
           latest.id,
           senderName.slice(0, 250),
           senderId,
-          latest.message.trim().slice(0, 4000),
+          textBody.slice(0, 4000),
           JSON.stringify({ page_id: pageId, fb_created_time: latest.created_time ?? null }),
         ],
       );

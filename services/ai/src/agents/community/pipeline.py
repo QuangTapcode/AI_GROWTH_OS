@@ -326,6 +326,21 @@ def is_greeting(text: str) -> bool:
     return False
 
 
+def is_reaction_only(text: str) -> bool:
+    """An emoji/sticker reaction with no words at all ("🙌", "❤️❤️", "👍"): nothing to look up."""
+    return bool((text or "").strip()) and not plain_words(text)
+
+
+def is_attachment_placeholder(text: str) -> bool:
+    """Messenger sync stores an image/sticker with no text as this placeholder."""
+    lowered = (text or "").lower()
+    return "[khách gửi hình ảnh" in lowered or "[attachment]" in lowered
+
+
+ATTACHMENT_REPLY_VI = "Chào bạn! Mình đã nhận được hình ảnh/nhãn dán của bạn. Bạn cần tư vấn thêm về du lịch, điểm đến hay dịch vụ thì cứ nhắn cụ thể để mình hỗ trợ nhé!"
+REACTION_REPLY_VI = "Cảm ơn bạn đã ủng hộ! Nếu cần gợi ý lịch trình, địa điểm hay kinh nghiệm du lịch, bạn cứ nhắn cho tụi mình nhé!"
+
+
 def is_conversational_opener(text: str) -> bool:
     """Conversational openers (thanks, bot identity, general help, community intro) with no ungrounded domain nouns."""
     words = plain_words(text)
@@ -410,7 +425,13 @@ def validate_community(job, p, settings):
 
 def choose_passages(question, history, chunks, similarity, in_context, provider_mode, sensitive=()):
     """The (source, chunk) pairs a reply may quote, best first; empty when no approved source answers."""
-    if is_insult(question) or weather.weather_day(question) or asks_live_figures(question):
+    if (
+        is_insult(question)
+        or is_reaction_only(question)
+        or is_attachment_placeholder(question)
+        or weather.weather_day(question)
+        or asks_live_figures(question)
+    ):
         return []
     is_vn = is_vietnamese_question(question)
     q_terms = terms(question)
@@ -534,6 +555,10 @@ async def run_community(ctx):
         if is_insult(p.question):
             # Nothing to verify and nothing to hand over: a calm reply that invites a real question.
             reply = POLITE_REPLY_VI if is_vietnamese_question(p.question) else POLITE_REPLY_EN
+        elif is_attachment_placeholder(p.question):
+            reply = ATTACHMENT_REPLY_VI
+        elif is_reaction_only(p.question):
+            reply = REACTION_REPLY_VI
         elif weather.weather_day(p.question):
             vi = is_vietnamese_question(p.question)
             reply = await weather.live_weather_reply(p.question, vi) or (LIVE_REPLY_VI if vi else LIVE_REPLY_EN)

@@ -31,6 +31,22 @@ import { COMMUNITY_VIDEO_POSTS_SQL, readVideoManifest, reelRequest, signedVideoP
 
 // Created once per process; the hub is polled every few seconds.
 let videoPostsTable: Promise<unknown> | null = null;
+const globalForCommunityCache = globalThis as typeof globalThis & {
+  __agosSchemaInitCache?: Map<string, number>;
+  __agosHubResponseCache?: Map<string, { ts: number; data: any }>;
+};
+const schemaInitCache = (globalForCommunityCache.__agosSchemaInitCache ??= new Map<string, number>());
+const hubResponseCache = (globalForCommunityCache.__agosHubResponseCache ??= new Map<string, { ts: number; data: any }>());
+
+export function invalidateCommunityHubCache(workspaceId?: string) {
+  if (workspaceId) {
+    hubResponseCache.delete(workspaceId);
+    schemaInitCache.delete(workspaceId);
+  } else {
+    hubResponseCache.clear();
+    schemaInitCache.clear();
+  }
+}
 
 try {
   dns.setDefaultResultOrder('ipv4first');
@@ -1430,6 +1446,11 @@ export class CommunityHubService {
 
   async ensureSchemaAndContext(workspaceId: string): Promise<CommunitySettings> {
     const settings = await this.getCommunitySettings(workspaceId);
+    const isRealPool = Boolean((this.pool as any)?.connect && (this.pool as any)?.totalCount !== undefined);
+    const lastInit = schemaInitCache.get(workspaceId) ?? 0;
+    if (isRealPool && Date.now() - lastInit < 300_000) {
+      return settings;
+    }
 
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS community_hub_members (
@@ -1538,6 +1559,9 @@ export class CommunityHubService {
     await this.seedInitialDiscussionsIfEmpty(workspaceId, settings);
     await this.deduplicateExistingDiscussionAndArtifactImages(workspaceId);
     await this.syncMembersFromInteractions(workspaceId, settings);
+    if (Boolean((this.pool as any)?.connect && (this.pool as any)?.totalCount !== undefined)) {
+      schemaInitCache.set(workspaceId, Date.now());
+    }
     return settings;
   }
 
@@ -4020,6 +4044,11 @@ Quy tắc:
   }
 
   async getHubData(workspaceId: string) {
+    const isRealPool = Boolean((this.pool as any)?.connect && (this.pool as any)?.totalCount !== undefined);
+    const cached = hubResponseCache.get(workspaceId);
+    if (isRealPool && cached && Date.now() - cached.ts < 15_000) {
+      return cached.data;
+    }
     const settings = await this.ensureSchemaAndContext(workspaceId);
 
     const members = (
@@ -4737,6 +4766,11 @@ Quy tắc:
     const manualProspects = members.filter((m) => m.external_ref.startsWith('manual:')).length;
     const fallbackGroupCount = Math.max(settings.group_member_count ?? 5, realIdentifiedPeople);
 
+    const withFastTimeout = <T>(p: Promise<T>, fallback: T, ms = 2500): Promise<T> =>
+      isRealPool
+        ? Promise.race([p.catch(() => fallback), new Promise<T>((r) => setTimeout(() => r(fallback), ms))])
+        : p;
+
     const [
       pageStats,
       groupStats,
@@ -4749,8 +4783,10 @@ Quy tắc:
       engagementSnapshotQueryRes,
       telegramBotStatus,
     ] = await Promise.all([
-        this.fetchRealPageStats(),
-        this.fetchRealGroupStats(settings.group_url, fallbackGroupCount, workspaceId),
+        withFastTimeout(this.fetchRealPageStats(), { followers_count: null, fan_count: null }),
+        withFastTimeout(this.fetchRealGroupStats(settings.group_url, fallbackGroupCount, workspaceId), {
+          member_count: fallbackGroupCount,
+        }),
         this.pool.query<{
           approved_sources: number;
           total_chunks: number;
@@ -4889,7 +4925,20 @@ Quy tắc:
             [workspaceId],
           )
           .catch(() => ({ rows: [] })),
-        this.getTelegramBotStatus(workspaceId),
+        withFastTimeout(this.getTelegramBotStatus(workspaceId), {
+          configured: false,
+          mode: 'polling' as const,
+          bot_username: null,
+          bot_name: null,
+          t_me_url: null,
+          webhook_url: null,
+          pending_update_count: 0,
+          last_error_message: null,
+          conversations_count: 0,
+          messages_received_count: 0,
+          messages_replied_count: 0,
+          invites_sent_count: 0,
+        }),
       ]);
 
     if (groupStats.live_description) {
@@ -5237,7 +5286,7 @@ Quy tắc:
           (firstEngSnap.total_likes + firstEngSnap.total_comments + firstEngSnap.total_shares)
         : 0;
 
-    return {
+    const hubPayload = {
       synced_at: new Date().toISOString(),
       group: {
         name: settings.community_name,
@@ -5417,6 +5466,10 @@ Quy tắc:
         monthly: monthlyCalendar,
       },
     };
+    if (isRealPool) {
+      hubResponseCache.set(workspaceId, { ts: Date.now(), data: hubPayload });
+    }
+    return hubPayload;
   }
 
   async addProspectMember(

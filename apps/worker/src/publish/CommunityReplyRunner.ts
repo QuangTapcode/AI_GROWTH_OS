@@ -272,11 +272,47 @@ export class CommunityReplyRunner {
           extraMeta.post_url = postUrl;
         } else {
           const pageHandler = this.commentHandlers.sendPageComment ?? sendPageCommentReply;
-          const pageRes = await pageHandler(targetCommentId, text);
-          sent = { message_id: pageRes.message_id ?? pageRes.id };
-          extraMeta.reply_channel = 'facebook_page_comment';
+          let publicReplied = false;
+          try {
+            const pageRes = await pageHandler(targetCommentId, text);
+            sent = { message_id: pageRes.message_id ?? pageRes.id };
+            extraMeta.reply_channel = 'facebook_page_comment';
+            publicReplied = true;
+          } catch (pageErr) {
+            const errMsg = (pageErr as Error).message || '';
+            const isMetaPermissionBlock =
+              errMsg.includes('#200') ||
+              errMsg.includes('pages_manage_engagement') ||
+              errMsg.includes('App Review');
+            if (!isMetaPermissionBlock) {
+              throw pageErr;
+            }
+            // Fallback 1: Official Meta Private Reply (uses pages_messaging, no pages_manage_engagement needed)
+            try {
+              const privHandler = this.commentHandlers.sendPrivateReply ?? sendPrivateReplyToComment;
+              const privRes = await privHandler(targetCommentId, text);
+              sent = { message_id: privRes.message_id ?? `priv_reply:${targetCommentId}` };
+              extraMeta.reply_channel = 'facebook_page_private_reply_fallback';
+              extraMeta.public_comment_blocked_reason = errMsg.slice(0, 240);
+            } catch (privErr) {
+              // Fallback 2: Authenticated Facebook Admin browser session if postUrl is available
+              if (postUrl) {
+                const groupHandler = this.commentHandlers.sendGroupComment ?? sendGroupCommentReply;
+                const browserRes = await groupHandler({ postUrl, authorName, questionSnippet: snippet, replyText: text });
+                if (browserRes.success) {
+                  sent = { message_id: `page_bot_reply:${targetCommentId}` };
+                  extraMeta.reply_channel = 'facebook_page_browser_fallback';
+                  extraMeta.public_comment_blocked_reason = errMsg.slice(0, 240);
+                } else {
+                  throw new Error(`${errMsg} | private_fallback=${(privErr as Error).message} | browser_fallback=${browserRes.message}`);
+                }
+              } else {
+                throw new Error(`${errMsg} | private_fallback=${(privErr as Error).message}`);
+              }
+            }
+          }
 
-          if (shouldPrivateInvite && inviteGroupUrl) {
+          if (publicReplied && shouldPrivateInvite && inviteGroupUrl) {
             try {
               const quotaRow = (await this.pool.query<{ sent_today: number; daily_limit: number }>(
                 `SELECT

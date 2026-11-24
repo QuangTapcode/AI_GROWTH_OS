@@ -22,7 +22,7 @@ const ROLE_ICON_BG: Record<string, string> = {
   seo: "bg-sky-100 text-sky-600",
   content: "bg-amber-100 text-amber-600",
   community: "bg-emerald-100 text-emerald-600",
-  performance: "bg-violet-100 text-violet-600",
+  performance: "bg-indigo-100 text-indigo-700",
 };
 
 export default function AgentActivityCard({ tasks }: { tasks: WorkflowTask[] }) {

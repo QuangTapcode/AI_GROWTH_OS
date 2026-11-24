@@ -3,7 +3,7 @@ import { authenticateUser } from '@/lib/auth';
 import { resolveTenantContext, requireRole } from '@/lib/tenant';
 import { AppError, handleApiError } from '@/lib/errors';
 import pool from '@/lib/db';
-import { CommunityHubService, normalizePublishTarget } from '@/modules/community/hub';
+import { CommunityHubService, invalidateCommunityHubCache, normalizePublishTarget } from '@/modules/community/hub';
 import { canServeOfflineDemo } from "../../../../../../lib/offlineDemo";
 
 export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
@@ -285,6 +285,8 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
 
     const body = (await req.json().catch(() => ({}))) as Record<string, any>;
     const action = String(body.action || 'scan_members');
+    // Any action may change what the hub shows: drop the cached hub payload for this workspace.
+    invalidateCommunityHubCache(params.workspace_id);
     const service = new CommunityHubService(pool);
 
     if (action === 'update_settings') {

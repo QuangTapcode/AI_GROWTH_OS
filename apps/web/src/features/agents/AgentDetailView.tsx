@@ -736,8 +736,10 @@ function AgentPage({ role }: { role: RoleId }) {
         </ol>
         {loopNotice && <p role="status" className="mt-4 text-sm text-blue-800">{loopNotice}</p>}
       </section>}
-      {role === "community" && data && <>
+      {role === "community" && (
         <CommunityGrowthHub workspaceId={workspace.id} canEdit={canEdit} onUpdated={reload} />
+      )}
+      {role === "community" && data && <>
         <TikTokStudioSection workspaceId={workspace.id} canEdit={canEdit} returnTo="/agents/community/" />
         <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <SectionTitle title="Soạn phản hồi Community" subtitle="Nhập câu hỏi hoặc comment. Agent sử dụng nguồn đã duyệt để soạn nháp; không tự gửi phản hồi lên mạng xã hội." />

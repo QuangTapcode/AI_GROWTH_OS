@@ -554,6 +554,45 @@ export default function DashboardSidebar({
             </span>
           </div>
 
+          {/* Agent 2 & 5: Google Maps & Drive */}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/gmaps")}
+            className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
+          >
+            <span className="text-sm">📍</span>
+            <span className="text-xs font-medium text-white">
+              Google Maps & Kho Drive
+            </span>
+          </div>
+
+          {/* Agent 7: Omnichannel Inbox & Lead Concierge */}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/booking-leads")}
+            className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
+          >
+            <span className="text-sm">🛎️</span>
+            <span className="text-xs font-medium text-white">
+              Inbox 1-1 & Chốt Lead
+            </span>
+          </div>
+
+          {/* Multi-LLM Auto-Switch Admin */}
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push("/admin/llm")}
+            className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
+          >
+            <span className="text-sm">🎛️</span>
+            <span className="text-xs font-medium text-white">
+              Multi-LLM Auto-Switch
+            </span>
+          </div>
+
           {/* Knowledge Contexts */}
           <div
             role="link"
