@@ -1,0 +1,47 @@
+{
+  "_note": "DỮ LIỆU MINH HỌA cho demo/ kiểm thử — quán giả định, không phải doanh nghiệp có thật. Thay toàn bộ bằng dữ liệu thật của quán trước khi bật agent ra ngoài.",
+  "business_name": "Bếp Nhà Sông Hàn (minh họa)",
+  "business_type": "restaurant",
+  "phone": "0905000000",
+  "address": "Số 1 đường Mẫu, phường Mẫu, quận Hải Châu, Đà Nẵng (địa chỉ minh họa)",
+  "district": "Hải Châu",
+  "city": "Đà Nẵng",
+  "opening_hours": { "open": "10:00", "close": "22:00" },
+  "max_party_size": 30,
+  "parking_note": "Có chỗ gửi xe máy miễn phí trước quán; ô tô đỗ dọc đường bên hông.",
+  "brand_voice": "thân thiện, mộc mạc như người nhà, chân thành và ngắn gọn",
+  "menu": [
+    { "name": "Bún chả cá", "price_vnd": 40000, "category": "Món chính", "description": "Chả cá thu nhà làm, nước dùng ngọt xương" },
+    { "name": "Bún chả cá đặc biệt", "price_vnd": 55000, "category": "Món chính", "description": "Thêm chả cá chiên và cá thu" },
+    { "name": "Mì Quảng gà", "price_vnd": 40000, "category": "Món chính" },
+    { "name": "Mì Quảng tôm thịt", "price_vnd": 45000, "category": "Món chính" },
+    { "name": "Bánh tráng cuốn thịt heo", "price_vnd": 120000, "category": "Món chia sẻ", "description": "Phần 2–3 người, kèm rau rừng" },
+    { "name": "Gỏi cá trích", "price_vnd": 150000, "category": "Món chia sẻ", "description": "Phần 2–3 người" },
+    { "name": "Mực một nắng nướng", "price_vnd": 180000, "category": "Món nhậu" },
+    { "name": "Ốc hút xào sả ớt", "price_vnd": 70000, "category": "Món nhậu" },
+    { "name": "Chè xoài", "price_vnd": 25000, "category": "Tráng miệng" },
+    { "name": "Trà đá", "price_vnd": 5000, "category": "Đồ uống" },
+    { "name": "Nước sâm", "price_vnd": 15000, "category": "Đồ uống" }
+  ],
+  "faq": [
+    { "question": "Quán có món chay không?", "answer": "Quán có mì Quảng chay và bánh tráng cuốn rau, anh/chị báo trước để bếp chuẩn bị nhé." },
+    { "question": "Quán có phòng riêng không?", "answer": "Quán có 1 phòng riêng tối đa 20 khách, cần đặt trước ít nhất 1 ngày." },
+    { "question": "Có giao hàng không?", "answer": "Quán giao trong bán kính 3km qua các ứng dụng giao đồ ăn." },
+    { "question": "Trẻ em có ghế riêng không?", "answer": "Quán có ghế em bé, anh/chị ghi chú khi đặt bàn để quán chuẩn bị." }
+  ],
+  "promotions": [
+    { "title": "Tặng chè xoài cho bàn từ 4 khách", "detail": "Áp dụng 14:00–17:00 các ngày trong tuần", "until": "2026-12-31" }
+  ],
+  "deposit": { "required_from_party_size": 10, "amount_per_guest_vnd": 50000 },
+  "seo_keywords": [
+    "bún chả cá Đà Nẵng",
+    "quán ăn ngon Hải Châu",
+    "mì Quảng Đà Nẵng",
+    "đặc sản Đà Nẵng",
+    "quán ăn gia đình Đà Nẵng",
+    "bánh tráng cuốn thịt heo Đà Nẵng"
+  ],
+  "report_hour_local": 21,
+  "gmaps_auto_reply_min_rating": 4,
+  "community_target_members": 1000
+}

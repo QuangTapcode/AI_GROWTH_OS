@@ -30,6 +30,7 @@ import { CommunityReplyRunner } from './publish/CommunityReplyRunner';
 import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
 import { TelegramBotRunner } from './publish/TelegramBotRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
+import { MerchantTikTokCarouselRunner } from './publish/MerchantTikTokCarouselRunner';
 
 /** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
 let workflowStore: DbWorkflowStore | null = null;
@@ -112,6 +113,32 @@ async function main(): Promise<void> {
   };
   const automationTimer = setInterval(triggerAutomationTick, 30000);
   automationTimer.unref();
+  // 8 agent merchant (Drive, Google Maps, lịch đăng, đặt bàn, báo cáo ngày...): API tự quyết agent nào tới lượt.
+  let merchantRunning = false;
+  const triggerMerchantTick = () => {
+    if (merchantRunning || !process.env.AUTOMATION_INTERNAL_TOKEN || !process.env.API_BASE_URL) return;
+    merchantRunning = true;
+    const base = process.env.API_BASE_URL.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+    void fetch(`${base}/internal/merchant/tick`, { method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.AUTOMATION_INTERNAL_TOKEN}` },
+      signal: AbortSignal.timeout(280_000) }).then(response => {
+        if (!response.ok) throw new Error(`Merchant scheduler HTTP ${response.status}`);
+        runReplies();
+      }).catch(error => console.error('[merchant-agents]', (error as Error).message))
+      .finally(() => { merchantRunning = false; });
+  };
+  const merchantTimer = setInterval(triggerMerchantTick, 60_000);
+  merchantTimer.unref();
+  const tiktokCarousel = new MerchantTikTokCarouselRunner(planPool);
+  let carouselRunning = false;
+  const carouselTimer = setInterval(() => {
+    if (carouselRunning) return;
+    carouselRunning = true;
+    void tiktokCarousel.runOnce()
+      .catch(error => console.error('[tiktok-carousel]', (error as Error).message))
+      .finally(() => { carouselRunning = false; });
+  }, 15_000);
+  carouselTimer.unref();
   const telegramBot = new TelegramBotRunner(planPool, {
     onMessageIngested: triggerAutomationTick,
   });

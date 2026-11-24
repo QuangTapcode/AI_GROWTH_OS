@@ -1,6 +1,7 @@
 import { query } from "./db";
 import { AppError } from "./errors";
 import { AuthUser } from "./auth";
+import { canServeOfflineDemo } from "./offlineDemo";
 
 export type Role = "owner" | "editor" | "viewer";
 
@@ -31,7 +32,9 @@ export async function assertActiveSession(user: AuthUser): Promise<void> {
     if (!res.rows[0]?.session_active) throw SESSION_REVOKED();
   } catch (err: any) {
     if (err instanceof AppError) throw err;
-    // Allow dev session through if DB is offline
+    // Chỉ cho qua khi bật demo offline (AGOS_OFFLINE_DEMO=1) và DB thật sự không kết nối được.
+    if (canServeOfflineDemo(err)) return;
+    throw err;
   }
 }
 
@@ -81,12 +84,19 @@ export async function resolveTenantContext(
     };
   } catch (err: any) {
     if (err instanceof AppError) throw err;
-    // DB offline fallback in local dev
-    return {
-      user,
-      workspaceId,
-      role: "owner",
-    };
+
+    // Lỗi cú pháp UUID hoặc database error
+    if (err?.code === "22P02") {
+      throw new AppError(400, "BAD_REQUEST", "Invalid UUID parameter format");
+    }
+
+    // Demo offline: chỉ khi bật cờ rõ ràng và DB không kết nối được. Không bao giờ cấp quyền khi lỗi khác.
+    if (canServeOfflineDemo(err)) {
+      return { user, workspaceId, role: "owner" };
+    }
+
+    console.error("Tenant resolution failed:", err);
+    throw new AppError(500, "INTERNAL_ERROR", "Failed to resolve tenant context");
   }
 }
 
@@ -97,8 +107,8 @@ export function requireRole(context: TenantContext, allowedRoles: Role[]): void 
   if (!allowedRoles.includes(context.role)) {
     throw new AppError(
       403,
-      "FORBIDDEN",
-      `Role '${context.role}' is not authorized. Required: ${allowedRoles.join(", ")}`
+      "PERMISSION_DENIED",
+      `Role '${context.role}' is not allowed to perform this action. Required: [${allowedRoles.join(", ")}]`
     );
   }
 }

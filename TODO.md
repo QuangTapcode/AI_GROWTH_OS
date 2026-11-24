@@ -38,3 +38,5 @@ Giữ Level 2, human approval trước publish/send, tenant isolation, approved 
 [Deploy và test từng agent bằng trình duyệt ngày 05/11/2026](docs/reports/AGENT-BROWSER-TEST-2026-11-05.md) — bản mới đã chạy, 12 lỗi mới và thứ tự sửa.
 
 [Nghiệm thu 6 agent ngày 04/11/2026 và việc cần làm](docs/reports/AGENT-ACCEPTANCE-2026-11-04.md) — kết quả test so với yêu cầu ban đầu, workflow và thứ tự sửa.
+
+[8 agent merchant theo kế hoạch Leader (19/11/2026)](docs/merchant-agents/README.md) — trạng thái từng hạng mục, cấu hình chạy thật, [báo cáo kiểm thử](docs/merchant-agents/QA-TEST-REPORT.md), [cẩm nang chủ quán](docs/merchant-agents/USER-GUIDE.md).

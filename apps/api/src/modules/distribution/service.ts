@@ -6,6 +6,7 @@ import { getWorkspaceConnectionStatus } from "../integrations/stubs";
 import type { IntegrationProvider } from "../integrations/types";
 import { createChannelSchema, schedulePublishSchema, updatePublishingJobSchema } from "./schemas";
 import * as repo from "./repository";
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 /**
  * Distribution: xếp lịch đăng nội dung ĐÃ DUYỆT lên kênh.
@@ -58,7 +59,8 @@ export async function listWorkspaceChannels(user: AuthUser, workspaceId: string)
   try {
     const channels = await repo.listChannels(workspaceId);
     return { items: await Promise.all(channels.map(async (c) => ({ ...c, publish_mode: await publishMode(workspaceId, c.platform_name) }))) };
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return {
       items: [
         { id: "chan-fb-1", workspace_id: workspaceId, platform_name: "facebook", channel_identifier: "TripC Fanpage", display_name: "TripC Fanpage", created_at: new Date().toISOString(), publish_mode: "live" },
@@ -82,7 +84,8 @@ export async function listPublishingJobs(user: AuthUser, workspaceId: string) {
   await resolveTenantContext(user, workspaceId);
   try {
     return { items: await repo.listJobs(workspaceId) };
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return {
       items: [
         {

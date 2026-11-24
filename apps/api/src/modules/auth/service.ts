@@ -6,6 +6,7 @@ import { issueSessionToken, sessionExpiry } from "../../lib/session-token";
 import { assertActiveSession, Role } from "../../lib/tenant";
 import { changePasswordSchema, loginSchema } from "./schemas";
 import * as repo from "./repository";
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 /**
  * Giới hạn đăng nhập sai theo email và theo IP (in-memory, một process API).
@@ -51,64 +52,26 @@ export async function login(rawInput: unknown, client: ClientMeta) {
     throw new AppError(429, "TOO_MANY_ATTEMPTS", "Too many failed sign-in attempts. Try again in 15 minutes.");
   }
 
-  let user: repo.CredentialRow | null = null;
-  let valid = false;
-
+  let user: repo.CredentialRow | null;
   try {
     user = await repo.findCredentialsByEmail(email);
-    valid = await verifyPassword(password, user?.password_hash ?? (await getDummyPasswordHash()));
-  } catch {
-    // If DB is offline, enable seamless fallback login
-    const fallbackId = "a0000000-0000-4000-8000-000000000001";
-    const issuedAt = new Date(now);
-    const sessionId = "dev_session_" + Date.now();
-    const name = email.split("@")[0].replace(/[._-]/g, ' ') || "TripC Owner";
-    const issued = issueSessionToken(
-      { id: fallbackId, email, name },
-      issuedAt,
-      sessionId
-    );
-    return {
-      access_token: issued.token,
-      token_type: "Bearer",
-      expires_at: issued.expiresAt,
-      user: { id: fallbackId, email, full_name: name, avatar_url: null },
-    };
-  }
-
-  // If user wasn't found in DB or password didn't match, allow demo login in local dev
-  if (!user || !user.password_hash || !valid) {
-    if (email.toLowerCase().endsWith("@gmail.com")) {
-      const fallbackId = "a0000000-0000-4000-8000-000000000001";
-      const issuedAt = new Date(now);
-      const sessionId = "dev_session_" + Date.now();
-      const name = email.split("@")[0].replace(/[._-]/g, ' ') || "TripC Owner";
-      const issued = issueSessionToken(
-        { id: fallbackId, email, name },
-        issuedAt,
-        sessionId
-      );
-      return {
-        access_token: issued.token,
-        token_type: "Bearer",
-        expires_at: issued.expiresAt,
-        user: { id: fallbackId, email, full_name: name, avatar_url: null },
-      };
+  } catch (err) {
+    // Demo offline (AGOS_OFFLINE_DEMO=1, DB không kết nối được): chỉ tài khoản fixture demo với mật khẩu fixture.
+    if (canServeOfflineDemo(err) && isOfflineDemoCredential(email, password)) {
+      return issueOfflineDemoLogin(email, now);
     }
-
+    throw err;
+  }
+  const valid = await verifyPassword(password, user?.password_hash ?? (await getDummyPasswordHash()));
+  if (!user || !user.password_hash || !valid) {
     for (const key of keys) recentFailures(key, now).push(now);
     throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
   }
 
   for (const key of keys) failures.delete(key);
   const issuedAt = new Date(now);
-  let sessionId = "dev_session_" + Date.now();
-  try {
-    sessionId = await repo.createSession(user.id, sessionExpiry(issuedAt), client);
-    await repo.recordLogin(user.id);
-  } catch {
-    // Handled silently
-  }
+  const sessionId = await repo.createSession(user.id, sessionExpiry(issuedAt), client);
+  await repo.recordLogin(user.id);
   const issued = issueSessionToken({ id: user.id, email: user.email, name: user.full_name }, issuedAt, sessionId);
 
   return {
@@ -119,14 +82,30 @@ export async function login(rawInput: unknown, client: ClientMeta) {
   };
 }
 
+const OFFLINE_DEMO_USER_ID = "a0000000-0000-4000-8000-000000000001";
+const OFFLINE_DEMO_WORKSPACE_ID = "10000000-0000-4000-8000-000000000001";
+const OFFLINE_DEMO_PASSWORD = "TripC@2026!";
+
+function isOfflineDemoCredential(email: string, password: string): boolean {
+  return /^(owner|editor|viewer)\.tripc\.demo@gmail\.com$/i.test(email) && password === OFFLINE_DEMO_PASSWORD;
+}
+
+function issueOfflineDemoLogin(email: string, now: number) {
+  const name = "TripC Demo (offline)";
+  // Token không có sid: assertActiveSession bỏ qua bước kiểm tra phiên trong DB.
+  const issued = issueSessionToken({ id: OFFLINE_DEMO_USER_ID, email, name }, new Date(now));
+  return {
+    access_token: issued.token,
+    token_type: "Bearer",
+    expires_at: issued.expiresAt,
+    user: { id: OFFLINE_DEMO_USER_ID, email, full_name: name, avatar_url: null },
+  };
+}
+
 /** Thu hồi phiên hiện tại; token của phiên này bị từ chối ở mọi request sau. */
 export async function logout(user: AuthUser) {
-  try {
-    const revoked = user.sessionId ? await repo.revokeSession(user.id, user.sessionId) : false;
-    return { success: true, session_revoked: revoked };
-  } catch {
-    return { success: true, session_revoked: true };
-  }
+  const revoked = user.sessionId ? await repo.revokeSession(user.id, user.sessionId) : false;
+  return { success: true, session_revoked: revoked };
 }
 
 /** Đổi mật khẩu: kiểm tra mật khẩu hiện tại, giữ phiên đang dùng, thu hồi các phiên khác. */
@@ -158,22 +137,17 @@ export async function getCurrentUser(user: AuthUser) {
     const workspaces = await repo.listActiveMemberships(user.id);
     return { user: profile, workspaces };
   } catch (err: any) {
-    if (err?.code === "UNAUTHORIZED" || err?.code === "SESSION_REVOKED") throw err;
+    if (!canServeOfflineDemo(err)) throw err;
     return {
       user: {
-        id: user.id || "a0000000-0000-4000-8000-000000000001",
-        email: user.email || "owner.tripc.demo@gmail.com",
-        full_name: user.name || "TripC Owner",
+        id: user.id,
+        email: user.email,
+        full_name: user.name || "TripC Demo (offline)",
         avatar_url: null,
         last_login_at: new Date().toISOString(),
       },
       workspaces: [
-        {
-          workspace_id: "10000000-0000-4000-8000-000000000001",
-          name: "TripC",
-          slug: "tripc",
-          role: "owner" as Role,
-        },
+        { workspace_id: OFFLINE_DEMO_WORKSPACE_ID, name: "TripC", slug: "tripc", role: "owner" as Role },
       ],
     };
   }

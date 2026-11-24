@@ -108,7 +108,19 @@ async function queueDirectReply(
     await client.query('ROLLBACK TO SAVEPOINT sp_queue_direct_settings').catch(() => { });
   }
 
-  if (message.platform === 'facebook_comment' && settings?.auto_reply_comments === false) {
+  if ((message.platform === 'facebook_comment' || message.platform === 'instagram_comment') && settings?.auto_reply_comments === false) {
+    return;
+  }
+
+  // Câu trả lời AI tự đánh dấu cần người kiểm tra (giá, cam kết, dữ kiện chưa xác minh) không được gửi tự động.
+  // Ngoại lệ duy nhất: chỉ thiếu xác minh đồng ý của lead — câu trả lời vẫn có căn cứ, chỉ lead bị ghi "chưa xác minh".
+  const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
+  const onlyConsentUnverified = missing.length > 0 && missing.every((fact) => fact === 'verified_lead_owner_and_consent');
+  if (result.escalation_required === true && !onlyConsentUnverified) {
+    await client.query(
+      `UPDATE community_messages SET status = 'escalated', updated_at = NOW() WHERE workspace_id = $1 AND id = $2 AND status IN ('received', 'queued')`,
+      [workspaceId, message.id],
+    );
     return;
   }
 
@@ -117,7 +129,8 @@ async function queueDirectReply(
   const dailyCap = Math.max(10, Math.min(15, Number(settings?.daily_invite_limit ?? 12)));
   const canInviteToday = settings?.auto_invite_enabled !== false && !alreadyInvited && todayInviteCount < dailyCap;
 
-  const isComment = message.platform === 'facebook_comment';
+  const isComment = message.platform === 'facebook_comment' || message.platform === 'instagram_comment';
+  const isFacebookComment = message.platform === 'facebook_comment';
   const isTelegram = message.platform === 'telegram_message';
   const commentSource = message.metadata?.comment_source === 'group' ? 'group' : 'page';
   const commentId = message.metadata?.comment_id;
@@ -168,7 +181,7 @@ async function queueDirectReply(
       community_name: communityName,
       author_name: message.metadata?.from_name || message.author_name || null,
     };
-  } else if (isComment && commentSource === 'page' && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
+  } else if (isFacebookComment && commentSource === 'page' && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
     // Only on Fanpage comments do we attach an invite link to join the Facebook Group; users in Group are already members.
     outboxText = `${outboxText}\n\n👉 Mời bạn tham gia Cộng đồng Du lịch & Sống tại Việt Nam để hỏi đáp thêm kinh nghiệm thực tế: ${groupUrl}`;
   }
@@ -192,8 +205,8 @@ async function queueDirectReply(
           author_name: message.metadata?.from_name || message.author_name || null,
           question_snippet: message.content ? message.content.slice(0, 140) : null,
           comment_snippet: message.content ? message.content.slice(0, 140) : null,
-          invite_group_url: commentSource === 'page' && canInviteToday ? groupUrl : null,
-          should_private_invite: commentSource === 'page' && Boolean(commentId) && canInviteToday,
+          invite_group_url: isFacebookComment && commentSource === 'page' && canInviteToday ? groupUrl : null,
+          should_private_invite: isFacebookComment && commentSource === 'page' && Boolean(commentId) && canInviteToday,
         } : {}),
       })],
   );
@@ -226,7 +239,7 @@ export async function persistCommunityLead(
   if (!artifactRow || artifactRow.role !== 'community') return null;
 
   const direct = artifactRow.task_id ? (await client.query<DirectMessage>(
-    `SELECT id, platform, author_contact, author_name, post_url, content, metadata FROM community_messages WHERE workspace_id = $1 AND task_id = $2 AND (platform IN ('facebook_message', 'telegram_message') OR platform = 'facebook_comment') LIMIT 1`,
+    `SELECT id, platform, author_contact, author_name, post_url, content, metadata FROM community_messages WHERE workspace_id = $1 AND task_id = $2 AND (platform IN ('facebook_message', 'telegram_message') OR platform IN ('facebook_comment', 'instagram_message', 'instagram_comment', 'zalo_message')) LIMIT 1`,
     [workspaceId, artifactRow.task_id],
   )).rows[0] : undefined;
   if (direct) await queueDirectReply(client, workspaceId, direct, artifactId, artifactRow.payload?.result ?? {});

@@ -4,6 +4,7 @@ import { resolveTenantContext, requireRole } from '@/lib/tenant';
 import { AppError, handleApiError } from '@/lib/errors';
 import pool from '@/lib/db';
 import { CommunityHubService, normalizePublishTarget } from '@/modules/community/hub';
+import { canServeOfflineDemo } from "../../../../../../lib/offlineDemo";
 
 export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
@@ -15,11 +16,12 @@ export async function GET(req: NextRequest, { params }: { params: { workspace_id
       const service = new CommunityHubService(pool);
       const data = await service.getHubData(params.workspace_id);
       return NextResponse.json(data);
-    } catch {
+    } catch (offlineErr: unknown) {
+      if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
       return NextResponse.json(getOfflineCommunityHubFallback(params.workspace_id));
     }
-  } catch (error) {
-    if (error instanceof AppError && error.statusCode !== 500) return handleApiError(error);
+  } catch (error: unknown) {
+    if (!canServeOfflineDemo(error)) return handleApiError(error);
     return NextResponse.json(getOfflineCommunityHubFallback(params.workspace_id));
   }
 }

@@ -1,22 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { DriveAssetIngestionService } from '../../../../../../../modules/assets/drive';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { handleApiError } from "@/lib/errors";
+import { readJsonBody, requireWorkspaceRole } from "@/lib/workspaceRoute";
+import { ContentPlannerService } from "@/modules/planner/calendar";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+const schema = z.object({
+  asset_id: z.string().uuid(),
+  channels: z.array(z.enum(["facebook", "instagram", "google_maps", "facebook_group"])).min(1).max(4).default(["facebook"]),
+});
+
+/** Đưa ảnh vào khung giờ vàng gần nhất của từng kênh (bản nháp trong lịch, chờ duyệt rồi Agent 4 đăng). */
+export async function POST(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
-    const body = await request.json();
-    const { asset_id, channels } = body;
-    if (!asset_id) {
-      return NextResponse.json({ ok: false, error: 'asset_id is required' }, { status: 400 });
-    }
-
-    const service = new DriveAssetIngestionService();
-    const updated = await service.publishAsset(params.workspace_id, asset_id, channels);
-    return NextResponse.json({ ok: true, asset: updated });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to publish asset' }, { status: 500 });
+    await requireWorkspaceRole(req, params.workspace_id, ["owner", "editor"]);
+    const body = schema.parse(await readJsonBody(req));
+    const entries = await new ContentPlannerService().scheduleAsset(params.workspace_id, body.asset_id, body.channels);
+    return NextResponse.json({ ok: true, entries }, { status: 201 });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
-

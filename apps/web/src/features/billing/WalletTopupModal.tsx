@@ -1,13 +1,8 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-
-interface WalletState {
-  workspace_id: string;
-  balance_credits: number;
-  balance_vnd: number;
-  tier: string;
-}
+import React, { useEffect, useState } from "react";
+import { formatVnd, merchantApi, type WalletState, type WalletTransaction } from "@/lib/merchantApi";
+import { Button, Notice, Pill, errorMessage, useAction } from "@/features/merchant/ui";
 
 interface WalletTopupModalProps {
   workspaceId: string;
@@ -15,228 +10,161 @@ interface WalletTopupModalProps {
   onClose: () => void;
 }
 
+/**
+ * Ví credit trả trước: số dư thật, 3 gói nạp một chạm, mã VietQR động (Napas 247).
+ * Credit chỉ được cộng khi ngân hàng xác nhận (webhook); nút "Xác nhận thử" chỉ hiện ở môi trường thử nghiệm.
+ */
 export function WalletTopupModal({ workspaceId, isOpen, onClose }: WalletTopupModalProps) {
-  const [wallet, setWallet] = useState<WalletState>({
-    workspace_id: workspaceId,
-    balance_credits: 1200,
-    balance_vnd: 250000,
-    tier: 'growth',
-  });
-  const [selectedPackage, setSelectedPackage] = useState<'starter' | 'growth' | 'enterprise'>('growth');
-  const [activeTx, setActiveTx] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<WalletState | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pending, setPending] = useState<WalletTransaction | null>(null);
+  const { busy, notice, setNotice, run } = useAction();
 
   useEffect(() => {
     if (!isOpen) return;
-    async function load() {
+    merchantApi
+      .wallet(workspaceId)
+      .then((w) => {
+        setWallet(w);
+        setLoadError(null);
+        setPending(null);
+        setNotice(null);
+      })
+      .catch((err) => setLoadError(errorMessage(err)));
+  }, [isOpen, workspaceId, setNotice]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
+  // Đang chờ chuyển khoản: hỏi lại số dư mỗi 5 giây để thấy credit được cộng ngay khi ngân hàng báo.
+  useEffect(() => {
+    if (!isOpen || !pending) return;
+    const timer = setInterval(async () => {
       try {
-        const res = await fetch(`/v1/workspaces/${workspaceId}/wallet`);
-        const json = await res.json();
-        if (json.ok && json.wallet) {
-          setWallet(json.wallet);
+        const w = await merchantApi.wallet(workspaceId);
+        setWallet(w);
+        if (w.transactions.find((t) => t.id === pending.id)?.status === "success") {
+          setPending(null);
+          setNotice({ kind: "ok", text: `Đã nhận thanh toán, cộng ${pending.credits.toLocaleString("vi-VN")} credit.` });
         }
       } catch {
-        // Ignored
+        // giữ nguyên, lần sau thử lại
       }
-    }
-    load();
-  }, [workspaceId, isOpen]);
-
-  const handleCreateOrder = async () => {
-    setIsLoading(true);
-    setSuccessMsg(null);
-    try {
-      const res = await fetch(`/v1/workspaces/${workspaceId}/wallet/topup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package_name: selectedPackage }),
-      });
-      const json = await res.json();
-      if (json.ok && json.transaction) {
-        setActiveTx(json.transaction);
-      }
-    } catch {
-      // Ignored
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleConfirmPaid = async () => {
-    if (!activeTx) return;
-    setIsConfirming(true);
-    try {
-      const res = await fetch(`/v1/workspaces/${workspaceId}/wallet/confirm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaction_id: activeTx.id }),
-      });
-      const json = await res.json();
-      if (json.ok && json.wallet) {
-        setWallet(json.wallet);
-        setSuccessMsg('🎉 Nạp tiền thành công! Tín dụng đã được cộng ngay tức thì vào ví.');
-        setActiveTx(null);
-      }
-    } catch {
-      // Ignored
-    } finally {
-      setIsConfirming(false);
-    }
-  };
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [isOpen, pending, workspaceId, setNotice]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden">
-        {/* Header */}
-        <div className="p-6 bg-gradient-to-r from-emerald-800 to-teal-900 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl">💳</div>
-            <div>
-              <h3 className="font-bold text-base">Ví Tín Dụng Marketing (Top-up Wallet)</h3>
-              <p className="text-xs text-emerald-200 mt-0.5">Nạp credit trả trước phục vụ các Agent tự hành 24/7</p>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="Ví AI">
+      <div className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-2xl shadow-xl">
+        <header className="flex items-start justify-between gap-3 p-5 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Ví AI của quán</h2>
+            <p className="text-xs text-slate-500 mt-1">Mỗi lần agent dùng AI thành công trừ 1 credit.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-sm font-bold"
-          >
+          <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-800 text-lg" aria-label="Đóng">
             ✕
           </button>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {/* Current Balance */}
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-between">
-            <div>
-              <span className="text-xs text-emerald-700 font-bold uppercase tracking-wider">Số Dư Tín Dụng Hiện Tại</span>
-              <div className="text-2xl font-black text-emerald-950 mt-0.5">
-                {wallet.balance_credits.toLocaleString('vi-VN')} <span className="text-sm font-normal text-emerald-700">credits</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-xs text-emerald-700 font-bold uppercase tracking-wider">Giá Trị Tương Đương</span>
-              <div className="text-base font-bold text-emerald-900">
-                ~{wallet.balance_vnd.toLocaleString('vi-VN')} đ
-              </div>
-            </div>
-          </div>
-
-          {successMsg && (
-            <div className="p-4 rounded-xl bg-emerald-100 border border-emerald-200 text-emerald-900 text-xs font-bold">
-              {successMsg}
-            </div>
-          )}
-
-          {!activeTx ? (
+        </header>
+        <div className="p-5 space-y-4">
+          {loadError && <Notice notice={{ kind: "error", text: loadError }} />}
+          <Notice notice={notice} onClose={() => setNotice(null)} />
+          {wallet && (
             <>
-              {/* Package Selector */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                  Chọn Gói Nạp Tín Dụng
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {/* Starter */}
-                  <div
-                    onClick={() => setSelectedPackage('starter')}
-                    className={`p-3 rounded-2xl border cursor-pointer transition-all ${
-                      selectedPackage === 'starter'
-                        ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="text-xs font-bold text-slate-900">Khởi Động</div>
-                    <div className="text-sm font-black text-emerald-700 mt-1">200.000 đ</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">+1.000 credits</div>
-                  </div>
+              <div className="rounded-xl bg-slate-900 text-white p-4">
+                <p className="text-xs text-slate-300">Số dư</p>
+                <p className="text-3xl font-bold tabular-nums">{wallet.balance_credits.toLocaleString("vi-VN")} credit</p>
+                <p className="text-xs text-slate-300 mt-1">Đã dùng 7 ngày qua: {wallet.credits_used_7d.toLocaleString("vi-VN")} credit</p>
+              </div>
 
-                  {/* Growth */}
-                  <div
-                    onClick={() => setSelectedPackage('growth')}
-                    className={`p-3 rounded-2xl border cursor-pointer transition-all relative ${
-                      selectedPackage === 'growth'
-                        ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <span className="absolute -top-2 right-2 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500 text-white">
-                      Phổ biến
-                    </span>
-                    <div className="text-xs font-bold text-slate-900">Tăng Trưởng</div>
-                    <div className="text-sm font-black text-emerald-700 mt-1">500.000 đ</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">+3.000 credits</div>
+              {!pending && (
+                <>
+                  {!wallet.payment_configured && (
+                    <Notice notice={{ kind: "error", text: "Máy chủ chưa cấu hình tài khoản nhận tiền (WALLET_BANK_BIN / WALLET_BANK_ACCOUNT) nên chưa tạo được mã QR." }} />
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {wallet.packages.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={!wallet.payment_configured || busy !== null}
+                        onClick={() =>
+                          run(`topup-${p.id}`, async () => {
+                            setPending(await merchantApi.topup(workspaceId, p.id));
+                          })
+                        }
+                        className="text-left rounded-xl border border-slate-200 p-3 hover:border-blue-400 hover:bg-blue-50/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <p className="text-xs font-semibold text-slate-600">{p.label}</p>
+                        <p className="text-lg font-bold text-slate-900">{formatVnd(p.amount_vnd)}</p>
+                        <p className="text-xs text-emerald-700 font-semibold">{p.credits.toLocaleString("vi-VN")} credit</p>
+                      </button>
+                    ))}
                   </div>
+                </>
+              )}
 
-                  {/* Enterprise */}
-                  <div
-                    onClick={() => setSelectedPackage('enterprise')}
-                    className={`p-3 rounded-2xl border cursor-pointer transition-all ${
-                      selectedPackage === 'enterprise'
-                        ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="text-xs font-bold text-slate-900">Doanh Nghiệp</div>
-                    <div className="text-sm font-black text-emerald-700 mt-1">1.500.000 đ</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">+10.000 credits</div>
+              {pending && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-center space-y-3">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Quét mã để chuyển {formatVnd(pending.amount_vnd)}
+                  </p>
+                  {pending.vietqr_image_url && (
+                    <img src={pending.vietqr_image_url} alt={`Mã VietQR nạp ${formatVnd(pending.amount_vnd)}`} className="mx-auto w-56 h-auto rounded-lg bg-white" />
+                  )}
+                  <p className="text-xs text-slate-600">
+                    Nội dung chuyển khoản bắt buộc: <strong className="font-mono text-slate-900">{pending.qr_reference}</strong>
+                  </p>
+                  <p className="text-[11px] text-slate-500">Credit được cộng tự động khi ngân hàng xác nhận. Mã hết hạn sau 24 giờ.</p>
+                  <div className="flex justify-center gap-2">
+                    <Button variant="secondary" onClick={() => setPending(null)}>
+                      Chọn gói khác
+                    </Button>
+                    {wallet.manual_confirm_enabled && (
+                      <Button
+                        busy={busy === "confirm"}
+                        onClick={() =>
+                          run("confirm", async () => {
+                            setWallet(await merchantApi.confirmTopup(workspaceId, pending.id));
+                            setPending(null);
+                            return "Đã xác nhận thử (môi trường thử nghiệm) và cộng credit.";
+                          })
+                        }
+                      >
+                        Xác nhận thử (staging)
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="pt-2">
-                <button
-                  onClick={handleCreateOrder}
-                  disabled={isLoading}
-                  className="w-full py-3 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-60"
-                >
-                  {isLoading ? 'Đang tạo mã thanh toán...' : 'Tạo Mã VietQR Thanh Toán'}
-                </button>
-              </div>
+              {wallet.transactions.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-slate-700 mb-2">Giao dịch gần đây</p>
+                  <ul className="divide-y divide-slate-100 text-xs">
+                    {wallet.transactions.slice(0, 6).map((t) => (
+                      <li key={t.id} className="flex items-center justify-between gap-2 py-2">
+                        <span className="text-slate-600">
+                          {new Date(t.created_at).toLocaleString("vi-VN")} · {formatVnd(t.amount_vnd)} · <span className="font-mono">{t.qr_reference}</span>
+                        </span>
+                        <Pill tone={t.status === "success" ? "green" : t.status === "pending" ? "amber" : "slate"}>
+                          {t.status === "success" ? "Đã cộng" : t.status === "pending" ? "Chờ thanh toán" : t.status === "expired" ? "Hết hạn" : "Lỗi"}
+                        </Pill>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </>
-          ) : (
-            /* VietQR Payment Screen */
-            <div className="space-y-4 text-center">
-              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 inline-block">
-                <img
-                  src={activeTx.vietqr_image_url}
-                  alt="VietQR Transfer"
-                  className="w-48 h-48 mx-auto rounded-lg shadow-sm"
-                />
-                <div className="text-xs font-bold text-slate-900 mt-2">
-                  Số tiền: {activeTx.amount_vnd.toLocaleString('vi-VN')} VNĐ
-                </div>
-                <div className="text-[11px] font-mono text-slate-600 mt-0.5">
-                  Nội dung CK: <span className="font-bold text-emerald-700">{activeTx.qr_reference}</span>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-500">
-                Mở ứng dụng ngân hàng bất kỳ (Vietcombank, MB, Techcombank, Momo) quét mã QR để thanh toán một chạm.
-              </p>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => setActiveTx(null)}
-                  className="w-1/2 py-2.5 rounded-xl text-xs font-bold border border-slate-300 text-slate-700 hover:bg-slate-100"
-                >
-                  Chọn Lại Gói
-                </button>
-                <button
-                  onClick={handleConfirmPaid}
-                  disabled={isConfirming}
-                  className="w-1/2 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
-                >
-                  {isConfirming ? 'Đang kiểm tra...' : '✓ Xác Nhận Đã Chuyển Tiền'}
-                </button>
-              </div>
-            </div>
           )}
         </div>
       </div>
     </div>
   );
 }
-

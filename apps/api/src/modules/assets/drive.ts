@@ -1,275 +1,296 @@
-import pool from '../../lib/db';
-import { MultiLLMAdapterService } from '../ai/llmAdapter';
+import type { Pool } from "pg";
+import { z } from "zod";
+import defaultPool from "../../lib/db";
+import { AppError } from "../../lib/errors";
+import { LlmUnavailableError, MultiLLMAdapterService, parseJsonReply } from "../ai/llmAdapter";
+import type { FetchLike } from "../ai/providers";
+import { downloadDriveFile, listDriveImages, parseDriveFolderId, MAX_IMAGE_BYTES, type DriveImageFile } from "../google/drive";
+import { defaultGoogleAuth, googleOAuthConfigured, type GoogleAuth } from "../google/oauth";
+import { loadMerchantProfile } from "../merchant/profile";
+import { systemPromptFor } from "../merchant/prompts";
+
+/**
+ * Agent 2 — Drive Asset Ingestion.
+ * Quét thư mục Google Drive của quán (worker gọi mỗi 20 phút), tải ảnh mới, dùng LLM thị giác
+ * (Gemini Vision → OpenAI/Claude khi Gemini lỗi) nhận diện món/ không gian và viết caption gợi thèm.
+ * Ảnh tên bắt đầu bằng "logo" được dùng làm watermark, không đăng.
+ */
+export type AssetType = "food_photo" | "drink_photo" | "space_ambiance" | "menu_board" | "people_event" | "logo" | "other";
+export type AssetStatus = "pending_analysis" | "staged" | "rejected" | "scheduled" | "published" | "archived";
 
 export interface DriveAsset {
   id: string;
   workspace_id: string;
   file_name: string;
   file_url: string;
-  drive_file_id?: string;
-  asset_type: 'destination_photo' | 'experience_activity' | 'accommodation_space' | 'service_menu';
+  drive_file_id: string | null;
+  mime_type: string | null;
+  asset_type: AssetType;
   vision_tags: string[];
-  dish_name?: string; // Tên điểm đến / Hoạt động trải nghiệm
-  flavor_notes?: string; // Cảm xúc & Nét đặc sắc du lịch
-  generated_caption?: string;
+  dish_name: string | null;
+  flavor_notes: string | null;
+  generated_caption: string | null;
   suggested_channels: string[];
-  status: 'staged' | 'published' | 'archived';
+  quality: string | null;
+  status: AssetStatus;
+  analysis_provider: string | null;
+  error_message: string | null;
+  folder_name: string | null;
   created_at: string;
+  updated_at: string;
 }
 
-const memoryDrive = new Map<string, DriveAsset[]>();
+const visionSchema = z.object({
+  asset_type: z.enum(["food_photo", "drink_photo", "space_ambiance", "menu_board", "people_event", "other"]),
+  dish_name: z.string().trim().max(200).nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(60)).max(12).default([]),
+  flavor_notes: z.string().trim().max(500).nullable().optional(),
+  caption: z.string().trim().max(600).nullable().optional(),
+  quality: z.enum(["good", "blurry", "dark", "not_relevant"]).default("good"),
+  suggested_channels: z.array(z.enum(["facebook", "instagram", "google_maps", "tiktok", "facebook_group"])).max(5).optional(),
+});
+export type VisionResult = z.infer<typeof visionSchema>;
+
+const SUPPORTED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
+const MAX_ANALYSES_PER_SCAN = 10;
+
+function mapRow(row: any): DriveAsset {
+  const analysis = (row.analysis ?? {}) as Record<string, unknown>;
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id,
+    file_name: row.file_name,
+    file_url: row.file_url,
+    drive_file_id: row.drive_file_id ?? null,
+    mime_type: row.mime_type ?? null,
+    asset_type: row.asset_type,
+    vision_tags: Array.isArray(row.vision_tags) ? row.vision_tags : typeof row.vision_tags === "string" ? JSON.parse(row.vision_tags) : [],
+    dish_name: row.dish_name ?? null,
+    flavor_notes: row.flavor_notes ?? null,
+    generated_caption: row.generated_caption ?? null,
+    suggested_channels: Array.isArray(row.suggested_channels) ? row.suggested_channels : [],
+    quality: typeof analysis.quality === "string" ? analysis.quality : null,
+    status: row.status,
+    analysis_provider: row.analysis_provider ?? null,
+    error_message: row.error_message ?? null,
+    folder_name: typeof analysis.folder_name === "string" ? analysis.folder_name : null,
+    created_at: new Date(row.created_at).toISOString(),
+    updated_at: new Date(row.updated_at).toISOString(),
+  };
+}
+
+export interface DriveScanResult {
+  status: "ok" | "not_configured" | "not_connected";
+  detail?: string;
+  listed: number;
+  new_files: number;
+  analyzed: number;
+  rejected: number;
+  failed: number;
+  remaining: number;
+}
+
+export interface DriveDeps {
+  db?: Pick<Pool, "query">;
+  llm?: MultiLLMAdapterService;
+  auth?: GoogleAuth;
+  fetch?: FetchLike;
+}
 
 export class DriveAssetIngestionService {
-  constructor(private readonly db = pool) {}
+  private readonly db: Pick<Pool, "query">;
+  private readonly llm: MultiLLMAdapterService;
+  private readonly auth: GoogleAuth;
+  private readonly fetchImpl?: FetchLike;
 
+  constructor(deps: DriveDeps | Pick<Pool, "query"> = {}) {
+    const d: DriveDeps = "query" in deps ? { db: deps as Pick<Pool, "query"> } : (deps as DriveDeps);
+    this.db = d.db ?? defaultPool;
+    this.llm = d.llm ?? new MultiLLMAdapterService(this.db);
+    this.auth = d.auth ?? defaultGoogleAuth();
+    this.fetchImpl = d.fetch;
+  }
+
+  async listAssets(workspaceId: string, status?: AssetStatus): Promise<DriveAsset[]> {
+    const res = await this.db.query(
+      `SELECT * FROM drive_asset_queue WHERE workspace_id = $1::uuid AND ($2::text IS NULL OR status = $2::text)
+        ORDER BY COALESCE(drive_modified_at, created_at) DESC LIMIT 200`,
+      [workspaceId, status ?? null],
+    );
+    return res.rows.map(mapRow);
+  }
+
+  /** Giữ tên cũ cho UI: ảnh đã phân tích và sẵn sàng đăng/ lên lịch. */
   async listStagedAssets(workspaceId: string): Promise<DriveAsset[]> {
-    try {
-      const res = await this.db.query(
-        `SELECT * FROM drive_asset_queue
-         WHERE workspace_id = $1::uuid
-         ORDER BY created_at DESC
-         LIMIT 50`,
-        [workspaceId]
-      );
-
-      if (res.rows.length === 0) {
-        return this.seedDemoDriveAssets(workspaceId);
-      }
-
-      return res.rows.map(this.mapAssetRow);
-    } catch {
-      if (!memoryDrive.has(workspaceId)) {
-        memoryDrive.set(workspaceId, this.getDemoDriveAssets(workspaceId));
-      }
-      return memoryDrive.get(workspaceId)!;
-    }
+    return this.listAssets(workspaceId);
   }
 
-  async syncDriveFolder(
-    workspaceId: string,
-    _folderUrl?: string
-  ): Promise<{ assets_scanned: number; new_assets_ingested: number; items: DriveAsset[] }> {
-    const mockPhotos = [
-      {
-        name: 'IMG_20261118_HoangHonSonTra.jpg',
-        url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
-        title: 'Hoàng Hôn Tuyệt Đẹp Trên Bán Đảo Sơn Trà & Bãi Biển Mỹ Khê',
-        tags: ['Du lịch Đà Nẵng', 'Hoàng hôn biển', 'Check-in Sơn Trà', 'Cảnh quan thiên nhiên', 'Ảnh chụp thực tế'],
-        notes: 'Góc ngắm hoàng hôn rực rỡ, gió biển trong lành, thích hợp cho chuyến đi chữa lành và lưu giữ kỷ niệm đẹp.',
-        caption: '🌅 Hoàng hôn buông xuống Sơn Trà đẹp tựa tranh vẽ! Gió biển lồng lộng xua tan mọi mệt mỏi. Check-in ngay điểm ngắm hoàng hôn triệu đô này bạn nhé! ✨ #DuLichDaNang #SonTraSunset',
-      },
-      {
-        name: 'IMG_20261118_TraiNghiemCheoSUP.jpg',
-        url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800',
-        title: 'Trải Nghiệm Chèo SUP Đón Bình Minh & Lặn Ngắm San Hô Bản Địa',
-        tags: ['Tour trải nghiệm', 'Chèo SUP', 'Lặn biển', 'Hoạt động ngoài trời', 'Khám phá bản địa'],
-        notes: 'Cảm giác đón bình minh trên mặt biển êm ả, khám phá hệ sinh thái biển nguyên sơ cùng hướng dẫn viên nhiệt tình.',
-        caption: '🌊 Đón ánh bình minh đầu ngày rực rỡ giữa biển khơi Mỹ Khê với tour chèo SUP độc bản! Đặt chỗ hôm nay để nhận ưu đãi chụp ảnh flycam miễn phí nha! 🏄 #CheoSUP #MyKhe',
-      },
-    ];
-
-    const inserted: DriveAsset[] = [];
-    for (const p of mockPhotos) {
-      try {
-        const res = await this.db.query(
-          `INSERT INTO drive_asset_queue (
-            workspace_id, file_name, file_url, asset_type, vision_tags, dish_name, flavor_notes, generated_caption, status
-          ) VALUES (
-            $1::uuid, $2::varchar, $3::text, 'destination_photo', $4::jsonb, $5::varchar, $6::text, $7::text, 'staged'
-          ) RETURNING *`,
-          [workspaceId, p.name, p.url, JSON.stringify(p.tags), p.title, p.notes, p.caption]
-        );
-        inserted.push(this.mapAssetRow(res.rows[0]));
-      } catch {
-        const fallbackAsset: DriveAsset = {
-          id: `asset_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-          workspace_id: workspaceId,
-          file_name: p.name,
-          file_url: p.url,
-          asset_type: 'destination_photo',
-          vision_tags: p.tags,
-          dish_name: p.title,
-          flavor_notes: p.notes,
-          generated_caption: p.caption,
-          suggested_channels: ['google_maps', 'facebook', 'tiktok'],
-          status: 'staged',
-          created_at: new Date().toISOString(),
-        };
-        inserted.push(fallbackAsset);
-      }
+  async connection(workspaceId: string): Promise<{ folder_id: string | null; connected: boolean; reason?: string }> {
+    const profile = await loadMerchantProfile(this.db, workspaceId);
+    const folderId = parseDriveFolderId(profile.links.gdrive);
+    if (!folderId) return { folder_id: null, connected: false, reason: "Chưa có link thư mục Google Drive hợp lệ trong mục Kết nối" };
+    if (!googleOAuthConfigured() && !this.auth.apiKey()) {
+      return { folder_id: folderId, connected: false, reason: "Máy chủ chưa có GOOGLE_OAUTH_* hoặc GOOGLE_API_KEY để đọc Drive" };
     }
-
-    if (memoryDrive.has(workspaceId)) {
-      memoryDrive.set(workspaceId, [...inserted, ...memoryDrive.get(workspaceId)!]);
-    } else {
-      memoryDrive.set(workspaceId, inserted);
-    }
-
-    return {
-      assets_scanned: 2,
-      new_assets_ingested: inserted.length,
-      items: inserted,
-    };
+    return { folder_id: folderId, connected: true };
   }
 
-  async addAsset(
-    workspaceId: string,
-    data: {
-      file_name: string;
-      file_url: string;
-      spot_name: string;
-      spot_notes?: string;
-    }
-  ): Promise<DriveAsset> {
-    const tags = ['Du lịch Đà Nẵng', 'Địa điểm check-in', 'Ảnh thực tế'];
-    const caption = `✨ Cập nhật mới nhất từ địa điểm "${data.spot_name}": ${data.spot_notes || 'Khung cảnh tuyệt đẹp, đáng để trải nghiệm khi đến Đà Nẵng'}. Hãy ghé thăm và cảm nhận nhé! 📍`;
-
-    try {
-      const res = await this.db.query(
-        `INSERT INTO drive_asset_queue (
-          workspace_id, file_name, file_url, asset_type, vision_tags, dish_name, flavor_notes, generated_caption, status
-        ) VALUES (
-          $1::uuid, $2::varchar, $3::text, 'destination_photo', $4::jsonb, $5::varchar, $6::text, $7::text, 'staged'
-        ) RETURNING *`,
-        [
-          workspaceId,
-          data.file_name,
-          data.file_url,
-          JSON.stringify(tags),
-          data.spot_name,
-          data.spot_notes || 'Thông tin địa điểm thực tế từ Google Drive',
-          caption,
-        ]
-      );
-
-      return this.mapAssetRow(res.rows[0]);
-    } catch {
-      const newAsset: DriveAsset = {
-        id: `asset_${Date.now()}`,
-        workspace_id: workspaceId,
-        file_name: data.file_name,
-        file_url: data.file_url,
-        asset_type: 'destination_photo',
-        vision_tags: tags,
-        dish_name: data.spot_name,
-        flavor_notes: data.spot_notes || 'Thông tin địa điểm thực tế từ Google Drive',
-        generated_caption: caption,
-        suggested_channels: ['google_maps', 'facebook'],
-        status: 'staged',
-        created_at: new Date().toISOString(),
-      };
-      const cur = memoryDrive.get(workspaceId) || this.getDemoDriveAssets(workspaceId);
-      memoryDrive.set(workspaceId, [newAsset, ...cur]);
-      return newAsset;
-    }
+  private async analyzeImage(workspaceId: string, file: { name: string; mimeType: string; folderName?: string }, bytes: Buffer): Promise<{ result: VisionResult; provider: string }> {
+    const profile = await loadMerchantProfile(this.db, workspaceId);
+    const prompt = `Phân tích ảnh "${file.name}"${file.folderName ? ` (thư mục "${file.folderName}")` : ""}.
+Trả về JSON với các khóa: asset_type, dish_name, tags (3-8 thẻ tiếng Việt), flavor_notes, caption, quality, suggested_channels.`;
+    const reply = await this.llm.generate(workspaceId, {
+      agent: "asset_manager",
+      system: systemPromptFor("asset_manager", profile),
+      prompt,
+      images: [{ mimeType: file.mimeType === "image/heif" ? "image/heic" : file.mimeType, base64: bytes.toString("base64") }],
+      json: true,
+      maxTokens: 700,
+      timeoutMs: 45_000,
+      billable: true,
+    });
+    const parsed = visionSchema.safeParse(parseJsonReply(reply.text));
+    if (!parsed.success) throw new Error(`Vision JSON không hợp lệ: ${parsed.error.issues[0]?.message ?? "unknown"}`);
+    return { result: parsed.data, provider: reply.provider_used };
   }
 
-  async publishAsset(
-    workspaceId: string,
-    assetId: string,
-    channels: string[] = ['facebook', 'google_maps', 'tiktok']
-  ): Promise<DriveAsset | null> {
-    try {
-      const res = await this.db.query(
-        `UPDATE drive_asset_queue
-         SET status = 'published',
-             suggested_channels = $3::text[],
+  /** Lưu (hoặc cập nhật nếu file trên Drive đã đổi) bản ghi của ảnh; true nếu đây là ảnh nội dung mới. */
+  private async upsertFile(workspaceId: string, file: DriveImageFile): Promise<boolean> {
+    const isLogo = /^logo/i.test(file.name);
+    const res = await this.db.query(
+      `INSERT INTO drive_asset_queue (workspace_id, file_name, file_url, drive_file_id, mime_type, drive_modified_at, thumbnail_url,
+                                      asset_type, status, analysis)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+       ON CONFLICT (workspace_id, drive_file_id) WHERE drive_file_id IS NOT NULL DO UPDATE
+         SET file_name = EXCLUDED.file_name, mime_type = EXCLUDED.mime_type, thumbnail_url = EXCLUDED.thumbnail_url,
+             drive_modified_at = EXCLUDED.drive_modified_at,
+             status = CASE WHEN drive_asset_queue.drive_modified_at IS DISTINCT FROM EXCLUDED.drive_modified_at
+                            AND drive_asset_queue.status IN ('staged', 'rejected', 'pending_analysis')
+                           THEN EXCLUDED.status ELSE drive_asset_queue.status END,
              updated_at = NOW()
-         WHERE workspace_id = $1::uuid AND id = $2::uuid
-         RETURNING *`,
-        [workspaceId, assetId, channels]
-      );
-
-      if (res.rows.length === 0) return null;
-      return this.mapAssetRow(res.rows[0]);
-    } catch {
-      const cur = memoryDrive.get(workspaceId) || [];
-      const item = cur.find((a) => a.id === assetId);
-      if (item) {
-        item.status = 'published';
-        item.suggested_channels = channels;
-        return item;
-      }
-      return null;
-    }
+       RETURNING id, status, (xmax = 0) AS inserted`,
+      [
+        workspaceId,
+        file.name.slice(0, 250),
+        file.webViewLink ?? `https://drive.google.com/file/d/${file.id}/view`,
+        file.id,
+        file.mimeType,
+        file.modifiedTime,
+        file.thumbnailLink ?? null,
+        isLogo ? "logo" : "other",
+        isLogo ? "archived" : "pending_analysis",
+        JSON.stringify(file.folderName ? { folder_name: file.folderName } : {}),
+      ],
+    );
+    const row = res.rows[0];
+    return !isLogo && Boolean(row?.inserted);
   }
 
-  private async seedDemoDriveAssets(workspaceId: string): Promise<DriveAsset[]> {
-    const demo = this.getDemoDriveAssets(workspaceId);
-    try {
-      const results: DriveAsset[] = [];
-      for (const d of demo) {
-        const res = await this.db.query(
-          `INSERT INTO drive_asset_queue (
-            workspace_id, file_name, file_url, asset_type, vision_tags, dish_name, flavor_notes, generated_caption, status
-          ) VALUES (
-            $1::uuid, $2::varchar, $3::text, 'destination_photo', $4::jsonb, $5::varchar, $6::text, $7::text, 'staged'
-          ) RETURNING *`,
-          [workspaceId, d.file_name, d.file_url, JSON.stringify(d.vision_tags), d.dish_name, d.flavor_notes, d.generated_caption]
+  async scanDrive(workspaceId: string): Promise<DriveScanResult> {
+    const base = { listed: 0, new_files: 0, analyzed: 0, rejected: 0, failed: 0, remaining: 0 };
+    const conn = await this.connection(workspaceId);
+    if (!conn.folder_id) return { status: "not_configured", detail: conn.reason, ...base };
+    if (!conn.connected) return { status: "not_connected", detail: conn.reason, ...base };
+
+    const files = await listDriveImages(this.auth, conn.folder_id, this.fetchImpl);
+    let newFiles = 0;
+    for (const file of files) {
+      if (await this.upsertFile(workspaceId, file)) newFiles++;
+    }
+    const pending = (
+      await this.db.query(
+        `SELECT * FROM drive_asset_queue WHERE workspace_id = $1::uuid AND status = 'pending_analysis' AND drive_file_id IS NOT NULL
+          ORDER BY drive_modified_at DESC NULLS LAST`,
+        [workspaceId],
+      )
+    ).rows;
+
+    let analyzed = 0;
+    let rejected = 0;
+    let failed = 0;
+    for (const row of pending.slice(0, MAX_ANALYSES_PER_SCAN)) {
+      const mime = String(row.mime_type ?? "");
+      if (!SUPPORTED_MIME.has(mime)) {
+        await this.db.query(`UPDATE drive_asset_queue SET status = 'rejected', error_message = $3, updated_at = NOW() WHERE workspace_id = $1::uuid AND id = $2`, [
+          workspaceId,
+          row.id,
+          `Định dạng ${mime || "không rõ"} chưa hỗ trợ`,
+        ]);
+        rejected++;
+        continue;
+      }
+      try {
+        const bytes = await downloadDriveFile(this.auth, row.drive_file_id, this.fetchImpl);
+        const { result, provider } = await this.analyzeImage(workspaceId, { name: row.file_name, mimeType: mime, folderName: row.analysis?.folder_name }, bytes);
+        const usable = result.quality === "good";
+        await this.db.query(
+          `UPDATE drive_asset_queue
+              SET asset_type = $3, dish_name = $4, flavor_notes = $5, generated_caption = $6, vision_tags = $7::jsonb,
+                  suggested_channels = $8, analysis = analysis || $9::jsonb, analysis_provider = $10,
+                  status = $11, error_message = $12, updated_at = NOW()
+            WHERE workspace_id = $1::uuid AND id = $2`,
+          [
+            workspaceId,
+            row.id,
+            result.asset_type,
+            result.dish_name ?? null,
+            result.flavor_notes ?? null,
+            result.caption ?? null,
+            JSON.stringify(result.tags),
+            result.suggested_channels ?? ["facebook", "instagram", "google_maps"],
+            JSON.stringify({ quality: result.quality, analyzed_at: new Date().toISOString() }),
+            provider,
+            usable ? "staged" : "rejected",
+            usable ? null : `Ảnh ${result.quality === "blurry" ? "bị mờ" : result.quality === "dark" ? "quá tối" : "không liên quan tới quán"} — không nên đăng`,
+          ],
         );
-        results.push(this.mapAssetRow(res.rows[0]));
+        if (usable) analyzed++;
+        else rejected++;
+      } catch (err) {
+        failed++;
+        const message = (err as Error).message.slice(0, 300);
+        const tooLarge = /quá lớn|413/.test(message);
+        await this.db.query(`UPDATE drive_asset_queue SET status = $3, error_message = $4, updated_at = NOW() WHERE workspace_id = $1::uuid AND id = $2`, [
+          workspaceId,
+          row.id,
+          tooLarge ? "rejected" : "pending_analysis",
+          tooLarge ? `Ảnh lớn hơn ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB — hãy nén ảnh trước khi đưa vào Drive` : message,
+        ]);
+        // LLM toàn bộ đang lỗi/ hết credit: dừng sớm, lần quét sau làm tiếp.
+        if (err instanceof LlmUnavailableError || (err instanceof AppError && ["LLM_NOT_CONFIGURED", "INSUFFICIENT_CREDITS"].includes(err.code))) break;
       }
-      return results;
-    } catch {
-      memoryDrive.set(workspaceId, demo);
-      return demo;
     }
-  }
-
-  private getDemoDriveAssets(workspaceId: string): DriveAsset[] {
-    return [
-      {
-        id: '10000000-0000-4000-8000-000000000031',
-        workspace_id: workspaceId,
-        file_name: 'IMG_BaiBien_MyKhe_DaNang.jpg',
-        file_url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
-        asset_type: 'destination_photo',
-        dish_name: 'Bình Minh Bãi Biển Mỹ Khê — Top Bãi Biển Quyến Rũ Nhất Hành Tinh',
-        vision_tags: ['Biển Mỹ Khê', 'Du lịch tự túc', 'Check-in sống ảo', 'Trải nghiệm du lịch'],
-        flavor_notes: 'Cát trắng mịn màng, sóng êm và làn nước trong xanh màu ngọc bích.',
-        generated_caption:
-          '🌊 Bình minh Mỹ Khê sáng nay rực rỡ như một bức tranh! Nếu bạn đang lên kế hoạch cho chuyến đi Đà Nẵng sắp tới, đừng quên dậy sớm đón những tia nắng đầu tiên bên bờ biển nhé. Nhắn tin cho tụi mình để nhận cẩm nang du lịch bản địa miễn phí nha! ✨ #DuLichDaNang #MyKheBeach #TravelDanang',
-        suggested_channels: ['google_maps', 'facebook', 'tiktok'],
-        status: 'staged',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: '10000000-0000-4000-8000-000000000032',
-        workspace_id: workspaceId,
-        file_name: 'IMG_Tour_SonTra_KhamPha.jpg',
-        file_url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800',
-        asset_type: 'destination_photo',
-        dish_name: 'Hành Trình Khám Phá Rừng Nguyên Sinh & Vọoc Chà Vá Bán Đảo Sơn Trà',
-        vision_tags: ['Bán đảo Sơn Trà', 'Tour trải nghiệm', 'Thiên nhiên hoang sơ', 'Chụp ảnh du lịch'],
-        flavor_notes: 'Cung đường ven biển uốn lượn, không khí mát lành giữa đại ngàn và biển cả.',
-        generated_caption:
-          '🌿 Thả mình giữa cung đường biển Sơn Trà lộng gió, ngắm trọn toàn cảnh vịnh Đà Nẵng từ trên cao. Trải nghiệm du lịch không thể bỏ lỡ khi ghé thăm thành phố đáng sống! 🛵🏔️ #SonTraPeninsula #KhamPhaDaNang #CheckinVietnam',
-        suggested_channels: ['google_maps', 'facebook'],
-        status: 'published',
-        created_at: new Date().toISOString(),
-      },
-    ];
-  }
-
-  private mapAssetRow(row: any): DriveAsset {
     return {
-      id: row.id,
-      workspace_id: row.workspace_id,
-      file_name: row.file_name,
-      file_url: row.file_url,
-      drive_file_id: row.drive_file_id || undefined,
-      asset_type: row.asset_type || 'destination_photo',
-      vision_tags: Array.isArray(row.vision_tags)
-        ? row.vision_tags
-        : typeof row.vision_tags === 'string'
-        ? JSON.parse(row.vision_tags)
-        : ['Du lịch trải nghiệm Đà Nẵng'],
-      dish_name: row.dish_name || 'Điểm đến & Hoạt động trải nghiệm',
-      flavor_notes: row.flavor_notes || 'Khung cảnh thiên nhiên ngoạn mục',
-      generated_caption: row.generated_caption || undefined,
-      suggested_channels: row.suggested_channels || ['facebook', 'google_maps'],
-      status: row.status || 'staged',
-      created_at: new Date(row.created_at).toISOString(),
+      status: "ok",
+      listed: files.length,
+      new_files: newFiles,
+      analyzed,
+      rejected,
+      failed,
+      remaining: Math.max(0, pending.length - analyzed - rejected - failed),
     };
+  }
+
+  /** Giữ tên cũ cho route /assets/drive/sync. */
+  async syncDriveFolder(workspaceId: string): Promise<DriveScanResult> {
+    return this.scanDrive(workspaceId);
+  }
+
+  async getAsset(workspaceId: string, assetId: string): Promise<DriveAsset> {
+    const row = (await this.db.query(`SELECT * FROM drive_asset_queue WHERE workspace_id = $1::uuid AND id = $2::uuid`, [workspaceId, assetId])).rows[0];
+    if (!row) throw new AppError(404, "ASSET_NOT_FOUND", "Không tìm thấy ảnh");
+    return mapRow(row);
+  }
+
+  async setStatus(workspaceId: string, assetId: string, status: AssetStatus): Promise<DriveAsset> {
+    const row = (
+      await this.db.query(`UPDATE drive_asset_queue SET status = $3, updated_at = NOW() WHERE workspace_id = $1::uuid AND id = $2::uuid RETURNING *`, [
+        workspaceId,
+        assetId,
+        status,
+      ])
+    ).rows[0];
+    if (!row) throw new AppError(404, "ASSET_NOT_FOUND", "Không tìm thấy ảnh");
+    return mapRow(row);
   }
 }

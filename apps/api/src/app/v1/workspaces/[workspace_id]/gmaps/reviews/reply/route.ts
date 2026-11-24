@@ -1,22 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { GoogleMapsSpecialistService } from '../../../../../../../modules/gmaps/specialist';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { handleApiError } from "@/lib/errors";
+import { readJsonBody, requireWorkspaceRole } from "@/lib/workspaceRoute";
+import { GoogleMapsSpecialistService } from "@/modules/gmaps/specialist";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+const schema = z.object({
+  review_id: z.string().uuid(),
+  // bỏ trống = đăng đúng bản nháp AI đã soạn
+  reply_text: z.string().trim().min(2).max(4000).optional(),
+});
+
+/** Chủ quán / biên tập viên duyệt và đăng trả lời review lên Google. */
+export async function POST(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
-    const body = await request.json();
-    const { review_id, reply_text } = body;
-    if (!review_id) {
-      return NextResponse.json({ ok: false, error: 'review_id is required' }, { status: 400 });
-    }
-
-    const service = new GoogleMapsSpecialistService();
-    const updated = await service.replyToReview(params.workspace_id, review_id, reply_text);
-    return NextResponse.json({ ok: true, item: updated });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to reply to review' }, { status: 500 });
+    await requireWorkspaceRole(req, params.workspace_id, ["owner", "editor"]);
+    const body = schema.parse(await readJsonBody(req));
+    const item = await new GoogleMapsSpecialistService().replyToReview(params.workspace_id, body.review_id, body.reply_text);
+    return NextResponse.json({ ok: true, item });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
-

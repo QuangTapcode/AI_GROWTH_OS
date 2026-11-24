@@ -18,6 +18,7 @@ import { listLinksWithBrowser } from './workflow/BrowserRenderer';
 import { FirstPartyBlogSync } from './workflow/FirstPartyBlogSync';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
+import { MerchantTikTokCarouselRunner } from './publish/MerchantTikTokCarouselRunner';
 import { GroupMetricsScheduler,loadGroupSchedule,groupErrorCode } from './metrics/GroupMetricsScheduler';
 
 async function main() {
@@ -122,6 +123,28 @@ async function main() {
         .finally(() => { communityAutopilotBusy = false; });
     };
     timers.push(setTimeout(triggerCommunityAutopilot, 15_000), setInterval(triggerCommunityAutopilot, 180_000));
+    // 8 agent merchant: API quyết định agent nào tới lượt (Drive 20', Maps 3', lịch đăng 1', báo cáo tối...).
+    let merchantBusy = false;
+    const triggerMerchantTick = () => {
+      if (merchantBusy) return;
+      merchantBusy = true;
+      void fetch(`${apiBase}/internal/merchant/tick`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(280_000) })
+        .then((res) => {
+          if (!res.ok) throw new Error(`merchant tick HTTP ${res.status}`);
+          runReplies();
+        })
+        .catch((error) => console.error('[merchant-agents]', (error as Error).message))
+        .finally(() => { merchantBusy = false; });
+    };
+    timers.push(setTimeout(triggerMerchantTick, 10_000), setInterval(triggerMerchantTick, 60_000));
+    const tiktokCarousel = new MerchantTikTokCarouselRunner(pool);
+    let carouselBusy = false;
+    timers.push(setInterval(() => {
+      if (carouselBusy) return;
+      carouselBusy = true;
+      void tiktokCarousel.runOnce().then((r) => { if (r !== 'idle') console.log('[tiktok-carousel]', r); })
+        .catch((error) => console.error('[tiktok-carousel]', (error as Error).message)).finally(() => { carouselBusy = false; });
+    }, 15_000));
     // Each published Facebook post's topic video follows as its own Reel.
     const reels = defaultReelRunner(pool);
     let reelBusy = false;

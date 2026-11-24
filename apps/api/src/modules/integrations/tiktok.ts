@@ -6,6 +6,7 @@ import { AppError } from "../../lib/errors";
 import { getEnvironment } from "../../lib/env";
 import { canonicalJson, sha256Hex } from "../../lib/hash";
 import type { Role } from "../../lib/tenant";
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
 const OAUTH_STATE_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -480,7 +481,8 @@ export async function getTikTokConnectionSummary(workspaceId: string): Promise<T
       [workspaceId],
     );
     row = res.rows[0];
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     // Database offline fallback
     row = undefined;
   }
@@ -733,7 +735,8 @@ export async function listTikTokVideos(workspaceId: string): Promise<TikTokVideo
       [workspaceId],
     );
     return res.rows;
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return [];
   }
 }

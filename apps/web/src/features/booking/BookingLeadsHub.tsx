@@ -1,234 +1,172 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
+import { formatDateTimeVn, formatVnd, merchantApi, type BookingLead } from "@/lib/merchantApi";
+import { Button, Card, EmptyState, LoadingBlock, Notice, Pill, Stat, useAction, useLoader } from "@/features/merchant/ui";
 
-export interface BookingLeadItem {
-  id: string;
-  customer_name: string;
-  customer_phone?: string;
-  platform: 'messenger' | 'instagram' | 'web' | 'telegram' | 'zalo';
-  party_size: number;
-  booking_time: string;
-  special_notes?: string;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  deposit_amount: number;
-  deposit_status: 'unpaid' | 'partial' | 'paid' | 'refunded';
-  created_at: string;
-}
+const STATUS: Record<BookingLead["status"], { label: string; tone: "amber" | "green" | "red" | "slate" | "blue" }> = {
+  pending: { label: "Chờ xác nhận", tone: "amber" },
+  confirmed: { label: "Đã xác nhận", tone: "green" },
+  cancelled: { label: "Đã hủy", tone: "red" },
+  completed: { label: "Đã đến", tone: "blue" },
+  no_show: { label: "Không đến", tone: "slate" },
+};
+const PLATFORM: Record<string, string> = { facebook: "Messenger", instagram: "Instagram", zalo: "Zalo", telegram: "Telegram", phone: "Điện thoại", walk_in: "Khách vãng lai", web: "Website", messenger: "Messenger" };
 
-interface BookingLeadsHubProps {
-  workspaceId: string;
-}
+/** Booking Hub cho nhân viên quán: đặt bàn do Agent 7 chốt qua tin nhắn + nhập tay; xác nhận gửi tin lại cho khách. */
+export function BookingLeadsHub({ workspaceId }: { workspaceId: string }) {
+  const [filter, setFilter] = useState<string>("");
+  const { data, error, loading, reload } = useLoader(() => merchantApi.bookings(workspaceId, filter || undefined), [workspaceId, filter]);
+  const { busy, notice, setNotice, run } = useAction();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ customer_name: "", customer_phone: "", party_size: 2, booking_time: "", special_notes: "" });
 
-export function BookingLeadsHub({ workspaceId }: BookingLeadsHubProps) {
-  const [leads, setLeads] = useState<BookingLeadItem[]>([]);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUpdating, setIsUpdating] = useState<string | null>(null);
-
-  const fetchLeads = async () => {
-    setIsLoading(true);
-    try {
-      const url =
-        filterStatus === 'all'
-          ? `/v1/workspaces/${workspaceId}/booking/leads`
-          : `/v1/workspaces/${workspaceId}/booking/leads?status=${filterStatus}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      if (json.ok && Array.isArray(json.leads)) {
-        setLeads(json.leads);
-      }
-    } catch {
-      // Ignored
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Đặt bàn qua tin nhắn đến bất cứ lúc nào: làm mới mỗi 30 giây.
   useEffect(() => {
-    fetchLeads();
-  }, [workspaceId, filterStatus]);
+    const t = setInterval(() => void reload(), 30_000);
+    return () => clearInterval(t);
+  }, [reload]);
 
-  const updateLeadStatus = async (leadId: string, status: string, depositStatus?: string) => {
-    setIsUpdating(leadId);
-    try {
-      const res = await fetch(`/v1/workspaces/${workspaceId}/booking/leads/${leadId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status,
-          ...(depositStatus ? { deposit_status: depositStatus } : {}),
-        }),
-      });
-      const json = await res.json();
-      if (json.ok) {
-        setLeads((prev) => prev.map((l) => (l.id === leadId ? json.lead : l)));
-      }
-    } catch {
-      // Error handling
-    } finally {
-      setIsUpdating(null);
-    }
-  };
+  const update = (lead: BookingLead, body: Record<string, unknown>, text: string) =>
+    run(`${lead.id}-${String(body.status ?? body.deposit_status)}`, async () => {
+      await merchantApi.updateBooking(workspaceId, lead.id, body);
+      await reload();
+      return text;
+    });
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* Header */}
-      <div className="p-6 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🛎️</span>
-            <h3 className="text-lg font-bold text-slate-900">
-              Agent 7: Omnichannel Inbox & Lead Concierge — Khách Hàng Tiềm Năng & Lịch Hẹn (1-1)
-            </h3>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Tự động phản hồi tin nhắn riêng tư (Inbox), tư vấn sản phẩm/dịch vụ và thu thập thông tin khách hàng tiềm năng qua Messenger, Instagram, Website 24/7.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tất Cả Trạng Thái</option>
-            <option value="confirmed">Đã Xác Nhận</option>
-            <option value="pending">Chờ Xử Lý</option>
-            <option value="cancelled">Đã Huỷ</option>
-          </select>
-
-          <button
-            onClick={fetchLeads}
-            disabled={isLoading}
-            className="text-xs font-bold px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
-          >
-            {isLoading ? 'Đang tải...' : 'Làm mới'}
-          </button>
-        </div>
+    <div className="space-y-5">
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="Chờ xác nhận" value={data?.summary.pending ?? "—"} />
+        <Stat label="Bàn hôm nay" value={data?.summary.confirmed_today ?? "—"} />
+        <Stat label="Khách hôm nay" value={data?.summary.guests_today ?? "—"} />
       </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-slate-600">
-          <thead className="bg-slate-100/70 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200 font-bold">
-            <tr>
-              <th className="py-3 px-4">Khách Hàng</th>
-              <th className="py-3 px-3">Kênh</th>
-              <th className="py-3 px-3">Số Khách</th>
-              <th className="py-3 px-4">Thời Gian Ghé Quán</th>
-              <th className="py-3 px-4">Ghi Chú Đặt Bàn</th>
-              <th className="py-3 px-3">Trạng Thái</th>
-              <th className="py-3 px-4 text-right">Thao Tác Quán</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {leads.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-8 text-slate-400">
-                  Chưa có đơn đặt bàn nào trong mục này.
-                </td>
-              </tr>
-            ) : (
-              leads.map((lead) => {
-                const dateObj = new Date(lead.booking_time);
-                const timeStr = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-                const dateStr = dateObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-
-                return (
-                  <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900">{lead.customer_name}</div>
-                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                        {lead.customer_phone ? (
-                          <a href={`tel:${lead.customer_phone}`} className="text-blue-600 hover:underline">
-                            📞 {lead.customer_phone}
-                          </a>
-                        ) : (
-                          'Chưa để lại SĐT'
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
-                        {lead.platform}
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-3">
-                      <span className="font-bold text-slate-800 text-sm">{lead.party_size}</span> khách
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900">{timeStr}</div>
-                      <div className="text-[11px] text-slate-500">{dateStr}</div>
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <div className="max-w-[200px] truncate text-slate-700" title={lead.special_notes}>
-                        {lead.special_notes || '—'}
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          lead.status === 'confirmed'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : lead.status === 'pending'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {lead.status === 'confirmed'
-                          ? 'Đã Giữ Bàn'
-                          : lead.status === 'pending'
-                          ? 'Đang Tư Vấn'
-                          : 'Đã Huỷ'}
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {lead.status !== 'confirmed' && (
-                          <button
-                            disabled={isUpdating === lead.id}
-                            onClick={() => updateLeadStatus(lead.id, 'confirmed')}
-                            className="px-2 py-1 rounded text-[11px] font-bold bg-emerald-600 text-white hover:bg-emerald-700"
-                          >
-                            Xác Nhận
-                          </button>
-                        )}
-                        {lead.deposit_status !== 'paid' && (
-                          <button
-                            disabled={isUpdating === lead.id}
-                            onClick={() => updateLeadStatus(lead.id, lead.status, 'paid')}
-                            className="px-2 py-1 rounded text-[11px] font-bold bg-blue-600 text-white hover:bg-blue-700"
-                          >
-                            Đã Cọc
-                          </button>
-                        )}
-                        {lead.status !== 'cancelled' && (
-                          <button
-                            disabled={isUpdating === lead.id}
-                            onClick={() => updateLeadStatus(lead.id, 'cancelled')}
-                            className="px-2 py-1 rounded text-[11px] font-bold bg-slate-200 text-slate-700 hover:bg-rose-100 hover:text-rose-700"
-                          >
-                            Huỷ
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <Card
+        title="Đặt bàn"
+        subtitle="Agent 7 tư vấn và giữ bàn qua Messenger / Instagram / Zalo; nhân viên bấm Xác nhận để báo lại cho khách."
+        actions={
+          <>
+            <select aria-label="Lọc trạng thái" value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs">
+              <option value="">Tất cả</option>
+              {Object.entries(STATUS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+            <Button variant="secondary" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? "Đóng" : "+ Nhập đặt bàn"}
+            </Button>
+          </>
+        }
+      >
+        <Notice notice={notice} onClose={() => setNotice(null)} />
+        {showForm && (
+          <form
+            className="grid gap-3 sm:grid-cols-5 items-end mb-4 rounded-xl bg-slate-50 p-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run("create", async () => {
+                await merchantApi.createBooking(workspaceId, {
+                  customer_name: form.customer_name,
+                  ...(form.customer_phone ? { customer_phone: form.customer_phone } : {}),
+                  party_size: Number(form.party_size),
+                  booking_time: new Date(form.booking_time).toISOString(),
+                  ...(form.special_notes ? { special_notes: form.special_notes } : {}),
+                  platform: "phone",
+                });
+                setShowForm(false);
+                setForm({ customer_name: "", customer_phone: "", party_size: 2, booking_time: "", special_notes: "" });
+                await reload();
+                return "Đã thêm đặt bàn.";
+              });
+            }}
+          >
+            <label className="text-xs font-semibold text-slate-600">
+              Tên khách
+              <input required value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-normal" />
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Số điện thoại
+              <input inputMode="tel" value={form.customer_phone} onChange={(e) => setForm({ ...form, customer_phone: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-normal" />
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Số người
+              <input type="number" min={1} max={500} required value={form.party_size} onChange={(e) => setForm({ ...form, party_size: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-normal" />
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Thời gian
+              <input type="datetime-local" required value={form.booking_time} onChange={(e) => setForm({ ...form, booking_time: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-normal" />
+            </label>
+            <Button type="submit" busy={busy === "create"}>
+              Lưu
+            </Button>
+            <label className="text-xs font-semibold text-slate-600 sm:col-span-5">
+              Ghi chú
+              <input value={form.special_notes} onChange={(e) => setForm({ ...form, special_notes: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-normal" />
+            </label>
+          </form>
+        )}
+        {loading && !data && <LoadingBlock />}
+        {error && <Notice notice={{ kind: "error", text: error }} />}
+        {data && data.leads.length === 0 && <EmptyState>Chưa có đặt bàn nào. Khi khách nhắn “đặt bàn” vào Fanpage, Agent 7 sẽ tự hỏi thông tin và đưa yêu cầu vào đây.</EmptyState>}
+        {data && data.leads.length > 0 && (
+          <ul className="divide-y divide-slate-100">
+            {data.leads.map((lead) => {
+              const s = STATUS[lead.status];
+              return (
+                <li key={lead.id} className="py-3 flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {lead.customer_name} · {lead.party_size} người · {formatDateTimeVn(lead.booking_time)}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {lead.customer_phone ?? "—"} · {PLATFORM[lead.platform] ?? lead.platform}
+                      {lead.special_notes ? ` · ${lead.special_notes}` : ""}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      <Pill tone={s.tone}>{s.label}</Pill>
+                      {lead.deposit_amount > 0 && (
+                        <Pill tone={lead.deposit_status === "paid" ? "green" : "amber"}>
+                          Cọc {formatVnd(lead.deposit_amount)} · {lead.deposit_status === "paid" ? "đã nhận" : "chưa nhận"}
+                          {lead.deposit_reference ? ` · ${lead.deposit_reference}` : ""}
+                        </Pill>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {lead.status === "pending" && (
+                      <Button busy={busy === `${lead.id}-confirmed`} onClick={() => update(lead, { status: "confirmed" }, "Đã xác nhận và báo khách.")}>
+                        Xác nhận
+                      </Button>
+                    )}
+                    {lead.deposit_amount > 0 && lead.deposit_status === "unpaid" && (
+                      <Button variant="secondary" busy={busy === `${lead.id}-paid`} onClick={() => update(lead, { deposit_status: "paid", notify_customer: false }, "Đã ghi nhận tiền cọc.")}>
+                        Đã nhận cọc
+                      </Button>
+                    )}
+                    {lead.status === "confirmed" && (
+                      <>
+                        <Button variant="secondary" busy={busy === `${lead.id}-completed`} onClick={() => update(lead, { status: "completed", notify_customer: false }, "Đã đánh dấu khách đã đến.")}>
+                          Khách đã đến
+                        </Button>
+                        <Button variant="secondary" busy={busy === `${lead.id}-no_show`} onClick={() => update(lead, { status: "no_show", notify_customer: false }, "Đã đánh dấu không đến.")}>
+                          Không đến
+                        </Button>
+                      </>
+                    )}
+                    {(lead.status === "pending" || lead.status === "confirmed") && (
+                      <Button variant="danger" busy={busy === `${lead.id}-cancelled`} onClick={() => update(lead, { status: "cancelled" }, "Đã hủy và báo khách.")}>
+                        Hủy
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }
-

@@ -6,6 +6,7 @@ import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import { getConnectionStatus } from "../integrations/stubs";
 import { providerSchema, type IntegrationProvider } from "../integrations/types";
 import { isoDate, periodSchema } from './period';
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 /**
  * Chuỗi số liệu theo ngày từ metrics_snapshots (migration 004).
@@ -88,7 +89,8 @@ export async function dailySnapshots(workspaceId: string, metric: string, from: 
       timezone: r.timezone,
       currency: r.currency,
     }));
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return [];
   }
 }

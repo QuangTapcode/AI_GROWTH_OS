@@ -1,18 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { MerchantWalletService } from '../../../../../../modules/billing/wallet';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { handleApiError } from "@/lib/errors";
+import { readJsonBody, requireWorkspaceRole } from "@/lib/workspaceRoute";
+import { MerchantWalletService } from "@/modules/billing/wallet";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+const schema = z.object({ package_name: z.enum(["starter", "growth", "scale"]) });
+
+/** Tạo giao dịch nạp: trả mã VietQR + mã tham chiếu; credit được cộng khi ngân hàng xác nhận. Chỉ owner. */
+export async function POST(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
-    const body = await request.json();
-    const packageName = body.package_name || 'growth';
-    const service = new MerchantWalletService();
-    const tx = await service.createTopup(params.workspace_id, packageName);
-    return NextResponse.json({ ok: true, transaction: tx });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to create topup transaction' }, { status: 500 });
+    await requireWorkspaceRole(req, params.workspace_id, ["owner"]);
+    const { package_name } = schema.parse(await readJsonBody(req));
+    const transaction = await new MerchantWalletService().createTopup(params.workspace_id, package_name);
+    return NextResponse.json({ ok: true, transaction }, { status: 201 });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
-

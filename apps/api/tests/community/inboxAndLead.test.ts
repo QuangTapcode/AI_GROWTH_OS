@@ -134,7 +134,8 @@ describe("Community Agent: Inbox API, Lead Persistence & Autopilot", () => {
         if (sql.includes("SELECT snapshot_id FROM knowledge_contexts")) {
           return { rows: [{ snapshot_id: snapshotId }] };
         }
-        if (sql.includes("SELECT id, content, platform, author_contact FROM community_messages")) {
+        // Agent 6/7 cần thêm author_name, post_url, metadata để định tuyến tin nhắn.
+        if (sql.includes("SELECT id, content, platform, author_contact, author_name, post_url, metadata FROM community_messages")) {
           return { rows: unhandled };
         }
         if (sql.includes("INSERT INTO workflow_tasks")) {

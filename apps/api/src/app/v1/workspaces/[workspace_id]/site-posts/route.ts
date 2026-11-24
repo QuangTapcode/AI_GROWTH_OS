@@ -5,6 +5,7 @@ import { resolveTenantContext, requireRole } from '@/lib/tenant';
 import { AppError, handleApiError } from '@/lib/errors';
 import pool from '@/lib/db';
 import { PublishError, publishSeoArtifact } from '@/modules/site/publish';
+import { canServeOfflineDemo } from "../../../../../lib/offlineDemo";
 
 /** Published site posts with their first-party counts for the last 7 days (internal visits shown separately). */
 export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
@@ -20,8 +21,8 @@ export async function GET(req: NextRequest, { params }: { params: { workspace_id
        GROUP BY c.id ORDER BY c.published_at DESC`, [tenant.workspaceId],
     )).rows;
     return NextResponse.json({ items: posts }, { headers: { 'Cache-Control': 'no-store' } });
-  } catch (error) {
-    if (error instanceof AppError && error.statusCode !== 500) return handleApiError(error);
+  } catch (error: unknown) {
+    if (!canServeOfflineDemo(error)) return handleApiError(error);
     return NextResponse.json({
       items: [
         {

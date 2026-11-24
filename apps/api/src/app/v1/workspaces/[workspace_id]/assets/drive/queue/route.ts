@@ -1,41 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { DriveAssetIngestionService } from '../../../../../../../modules/assets/drive';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { handleApiError } from "@/lib/errors";
+import { requireWorkspaceRole } from "@/lib/workspaceRoute";
+import { DriveAssetIngestionService } from "@/modules/assets/drive";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+const statusSchema = z.enum(["pending_analysis", "staged", "rejected", "scheduled", "published", "archived"]).optional();
+
+/** Thư viện ảnh thật lấy từ Google Drive của quán (đã/ đang được AI phân tích). */
+export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
+    await requireWorkspaceRole(req, params.workspace_id);
+    const status = statusSchema.parse(req.nextUrl.searchParams.get("status") ?? undefined);
     const service = new DriveAssetIngestionService();
-    const assets = await service.listStagedAssets(params.workspace_id);
-    return NextResponse.json({ ok: true, assets });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to list drive assets' }, { status: 500 });
-  }
-}
-
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
-  try {
-    const body = await request.json();
-    const { file_name, file_url, spot_name, spot_notes } = body;
-
-    if (!spot_name) {
-      return NextResponse.json({ ok: false, error: 'spot_name is required' }, { status: 400 });
-    }
-
-    const service = new DriveAssetIngestionService();
-    const created = await service.addAsset(params.workspace_id, {
-      file_name: file_name || `${spot_name.replace(/\s+/g, '_')}_${Date.now()}.jpg`,
-      file_url: file_url || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
-      spot_name,
-      spot_notes,
-    });
-
-    return NextResponse.json({ ok: true, asset: created }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to upload drive asset' }, { status: 500 });
+    const [assets, connection] = await Promise.all([service.listAssets(params.workspace_id, status), service.connection(params.workspace_id)]);
+    return NextResponse.json({ ok: true, assets, connection });
+  } catch (error) {
+    return handleApiError(error);
   }
 }

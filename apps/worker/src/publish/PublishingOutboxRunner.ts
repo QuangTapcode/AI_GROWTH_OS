@@ -662,7 +662,7 @@ export class PublishingOutboxRunner {
     return 'failed';
   }
 
-  private async resolveTikTokAuth(
+  async resolveTikTokAuth(
     workspaceId: string,
     preferredPrivacy?: string
   ): Promise<CmsPublishRequest['authOverride'] | undefined> {

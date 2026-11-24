@@ -10,6 +10,7 @@ import { PlanError } from '@/modules/campaignPlans/service';
 import { activeGoal, goalInputSchema, setGoal } from '@/modules/growthGoals/service';
 import { firstPartyMetricDefinitions } from '@/modules/site/measurement';
 import { canonicalJson } from '@/lib/hash';
+import { canServeOfflineDemo } from "../../../../../lib/offlineDemo";
 
 const schema = z.object({
   request: z.string().trim().min(5).max(255),
@@ -76,8 +77,8 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
       );
       const tick = await tickAutomation(pool, tenant.workspaceId, true);
       return NextResponse.json({ status: 'started', goal_changed: goalChanged, tick }, { status: 202 });
-    } catch (dbErr: any) {
-      if (dbErr instanceof AppError && dbErr.statusCode !== 500) throw dbErr;
+    } catch (dbErr: unknown) {
+      if (!canServeOfflineDemo(dbErr)) throw dbErr;
       return NextResponse.json({
         status: 'started',
         goal_changed: true,

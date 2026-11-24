@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-import imageio_ffmpeg
+import shutil
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 WIDTH = 720
@@ -16,6 +16,23 @@ HEIGHT = 1280
 FPS = 30
 DURATION_SECONDS = 5
 TOTAL_FRAMES = FPS * DURATION_SECONDS
+
+
+def resolve_ffmpeg() -> str:
+    """imageio_ffmpeg nếu đã cài, ngược lại FFMPEG_BIN hoặc ffmpeg trong PATH."""
+    try:
+        import imageio_ffmpeg  # type: ignore
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+    explicit = os.environ.get("FFMPEG_BIN", "").strip()
+    if explicit:
+        return explicit
+    found = shutil.which("ffmpeg")
+    if not found:
+        raise RuntimeError("ffmpeg not found (install ffmpeg or pip install imageio-ffmpeg)")
+    return found
 
 
 def load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
@@ -152,7 +169,7 @@ def main() -> int:
         base_img = make_gradient_background(scale_w, scale_h)
 
     overlay = build_overlay(title=title, hook=hook, cta=cta)
-    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+    ffmpeg_exe = resolve_ffmpeg()
 
     cmd = [
         ffmpeg_exe,

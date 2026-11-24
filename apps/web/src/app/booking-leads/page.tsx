@@ -15,7 +15,7 @@ function BookingLeadsContent() {
 
 export default function BookingLeadsPage() {
   return (
-    <AppShell activeTab="booking-leads" pageTitle="Khách Hàng Tiềm Năng & Lịch Hẹn (Agent 7: Omnichannel Inbox & Lead Concierge)">
+    <AppShell activeTab="booking-leads" pageTitle="Đặt bàn (Agent 7: Booking Concierge)">
       <BookingLeadsContent />
     </AppShell>
   );

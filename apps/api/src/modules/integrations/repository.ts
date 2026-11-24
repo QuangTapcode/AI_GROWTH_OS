@@ -1,5 +1,6 @@
 import { query } from '../../lib/db';
 import type { ConnectionStatus, IntegrationProvider } from './types';
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 export interface IntegrationConnectionRow {
   id: string;
@@ -26,7 +27,8 @@ export async function getConnection(workspaceId: string, provider: IntegrationPr
       [workspaceId, provider],
     );
     return result.rows[0] ?? null;
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return null;
   }
 }
@@ -41,7 +43,8 @@ export async function listConnections(workspaceId: string): Promise<IntegrationC
       [workspaceId],
     );
     return result.rows;
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return [];
   }
 }
