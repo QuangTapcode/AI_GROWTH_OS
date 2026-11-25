@@ -14,7 +14,8 @@ import {
   type GbpCallToAction,
   type GbpLocationRef,
 } from "../google/businessProfile";
-import { GoogleApiError, GoogleNotConnectedError, defaultGoogleAuth, googleOAuthConfigured, type GoogleAuth } from "../google/oauth";
+import { GoogleApiError, GoogleNotConnectedError, googleOAuthConfigured, type GoogleAuth } from "../google/oauth";
+import { googleUserTokenAvailable, workspaceGoogleAuth } from "../google/connection";
 import { loadMerchantProfile, seoKeywords, type MerchantProfile } from "../merchant/profile";
 import { systemPromptFor } from "../merchant/prompts";
 import { classifySentiment } from "../merchant/sentiment";
@@ -105,15 +106,24 @@ function mapRow(row: any): GMapsItem {
 export class GoogleMapsSpecialistService {
   private readonly db: Pick<Pool, "query">;
   private readonly llm: MultiLLMAdapterService;
-  private readonly auth: GoogleAuth;
+  private readonly authOverride?: GoogleAuth;
   private readonly fetchImpl?: FetchLike;
 
   constructor(deps: GMapsDeps | Pick<Pool, "query"> = {}) {
     const d: GMapsDeps = "query" in deps ? { db: deps as Pick<Pool, "query"> } : (deps as GMapsDeps);
     this.db = d.db ?? defaultPool;
     this.llm = d.llm ?? new MultiLLMAdapterService(this.db);
-    this.auth = d.auth ?? defaultGoogleAuth();
+    this.authOverride = d.auth;
     this.fetchImpl = d.fetch;
+  }
+
+  /** The workspace's own Google account (Kết nối Google) first, then the server-wide credentials. */
+  private authFor(workspaceId: string): Promise<GoogleAuth> {
+    return this.authOverride ? Promise.resolve(this.authOverride) : workspaceGoogleAuth(this.db, workspaceId, this.fetchImpl);
+  }
+
+  private googleReady(workspaceId: string): Promise<boolean> {
+    return this.authOverride ? Promise.resolve(googleOAuthConfigured()) : googleUserTokenAvailable(this.db, workspaceId);
   }
 
   /** Xác định địa điểm GBP của quán; lưu vào parsed_refs.gbp để lần sau không phải dò lại. */
@@ -123,8 +133,8 @@ export class GoogleMapsSpecialistService {
     const p = profile ?? (await loadMerchantProfile(this.db, workspaceId));
     const cached = p.parsedRefs.gbp as { accountId?: string; locationId?: string; title?: string } | undefined;
     if (cached?.accountId && cached.locationId) return { accountId: cached.accountId, locationId: cached.locationId, title: cached.title };
-    if (!googleOAuthConfigured()) throw new GoogleNotConnectedError();
-    const found = await discoverLocation(this.auth, { mapsUrl: p.links.gmaps, businessName: p.businessName }, this.fetchImpl);
+    if (!(await this.googleReady(workspaceId))) throw new GoogleNotConnectedError();
+    const found = await discoverLocation(await this.authFor(workspaceId), { mapsUrl: p.links.gmaps, businessName: p.businessName }, this.fetchImpl);
     if (!found) {
       throw new AppError(409, "GBP_LOCATION_NOT_FOUND", "Không tìm thấy (hoặc không xác định duy nhất) địa điểm Google Maps của quán trong tài khoản Google đã cấp quyền. Đặt GBP_ACCOUNT_ID/GBP_LOCATION_ID hoặc kiểm tra link Maps.");
     }
@@ -137,10 +147,10 @@ export class GoogleMapsSpecialistService {
   }
 
   async connectionStatus(workspaceId: string): Promise<GMapsConnection> {
-    if (!googleOAuthConfigured() && !envLocationRef()) {
-      return { connected: false, reason: "Chưa kết nối tài khoản Google Business Profile (thiếu GOOGLE_OAUTH_* trong cấu hình máy chủ)" };
+    if (!(await this.googleReady(workspaceId)) && !envLocationRef()) {
+      return { connected: false, reason: "Chưa kết nối tài khoản Google Business Profile: bấm “Kết nối Google” ở tab Ảnh từ Drive" };
     }
-    if (!googleOAuthConfigured()) return { connected: false, reason: "Thiếu GOOGLE_OAUTH_CLIENT_ID / CLIENT_SECRET / REFRESH_TOKEN" };
+    if (!(await this.googleReady(workspaceId))) return { connected: false, reason: "Chưa kết nối Google: bấm “Kết nối Google” để cấp quyền Google Business Profile" };
     const profile = await loadMerchantProfile(this.db, workspaceId);
     const fromEnv = envLocationRef();
     const cached = profile.parsedRefs.gbp as { accountId?: string; locationId?: string; title?: string } | undefined;
@@ -229,7 +239,7 @@ Viết câu trả lời của quán (chỉ trả về nội dung câu trả lờ
     failed: number;
   }> {
     const empty = { fetched: 0, new_reviews: 0, auto_replied: 0, awaiting_approval: 0, failed: 0 };
-    if (!googleOAuthConfigured()) {
+    if (!(await this.googleReady(workspaceId))) {
       return { status: "not_connected", detail: "Chưa kết nối Google Business Profile", ...empty };
     }
     const profile = await loadMerchantProfile(this.db, workspaceId);
@@ -240,7 +250,7 @@ Viết câu trả lời của quán (chỉ trả về nội dung câu trả lờ
       if (err instanceof GoogleNotConnectedError) return { status: "not_connected", detail: err.message, ...empty };
       throw err;
     }
-    const { reviews, averageRating, totalReviewCount } = await listReviews(this.auth, ref, this.fetchImpl);
+    const { reviews, averageRating, totalReviewCount } = await listReviews(await this.authFor(workspaceId), ref, this.fetchImpl);
     await this.db.query(
       `INSERT INTO merchant_onboarding (workspace_id, parsed_refs) VALUES ($1::uuid, jsonb_build_object('gbp', $2::jsonb))
        ON CONFLICT (workspace_id) DO UPDATE
@@ -311,7 +321,7 @@ Viết câu trả lời của quán (chỉ trả về nội dung câu trả lờ
       const safeToAutoPublish = (item.rating ?? 0) >= minRating && (sentiment.label === "positive" || sentiment.label === "neutral");
       if (safeToAutoPublish) {
         try {
-          await gbpReply(this.auth, String(item.metadata.gbp_name), draft.text, this.fetchImpl);
+          await gbpReply(await this.authFor(workspaceId), String(item.metadata.gbp_name), draft.text, this.fetchImpl);
           await this.db.query(
             `UPDATE gmaps_reputation SET reply_text = $3, draft_reply = NULL, replied_at = NOW(), reply_source = 'auto',
                     status = 'replied', seo_keywords = $4, error_message = NULL, updated_at = NOW(),
@@ -360,7 +370,7 @@ Viết câu trả lời của quán (chỉ trả về nội dung câu trả lờ
     const gbpName = item.metadata.gbp_name;
     if (typeof gbpName !== "string") throw new AppError(409, "REVIEW_NOT_FROM_GOOGLE", "Review này không có mã Google để trả lời");
     try {
-      await gbpReply(this.auth, gbpName, text, this.fetchImpl);
+      await gbpReply(await this.authFor(workspaceId), gbpName, text, this.fetchImpl);
     } catch (err) {
       if (err instanceof GoogleNotConnectedError) throw new AppError(409, "GOOGLE_NOT_CONNECTED", err.message);
       if (err instanceof GoogleApiError) throw new AppError(502, "GOOGLE_API_ERROR", err.message, undefined, { body: err.body });
@@ -434,7 +444,7 @@ Kết bằng lời mời ghé quán hoặc đặt bàn. Chỉ trả về nội d
     const bookingUrl = profile.links.fanpage ?? undefined;
     try {
       const created = await createLocalPost(
-        this.auth,
+        await this.authFor(workspaceId),
         ref,
         {
           summary: item.content,
@@ -471,7 +481,7 @@ Kết bằng lời mời ghé quán hoặc đặt bàn. Chỉ trả về nội d
     if (!url) throw new AppError(409, "PUBLIC_MEDIA_URL_MISSING", "Cần PUBLIC_API_BASE_URL để Google tải được ảnh");
     const ref = await this.resolveLocation(workspaceId);
     const category = asset.asset_type === "space_ambiance" ? "INTERIOR" : asset.asset_type === "menu_board" ? "MENU" : "FOOD_AND_DRINK";
-    const media = await uploadLocationPhoto(this.auth, ref, { sourceUrl: url, category, description: asset.dish_name ?? undefined }, this.fetchImpl);
+    const media = await uploadLocationPhoto(await this.authFor(workspaceId), ref, { sourceUrl: url, category, description: asset.dish_name ?? undefined }, this.fetchImpl);
     await this.db.query(
       `INSERT INTO gmaps_reputation (workspace_id, item_type, author_name, content, status, replied_at, metadata)
        VALUES ($1::uuid, 'photo_update', 'Agent Google Maps', $2, 'published', NOW(), $3::jsonb)`,
@@ -492,7 +502,7 @@ Kết bằng lời mời ghé quán hoặc đặt bàn. Chỉ trả về nội d
       sections.get(key)!.items.push({ name: item.name, description: item.description, priceVnd: item.price_vnd });
     }
     const ref = await this.resolveLocation(workspaceId, profile);
-    await updateFoodMenu(this.auth, ref, [...sections.values()], this.fetchImpl);
+    await updateFoodMenu(await this.authFor(workspaceId), ref, [...sections.values()], this.fetchImpl);
     return { sections: sections.size, items: menu.length };
   }
 }

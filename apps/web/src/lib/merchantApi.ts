@@ -148,6 +148,18 @@ export interface DriveConnection {
   reason?: string;
 }
 
+/** Google account used for Drive (Agent 2) and Business Profile (Agent 5); tokens never reach the browser. */
+export interface GoogleConnection {
+  configured: boolean;
+  connected: boolean;
+  source: "workspace" | "server" | "api_key" | "none";
+  email: string | null;
+  scopes: string[];
+  connected_at: string | null;
+  redirect_uri: string | null;
+  last_error: string | null;
+}
+
 export type CalendarChannel = "facebook" | "instagram" | "google_maps" | "tiktok" | "facebook_group";
 export interface CalendarEntry {
   id: string;
@@ -295,6 +307,14 @@ export const merchantApi = {
   gmapsSyncMenu: (id: string) => apiRequest<{ result: { sections: number; items: number } }>(`${ws(id)}/gmaps/menu`, { method: "POST" }).then((r) => r.result),
   gmapsPhoto: (id: string, assetId: string) => apiRequest(`${ws(id)}/gmaps/photos`, { method: "POST", body: { asset_id: assetId } }),
 
+  google: (id: string) => apiRequest<{ google: GoogleConnection }>(`${ws(id)}/integrations/google`).then((r) => r.google),
+  googleAuthUrl: (id: string, returnTo: string) =>
+    apiRequest<{ url: string }>(
+      `${ws(id)}/integrations/google/auth-url?return_to=${encodeURIComponent(returnTo)}&origin=${encodeURIComponent(typeof window === "undefined" ? "" : window.location.origin)}`,
+    ).then((r) => r.url),
+  googleDisconnect: (id: string) => apiRequest<{ google: GoogleConnection }>(`${ws(id)}/integrations/google/disconnect`, { method: "POST", body: {} }).then((r) => r.google),
+  saveDriveFolder: (id: string, gdriveUrl: string) =>
+    apiRequest<{ gdrive_url: string; connection: DriveConnection }>(`${ws(id)}/assets/drive/folder`, { method: "PUT", body: { gdrive_url: gdriveUrl } }),
   driveAssets: (id: string) => apiRequest<{ assets: DriveAsset[]; connection: DriveConnection }>(`${ws(id)}/assets/drive/queue`),
   driveScan: (id: string) => apiRequest<{ result: Record<string, unknown> & { status: string; detail?: string } }>(`${ws(id)}/assets/drive/sync`, { method: "POST" }).then((r) => r.result),
   scheduleAsset: (id: string, assetId: string, channels: CalendarChannel[]) =>

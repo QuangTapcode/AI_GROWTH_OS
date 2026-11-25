@@ -43,17 +43,38 @@ export function googleOAuthConfigured(): boolean {
   );
 }
 
-export function createGoogleAuth(fetchImpl: FetchLike = (u, i) => fetch(u, i), now: () => number = Date.now): GoogleAuth {
+export interface GoogleCredentials {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+}
+
+/** Server-wide credentials from env, or explicit ones (a workspace's own connected account). */
+export function createGoogleAuth(
+  fetchImpl: FetchLike = (u, i) => fetch(u, i),
+  now: () => number = Date.now,
+  credentials?: GoogleCredentials,
+): GoogleAuth {
   let cached: CachedToken | null = null;
+  const creds = (): GoogleCredentials | null =>
+    credentials ??
+    (googleOAuthConfigured()
+      ? {
+          clientId: process.env.GOOGLE_OAUTH_CLIENT_ID!.trim(),
+          clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!.trim(),
+          refreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN!.trim(),
+        }
+      : null);
   return {
     apiKey: () => process.env.GOOGLE_API_KEY?.trim() || null,
     async accessToken() {
-      if (!googleOAuthConfigured()) return null;
+      const c = creds();
+      if (!c) return null;
       if (cached && cached.expiresAt - 60_000 > now()) return cached.token;
       const body = new URLSearchParams({
-        client_id: process.env.GOOGLE_OAUTH_CLIENT_ID!.trim(),
-        client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!.trim(),
-        refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN!.trim(),
+        client_id: c.clientId,
+        client_secret: c.clientSecret,
+        refresh_token: c.refreshToken,
         grant_type: "refresh_token",
       });
       const res = await fetchImpl("https://oauth2.googleapis.com/token", {

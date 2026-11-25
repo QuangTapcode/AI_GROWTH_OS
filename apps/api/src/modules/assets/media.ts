@@ -6,7 +6,8 @@ import path from "node:path";
 import type { Pool } from "pg";
 import { AppError } from "../../lib/errors";
 import { downloadDriveFile, drivePublicImageUrl } from "../google/drive";
-import { defaultGoogleAuth, type GoogleAuth } from "../google/oauth";
+import type { GoogleAuth } from "../google/oauth";
+import { workspaceGoogleAuth } from "../google/connection";
 import { loadMerchantProfile } from "../merchant/profile";
 
 /**
@@ -110,8 +111,9 @@ export async function renderWatermarkedAsset(
   db: Pick<Pool, "query">,
   workspaceId: string,
   assetId: string,
-  auth: GoogleAuth = defaultGoogleAuth(),
+  authOverride?: GoogleAuth,
 ): Promise<string> {
+  const auth = authOverride ?? (await workspaceGoogleAuth(db, workspaceId));
   const asset = (
     await db.query(`SELECT id, drive_file_id, file_name, updated_at FROM drive_asset_queue WHERE workspace_id = $1::uuid AND id = $2::uuid`, [workspaceId, assetId])
   ).rows[0];

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { formatDateTimeVn, merchantApi, type CalendarChannel, type DriveAsset, type GMapsItem } from "@/lib/merchantApi";
 import { Button, Card, EmptyState, LoadingBlock, Notice, Pill, Stat, useAction, useLoader } from "@/features/merchant/ui";
+import { GoogleDriveConnect } from "./GoogleDriveConnect";
 
 const REVIEW_STATUS: Record<string, { label: string; tone: "green" | "amber" | "red" | "slate" | "blue" }> = {
   replied: { label: "Đã trả lời", tone: "green" },
@@ -82,7 +83,14 @@ export function GoogleMapsHub({ workspaceId }: { workspaceId: string }) {
   const maps = useLoader(() => merchantApi.gmaps(workspaceId), [workspaceId]);
   const drive = useLoader(() => merchantApi.driveAssets(workspaceId), [workspaceId]);
   const { busy, notice, setNotice, run } = useAction();
-  const [tab, setTab] = useState<"reviews" | "posts" | "library">("reviews");
+  // Deep links (/gmaps?tab=drive_assets) and the return from Google's consent screen open the Drive tab.
+  const [tab, setTab] = useState<"reviews" | "posts" | "library">(() => {
+    if (typeof window === "undefined") return "reviews";
+    const params = new URLSearchParams(window.location.search);
+    const wanted = params.get("tab");
+    if (wanted === "drive_assets" || wanted === "library" || params.has("google") || params.has("google_error")) return "library";
+    return wanted === "posts" ? "posts" : "reviews";
+  });
   const [postText, setPostText] = useState("");
 
   const overview = maps.data?.overview;
@@ -218,8 +226,10 @@ export function GoogleMapsHub({ workspaceId }: { workspaceId: string }) {
             </Button>
           }
         >
-          {drive.data && !drive.data.connection.connected && <Notice notice={{ kind: "error", text: drive.data.connection.reason ?? "Drive chưa kết nối" }} />}
+          <GoogleDriveConnect workspaceId={workspaceId} connection={drive.data?.connection} onChanged={async () => { await drive.reload(); await maps.reload(); }} />
+          {drive.data && !drive.data.connection.connected && <div className="mt-3"><Notice notice={{ kind: "error", text: drive.data.connection.reason ?? "Drive chưa kết nối" }} /></div>}
           {drive.loading && !drive.data && <LoadingBlock />}
+          {drive.data && drive.data.assets.length === 0 && <div className="mt-3" />}
           {drive.data && drive.data.assets.length === 0 && <EmptyState>Chưa có ảnh nào. Hãy chụp món bằng điện thoại và bỏ vào thư mục Drive đã kết nối.</EmptyState>}
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {drive.data?.assets.map((a) => {

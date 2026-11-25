@@ -5,7 +5,8 @@ import { AppError } from "../../lib/errors";
 import { LlmUnavailableError, MultiLLMAdapterService, parseJsonReply } from "../ai/llmAdapter";
 import type { FetchLike } from "../ai/providers";
 import { downloadDriveFile, listDriveImages, parseDriveFolderId, MAX_IMAGE_BYTES, type DriveImageFile } from "../google/drive";
-import { defaultGoogleAuth, googleOAuthConfigured, type GoogleAuth } from "../google/oauth";
+import { googleOAuthConfigured, type GoogleAuth } from "../google/oauth";
+import { googleUserTokenAvailable, workspaceGoogleAuth } from "../google/connection";
 import { loadMerchantProfile } from "../merchant/profile";
 import { systemPromptFor } from "../merchant/prompts";
 
@@ -100,15 +101,20 @@ export interface DriveDeps {
 export class DriveAssetIngestionService {
   private readonly db: Pick<Pool, "query">;
   private readonly llm: MultiLLMAdapterService;
-  private readonly auth: GoogleAuth;
+  private readonly authOverride?: GoogleAuth;
   private readonly fetchImpl?: FetchLike;
 
   constructor(deps: DriveDeps | Pick<Pool, "query"> = {}) {
     const d: DriveDeps = "query" in deps ? { db: deps as Pick<Pool, "query"> } : (deps as DriveDeps);
     this.db = d.db ?? defaultPool;
     this.llm = d.llm ?? new MultiLLMAdapterService(this.db);
-    this.auth = d.auth ?? defaultGoogleAuth();
+    this.authOverride = d.auth;
     this.fetchImpl = d.fetch;
+  }
+
+  /** The workspace's own Google account (Kết nối Google) first, then the server-wide credentials. */
+  private authFor(workspaceId: string): Promise<GoogleAuth> {
+    return this.authOverride ? Promise.resolve(this.authOverride) : workspaceGoogleAuth(this.db, workspaceId, this.fetchImpl);
   }
 
   async listAssets(workspaceId: string, status?: AssetStatus): Promise<DriveAsset[]> {
@@ -129,8 +135,10 @@ export class DriveAssetIngestionService {
     const profile = await loadMerchantProfile(this.db, workspaceId);
     const folderId = parseDriveFolderId(profile.links.gdrive);
     if (!folderId) return { folder_id: null, connected: false, reason: "Chưa có link thư mục Google Drive hợp lệ trong mục Kết nối" };
-    if (!googleOAuthConfigured() && !this.auth.apiKey()) {
-      return { folder_id: folderId, connected: false, reason: "Máy chủ chưa có GOOGLE_OAUTH_* hoặc GOOGLE_API_KEY để đọc Drive" };
+    const auth = await this.authFor(workspaceId);
+    const userToken = this.authOverride ? googleOAuthConfigured() : await googleUserTokenAvailable(this.db, workspaceId);
+    if (!userToken && !auth.apiKey()) {
+      return { folder_id: folderId, connected: false, reason: "Chưa kết nối Google: bấm “Kết nối Google” để cấp quyền đọc thư mục Drive" };
     }
     return { folder_id: folderId, connected: true };
   }
@@ -192,7 +200,8 @@ Trả về JSON với các khóa: asset_type, dish_name, tags (3-8 thẻ tiếng
     if (!conn.folder_id) return { status: "not_configured", detail: conn.reason, ...base };
     if (!conn.connected) return { status: "not_connected", detail: conn.reason, ...base };
 
-    const files = await listDriveImages(this.auth, conn.folder_id, this.fetchImpl);
+    const auth = await this.authFor(workspaceId);
+    const files = await listDriveImages(auth, conn.folder_id, this.fetchImpl);
     let newFiles = 0;
     for (const file of files) {
       if (await this.upsertFile(workspaceId, file)) newFiles++;
@@ -220,7 +229,7 @@ Trả về JSON với các khóa: asset_type, dish_name, tags (3-8 thẻ tiếng
         continue;
       }
       try {
-        const bytes = await downloadDriveFile(this.auth, row.drive_file_id, this.fetchImpl);
+        const bytes = await downloadDriveFile(auth, row.drive_file_id, this.fetchImpl);
         const { result, provider } = await this.analyzeImage(workspaceId, { name: row.file_name, mimeType: mime, folderName: row.analysis?.folder_name }, bytes);
         const usable = result.quality === "good";
         await this.db.query(
