@@ -23,6 +23,18 @@ import PerformanceEvidence, { type PerformanceEvidenceData } from './Performance
 import PerformanceExperiments from './PerformanceExperiments';
 import PerformanceSocialSync from './PerformanceSocialSync';
 import PerformanceGroups from './PerformanceGroups';
+import GrowthLeadWorkspace from './GrowthLeadWorkspace';
+import {
+  MAX_LEARNING_ITERATIONS,
+  formatDate,
+  learningStopLabels,
+  statusClass,
+  statusLabels,
+  valueText,
+  type CheckState,
+  type LearningReport,
+  type Requirement,
+} from "./agentShared";
 
 type RoleId = "research" | "growth_lead" | "seo" | "content" | "community" | "performance";
 
@@ -155,28 +167,7 @@ function formatPerfProposal(text?: string | null): string {
   return text;
 }
 
-type LearningReport = {
-  status: "draft" | "insufficient_data";
-  iteration: number;
-  max_iterations: number;
-  learning: string[];
-  next_tasks: { iteration: number; reason: string }[];
-  missing_facts: string[];
-  stopped_reason: string | null;
-};
 
-const MAX_LEARNING_ITERATIONS = 3;
-
-const learningStopLabels: Record<string, string> = {
-  insufficient_data: "Thiếu báo cáo Performance hoàn chỉnh hoặc lead aggregate",
-  max_iterations: `Đã đạt giới hạn ${MAX_LEARNING_ITERATIONS} vòng học`,
-  task_quota: "Quota task bằng 0",
-  duplicate_proposal: "Đề xuất trùng với vòng đã mở",
-  no_measured_signal: "Chưa đo được lượt xem, click hay lead nào nên chưa có gì để học. Vòng theo lịch vẫn chạy.",
-};
-
-type CheckState = "ready" | "missing" | "warning";
-type Requirement = { label: string; detail: string; state: CheckState; action?: { href: string; label: string } };
 
 type AgentConfig = {
   name: string;
@@ -247,33 +238,6 @@ const AGENTS: Record<RoleId, AgentConfig> = {
 
 const ROLE_IDS = Object.keys(AGENTS) as RoleId[];
 
-const statusLabels: Record<string, string> = {
-  queued: "Trong hàng đợi",
-  pending: "Chờ phụ thuộc",
-  running: "Đang chạy",
-  awaiting_approval: "Chờ duyệt",
-  completed: "Hoàn tất",
-  failed: "Lỗi",
-  cancelled: "Đã hủy",
-};
-
-function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleString("vi-VN") : "Chưa có";
-}
-
-function statusClass(status?: string) {
-  if (status === "running") return "bg-blue-100 text-blue-800";
-  if (status === "failed") return "bg-red-100 text-red-800";
-  if (status === "awaiting_approval") return "bg-amber-100 text-amber-900";
-  if (status === "completed") return "bg-emerald-100 text-emerald-800";
-  return "bg-slate-100 text-slate-700";
-}
-
-function valueText(value: unknown) {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return "";
-}
 
 function payloadArray(payload: Record<string, unknown>, key: string) {
   return Array.isArray(payload[key]) ? payload[key] : [];
@@ -627,6 +591,56 @@ function AgentPage({ role }: { role: RoleId }) {
       setLoopNotice(accepted.task_ids.length ? "Đã duyệt learning và mở vòng Research mới. Kết quả Research vẫn cần duyệt trước khi bàn giao." : "Learning không đề xuất task tiếp theo."); reload();
     } catch (err) { setLoopNotice((err as Error).message); }
     finally { setSubmitting(false); }
+  }
+
+  if (role === "growth_lead" && data) {
+    return (
+      <GrowthLeadWorkspace
+        workspaceName={workspace.name}
+        tasks={roleTasks}
+        allTasks={data.tasks}
+        artifacts={data.artifacts}
+        approvals={data.approvals}
+        exceptions={roleExceptions}
+        requirements={requirements}
+        operations={config.operations}
+        contextId={contextId}
+        approvedSources={approvedSources}
+        canEdit={canEdit}
+        canApprove={canApprove}
+        submitting={submitting}
+        waitingTaskId={waitingTaskId}
+        waitingMessage={waitingMessage}
+        notice={notice}
+        loopNotice={loopNotice}
+        retrying={retrying}
+        availableResearch={availableResearch}
+        chosenResearch={chosenResearch}
+        onResearchChange={setResearchId}
+        cta={cta}
+        onCtaChange={setCta}
+        deadline={deadline}
+        onDeadlineChange={setDeadline}
+        onRunResearch={runResearch}
+        onHandoffResearch={handoffResearch}
+        approvedPlans={approvedPlans}
+        chosenPlan={chosenPlan}
+        onPlanChange={setPlanId}
+        onStartSeo={startSeo}
+        performanceDraft={performanceDraft}
+        leadAggregate={leadAggregate}
+        loopIteration={loopIteration}
+        latestLearning={latestLearning}
+        learningReport={learningReport}
+        openedRound={openedRound || undefined}
+        canOpenRound={canOpenRound}
+        onRunPerformance={runPerformanceForLearning}
+        onRunLearning={runLearning}
+        onOpenNextRound={openNextRound}
+        onRetry={retry}
+        onReload={reload}
+      />
+    );
   }
 
   return (
