@@ -44,6 +44,53 @@ describe('CommunityReplyRunner', () => {
     expect(await new CommunityReplyRunner(pool, vi.fn()).runOnce()).toBe('idle');
   });
 
+  it('never answers a comment twice: an already replied message only closes the event', async () => {
+    const groupEvent = {
+      ...event,
+      payload: { ...event.payload, platform: 'facebook_comment', comment_source: 'group' as const, post_url: 'https://www.facebook.com/groups/1/posts/2' },
+    };
+    const sql: { text: string; params: unknown[] }[] = [];
+    const query = vi.fn(async (text: string, params: unknown[] = []) => {
+      sql.push({ text, params });
+      if (text.includes("SET status = 'processing'")) return { rows: [groupEvent] };
+      if (text.includes('SELECT status FROM community_messages')) return { rows: [{ status: 'replied' }] };
+      return { rows: [], rowCount: 1 };
+    });
+    const sendGroupComment = vi.fn();
+    const runner = new CommunityReplyRunner({ query } as unknown as Pool, vi.fn(), vi.fn(), { sendGroupComment });
+    expect(await runner.runOnce()).toBe('idle');
+    expect(sendGroupComment).not.toHaveBeenCalled();
+    expect(sql.some((s) => s.text.includes("status = 'published'"))).toBe(true);
+    expect(sql.some((s) => s.text.includes("status = 'replied', metadata"))).toBe(false);
+  });
+
+  it('records that a group answer went into the comment thread and whether it was seen there', async () => {
+    const groupEvent = {
+      ...event,
+      payload: {
+        ...event.payload,
+        platform: 'facebook_comment',
+        comment_source: 'group' as const,
+        comment_id: 'c-9',
+        post_url: 'https://www.facebook.com/groups/1/posts/2',
+        author_name: 'Nhok Con',
+        question_snippet: 'xin chào ạ',
+      },
+    };
+    const { pool, sql } = harness(groupEvent);
+    const sendGroupComment = vi.fn(async () => ({ success: true, message: 'ok', verified: true }));
+    expect(await new CommunityReplyRunner(pool, vi.fn(), vi.fn(), { sendGroupComment }).runOnce()).toBe('sent');
+    expect(sendGroupComment).toHaveBeenCalledWith({
+      postUrl: 'https://www.facebook.com/groups/1/posts/2',
+      authorName: 'Nhok Con',
+      questionSnippet: 'xin chào ạ',
+      replyText: 'Street food stalls open every evening.',
+    });
+    const replied = sql.find((s) => s.text.includes("status = 'replied'"))!;
+    const meta = JSON.parse(String(replied.params[2]));
+    expect(meta).toMatchObject({ reply_channel: 'facebook_group_comment', reply_threaded: true, reply_verified: true });
+  });
+
   it('sends a Telegram reply through the Telegram sender, from the connected account when there is one', async () => {
     const telegramEvent = { ...event, payload: { ...event.payload, recipient: '555', platform: 'telegram_message', business_connection_id: 'conn-1' } };
     const { pool, sql } = harness(telegramEvent);

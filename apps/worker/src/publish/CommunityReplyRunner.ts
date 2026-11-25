@@ -9,7 +9,7 @@ export type SendGroupCommentReply = (params: {
   authorName?: string;
   questionSnippet?: string;
   replyText: string;
-}) => Promise<{ success: boolean; message: string }>;
+}) => Promise<{ success: boolean; message: string; verified?: boolean; alreadyReplied?: boolean }>;
 
 export interface CommentReplyHandlers {
   sendPageComment?: SendPageCommentReply;
@@ -224,6 +224,17 @@ export class CommunityReplyRunner {
       invite_group_url: inviteGroupUrl,
       community_name: communityName,
     } = event.payload;
+    // One question, one answer: another path (hub auto-reply, a person, an earlier event) may have answered it already.
+    if (messageId) {
+      const current = (await this.pool.query<{ status: string }>(
+        `SELECT status FROM community_messages WHERE workspace_id = $1 AND id = $2`,
+        [event.workspace_id, messageId],
+      )).rows[0];
+      if (current?.status === 'replied') {
+        await this.pool.query(`UPDATE outbox_events SET status = 'published', published_at = now() WHERE id = $1`, [event.id]);
+        return 'idle';
+      }
+    }
     try {
       let sent: { message_id?: string } = {};
       const extraMeta: Record<string, unknown> = {};
@@ -269,6 +280,9 @@ export class CommunityReplyRunner {
           if (!groupRes.success) throw new Error(`GROUP_COMMENT_REFUSED: ${groupRes.message}`);
           sent = { message_id: `grp_reply:${targetCommentId}` };
           extraMeta.reply_channel = 'facebook_group_comment';
+          extraMeta.reply_threaded = true;
+          extraMeta.reply_verified = groupRes.verified ?? null;
+          if (groupRes.alreadyReplied) extraMeta.reply_already_in_thread = true;
           extraMeta.post_url = postUrl;
         } else {
           const pageHandler = this.commentHandlers.sendPageComment ?? sendPageCommentReply;

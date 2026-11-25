@@ -37,14 +37,48 @@ type AutoArtifactRow = {
   artifact_type: string;
   payload: { artifact?: Record<string, unknown>; result?: Record<string, unknown> };
   evidence: unknown[];
+  /** Community only: the comment or message the reply answers. */
+  asked_text?: string | null;
 };
+
+// Words a pure greeting, thanks or reaction is made of (accents stripped). Anything else is a question.
+const SMALL_TALK_WORDS = new Set([
+  "hi", "hii", "hey", "hello", "helo", "heloo", "hellooo", "alo", "aloo", "chao", "xin", "good", "morning", "afternoon",
+  "evening", "thanks", "thank", "you", "cam", "on", "ok", "oke", "okay", "ad", "admin", "shop", "page", "team", "tripc",
+  "ban", "b", "bn", "a", "ak", "ah", "oi", "moi", "nguoi", "ca", "nha", "nhe", "nhen", "em", "anh", "chi", "minh", "everyone", "all",
+]);
+
+/** A greeting, thanks or emoji-only reaction: nothing in it can be answered wrongly. */
+export function isSmallTalk(text: string | null | undefined): boolean {
+  const plain = (text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase();
+  if (!plain.trim()) return false;
+  const words = plain.match(/[a-z0-9]+/g) ?? [];
+  if (!words.length) return true; // emoji or sticker only
+  if (words.length > 5) return false;
+  return words.every((w) => SMALL_TALK_WORDS.has(w) || /^h+e+l+o+$/.test(w) || /^h+i+$/.test(w));
+}
 
 export function isAutoApprovable(row: AutoArtifactRow) {
   const result = row.payload?.result ?? {};
   const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
   const status = result.status;
   const inputRefs = Array.isArray(result.input_artifact_refs) ? result.input_artifact_refs : [];
-  const hasGrounding = row.evidence.length > 0 || (row.role === "performance" && inputRefs.length > 0);
+  const reply = typeof result.reply === "string" ? result.reply.trim() : "";
+  // A greeting answered with a short welcome states no fact, so it needs no quote. Decided from the
+  // customer's own words, not from the model's label; replies with numbers or links still need a person.
+  const smallTalkWelcome =
+    row.role === "community" &&
+    isSmallTalk(row.asked_text) &&
+    reply.length > 0 &&
+    reply.length <= 400 &&
+    !/\d|https?:\/\//i.test(reply) &&
+    result.escalation_required !== true;
+  const hasGrounding =
+    row.evidence.length > 0 || (row.role === "performance" && inputRefs.length > 0) || smallTalkWelcome;
   const leadConsentOnly =
     row.role === "community" &&
     status === "insufficient_data" &&
@@ -524,7 +558,9 @@ async function scheduleApprovedFacebookArtifacts(
 async function autoApproveOutputs(pool: Pool, workspaceId: string, actorId: string, contextSnapshotId: string,
   publishFacebook: boolean, publishWebsite = false, publishTikTok = false) {
   const rows = (await pool.query<AutoArtifactRow>(
-    `SELECT t.id AS task_id,t.role,t.campaign_id,t.status,t.result_ref,a.version,a.content_hash,a.title,a.artifact_type,a.payload,a.evidence
+    `SELECT t.id AS task_id,t.role,t.campaign_id,t.status,t.result_ref,a.version,a.content_hash,a.title,a.artifact_type,a.payload,a.evidence,
+            (SELECT m.content FROM community_messages m
+              WHERE m.workspace_id=t.workspace_id AND m.task_id=t.id ORDER BY m.received_at DESC LIMIT 1) AS asked_text
        FROM workflow_tasks t JOIN content_artifacts a ON a.id=t.result_ref AND a.workspace_id=t.workspace_id
       WHERE t.workspace_id=$1 AND t.context_snapshot_id=$2 AND t.status='awaiting_approval' ORDER BY t.created_at`,
     [workspaceId, contextSnapshotId],

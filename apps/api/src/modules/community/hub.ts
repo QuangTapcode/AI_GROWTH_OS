@@ -29,6 +29,16 @@ import { AppError } from '../../lib/errors';
 import { groupBotBridgeUrl, groupBotTmpDir, spawnGroupBot } from './groupBotProcess';
 import { COMMUNITY_VIDEO_POSTS_SQL, readVideoManifest, reelRequest, signedVideoPath, videoDir } from './videos';
 
+let groupIngestQueue: Promise<void> = Promise.resolve();
+/** Serialises Group comment inserts within this API process. */
+function acquireGroupIngestLock(): Promise<() => void> {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const ready = groupIngestQueue.then(() => release);
+  groupIngestQueue = groupIngestQueue.then(() => held);
+  return ready;
+}
+
 // Created once per process; the hub is polled every few seconds.
 let videoPostsTable: Promise<unknown> | null = null;
 const globalForCommunityCache = globalThis as typeof globalThis & {
@@ -2560,7 +2570,17 @@ Quy tắc:
            LEFT JOIN content_artifacts a ON a.id = t.result_ref
           WHERE m.workspace_id = $1
             AND m.platform = 'facebook_comment'
-            AND m.status IN ('received', 'queued')
+            -- 'queued' messages belong to the grounded RAG path, which replies through the
+            -- community.reply outbox; answering them here too is how one comment got several replies.
+            AND m.status = 'received'
+            AND m.task_id IS NULL
+            AND NOT (COALESCE(m.metadata, '{}'::jsonb) ? 'reply_attempted_at')
+            AND NOT EXISTS (
+              SELECT 1 FROM outbox_events o
+               WHERE o.workspace_id = m.workspace_id
+                 AND o.event_type = 'community.reply'
+                 AND o.payload->>'message_id' = m.id::text
+            )
           ORDER BY m.received_at ASC
           LIMIT $2`,
         [workspaceId, limit],
@@ -2584,6 +2604,18 @@ Quy tắc:
     }> = [];
 
     for (const msg of pending) {
+      // Claim the comment before posting: a parallel sync, the manual button and a retry after an
+      // unverified post must never answer the same comment twice. A failed attempt is not retried
+      // automatically; the error stays in metadata for a person to look at.
+      const claimed = await this.pool.query(
+        `UPDATE community_messages
+            SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('reply_attempted_at', NOW()::text),
+                updated_at = NOW()
+          WHERE id = $1 AND workspace_id = $2 AND status = 'received' AND task_id IS NULL
+            AND NOT (COALESCE(metadata, '{}'::jsonb) ? 'reply_attempted_at')`,
+        [msg.id, workspaceId],
+      );
+      if (claimed.rowCount !== 1) continue;
       const meta = msg.metadata || {};
       const commentSource: 'page' | 'group' = (meta.comment_source === 'group' || (msg.post_url && msg.post_url.includes('/groups/')))
         ? 'group'
@@ -2639,6 +2671,7 @@ Quy tắc:
           });
         } else {
           failedCount++;
+          await this.recordCommentReplyError(workspaceId, msg.id, pageRes.error || 'Gửi comment Page thất bại');
           details.push({
             id: msg.id,
             platform: msg.platform,
@@ -2683,6 +2716,7 @@ Quy tắc:
           });
         } else {
           failedCount++;
+          await this.recordCommentReplyError(workspaceId, msg.id, groupRes.message || 'Gửi comment Group thất bại');
           details.push({
             id: msg.id,
             platform: msg.platform,
@@ -2705,6 +2739,18 @@ Quy tắc:
       failed_count: failedCount,
       details,
     };
+  }
+
+  private async recordCommentReplyError(workspaceId: string, messageId: string, reason: string): Promise<void> {
+    await this.pool
+      .query(
+        `UPDATE community_messages
+            SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('reply_error', $3::text),
+                updated_at = NOW()
+          WHERE id = $1 AND workspace_id = $2`,
+        [messageId, workspaceId, reason.slice(0, 500)],
+      )
+      .catch(() => {});
   }
 
   private normalizePostUrlKey(raw?: string | null): string {
@@ -3266,7 +3312,9 @@ Quy tắc:
   async syncGroupComments(
     workspaceId: string,
     maxPosts = 5,
+    options: { postUrls?: string[]; onlyPostUrls?: boolean } = {},
   ): Promise<{ ingested: number; scanned_posts: number; post_stats_synced?: number; skipped?: string; error?: string }> {
+    const targeted = options.onlyPostUrls === true && (options.postUrls?.length ?? 0) > 0;
     const settings = await this.getCommunitySettings(workspaceId);
     const workerDir = resolveWorkerDir();
     const session = resolveGroupBotSessionFile(workerDir);
@@ -3277,12 +3325,14 @@ Quy tắc:
 
     const recentGroupPosts = (
       await this.pool.query<{ facebook_post_url: string }>(
-        `SELECT DISTINCT facebook_post_url
+        `SELECT facebook_post_url
            FROM community_group_posts
           WHERE workspace_id = $1
             AND status = 'published'
             AND facebook_post_url IS NOT NULL
             AND facebook_post_url LIKE 'http%'
+          GROUP BY facebook_post_url
+          ORDER BY MAX(COALESCE(published_at, created_at)) DESC
           LIMIT $2`,
         [workspaceId, maxPosts],
       )
@@ -3294,8 +3344,9 @@ Quy tắc:
       tmpPayloadFile,
       JSON.stringify({
         groupUrl: settings.group_url,
-        postUrls: recentGroupPosts,
-        maxPosts,
+        postUrls: targeted ? options.postUrls : recentGroupPosts,
+        maxPosts: targeted ? options.postUrls!.length : maxPosts,
+        onlyPostUrls: targeted,
         headless: true,
       }),
       'utf8',
@@ -3325,7 +3376,8 @@ Quy tắc:
               } catch {}
               resolve({ code: null, stdout, stderr, timedOut: true });
             }
-          }, 90_000);
+            // A full scan walks the feed, the admins page and several posts; 90 s cut it off midway.
+          }, targeted ? 120_000 : 240_000);
           child.stdout?.on('data', (d) => {
             stdout += d.toString();
           });
@@ -3375,7 +3427,10 @@ Quy tắc:
           .filter(Boolean),
       );
       let ingested = 0;
-
+      // A notification-triggered scan and the periodic scan can finish together: insert one at a time
+      // so the NOT EXISTS check cannot let the same comment in twice (it would be answered twice).
+      const releaseIngest = await acquireGroupIngestLock();
+      try {
       for (const c of comments) {
         const key = c.commentKey?.trim();
         const text = c.text?.trim();
@@ -3406,6 +3461,9 @@ Quy tắc:
           ],
         );
         if ((res.rowCount ?? res.rows.length) > 0) ingested++;
+      }
+      } finally {
+        releaseIngest();
       }
 
       const postStats = Array.isArray(parsed.postStats) ? parsed.postStats : [];
@@ -3478,10 +3536,13 @@ Quy tắc:
         )
       ).rows[0];
       if (ctxRow?.snapshot_id) {
+        // Grounded answers go through Community Agent → review/auto-approve → community.reply outbox,
+        // which replies inside each comment's thread. No second, generic reply is sent meanwhile.
         queuedForRag = await processReceivedCommunityMessages(this.pool, workspaceId, actorId, ctxRow.snapshot_id, 15);
+      } else {
+        // No approved knowledge yet: only then fall back to the direct reply path.
+        autoRepliesResult = await this.dispatchPendingCommentReplies(workspaceId, { maxBatch: 10 }).catch(() => null);
       }
-      // Tự động gửi câu trả lời cho các bình luận tồn đọng / vừa quét
-      autoRepliesResult = await this.dispatchPendingCommentReplies(workspaceId, { maxBatch: 10 }).catch(() => null);
     }
 
     return {

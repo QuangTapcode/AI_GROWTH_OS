@@ -46,6 +46,19 @@ export interface ScanGroupCommentsOptions {
   postUrls?: string[];
   maxPosts?: number;
   headless?: boolean;
+  /** Read only `postUrls` (a comment notification named them): skip the slow feed walk. */
+  onlyPostUrls?: boolean;
+}
+
+/** A "someone commented" notification for a post in the Group. */
+export interface GroupCommentNotification {
+  key: string;
+  postId: string;
+  postUrl: string;
+  commentId: string;
+  replyCommentId?: string;
+  type: string;
+  text: string;
 }
 
 export interface ScannedGroupComment {
@@ -160,6 +173,15 @@ export interface ReplyGroupCommentResult {
   success: boolean;
   postUrl: string;
   message: string;
+  /** The reply was seen in the comment's own thread after posting. */
+  verified?: boolean;
+  /** The thread already held this reply, so nothing was posted. */
+  alreadyReplied?: boolean;
+}
+
+/** Lower-case, NFC, single-spaced text for matching Facebook DOM text against stored comments. */
+function normalizeForMatch(value: string | null | undefined): string {
+  return (value || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 export interface SendNativeGroupInvitesOptions {
@@ -497,6 +519,10 @@ export class FacebookGroupBot {
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0',
     });
+    // The worker runs through tsx (esbuild keepNames), which wraps named functions in `__name(...)`.
+    // Code passed to page.evaluate runs in the browser, where that helper does not exist, so every
+    // evaluate with an inner named function threw and was swallowed (feed scan always found 0 posts).
+    await context.addInitScript(`globalThis.__name = globalThis.__name || ((fn) => fn);`);
 
     // Check if FB_ADMIN_COOKIE is provided in environment and not already loaded
     const envCookie = !fresh ? process.env.FB_ADMIN_COOKIE : undefined;
@@ -1596,13 +1622,39 @@ export class FacebookGroupBot {
     groupUrl: string,
     maxPosts: number,
   ): Promise<{ feedUrls: string[]; feedStats: Map<string, ScannedGroupPostStat>; groupMemberCount?: number; adminNames: string[] }> {
-    await page.goto(groupUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    // Newest posts first, so a question under a post someone just wrote by hand is found too.
+    const feedUrl = groupUrl.includes('?') ? groupUrl : `${groupUrl.replace(/\/+$/, '')}/?sorting_setting=CHRONOLOGICAL`;
+    await page.goto(feedUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForTimeout(2500);
     await this.assertAuthenticatedPage(context, page, 'quét bài viết Group');
 
-    // Light scroll so top 5-8 posts hydrate reaction/comment bars
-    await page.evaluate(() => window.scrollBy(0, 650)).catch(() => {});
-    await page.waitForTimeout(1200);
+    // Facebook hydrates feed units late and only gives a post's timestamp link its real href on hover.
+    // Reading the feed after a fixed short wait found 0 posts, so no group comment was ever scanned.
+    const postLinkSelector = 'div[role="feed"] a[href*="/groups/"][href*="/posts/"], div[role="feed"] a[href*="/groups/"][href*="/permalink/"]';
+    // The feed is virtualised: units scrolled past are unmounted, so the newest posts must be
+    // harvested before each scroll, not read once at the end (that only saw the oldest posts).
+    const harvested: string[] = [];
+    const harvest = async () => {
+      const hrefs = await page
+        .evaluate((sel) => Array.from(document.querySelectorAll(sel)).map((a) => (a as HTMLAnchorElement).href.split('?')[0].split('#')[0]), postLinkSelector)
+        .catch(() => [] as string[]);
+      for (const href of hrefs) if (href && !harvested.includes(href)) harvested.push(href);
+    };
+    await page.waitForSelector('div[role="feed"] [aria-posinset]', { timeout: 10_000 }).catch(() => {});
+    for (let round = 0; round < 5; round++) {
+      // Unresolved timestamp links carry href="?__cft__...#?igf" (or "#"); their visible text is
+      // obfuscated, so they are found by href. Hovering makes Facebook swap in /groups/<id>/posts/<id>/.
+      const pendingLinks = page.locator('div[role="feed"] a[href^="?"], div[role="feed"] a[href="#"], div[role="feed"] a[href*="#?"]');
+      const total = Math.min(await pendingLinks.count().catch(() => 0), 40);
+      for (let k = 0; k < total; k++) {
+        await pendingLinks.nth(k).hover({ timeout: 1000 }).catch(() => {});
+      }
+      await page.waitForTimeout(400);
+      await harvest();
+      if (harvested.length >= maxPosts) break;
+      await page.evaluate(() => window.scrollBy(0, 700)).catch(() => {});
+      await page.waitForTimeout(1500);
+    }
 
     const [groupMemberCount, adminNames, rawCards] = await Promise.all([
       this.extractGroupHeaderMemberCount(page),
@@ -1716,6 +1768,10 @@ export class FacebookGroupBot {
 
     const feedStats = new Map<string, ScannedGroupPostStat>();
     const feedUrls: string[] = [];
+    for (const href of harvested) {
+      const normalizedUrl = FacebookGroupBot.normalizeGroupPostUrl(href);
+      if (!feedUrls.includes(normalizedUrl)) feedUrls.push(normalizedUrl);
+    }
     for (const card of rawCards) {
       const normalizedUrl = FacebookGroupBot.normalizeGroupPostUrl(card.rawHref);
       if (!feedUrls.includes(normalizedUrl)) {
@@ -1747,6 +1803,106 @@ export class FacebookGroupBot {
       groupMemberCount,
       adminNames,
     };
+  }
+
+  /** Admins and moderators of the Group, from its members/admins page (ids from /user/<id>/ links). */
+  private async collectGroupAdmins(
+    page: import('playwright-core').Page,
+    groupUrl: string,
+  ): Promise<{ ids: Set<string>; names: string[] }> {
+    const ids = new Set<string>();
+    const names: string[] = [];
+    // Admins rarely change; reading their page on every scan cost seconds per reply.
+    const cacheFile = path.join(path.dirname(this.stateFile), '.group-admins-cache.json');
+    const cacheKey = groupUrl.split('?')[0].replace(/\/+$/, '');
+    try {
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'))[cacheKey] as { at: number; ids: string[]; names: string[] } | undefined;
+      if (cached && Date.now() - cached.at < 30 * 60_000 && cached.ids.length) {
+        return { ids: new Set(cached.ids), names: cached.names };
+      }
+    } catch {
+      // No cache yet.
+    }
+    try {
+      await page.goto(`${groupUrl.split('?')[0].replace(/\/+$/, '')}/members/admins`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForSelector('[role="main"] a[href*="/user/"]', { timeout: 8000 }).catch(() => {});
+      // The page also lists ordinary members (avatar links): keep only named links whose own row
+      // carries the "Quản trị viên" / "Người kiểm duyệt" role label.
+      const found = await page.$$eval('[role="main"] a[href*="/user/"]', (links) =>
+        links
+          .filter((a) => {
+            if (!(a.textContent || '').trim()) return false;
+            let row: Element | null = a.parentElement;
+            for (let depth = 0; row && depth < 8; depth++, row = row.parentElement) {
+              const text = row.textContent || '';
+              if (text.length > 400) break;
+              if (/Quản trị viên|Người kiểm duyệt|Admin|Moderator/i.test(text)) return true;
+            }
+            return false;
+          })
+          .map((a) => ({ name: (a.textContent || '').trim(), href: a.getAttribute('href') || '' })),
+      );
+      for (const { name, href } of found) {
+        const id = (href.match(/\/user\/(\d+)/) || [])[1];
+        if (id) ids.add(id);
+        if (name && name.length <= 80 && !names.includes(name)) names.push(name);
+      }
+      if (ids.size) {
+        let all: Record<string, unknown> = {};
+        try {
+          all = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+        } catch {
+          all = {};
+        }
+        all[cacheKey] = { at: Date.now(), ids: Array.from(ids), names };
+        fs.writeFileSync(cacheFile, JSON.stringify(all), 'utf8');
+      }
+    } catch {
+      // Without the list only the logged-in account and visible admin badges are skipped.
+    }
+    return { ids, names };
+  }
+
+  /**
+   * Comment notifications for posts of one Group, read from an open facebook.com/notifications page.
+   * Facebook pushes these within seconds of a comment, unlike anything the feed shows.
+   */
+  async readGroupCommentNotifications(page: Page, groupId: string): Promise<GroupCommentNotification[]> {
+    const raw = await page
+      .$$eval('a[href*="notif_t="]', (links) =>
+        links.map((a) => ({ href: (a as HTMLAnchorElement).href, text: (a.textContent || '').replace(/\s+/g, ' ').trim() })),
+      )
+      .catch(() => [] as Array<{ href: string; text: string }>);
+    const out: GroupCommentNotification[] = [];
+    const seen = new Set<string>();
+    for (const { href, text } of raw) {
+      let url: URL;
+      try {
+        url = new URL(href);
+      } catch {
+        continue;
+      }
+      const type = url.searchParams.get('notif_t') || '';
+      if (!type.startsWith('group_comment')) continue;
+      if (!url.pathname.includes(`/groups/${groupId}`)) continue;
+      const postId = url.searchParams.get('post_id') || (url.pathname.match(/\/(?:posts|permalink)\/(\d+)/) || [])[1] || '';
+      const commentId = url.searchParams.get('comment_id') || '';
+      if (!postId || !commentId) continue;
+      const replyCommentId = url.searchParams.get('reply_comment_id') || undefined;
+      const key = `${postId}:${commentId}:${replyCommentId ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        key,
+        postId,
+        postUrl: `https://www.facebook.com/groups/${groupId}/posts/${postId}/`,
+        commentId,
+        replyCommentId,
+        type,
+        text: text.slice(0, 200),
+      });
+    }
+    return out;
   }
 
   private async expandCommentsOnCurrentPost(page: import('playwright-core').Page): Promise<void> {
@@ -1809,26 +1965,34 @@ export class FacebookGroupBot {
       const page = await context.newPage();
 
       // Always collect Group feed URLs, member count & baseline engagement cards first
-      const { feedUrls, feedStats, groupMemberCount, adminNames } = await this.collectGroupFeedUrlsAndStats(
-        context,
-        page,
-        groupUrl,
-        maxPosts,
-      );
+      const targetedOnly = options.onlyPostUrls === true && (options.postUrls?.length ?? 0) > 0;
+      const { feedUrls, feedStats, groupMemberCount, adminNames } = targetedOnly
+        ? { feedUrls: [] as string[], feedStats: new Map<string, ScannedGroupPostStat>(), groupMemberCount: undefined, adminNames: [] as string[] }
+        : await this.collectGroupFeedUrlsAndStats(context, page, groupUrl, maxPosts);
 
+      // Who must never be answered: the account the bot runs as and the Group's admins/moderators
+      // (other team bots included). Matched by Facebook user id, names are not reliable.
+      const selfId = (await context.cookies('https://www.facebook.com').catch(() => []))
+        .find((c) => c.name === 'c_user')?.value;
+      const { ids: adminIds, names: groupAdminNames } = await this.collectGroupAdmins(page, groupUrl);
+      if (selfId) adminIds.add(selfId);
+
+      // Newest feed posts first (that is where new questions are), then known posts from the DB.
       const mergedUrlSet = new Set<string>();
-      for (const u of options.postUrls ?? []) {
-        if (/^https?:\/\//i.test(u)) mergedUrlSet.add(FacebookGroupBot.normalizeGroupPostUrl(u));
-      }
       for (const u of feedUrls) {
         mergedUrlSet.add(u);
+      }
+      for (const u of options.postUrls ?? []) {
+        if (/^https?:\/\//i.test(u)) mergedUrlSet.add(FacebookGroupBot.normalizeGroupPostUrl(u));
       }
       const urls = Array.from(mergedUrlSet).slice(0, maxPosts);
 
       const comments: ScannedGroupComment[] = [];
       const seenKeys = new Set<string>();
       const statsMap = new Map<string, ScannedGroupPostStat>(feedStats);
-      const adminNameLower = new Set(adminNames.map((n) => n.trim().toLowerCase()).filter(Boolean));
+      const adminNameLower = new Set(
+        [...adminNames, ...groupAdminNames].map((n) => n.trim().toLowerCase()).filter(Boolean),
+      );
 
       for (const postUrl of urls) {
         try {
@@ -1841,62 +2005,100 @@ export class FacebookGroupBot {
           const postStat = await this.extractPostStatsFromContainer(page, postUrl);
           const prevFeedStat = statsMap.get(postStat.postUrl);
 
-          const rawComments = await page.$$eval(
-            'div[role="article"][aria-label*="Bình luận"], div[role="article"][aria-label*="Comment"], div[role="article"][aria-label*="Phản hồi"], div[role="article"][aria-label*="Reply"]',
-            (nodes) =>
-              nodes.map((node) => {
-                const links = Array.from(node.querySelectorAll('a[role="link"]'));
+          await page.waitForSelector('div[role="dialog"] div[role="article"][aria-label]', { timeout: 5000 }).catch(() => {});
+          const rawComments = await page
+            .evaluate((adminIdList: string[]) => {
+              const admins = new Set(adminIdList);
+              // A post URL opens the post in a dialog over an unrelated page: only that dialog's
+              // comments belong to this post. Without a dialog the post is the main column.
+              // The page behind the dialog shows other people's comments on other content.
+              const dialogs = Array.from(document.querySelectorAll('div[role="dialog"]'));
+              const scope: ParentNode = dialogs[dialogs.length - 1] || document.querySelector('[role="main"]') || document;
+              const articles = Array.from(
+                scope.querySelectorAll(
+                  'div[role="article"][aria-label*="Bình luận"], div[role="article"][aria-label*="Comment"], div[role="article"][aria-label*="Phản hồi"], div[role="article"][aria-label*="Reply"]',
+                ),
+              );
+              // Only the comment's own elements: replies are nested inside the comment's article and
+              // their names, badges and text must not be taken for the asker's.
+              const own = (node: Element, selector: string) =>
+                Array.from(node.querySelectorAll(selector)).filter((el) => el.closest('div[role="article"]') === node);
+              const authorIdOf = (node: Element) => {
+                for (const a of own(node, 'a[href]')) {
+                  const href = a.getAttribute('href') || '';
+                  const m = href.match(/\/user\/(\d+)/) || href.match(/profile\.php\?id=(\d+)/);
+                  if (m) return m[1];
+                }
+                return '';
+              };
+              const skipText =
+                /^(Thích|Like|Trả lời|Phản hồi|Reply|Chia sẻ|Share|Ẩn|Chỉnh sửa|Đã chỉnh sửa|Đã thích|Quản trị viên|Admin|Người kiểm duyệt|Moderator|Tác giả|Author|Người đóng góp hàng đầu|Vừa xong|Just now|\d+\s*(?:giờ|phút|ngày|tuần|năm|h|m|d|w|y))$/i;
+              // "Bình luận dưới tên X" / "Comment by X" is a thread's first message; replies say
+              // "Phản hồi bình luận của ..." or "X đáp lại phản hồi của ...".
+              const isTopLevel = (n: Element) => /^(Bình luận dưới tên|Comment by)/i.test(n.getAttribute('aria-label') || '');
+              // Replies are siblings of the comment, not inside it: the thread is the largest
+              // ancestor that still holds a single top-level comment.
+              const threadOf = (n: Element): Element => {
+                let current: Element = n;
+                let parent = n.parentElement;
+                while (parent && parent !== scope) {
+                  const tops = Array.from(parent.querySelectorAll('div[role="article"][aria-label]')).filter(isTopLevel);
+                  if (tops.length > 1) break;
+                  current = parent;
+                  parent = parent.parentElement;
+                }
+                return current;
+              };
+
+              return articles.map((node) => {
+                const label = node.getAttribute('aria-label') || '';
                 let authorName = '';
-                for (const a of links) {
+                for (const a of own(node, 'a[role="link"]')) {
                   const candidate = (a.textContent || '').trim();
-                  if (
-                    candidate.length >= 2 &&
-                    candidate.length <= 80 &&
-                    !/^(Thích|Like|Trả lời|Phản hồi|Reply|Chia sẻ|Share|Vừa xong|Just now|\d+\s*(?:giờ|phút|ngày|tuần|năm|h|m|d|w|y))$/i.test(
-                      candidate,
-                    )
-                  ) {
+                  if (candidate.length >= 2 && candidate.length <= 80 && !skipText.test(candidate)) {
                     authorName = candidate;
                     break;
                   }
                 }
                 if (!authorName) {
-                  const strong = node.querySelector('a span, strong');
-                  authorName = (strong?.textContent || '').trim() || 'Thành viên Group';
+                  const m = label.match(/dưới tên (.+?) vào /) || label.match(/^Comment by (.+?) /);
+                  authorName = (m?.[1] || '').trim() || 'Thành viên Group';
                 }
-
-                const nodeText = node.textContent || '';
-                const hasAdminBadge = Array.from(node.querySelectorAll('span')).some((sp) =>
+                const authorId = authorIdOf(node);
+                const hasAdminBadge = own(node, 'span').some((sp) =>
                   /^(Quản trị viên|Admin|Người kiểm duyệt|Moderator)$/i.test((sp.textContent || '').trim()),
                 );
-
-                const textEls = Array.from(node.querySelectorAll('div[dir="auto"]'));
-                const bodyParts = textEls
+                const bodyParts = own(node, 'div[dir="auto"]')
                   .map((el) => (el.textContent || '').trim())
-                  .filter(
-                    (t) =>
-                      t.length >= 3 &&
-                      t !== authorName &&
-                      !/^(Thích|Like|Trả lời|Phản hồi|Reply|Chia sẻ|Share|Ẩn|Chỉnh sửa|Đã thích|Quản trị viên|Admin|Người kiểm duyệt|Moderator|Tác giả|Author|Người đóng góp hàng đầu|Vừa xong|Just now|\d+\s*(?:giờ|phút|ngày|tuần|h|m|d|w))$/i.test(
-                        t,
-                      ),
-                  );
+                  .filter((t) => t.length >= 1 && t !== authorName && !skipText.test(t));
                 const text = Array.from(new Set(bodyParts)).join(' ').trim();
-                return { authorName, text, hasAdminBadge, hasLabel: Boolean(nodeText) };
-              }),
-          ).catch(() => []);
+                // Answered when someone from the team (admin, moderator, the bot) wrote after it in its thread.
+                const thread = threadOf(node);
+                const answeredByTeam = Array.from(thread.querySelectorAll('div[role="article"][aria-label]')).some((r) => {
+                  if (r === node || !(node.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING)) return false;
+                  const id = authorIdOf(r);
+                  return Boolean(id && admins.has(id));
+                });
+                const isReply = !isTopLevel(node);
+                return { authorName, authorId, text, hasAdminBadge, answeredByTeam, isReply };
+              });
+            }, Array.from(adminIds))
+            .catch(() => [] as Array<{ authorName: string; authorId: string; text: string; hasAdminBadge: boolean; answeredByTeam: boolean; isReply: boolean }>);
 
           const postTag = FacebookGroupBot.extractPostIdFromUrl(postUrl);
           let postCommentsFound = 0;
 
           for (const rc of rawComments) {
-            if (!rc.text || rc.text.length < 3) continue;
+            // Short greetings ("hi", "ok") are real questions to answer too; only empty text is skipped.
+            if (!rc.text?.trim()) continue;
             postCommentsFound += 1;
             // Skip self-comments authored by the logged-in admin account or explicitly badged Admin/Moderator
             const authorLower = rc.authorName.trim().toLowerCase();
-            if (rc.hasAdminBadge || adminNameLower.has(authorLower)) {
+            if (rc.hasAdminBadge || (rc.authorId && adminIds.has(rc.authorId)) || adminNameLower.has(authorLower)) {
               continue;
             }
+            // Someone from the team already replied in this comment's thread: nothing left to answer.
+            if (rc.answeredByTeam) continue;
             const digest = createHash('sha1')
               .update(`${postTag}|${authorLower}|${rc.text.slice(0, 180).toLowerCase()}`)
               .digest('hex')
@@ -1977,164 +2179,201 @@ export class FacebookGroupBot {
 
       await this.expandCommentsOnCurrentPost(page);
 
-      let focusedBox = false;
-      const needle = options.commentSnippet?.trim().slice(0, 80).toLowerCase() || '';
-      const authorNeedle = options.authorName?.trim().toLowerCase() || '';
-      if (needle || authorNeedle) {
-        const commentArticles = await page.$$(
-          'div[role="article"][aria-label*="Bình luận"], div[role="article"][aria-label*="Comment"], div[role="article"][aria-label*="Phản hồi"], div[role="article"][aria-label*="Reply"]',
-        );
-        for (const art of commentArticles) {
-          const txt = (await art.innerText().catch(() => '')).toLowerCase();
-          const matched = (needle && txt.includes(needle)) || (!needle && authorNeedle && txt.includes(authorNeedle));
-          if (matched) {
-            await art.scrollIntoViewIfNeeded().catch(() => {});
-            const replyBtn = await art.$(
-              '[role="button"]:has-text("Trả lời"), [role="button"]:has-text("Phản hồi"), [role="button"]:has-text("Reply")',
-            );
-            if (replyBtn && (await replyBtn.isVisible().catch(() => false))) {
-              await replyBtn.click().catch(() => {});
-              await page.waitForTimeout(1000);
-              focusedBox = true;
-              break;
-            }
-          }
-        }
-      }
-
-      const replyBoxSelectors = [
-        'div[role="dialog"] div[role="textbox"][aria-label*="Viết câu trả lời"]',
-        'div[role="dialog"] div[role="textbox"][aria-label*="Trả lời"]',
-        'div[role="dialog"] div[role="textbox"][aria-label*="Phản hồi"]',
-        'div[role="dialog"] div[role="textbox"][aria-label*="Reply"]',
-        'div[role="textbox"][aria-label*="Viết câu trả lời"]',
-        'div[role="textbox"][aria-label*="Trả lời"]',
-        'div[role="textbox"][aria-label*="Phản hồi"]',
-        'div[role="textbox"][aria-label*="Reply"]',
-      ];
-      const generalBoxSelectors = [
-        'div[role="dialog"] div[role="textbox"][aria-label*="Viết bình luận"]',
-        'div[role="dialog"] div[role="textbox"][aria-label*="Bình luận"]',
-        'div[role="dialog"] div[role="textbox"][aria-label*="Write a comment"]',
-        'div[role="textbox"][aria-label*="Viết bình luận"]',
-        'div[role="textbox"][aria-label*="Write a comment"]',
-        'div[role="dialog"] div[role="textbox"][contenteditable="true"]',
-        'div[role="textbox"][contenteditable="true"]',
-      ];
-
-      let targetBox: import('playwright-core').ElementHandle<SVGElement | HTMLElement> | null = null;
-      if (focusedBox) {
-        for (const sel of replyBoxSelectors) {
-          const boxes = await page.$$(sel);
-          if (boxes.length > 0) {
-            targetBox = boxes[boxes.length - 1];
-            break;
-          }
-        }
-        if (!targetBox) {
-          const activeElHandle = await page.evaluateHandle(() => {
-            const el = document.activeElement as HTMLElement | null;
-            return el && (el.getAttribute('role') === 'textbox' || el.isContentEditable) ? el : null;
-          });
-          targetBox = activeElHandle.asElement() as import('playwright-core').ElementHandle<HTMLElement> | null;
-        }
-      }
-      if (!targetBox) {
-        for (const sel of [...replyBoxSelectors, ...generalBoxSelectors]) {
-          const boxes = await page.$$(sel);
-          if (boxes.length > 0) {
-            targetBox = boxes[boxes.length - 1];
-            break;
-          }
-        }
-      }
-
-      if (!targetBox) {
-        const blockedHint = await page
-          .evaluate(() => {
-            const body = document.body?.innerText || '';
-            if (/Tham gia nhóm|Join group/i.test(body)) {
-              return 'Tài khoản Facebook hiện tại chưa tham gia hoặc không phải Quản trị viên Group nên không có ô bình luận.';
-            }
-            return '';
-          })
-          .catch(() => '');
+      const replyText = options.replyText.trim();
+      const snippetNeedle = normalizeForMatch(options.commentSnippet).slice(0, 80);
+      const authorNeedle = normalizeForMatch(options.authorName);
+      if (!snippetNeedle && !authorNeedle) {
+        // Without a target the only box left is the top-level one, which is exactly the bug we must avoid.
         return {
           success: false,
           postUrl: options.postUrl,
-          message:
-            blockedHint ||
-            'Không tìm thấy ô nhập bình luận trên bài viết Group (kiểm tra tài khoản Group Bot đã là Quản trị viên/Thành viên Group chưa).',
+          message: 'Thiếu nội dung hoặc tên người bình luận nên không xác định được bình luận cần trả lời.',
+        };
+      }
+      const replyPrefix = normalizeForMatch(replyText).slice(0, 48);
+
+      // Marks the target comment (and its own reply-thread replies) with data attributes so the
+      // following steps work on exactly that comment. Returns what was found.
+      const locateTarget = async () =>
+        page.evaluate(
+          ({ snippet, author, prefix }) => {
+            const norm = (s: string | null | undefined) =>
+              (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+            document.querySelectorAll('[data-agos-target]').forEach((el) => el.removeAttribute('data-agos-target'));
+            // The post opens in a dialog over an unrelated page; its comments live in that dialog.
+            const dialogs = Array.from(document.querySelectorAll('div[role="dialog"]'));
+            const root: Element = dialogs[dialogs.length - 1] || document.body;
+            const articles = Array.from(root.querySelectorAll<HTMLElement>('div[role="article"][aria-label]'));
+            const own = (node: Element, selector: string) =>
+              Array.from(node.querySelectorAll(selector)).filter((el) => el.closest('div[role="article"]') === node);
+            const ownText = (node: Element) => norm(own(node, 'div[dir="auto"]').map((el) => el.textContent || '').join(' '));
+            const authorOf = (node: Element) => {
+              const link = own(node, 'a[role="link"]').find((a) => {
+                const t = (a.textContent || '').trim();
+                return t.length >= 2 && t.length <= 80 && !/^(Thích|Like|Trả lời|Phản hồi|Reply|Chia sẻ|Share)$/i.test(t);
+              });
+              return norm(link?.textContent);
+            };
+            const isTopLevel = (n: Element) => /^(Bình luận dưới tên|Comment by)/i.test(n.getAttribute('aria-label') || '');
+            // Replies sit next to the comment, not inside it: the thread is the largest ancestor
+            // that still holds a single top-level comment.
+            const threadOf = (n: Element): Element => {
+              let current: Element = n;
+              let parent = n.parentElement;
+              while (parent && parent !== root) {
+                if (Array.from(parent.querySelectorAll('div[role="article"][aria-label]')).filter(isTopLevel).length > 1) break;
+                current = parent;
+                parent = parent.parentElement;
+              }
+              return current;
+            };
+            const answeredInThread = (n: Element) =>
+              Boolean(prefix) &&
+              Array.from(threadOf(n).querySelectorAll('div[role="article"][aria-label]')).some(
+                (r) => r !== n && Boolean(n.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING) && ownText(r).includes(prefix),
+              );
+
+            // The asker's message (a comment or a follow-up reply), matched on its own text and author.
+            const matches = articles.filter((art) => {
+              if (snippet && !ownText(art).includes(snippet)) return false;
+              if (author && authorOf(art) !== author) return false;
+              return true;
+            });
+            if (!matches.length) return { found: false, alreadyReplied: false };
+            const open = matches.find((art) => !answeredInThread(art));
+            if (!open) return { found: true, alreadyReplied: true };
+            open.setAttribute('data-agos-target', 'comment');
+            return { found: true, alreadyReplied: false };
+          },
+          { snippet: snippetNeedle, author: authorNeedle, prefix: replyPrefix },
+        )
+        .catch(() => ({ found: false, alreadyReplied: false }));
+
+      // Comments load into the post dialog after the page itself: wait and retry before giving up.
+      await page.waitForSelector('div[role="dialog"] div[role="article"][aria-label]', { timeout: 8000 }).catch(() => {});
+      let target = await locateTarget();
+      for (let attempt = 0; attempt < 3 && !target.found; attempt++) {
+        await page.waitForTimeout(2000);
+        await this.expandCommentsOnCurrentPost(page);
+        target = await locateTarget();
+      }
+      if (!target.found) {
+        return {
+          success: false,
+          postUrl: options.postUrl,
+          message: 'Không tìm thấy bình luận cần trả lời trên bài viết Group nên không đăng (tránh đăng thành bình luận mới).',
+        };
+      }
+      if (target.alreadyReplied) {
+        return {
+          success: true,
+          postUrl: options.postUrl,
+          verified: true,
+          alreadyReplied: true,
+          message: 'Bình luận này đã có câu trả lời giống hệt trong thread nên không đăng lại.',
         };
       }
 
-      const verifyPrefix = options.replyText.trim().replace(/\s+/g, ' ').slice(0, 36).toLowerCase();
-      const countRenderedMatches = async (): Promise<number> =>
-        page
-          .evaluate((prefix) => {
-            if (!prefix) return 0;
-            const els = Array.from(document.querySelectorAll('div[role="article"] div[dir="auto"], div[dir="auto"]'));
-            let matches = 0;
-            for (const el of els) {
-              if (el.closest('div[role="textbox"]')) continue;
-              const txt = (el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-              if (txt.includes(prefix)) matches += 1;
-            }
-            return matches;
-          }, verifyPrefix)
-          .catch(() => 0);
+      const targetComment = page.locator('[data-agos-target="comment"]').first();
+      await targetComment.scrollIntoViewIfNeeded().catch(() => {});
+      // Only an action whose whole text is "Trả lời"/"Reply": "Xem 3 phản hồi" must not be clicked.
+      const replyAction = targetComment
+        .locator('[role="button"], [role="link"]')
+        .filter({ hasText: /^\s*(Trả lời|Phản hồi|Reply)\s*$/i })
+        .first();
+      if (!(await replyAction.isVisible().catch(() => false))) {
+        return {
+          success: false,
+          postUrl: options.postUrl,
+          message: 'Không thấy nút "Trả lời" dưới bình luận cần trả lời nên không đăng.',
+        };
+      }
+      await replyAction.click();
+      await page.waitForTimeout(1200);
 
-      const beforeMatches = await countRenderedMatches();
+      // Facebook focuses the reply composer it opens under the comment. The top-level
+      // "Viết bình luận công khai" box is never acceptable here.
+      const composerLabel = await page
+        .evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          if (!el || !(el.getAttribute('role') === 'textbox' || el.isContentEditable)) return null;
+          el.setAttribute('data-agos-composer', 'reply');
+          return (el.getAttribute('aria-label') || '').toLowerCase();
+        })
+        .catch(() => null);
+      const looksTopLevel = (label: string) =>
+        /bình luận công khai|viết bình luận|write a (public )?comment/.test(label) && !/trả lời|phản hồi|reply/.test(label);
+      let composer = page.locator('[data-agos-composer="reply"]').first();
+      if (composerLabel === null || looksTopLevel(composerLabel)) {
+        const replyBox = page
+          .locator(
+            'div[role="textbox"][aria-label*="Trả lời"], div[role="textbox"][aria-label*="Phản hồi"], div[role="textbox"][aria-label*="Viết câu trả lời"], div[role="textbox"][aria-label*="Reply"]',
+          )
+          .last();
+        if (!(await replyBox.isVisible().catch(() => false))) {
+          return {
+            success: false,
+            postUrl: options.postUrl,
+            message: 'Đã bấm "Trả lời" nhưng không mở được ô trả lời dưới bình luận nên không đăng.',
+          };
+        }
+        composer = replyBox;
+      }
 
-      await targetBox.scrollIntoViewIfNeeded().catch(() => {});
-      await targetBox.click();
-      await page.keyboard.insertText(options.replyText.trim());
+      await composer.click();
+      await page.keyboard.press('End').catch(() => {});
+      await page.keyboard.insertText(replyText);
       await page.waitForTimeout(600);
       await page.keyboard.press('Enter');
 
       let verified = false;
+      // role="alert" also carries Facebook's success toast ("Đã gửi bình luận của bạn"): only an
+      // alert that says something went wrong is a refusal, a "sent" toast is an acknowledgement.
       let permissionAlert = '';
-      for (let attempt = 0; attempt < 7; attempt++) {
-        await page.waitForTimeout(750);
-        const afterMatches = await countRenderedMatches();
-        if (afterMatches > beforeMatches) {
+      let sentToast = false;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        await page.waitForTimeout(800);
+        const check = await locateTarget();
+        if (check.alreadyReplied) {
           verified = true;
           break;
         }
-        permissionAlert = await page
+        const alertText = await page
           .$eval('div[role="alert"]', (el) => (el.textContent || '').trim())
           .catch(() => '');
-        if (permissionAlert && /không thể|lỗi|hạn chế|blocked|error|cannot/i.test(permissionAlert)) {
+        if (/đã gửi|đã đăng|comment (was )?(sent|posted)|your comment/i.test(alertText)) {
+          sentToast = true;
+        } else if (alertText && /không thể|lỗi|hạn chế|bị chặn|blocked|error|cannot|couldn't|try again/i.test(alertText)) {
+          permissionAlert = alertText;
           break;
         }
-
-        // On attempt 2, if text still sits in textbox, try clicking the send button icon
-        if (attempt === 2) {
-          const sendBtn = await page.$(
-            'div[aria-label="Bình luận"][role="button"]:not([aria-disabled="true"]), div[aria-label="Comment"][role="button"]:not([aria-disabled="true"]), div[aria-label*="Gửi"][role="button"]:not([aria-disabled="true"])',
-          );
-          if (sendBtn && (await sendBtn.isVisible().catch(() => false))) {
-            await sendBtn.click().catch(() => {});
-          }
-        }
       }
+      // Enter consumed the text: Facebook accepted it even if the thread has not re-rendered yet.
+      // A composer Facebook removed after posting counts as emptied too.
+      const composerEmptied =
+        sentToast ||
+        (await composer.count().catch(() => 0)) === 0 ||
+        (await composer.evaluate((el) => !(el.textContent || '').trim()).catch(() => false));
 
       await this.persistAuthenticatedState(context, page);
 
-      if (!verified) {
+      if (!verified && (!composerEmptied || permissionAlert)) {
         return {
           success: false,
           postUrl: options.postUrl,
           message: permissionAlert
-            ? `Facebook từ chối đăng bình luận: ${permissionAlert}`
-            : 'Đã nhập nội dung nhưng bình luận chưa xuất hiện trên bài viết Group (kiểm tra quyền Quản trị viên hoặc bấm Đổi tài khoản Group Bot).',
+            ? `Facebook từ chối đăng câu trả lời: ${permissionAlert}`
+            : 'Đã nhập câu trả lời nhưng Facebook chưa nhận (kiểm tra quyền Quản trị viên hoặc bấm Đổi tài khoản Group Bot).',
         };
       }
 
       return {
         success: true,
         postUrl: options.postUrl,
-        message: 'Đã gửi và xác minh bình luận trả lời hiển thị công khai trên Group Facebook.',
+        verified,
+        message: verified
+          ? 'Đã trả lời ngay dưới bình luận và xác minh câu trả lời hiển thị trong thread.'
+          : 'Đã gửi câu trả lời dưới bình luận; Facebook chưa hiển thị lại thread để xác minh.',
       };
     } finally {
       await browser.close();

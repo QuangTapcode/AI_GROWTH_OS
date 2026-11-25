@@ -20,6 +20,7 @@ import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
 import { MerchantTikTokCarouselRunner } from './publish/MerchantTikTokCarouselRunner';
 import { GroupMetricsScheduler,loadGroupSchedule,groupErrorCode } from './metrics/GroupMetricsScheduler';
+import { GroupCommentWatcher } from './publish/GroupCommentWatcher';
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
@@ -36,6 +37,7 @@ async function main() {
   const plan = new PlanOutboxRunner(pool, ai), ingest = new SourceIngestRunner(pool, ai);
   let planBusy = false, ingestBusy = false;
   let triggerTick = () => {};
+  let groupWatcher: GroupCommentWatcher | undefined;
   const runPlan = () => {
     if (planBusy) return;
     planBusy = true;
@@ -113,7 +115,8 @@ async function main() {
       void fetch(`${apiBase}/internal/community/autopilot`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(150_000),
+        // Group scans visit the admins page and several posts in a browser; 150 s was too short.
+        signal: AbortSignal.timeout(290_000),
       })
         .then((res) => {
           if (!res.ok) throw new Error(`community autopilot HTTP ${res.status}`);
@@ -123,6 +126,29 @@ async function main() {
         .finally(() => { communityAutopilotBusy = false; });
     };
     timers.push(setTimeout(triggerCommunityAutopilot, 15_000), setInterval(triggerCommunityAutopilot, 180_000));
+
+    // Near-instant Group replies: watch the bot account's comment notifications (GROUP_COMMENT_WATCH=0 turns it off).
+    if (process.env.GROUP_COMMENT_WATCH !== '0') {
+      void pool
+        .query<{ group_url: string }>(
+          `SELECT s.group_url FROM community_hub_settings s
+             JOIN agent_automation a ON a.workspace_id = s.workspace_id AND a.enabled = TRUE
+            WHERE s.auto_reply_comments IS DISTINCT FROM FALSE AND s.group_url LIKE '%/groups/%' LIMIT 1`,
+        )
+        .then(({ rows }) => {
+          const groupId = rows[0]?.group_url.match(/\/groups\/([^/?#]+)/)?.[1];
+          if (!groupId) return;
+          groupWatcher = new GroupCommentWatcher({
+            apiBase,
+            token,
+            groupId,
+            pollMs: Number(process.env.GROUP_COMMENT_WATCH_MS ?? 8000),
+            onIngested: () => { runReplies(); triggerTick(); },
+          });
+          return groupWatcher.start().then(() => console.log('[group-comment-watch] watching notifications for group', groupId));
+        })
+        .catch((error) => console.error('[group-comment-watch]', (error as Error).message));
+    }
     // 8 agent merchant: API quyết định agent nào tới lượt (Drive 20', Maps 3', lịch đăng 1', báo cáo tối...).
     let merchantBusy = false;
     const triggerMerchantTick = () => {
@@ -177,6 +203,7 @@ async function main() {
   });
   telegramBot.start();
   const stop = () => {
+    void groupWatcher?.stop();
     telegramBot.stop();
     bridge?.close();
     timers.forEach(clearInterval);
