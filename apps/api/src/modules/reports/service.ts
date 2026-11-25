@@ -15,6 +15,7 @@ import type {
   ListExceptionsQuery,
   OutboxEventInput,
 } from './schemas';
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 /**
  * TQ-07 — Reports, Real Metrics Snapshots, Exceptions with Owners & Transactional Outbox
@@ -86,7 +87,8 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
   let leadCount = 0;
   try {
     leadCount = await globalLeadRepo.countCapturedInPeriod(workspaceId, fromDate, toDate, timezone);
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     leadCount = 0;
   }
 
@@ -188,8 +190,10 @@ export async function getWorkspaceReport(workspaceId: string, query: ReportQuery
         ...(metric === 'ad_spend' ? { currency } : {}),
       };
     }
-  } catch (error) {
-    // Isolated in-memory fixtures or DB offline fallback
+  } catch (error: unknown) {
+    // Isolated in-memory fixtures have no DB; configured services must expose operational failures
+    // (trừ khi bật demo offline và DB không kết nối được).
+    if (process.env.DATABASE_URL && !canServeOfflineDemo(error)) throw error;
   }
 
   // Fanpage đã kết nối (token server-side): số liệu đọc trực tiếp từ Graph API.

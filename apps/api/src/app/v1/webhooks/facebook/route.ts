@@ -19,6 +19,51 @@ type FeedCommentChange = {
   };
 };
 
+type InstagramEntry = {
+  id?: string;
+  messaging?: MessagingEvent[];
+  changes?: { field?: string; value?: { id?: string; text?: string; from?: { id?: string; username?: string }; media?: { id?: string } } }[];
+};
+
+/**
+ * Instagram (cùng app Meta, object = 'instagram'): DM → instagram_message (Agent 7), comment → instagram_comment (Agent 6).
+ * Chỉ nhận cho tài khoản INSTAGRAM_BUSINESS_ACCOUNT_ID; bỏ qua tin/ bình luận do chính tài khoản quán tạo.
+ */
+async function ingestInstagram(workspaceId: string, entries: InstagramEntry[] | undefined) {
+  const igId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID?.trim();
+  for (const entry of entries ?? []) {
+    if (!igId || entry.id !== igId) continue;
+    for (const event of entry.messaging ?? []) {
+      const { message, sender } = event;
+      if (!message?.mid || !message.text?.trim() || message.is_echo || !sender?.id || sender.id === igId) continue;
+      await pool.query(
+        `INSERT INTO community_messages (workspace_id, platform, external_id, author_name, author_contact, content, metadata)
+         SELECT $1::uuid, 'instagram_message', $2::varchar, 'Instagram user', $3::varchar, $4::text, $5::jsonb
+          WHERE NOT EXISTS (SELECT 1 FROM community_messages WHERE workspace_id=$1::uuid AND platform='instagram_message' AND external_id=$2::varchar)`,
+        [workspaceId, message.mid, sender.id, message.text.trim().slice(0, 4000), JSON.stringify({ ig_account_id: entry.id })]);
+    }
+    for (const change of entry.changes ?? []) {
+      const val = change.value;
+      if (change.field !== 'comments' || !val?.id || !val.text?.trim()) continue;
+      if (val.from?.id === igId) continue;
+      const author = val.from?.username ? `@${val.from.username}` : 'Người bình luận Instagram';
+      await pool.query(
+        `INSERT INTO community_messages (workspace_id, platform, external_id, author_name, author_contact, content, metadata)
+         SELECT $1::uuid, 'instagram_comment', $2::varchar, $3::varchar, $4::varchar, $5::text, $6::jsonb
+          WHERE NOT EXISTS (SELECT 1 FROM community_messages WHERE workspace_id=$1::uuid AND platform='instagram_comment' AND external_id=$2::varchar)`,
+        [
+          workspaceId,
+          val.id,
+          author.slice(0, 255),
+          `comment:${val.id}`,
+          val.text.trim().slice(0, 4000),
+          JSON.stringify({ ig_account_id: entry.id, comment_id: val.id, media_id: val.media?.id ?? null, from_id: val.from?.id ?? null, from_name: author }),
+        ],
+      );
+    }
+  }
+}
+
 /** Meta signs the raw body with the app secret (X-Hub-Signature-256: sha256=<hex>). */
 function signedByMeta(body: string, header: string | null) {
   const secret = process.env.FACEBOOK_APP_SECRET;
@@ -41,7 +86,13 @@ export async function POST(req: NextRequest) {
     object?: string;
     entry?: { id?: string; messaging?: MessagingEvent[]; changes?: FeedCommentChange[] }[];
   };
-  if (payload.object !== 'page' || !workspaceId) return NextResponse.json({ status: 'ignored' });
+  if (!workspaceId) return NextResponse.json({ status: 'ignored' });
+  if (payload.object === 'instagram') {
+    await ingestInstagram(workspaceId, payload.entry as InstagramEntry[] | undefined);
+    void tickAutomation(pool, workspaceId).catch(() => {});
+    return NextResponse.json({ status: 'received' });
+  }
+  if (payload.object !== 'page') return NextResponse.json({ status: 'ignored' });
   for (const entry of payload.entry ?? []) {
     if (entry.id !== process.env.FACEBOOK_PAGE_ID) continue;
     for (const event of entry.messaging ?? []) {

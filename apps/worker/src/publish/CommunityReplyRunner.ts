@@ -9,13 +9,50 @@ export type SendGroupCommentReply = (params: {
   authorName?: string;
   questionSnippet?: string;
   replyText: string;
-}) => Promise<{ success: boolean; message: string }>;
+}) => Promise<{ success: boolean; message: string; verified?: boolean; alreadyReplied?: boolean }>;
 
 export interface CommentReplyHandlers {
   sendPageComment?: SendPageCommentReply;
   sendPrivateReply?: SendPrivateReply;
   sendGroupComment?: SendGroupCommentReply;
+  sendInstagramComment?: SendPageCommentReply;
+  sendZalo?: SendReply;
 }
+
+/** Instagram Graph API: trả lời công khai dưới bình luận (`POST /{ig-comment-id}/replies`). */
+export const sendInstagramCommentReply: SendPageCommentReply = async (commentId, text) => {
+  const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+  if (!token) throw new Error('INSTAGRAM_COMMENT_NOT_CONFIGURED');
+  const version = process.env.META_GRAPH_API_VERSION ?? 'v20.0';
+  const response = await fetch(`https://graph.facebook.com/${version}/${encodeURIComponent(commentId)}/replies`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ message: text }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json().catch(() => ({})) as { id?: string; error?: { message?: string; code?: number } };
+  if (!response.ok || !body.id) {
+    throw new Error(`INSTAGRAM_COMMENT_REFUSED: (#${body.error?.code ?? response.status}) ${body.error?.message ?? 'request failed'}`);
+  }
+  return { id: body.id, message_id: body.id };
+};
+
+/** Zalo Official Account API v3: tin nhắn tư vấn (khách đã nhắn OA trong 7 ngày). */
+export const sendZaloOaMessage: SendReply = async (recipient, text) => {
+  const token = process.env.ZALO_OA_ACCESS_TOKEN;
+  if (!token) throw new Error('ZALO_NOT_CONFIGURED');
+  const response = await fetch('https://openapi.zalo.me/v3.0/oa/message/cs', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', access_token: token },
+    body: JSON.stringify({ recipient: { user_id: recipient }, message: { text: text.slice(0, 2000) } }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json().catch(() => ({})) as { error?: number; message?: string; data?: { message_id?: string } };
+  if (!response.ok || (typeof body.error === 'number' && body.error !== 0)) {
+    throw new Error(`ZALO_REFUSED: (#${body.error ?? response.status}) ${body.message ?? 'request failed'}`);
+  }
+  return { message_id: body.data?.message_id };
+};
 
 /** Messenger Send API with the server-side Page token; the token never leaves this process. */
 export const sendMessengerReply: SendReply = async (recipient, text) => {
@@ -187,6 +224,17 @@ export class CommunityReplyRunner {
       invite_group_url: inviteGroupUrl,
       community_name: communityName,
     } = event.payload;
+    // One question, one answer: another path (hub auto-reply, a person, an earlier event) may have answered it already.
+    if (messageId) {
+      const current = (await this.pool.query<{ status: string }>(
+        `SELECT status FROM community_messages WHERE workspace_id = $1 AND id = $2`,
+        [event.workspace_id, messageId],
+      )).rows[0];
+      if (current?.status === 'replied') {
+        await this.pool.query(`UPDATE outbox_events SET status = 'published', published_at = now() WHERE id = $1`, [event.id]);
+        return 'idle';
+      }
+    }
     try {
       let sent: { message_id?: string } = {};
       const extraMeta: Record<string, unknown> = {};
@@ -232,6 +280,9 @@ export class CommunityReplyRunner {
           if (!groupRes.success) throw new Error(`GROUP_COMMENT_REFUSED: ${groupRes.message}`);
           sent = { message_id: `grp_reply:${targetCommentId}` };
           extraMeta.reply_channel = 'facebook_group_comment';
+          extraMeta.reply_threaded = true;
+          extraMeta.reply_verified = groupRes.verified ?? null;
+          if (groupRes.alreadyReplied) extraMeta.reply_already_in_thread = true;
           extraMeta.post_url = postUrl;
         } else {
           const pageHandler = this.commentHandlers.sendPageComment ?? sendPageCommentReply;
@@ -312,11 +363,21 @@ export class CommunityReplyRunner {
             }
           }
         }
+      } else if (platform === 'instagram_comment') {
+        const igHandler = this.commentHandlers.sendInstagramComment ?? sendInstagramCommentReply;
+        const igRes = await igHandler((explicitCommentId || recipient).replace(/^comment:/, ''), text);
+        sent = { message_id: igRes.message_id ?? igRes.id };
+        extraMeta.reply_channel = 'instagram_comment';
+      } else if (platform === 'zalo_message') {
+        sent = await (this.commentHandlers.sendZalo ?? sendZaloOaMessage)(recipient, text);
+        extraMeta.reply_channel = 'zalo_oa';
       } else {
+        // facebook_message và instagram_message: cùng Send API của Page (Instagram Messaging qua Page token).
         sent = await this.send(recipient, text);
+        extraMeta.reply_channel = platform === 'instagram_message' ? 'instagram_dm' : 'messenger';
       }
 
-      await this.pool.query(
+      if (messageId) await this.pool.query(
         `UPDATE community_messages SET status = 'replied', metadata = metadata || $3::jsonb, updated_at = now()
           WHERE workspace_id = $1 AND id = $2`,
         [event.workspace_id, messageId, JSON.stringify({

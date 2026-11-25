@@ -1,46 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { BookingLeadsService } from '../../../../../../modules/booking/leads';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { handleApiError } from "@/lib/errors";
+import { readJsonBody, requireWorkspaceRole } from "@/lib/workspaceRoute";
+import { BookingLeadService } from "@/modules/booking/leads";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+const querySchema = z.object({
+  status: z.enum(["pending", "confirmed", "cancelled", "completed", "no_show"]).optional(),
+  from: z.string().datetime({ offset: true }).optional(),
+  to: z.string().datetime({ offset: true }).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+/** Danh sách đặt bàn thật (Agent 7 chốt qua tin nhắn + nhân viên nhập tay). */
+export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get('status') || undefined;
-    const limit = searchParams.get('limit') ? Number(searchParams.get('limit')) : 50;
-
-    const service = new BookingLeadsService();
-    const leads = await service.listLeads(params.workspace_id, { status, limit });
-    return NextResponse.json({ ok: true, leads });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to list booking leads' }, { status: 500 });
+    await requireWorkspaceRole(req, params.workspace_id);
+    const q = querySchema.parse(Object.fromEntries(req.nextUrl.searchParams.entries()));
+    const data = await new BookingLeadService().listLeads(params.workspace_id, q);
+    return NextResponse.json({ ok: true, leads: data.items, summary: data.summary });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+/** Nhân viên nhập đặt bàn nhận qua điện thoại/ khách vãng lai. */
+export async function POST(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
-    const body = await request.json();
-    const service = new BookingLeadsService();
-    let replyText: string | undefined;
-
-    if (body.action === 'auto_reply_and_capture' || body.customer_message) {
-      const consult = await service.generate1on1ConsultationReply(
-        params.workspace_id,
-        String(body.customer_message || body.special_notes || ''),
-        String(body.customer_name || 'Khách tương tác Inbox')
-      );
-      replyText = consult.reply_text;
-      body.consultation_summary = replyText;
-    }
-
-    const created = await service.createLead(params.workspace_id, body);
-    return NextResponse.json({ ok: true, lead: created, reply: replyText }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to create booking lead' }, { status: 500 });
+    await requireWorkspaceRole(req, params.workspace_id, ["owner", "editor"]);
+    const lead = await new BookingLeadService().createLead(params.workspace_id, await readJsonBody(req));
+    return NextResponse.json({ ok: true, lead }, { status: 201 });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
-

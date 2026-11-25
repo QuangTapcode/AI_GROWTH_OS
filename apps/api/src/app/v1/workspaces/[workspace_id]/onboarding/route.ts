@@ -1,42 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ZeroTechOnboardingService } from '../../../../../modules/onboarding/onboarding';
+import { NextRequest, NextResponse } from "next/server";
+import { handleApiError } from "@/lib/errors";
+import { readJsonBody, requireWorkspaceRole } from "@/lib/workspaceRoute";
+import { ZeroTechOnboardingService } from "@/modules/onboarding/onboarding";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+/** Trạng thái kết nối 4 link + tình trạng thật của 8 agent. */
+export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
-    const service = new ZeroTechOnboardingService();
-    const state = await service.getStatus(params.workspace_id);
+    await requireWorkspaceRole(req, params.workspace_id);
+    const state = await new ZeroTechOnboardingService().getStatus(params.workspace_id);
     return NextResponse.json({ ok: true, state });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to get onboarding state' }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+/** Kích hoạt: kiểm tra 4 link, lưu, xếp lịch cho 8 agent chạy ngay. Chỉ owner. */
+export async function POST(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
-    const body = await request.json();
-    const { fanpage_url, gmaps_url, gdrive_url, community_group_url } = body;
-    if (!fanpage_url || !gmaps_url || !gdrive_url) {
-      return NextResponse.json(
-        { ok: false, error: 'fanpage_url, gmaps_url, và gdrive_url là bắt buộc' },
-        { status: 400 }
-      );
-    }
-
-    const service = new ZeroTechOnboardingService();
-    const state = await service.submitLinks(params.workspace_id, {
-      fanpage_url,
-      gmaps_url,
-      gdrive_url,
-      community_group_url,
-    });
+    await requireWorkspaceRole(req, params.workspace_id, ["owner"]);
+    const state = await new ZeroTechOnboardingService().activate(params.workspace_id, await readJsonBody(req));
     return NextResponse.json({ ok: true, state });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to submit onboarding' }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error);
   }
 }

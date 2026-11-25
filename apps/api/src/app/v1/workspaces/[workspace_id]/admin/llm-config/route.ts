@@ -1,30 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { MultiLLMAdapterService } from '../../../../../../modules/ai/llmAdapter';
+import { NextRequest, NextResponse } from "next/server";
+import { handleApiError } from "@/lib/errors";
+import { readJsonBody, requireWorkspaceRole } from "@/lib/workspaceRoute";
+import { MultiLLMAdapterService } from "@/modules/ai/llmAdapter";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+type Ctx = { params: { workspace_id: string } };
+
+/** Cấu hình Multi-LLM của workspace. Khóa API chỉ trả dạng đã che (••••1234). Chỉ owner. */
+export async function GET(req: NextRequest, { params }: Ctx) {
   try {
-    const service = new MultiLLMAdapterService();
-    const config = await service.getConfig(params.workspace_id);
+    await requireWorkspaceRole(req, params.workspace_id, ["owner"]);
+    const config = await new MultiLLMAdapterService().getConfig(params.workspace_id);
     return NextResponse.json({ ok: true, config });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to get LLM config' }, { status: 500 });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { workspace_id: string } }
-) {
+export async function POST(req: NextRequest, { params }: Ctx) {
   try {
-    const body = await request.json();
-    const service = new MultiLLMAdapterService();
-    const updated = await service.updateConfig(params.workspace_id, body);
-    return NextResponse.json({ ok: true, config: updated });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Failed to update LLM config' }, { status: 500 });
+    await requireWorkspaceRole(req, params.workspace_id, ["owner"]);
+    const config = await new MultiLLMAdapterService().updateConfig(params.workspace_id, await readJsonBody(req));
+    return NextResponse.json({ ok: true, config });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 
+export const PUT = POST;

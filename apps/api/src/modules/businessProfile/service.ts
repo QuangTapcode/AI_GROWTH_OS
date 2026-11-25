@@ -3,18 +3,17 @@ import { AuthUser } from "../../lib/auth";
 import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import { updateBusinessProfileSchema } from "./schemas";
 import * as repo from "./repository";
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 /** Hồ sơ doanh nghiệp: ngữ cảnh/brand voice mà AI dùng; mọi thành viên xem, owner/editor sửa. */
 export async function getBusinessProfile(user: AuthUser, workspaceId: string) {
   try {
     await resolveTenantContext(user, workspaceId);
     const profile = await repo.getProfile(workspaceId);
-    if (!profile) {
-      return getFallbackBusinessProfile(workspaceId, user.id);
-    }
+    if (!profile) throw new AppError(404, "PROFILE_NOT_FOUND", "This workspace has no business profile yet");
     return profile;
-  } catch (err) {
-    if (err instanceof AppError && err.statusCode !== 500) throw err;
+  } catch (err: unknown) {
+    if (!canServeOfflineDemo(err)) throw err;
     return getFallbackBusinessProfile(workspaceId, user.id);
   }
 }

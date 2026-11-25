@@ -55,3 +55,4 @@ apps/worker/.group-bot-io/
 apps/worker/.gmaps-profile/
 apps/worker/.gmaps-session.json
 **/.gmaps-session*.json
+apps/worker/.group-admins-cache.json

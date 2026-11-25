@@ -18,7 +18,9 @@ import { listLinksWithBrowser } from './workflow/BrowserRenderer';
 import { FirstPartyBlogSync } from './workflow/FirstPartyBlogSync';
 import { PlanOutboxRunner } from './workflow/PlanOutboxRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
+import { MerchantTikTokCarouselRunner } from './publish/MerchantTikTokCarouselRunner';
 import { GroupMetricsScheduler,loadGroupSchedule,groupErrorCode } from './metrics/GroupMetricsScheduler';
+import { GroupCommentWatcher } from './publish/GroupCommentWatcher';
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
@@ -35,6 +37,7 @@ async function main() {
   const plan = new PlanOutboxRunner(pool, ai), ingest = new SourceIngestRunner(pool, ai);
   let planBusy = false, ingestBusy = false;
   let triggerTick = () => {};
+  let groupWatcher: GroupCommentWatcher | undefined;
   const runPlan = () => {
     if (planBusy) return;
     planBusy = true;
@@ -112,7 +115,8 @@ async function main() {
       void fetch(`${apiBase}/internal/community/autopilot`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(150_000),
+        // Group scans visit the admins page and several posts in a browser; 150 s was too short.
+        signal: AbortSignal.timeout(290_000),
       })
         .then((res) => {
           if (!res.ok) throw new Error(`community autopilot HTTP ${res.status}`);
@@ -123,28 +127,50 @@ async function main() {
     };
     timers.push(setTimeout(triggerCommunityAutopilot, 15_000), setInterval(triggerCommunityAutopilot, 180_000));
 
-    // Periodic incremental Google Drive -> Existing Agents drafting autopilot (only processes newly added photos)
-    let gmapsDriveBusy = false;
-    const gmapsDriveIntervalMs = Number(process.env.GMAPS_DRIVE_SYNC_MINUTES ?? 5) * 60_000;
-    const triggerGmapsDriveAutopilot = () => {
-      if (gmapsDriveBusy) return;
-      gmapsDriveBusy = true;
-      void fetch(`${apiBase}/internal/gmaps/autopilot`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(120_000),
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`gmaps drive autopilot HTTP ${res.status}`);
-          const data = (await res.json().catch(() => null)) as { results?: Array<Record<string, unknown>> } | null;
-          if (data?.results && data.results.length > 0) {
-            console.log('[gmaps-drive-autopilot]', JSON.stringify(data.results));
-          }
+    // Near-instant Group replies: watch the bot account's comment notifications (GROUP_COMMENT_WATCH=0 turns it off).
+    if (process.env.GROUP_COMMENT_WATCH !== '0') {
+      void pool
+        .query<{ group_url: string }>(
+          `SELECT s.group_url FROM community_hub_settings s
+             JOIN agent_automation a ON a.workspace_id = s.workspace_id AND a.enabled = TRUE
+            WHERE s.auto_reply_comments IS DISTINCT FROM FALSE AND s.group_url LIKE '%/groups/%' LIMIT 1`,
+        )
+        .then(({ rows }) => {
+          const groupId = rows[0]?.group_url.match(/\/groups\/([^/?#]+)/)?.[1];
+          if (!groupId) return;
+          groupWatcher = new GroupCommentWatcher({
+            apiBase,
+            token,
+            groupId,
+            pollMs: Number(process.env.GROUP_COMMENT_WATCH_MS ?? 8000),
+            onIngested: () => { runReplies(); triggerTick(); },
+          });
+          return groupWatcher.start().then(() => console.log('[group-comment-watch] watching notifications for group', groupId));
         })
-        .catch((error) => console.error('[gmaps-drive-autopilot]', (error as Error).message))
-        .finally(() => { gmapsDriveBusy = false; });
+        .catch((error) => console.error('[group-comment-watch]', (error as Error).message));
+    }
+    // 8 agent merchant: API quyết định agent nào tới lượt (Drive 20', Maps 3', lịch đăng 1', báo cáo tối...).
+    let merchantBusy = false;
+    const triggerMerchantTick = () => {
+      if (merchantBusy) return;
+      merchantBusy = true;
+      void fetch(`${apiBase}/internal/merchant/tick`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(280_000) })
+        .then((res) => {
+          if (!res.ok) throw new Error(`merchant tick HTTP ${res.status}`);
+          runReplies();
+        })
+        .catch((error) => console.error('[merchant-agents]', (error as Error).message))
+        .finally(() => { merchantBusy = false; });
     };
-    timers.push(setTimeout(triggerGmapsDriveAutopilot, 25_000), setInterval(triggerGmapsDriveAutopilot, gmapsDriveIntervalMs));
+    timers.push(setTimeout(triggerMerchantTick, 10_000), setInterval(triggerMerchantTick, 60_000));
+    const tiktokCarousel = new MerchantTikTokCarouselRunner(pool);
+    let carouselBusy = false;
+    timers.push(setInterval(() => {
+      if (carouselBusy) return;
+      carouselBusy = true;
+      void tiktokCarousel.runOnce().then((r) => { if (r !== 'idle') console.log('[tiktok-carousel]', r); })
+        .catch((error) => console.error('[tiktok-carousel]', (error as Error).message)).finally(() => { carouselBusy = false; });
+    }, 15_000));
     // Each published Facebook post's topic video follows as its own Reel.
     const reels = defaultReelRunner(pool);
     let reelBusy = false;
@@ -177,6 +203,7 @@ async function main() {
   });
   telegramBot.start();
   const stop = () => {
+    void groupWatcher?.stop();
     telegramBot.stop();
     bridge?.close();
     timers.forEach(clearInterval);

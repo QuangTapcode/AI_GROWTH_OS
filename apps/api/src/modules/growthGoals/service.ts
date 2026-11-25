@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Pool, PoolClient } from 'pg';
 import { METRIC_NAMES, canonicalMetric } from '../metrics/catalog';
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 /**
  * The workspace's active growth goal. Knowledge contexts embed it so Research and
@@ -37,15 +38,15 @@ export async function activeGoal(db: Db, workspaceId: string) {
     const goal = (await db.query(
       "SELECT * FROM growth_goals WHERE workspace_id=$1 AND status='active' ORDER BY created_at DESC LIMIT 1", [workspaceId],
     )).rows[0];
-    if (goal) {
-      const kpis: StoredKpi[] = (await db.query(
-        'SELECT metric_name, baseline_value, target_value, current_value, measurement FROM growth_kpis WHERE goal_id=$1 ORDER BY metric_name', [goal.id],
-      )).rows.map((k) => ({ metric_name: canonicalMetric(k.metric_name), baseline_value: num(k.baseline_value), target_value: num(k.target_value),
-        current_value: num(k.current_value), measurement: k.measurement ?? null }));
-      return { ...goal, budget_usd: num(goal.budget_usd), target_traffic_pct: num(goal.target_traffic_pct), kpis };
-    }
-  } catch {
-    // Fall back to memory
+    if (!goal) return null;
+    const kpis: StoredKpi[] = (await db.query(
+      'SELECT metric_name, baseline_value, target_value, current_value, measurement FROM growth_kpis WHERE goal_id=$1 ORDER BY metric_name', [goal.id],
+    )).rows.map((k) => ({ metric_name: canonicalMetric(k.metric_name), baseline_value: num(k.baseline_value), target_value: num(k.target_value),
+      current_value: num(k.current_value), measurement: k.measurement ?? null }));
+    return { ...goal, budget_usd: num(goal.budget_usd), target_traffic_pct: num(goal.target_traffic_pct), kpis };
+  } catch (offlineErr: unknown) {
+    // Chỉ demo offline (AGOS_OFFLINE_DEMO=1 + DB không kết nối) mới dùng mục tiêu mẫu trong bộ nhớ.
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
   }
 
   if (memoryGoals.has(workspaceId)) {
@@ -115,32 +116,37 @@ export function goalContext(goal: Awaited<ReturnType<typeof activeGoal>>, offers
 /** Replace the active goal atomically; the previous one is archived, never deleted. */
 export async function setGoal(pool: Pool, workspaceId: string, rawInput: z.input<typeof goalInputSchema>) {
   const input = goalInputSchema.parse(rawInput);
+  let db: PoolClient;
   try {
-    const db = await pool.connect();
-    try {
-      await db.query('BEGIN');
-      await db.query('SELECT id FROM workspaces WHERE id=$1 FOR UPDATE', [workspaceId]);
-      await db.query("UPDATE growth_goals SET status='archived' WHERE workspace_id=$1 AND status='active'", [workspaceId]);
-      const goal = (await db.query(
-        `INSERT INTO growth_goals (workspace_id, title, target_qualified_visits, period_days, primary_conversion, budget_usd, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'active') RETURNING id`,
-        [workspaceId, input.title, input.target_qualified_visits ?? null, input.period_days, input.primary_conversion, input.budget_usd],
-      )).rows[0];
-      for (const kpi of input.kpis) {
-        await db.query('INSERT INTO growth_kpis (goal_id, metric_name, baseline_value, target_value, current_value, measurement) VALUES ($1, $2, $3, $4, NULL, $5)',
-          [goal.id, kpi.metric_name, kpi.baseline_value, kpi.target_value, JSON.stringify(kpi.measurement ?? null)]);
-      }
-      await db.query('COMMIT');
-    } catch (error) {
-      await db.query('ROLLBACK');
-      throw error;
-    } finally {
-      db.release();
-    }
-  } catch {
-    // If DB fails, update in memory
+    db = await pool.connect();
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
+    return setMemoryGoal(workspaceId, input);
   }
+  try {
+    await db.query('BEGIN');
+    await db.query('SELECT id FROM workspaces WHERE id=$1 FOR UPDATE', [workspaceId]);
+    await db.query("UPDATE growth_goals SET status='archived' WHERE workspace_id=$1 AND status='active'", [workspaceId]);
+    const goal = (await db.query(
+      `INSERT INTO growth_goals (workspace_id, title, target_qualified_visits, period_days, primary_conversion, budget_usd, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'active') RETURNING id`,
+      [workspaceId, input.title, input.target_qualified_visits ?? null, input.period_days, input.primary_conversion, input.budget_usd],
+    )).rows[0];
+    for (const kpi of input.kpis) {
+      await db.query('INSERT INTO growth_kpis (goal_id, metric_name, baseline_value, target_value, current_value, measurement) VALUES ($1, $2, $3, $4, NULL, $5)',
+        [goal.id, kpi.metric_name, kpi.baseline_value, kpi.target_value, JSON.stringify(kpi.measurement ?? null)]);
+    }
+    await db.query('COMMIT');
+  } catch (error) {
+    await db.query('ROLLBACK');
+    throw error;
+  } finally {
+    db.release();
+  }
+  return activeGoal(pool, workspaceId);
+}
 
+function setMemoryGoal(workspaceId: string, input: GoalInput) {
   const updatedGoal = {
     id: `goal-${Date.now()}`,
     workspace_id: workspaceId,

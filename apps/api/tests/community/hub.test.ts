@@ -1448,6 +1448,8 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
     );
 
     const updateQueries: unknown[][] = [];
+    const claimQueries: unknown[][] = [];
+    let selectSql = '';
     const query = vi.fn(async (sql: string, params?: unknown[]) => {
       if (sql.includes('SELECT * FROM community_hub_settings')) {
         return {
@@ -1462,6 +1464,7 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
         };
       }
       if (sql.includes('SELECT m.id, m.platform, m.external_id')) {
+        selectSql = sql;
         return {
           rows: [
             {
@@ -1477,6 +1480,10 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
             },
           ],
         };
+      }
+      if (sql.includes('UPDATE community_messages') && sql.includes('reply_attempted_at')) {
+        claimQueries.push(params ?? []);
+        return { rowCount: 1, rows: [] };
       }
       if (sql.includes('UPDATE community_messages')) {
         updateQueries.push(params ?? []);
@@ -1496,6 +1503,37 @@ describe('CommunityHubService (Group-first publishing & honest state separation)
     expect(updateQueries[0][0]).toBe('msg-pending-1');
     expect(updateQueries[0][1]).toContain('lẩu cua đồng');
     expect(updateQueries[0][2]).toBe('reply_live_888');
+    // Claimed once before posting, and RAG-queued comments are left to the outbox path.
+    expect(claimQueries).toEqual([['msg-pending-1', WORKSPACE_ID]]);
+    expect(selectSql).toContain("m.status = 'received'");
+    expect(selectSql).toContain('m.task_id IS NULL');
+    expect(selectSql).toContain("event_type = 'community.reply'");
+  });
+
+  it('dispatchPendingCommentReplies does not post when another run already claimed the comment', async () => {
+    process.env.FACEBOOK_PAGE_ACCESS_TOKEN = 'test-token-xyz';
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'reply_dup' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT * FROM community_hub_settings')) {
+        return { rows: [{ community_name: 'C', group_url: 'https://www.facebook.com/groups/1', page_name: 'P', auto_reply_comments: true }] };
+      }
+      if (sql.includes('SELECT m.id, m.platform, m.external_id')) {
+        return {
+          rows: [{
+            id: 'msg-dup', platform: 'facebook_comment', external_id: 'fb_cmt_1', author_name: 'A', author_contact: null,
+            content: 'xin chào ạ', post_url: 'https://www.facebook.com/page-1/posts/1', metadata: { comment_source: 'page' },
+            rag_reply_text: 'Chào bạn!',
+          }],
+        };
+      }
+      if (sql.includes('reply_attempted_at') && sql.includes('UPDATE community_messages')) return { rowCount: 0, rows: [] };
+      return { rows: [], rowCount: 1 };
+    });
+    const service = new CommunityHubService({ query } as unknown as Pool);
+    const result = await service.dispatchPendingCommentReplies(WORKSPACE_ID, { maxBatch: 5 });
+    expect(result.replies_sent).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

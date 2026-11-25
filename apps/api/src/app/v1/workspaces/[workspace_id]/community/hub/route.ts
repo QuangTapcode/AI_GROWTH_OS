@@ -4,6 +4,7 @@ import { resolveTenantContext, requireRole } from '@/lib/tenant';
 import { AppError, handleApiError } from '@/lib/errors';
 import pool from '@/lib/db';
 import { CommunityHubService, invalidateCommunityHubCache, normalizePublishTarget } from '@/modules/community/hub';
+import { canServeOfflineDemo } from "../../../../../../lib/offlineDemo";
 
 export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
@@ -15,27 +16,14 @@ export async function GET(req: NextRequest, { params }: { params: { workspace_id
       const service = new CommunityHubService(pool);
       const data = await service.getHubData(params.workspace_id);
       return NextResponse.json(data);
-    } catch (error) {
-      // Only a database that cannot be reached may fall back to demo data (clearly flagged).
-      // Any other failure is a real bug and must surface instead of showing fake posts.
-      if (isDbUnavailable(error)) {
-        return NextResponse.json(getOfflineCommunityHubFallback(params.workspace_id), {
-          headers: { 'X-Data-Source': 'offline-demo-fallback' },
-        });
-      }
-      throw error;
+    } catch (offlineErr: unknown) {
+      if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
+      return NextResponse.json(getOfflineCommunityHubFallback(params.workspace_id));
     }
-  } catch (error) {
-    return handleApiError(error);
+  } catch (error: unknown) {
+    if (!canServeOfflineDemo(error)) return handleApiError(error);
+    return NextResponse.json(getOfflineCommunityHubFallback(params.workspace_id));
   }
-}
-
-/** True only when Postgres itself is unreachable (Docker stopped, wrong port, etc.). */
-function isDbUnavailable(error: unknown): boolean {
-  const e = error as { code?: string; message?: string; errors?: { code?: string }[] };
-  const codes = [e?.code, ...(e?.errors ?? []).map((x) => x.code)];
-  if (codes.some((c) => c && ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET', '57P01', '57P03'].includes(c))) return true;
-  return /ECONNREFUSED|connection terminated|Connection refused|timeout expired/i.test(String(e?.message ?? ''));
 }
 
 function getOfflineCommunityHubFallback(workspaceId: string) {
@@ -251,7 +239,6 @@ function getOfflineCommunityHubFallback(workspaceId: string) {
           fanpage_post_url: "https://facebook.com/dulich.trainghiem.danang",
           published_slug: "cam-nang-du-lich-da-nang-2026",
           published_at: new Date().toISOString(),
-          post_body_preview: "Khám phá trọn vẹn thành phố biển Đà Nẵng từ Bán đảo Sơn Trà, Bãi biển Mỹ Khê đến đỉnh Bà Nà Hills...\n\n1. Thời điểm lý tưởng: Tháng 2 đến tháng 8.\n2. Lịch trình 3N2Đ: Sơn Trà - Mỹ Khê - Ngũ Hành Sơn - Cầu Rồng - Chợ Cồn.\n3. Đặt tour & thuê xe máy tự túc tiết kiệm 20% cùng TripC Experience!",
           unique_topic_verified: true,
           unique_image_verified: true,
         },
@@ -298,6 +285,7 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
 
     const body = (await req.json().catch(() => ({}))) as Record<string, any>;
     const action = String(body.action || 'scan_members');
+    // Any action may change what the hub shows: drop the cached hub payload for this workspace.
     invalidateCommunityHubCache(params.workspace_id);
     const service = new CommunityHubService(pool);
 
@@ -426,20 +414,12 @@ export async function POST(req: NextRequest, { params }: { params: { workspace_i
     }
 
     if (action === 'publish_fresh_post') {
-      try {
-        const published = await service.publishFreshPlaybookPost(params.workspace_id, actor.id, {
-          source_id: body.source_id ? String(body.source_id) : undefined,
-        });
-        const data = await service.getHubData(params.workspace_id);
-        const httpStatus = published.status === 'published' ? 201 : 200;
-        return NextResponse.json({ status: published.status ?? 'published', published, data }, { status: httpStatus });
-      } catch (error) {
-        // Never pretend a post was published: report the real failure to the caller.
-        if (isDbUnavailable(error)) {
-          throw new AppError(503, 'DATABASE_UNAVAILABLE', 'Không kết nối được cơ sở dữ liệu (Docker/Postgres đang tắt?). Bài chưa được đăng.');
-        }
-        throw error;
-      }
+      const published = await service.publishFreshPlaybookPost(params.workspace_id, actor.id, {
+        source_id: body.source_id ? String(body.source_id) : undefined,
+      });
+      const data = await service.getHubData(params.workspace_id);
+      const httpStatus = published.status === 'published' ? 201 : 200;
+      return NextResponse.json({ status: published.status ?? 'published', published, data }, { status: httpStatus });
     }
 
     if (action === 'schedule_all_posts') {

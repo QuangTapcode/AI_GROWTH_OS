@@ -124,6 +124,24 @@ class Settings:
     ingest_url_allowlist: tuple[str, ...] = DEFAULT_URL_ALLOWLIST
     ingest_user_agent: str = DEFAULT_INGEST_USER_AGENT
     run_store_path: str = str(SERVICE_ROOT / "var" / "runs.sqlite3")
+    # Gemini free-tier accounting (gemini_quota.py). A model's real limit replaces the estimate once a 429 states it.
+    gemini_daily_limit: int = 20
+    gemini_daily_limits: str = ""
+    gemini_agent_reserve_min: int = 15
+    gemini_spare_operations: tuple[str, ...] = ("community.response",)
+    # Groq and OpenRouter's free models (free_providers.py): extra writers for these operations, after Gemini's spare
+    # and before the local model. The reserves are left for the explainer-video script, which uses the same keys.
+    free_api_operations: tuple[str, ...] = ("community.response",)
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_daily_limit: int = 1000
+    groq_reserve: int = 300
+    groq_max_input_tokens: int = 5000
+    openrouter_api_key: str = ""
+    openrouter_models: tuple[str, ...] = ("google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free",
+                                         "nvidia/nemotron-3.5-super-vl:free")
+    openrouter_daily_limit: int = 50
+    openrouter_reserve: int = 15
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -162,6 +180,23 @@ class Settings:
             ingest_url_allowlist=_list_env("AI_INGEST_URL_ALLOWLIST", DEFAULT_URL_ALLOWLIST),
             ingest_user_agent=os.getenv("AI_INGEST_USER_AGENT", DEFAULT_INGEST_USER_AGENT).strip() or DEFAULT_INGEST_USER_AGENT,
             run_store_path=os.getenv("AI_RUN_STORE_PATH", str(SERVICE_ROOT / "var" / "runs.sqlite3")),
+            gemini_daily_limit=_int_env("GEMINI_DAILY_LIMIT", 20),
+            gemini_daily_limits=os.getenv("GEMINI_DAILY_LIMITS", ""),
+            gemini_agent_reserve_min=_int_env("GEMINI_AGENT_RESERVE", 15),
+            gemini_spare_operations=_list_env("GEMINI_SPARE_OPERATIONS", ("community.response",)),
+            free_api_operations=_list_env("FREE_API_OPERATIONS", ("community.response",)),
+            groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
+            groq_model=os.getenv("GROQ_COMMUNITY_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b",
+            groq_daily_limit=_int_env("GROQ_DAILY_LIMIT", 1000),
+            # Defaults to the video script's own daily Groq cap, so both never want the same requests.
+            groq_reserve=_int_env("GROQ_RESERVE", _int_env("VIDEO_GROQ_DAILY_CAP", 300)),
+            groq_max_input_tokens=_int_env("GROQ_MAX_INPUT_TOKENS", 5000),
+            openrouter_api_key=os.getenv("OPENROUTER_API_KEY", "").strip(),
+            openrouter_models=_list_env("OPENROUTER_COMMUNITY_MODELS", ("google/gemma-4-31b-it:free",
+                                                                         "google/gemma-4-26b-a4b-it:free",
+                                                                         "nvidia/nemotron-3.5-super-vl:free")),
+            openrouter_daily_limit=_int_env("OPENROUTER_DAILY_LIMIT", 50),
+            openrouter_reserve=_int_env("OPENROUTER_RESERVE", 15),
         )
         settings.validate()
         return settings

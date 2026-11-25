@@ -7,6 +7,7 @@ import {
 } from "./schemas";
 import { globalLeadRepo } from "@/lib/public-service";
 import { LeadRepository } from "./repository";
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 /**
  * Workspace Leads Service (TQ-05: Persistence & Phân quyền Sales Handoff)
@@ -28,7 +29,8 @@ export async function listWorkspaceLeadsApi(
 
   try {
     return await repo.listByWorkspace(workspaceId, parseResult.data);
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return {
       items: [
         {

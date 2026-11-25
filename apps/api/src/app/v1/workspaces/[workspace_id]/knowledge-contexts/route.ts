@@ -4,6 +4,7 @@ import { resolveTenantContext, requireRole } from '@/lib/tenant';
 import { handleApiError } from '@/lib/errors';
 import pool from '@/lib/db';
 import { PgPlanRepository } from '@/modules/campaignPlans/pgRepository';
+import { canServeOfflineDemo } from "../../../../../lib/offlineDemo";
 
 export async function GET(req: NextRequest, { params }: { params: { workspace_id: string } }) {
   try {
@@ -11,7 +12,8 @@ export async function GET(req: NextRequest, { params }: { params: { workspace_id
     let context = null;
     try {
       context = await new PgPlanRepository(pool).loadContext(tenant.workspaceId);
-    } catch {
+    } catch (offlineErr: unknown) {
+      if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
       context = {
         context_id: `ctx-${tenant.workspaceId.slice(0, 8)}`,
         workspace_id: tenant.workspaceId,

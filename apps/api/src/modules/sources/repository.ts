@@ -4,6 +4,7 @@ import { AppError } from "../../lib/errors";
 import { CreateSourceInput, ReviewSourceInput } from "./schemas";
 import { invalidateApprovalsForTarget } from "../approvals/repository";
 import { policyFor } from "../research/sourcePolicy";
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 export interface SourceRow {
   id: string;
@@ -49,7 +50,8 @@ export async function listSources(
   try {
     const res = await query<SourceRow>(sql, params);
     return res.rows;
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return [
       {
         id: "source-danang-guide",

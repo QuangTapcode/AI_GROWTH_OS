@@ -11,6 +11,7 @@ import {
 import { enqueueAiTask } from "@/modules/campaignPlans/aiTasks";
 import { workspaceAlerts } from "@/modules/campaignPlans/alerts";
 import { PlanError } from "@/modules/campaignPlans/service";
+import { canServeOfflineDemo } from "../../../../../lib/offlineDemo";
 
 const schema = z
   .object({
@@ -159,7 +160,8 @@ export async function GET(req: NextRequest, { params }: Context) {
         )
       ).rows;
       alerts = await workspaceAlerts(pool, params.workspace_id);
-    } catch {
+    } catch (offlineErr: unknown) {
+      if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
       settings = getMemoryAutomation(params.workspace_id);
       tasks = getMemoryTasks(params.workspace_id);
       alerts = [];
@@ -202,7 +204,8 @@ export async function PUT(req: NextRequest, { params }: Context) {
          b.auto_approve_outputs, b.auto_publish_facebook, b.auto_publish_website, b.auto_publish_tiktok ?? null],
       );
       if (b.run_now) await tickAutomation(pool, params.workspace_id, true);
-    } catch {
+    } catch (offlineErr: unknown) {
+      if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
       const existing = getMemoryAutomation(params.workspace_id);
       Object.assign(existing, {
         enabled: b.enabled,

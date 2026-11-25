@@ -126,7 +126,28 @@ def chunk_segments(segments: list[Segment], *, max_tokens: int = 512, target_tok
             buffer.extend(carried)
         buffer.append(segment)
     flush()
-    return [_chunk(index, group) for index, group in enumerate(_merge_scraps(groups, max_tokens))]
+    merged = _merge_scraps(groups, max_tokens)
+    return [_chunk(index, group, section) for index, (group, section) in enumerate(zip(merged, _sections(merged)))]
+
+
+def _sections(groups: list[list[Segment]]) -> list[str | None]:
+    """The heading each group continues under, when it does not open with its own.
+
+    A section split over several chunks ("Climate" over three) leaves the later ones without the word that says
+    what they are about; the heading carried in front lets "Đà Nẵng mùa nào đẹp" find the second and third too."""
+    sections: list[str | None] = []
+    heading: str | None = None
+    place: tuple | None = None
+    for group in groups:
+        here = (group[0].page, group[0].url)
+        if here != place:
+            heading, place = None, here
+        opens = looks_like_heading(group[0].text)
+        sections.append(None if opens else heading)
+        for segment in group:
+            if looks_like_heading(segment.text):
+                heading = segment.text.strip()
+    return sections
 
 
 def _merge_scraps(groups: list[list[Segment]], max_tokens: int) -> list[list[Segment]]:
@@ -142,8 +163,8 @@ def _merge_scraps(groups: list[list[Segment]], max_tokens: int) -> list[list[Seg
     return merged
 
 
-def _chunk(index: int, group: list[Segment]) -> Chunk:
-    text = "\n\n".join(segment.text for segment in group)
+def _chunk(index: int, group: list[Segment], section: str | None = None) -> Chunk:
+    text = "\n\n".join([*([section] if section else []), *(segment.text for segment in group)])
     first, last = group[0], group[-1]
     return Chunk(
         index=index,

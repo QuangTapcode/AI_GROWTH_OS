@@ -1,310 +1,171 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { API_BASE_URL } from '@/lib/api';
+import React, { useState } from "react";
+import { merchantApi, type LlmProviderId, type PingResult } from "@/lib/merchantApi";
+import { Button, Card, LoadingBlock, Notice, Pill, useAction, useLoader } from "@/features/merchant/ui";
 
-interface LLMConfig {
-  workspace_id: string;
-  primary_provider: 'gemini' | 'deepseek' | 'openai' | 'claude';
-  auto_switch_enabled: boolean;
-  gemini_api_key?: string;
-  deepseek_api_key?: string;
-  openai_api_key?: string;
-  claude_api_key?: string;
-  active_fallback: string;
-  last_switch_at?: string;
-  last_switch_reason?: string;
-  latency_ms: number;
-}
+const NAMES: Record<LlmProviderId, string> = { gemini: "Google Gemini", deepseek: "DeepSeek", openai: "OpenAI", claude: "Anthropic Claude" };
+const STATUS: Record<string, { tone: "green" | "amber" | "red" | "slate" | "blue"; label: string }> = {
+  active: { tone: "green", label: "Đang phục vụ" },
+  ready: { tone: "blue", label: "Sẵn sàng" },
+  rate_limited: { tone: "amber", label: "Tạm ngưng (quá tải)" },
+  error: { tone: "red", label: "Lỗi khóa" },
+  not_configured: { tone: "slate", label: "Chưa có khóa" },
+};
 
-interface LLMAdapterAdminProps {
-  workspaceId: string;
-}
+/** Quản trị Multi-LLM: khóa API (chỉ hiển thị ••••1234), nhà cung cấp chính, thứ tự dự phòng, ping thật. */
+export function LLMAdapterAdmin({ workspaceId }: { workspaceId: string }) {
+  const { data: config, error, loading, setData } = useLoader(() => merchantApi.llmConfig(workspaceId), [workspaceId]);
+  const { busy, notice, setNotice, run } = useAction();
+  const [keys, setKeys] = useState<Partial<Record<LlmProviderId, string>>>({});
+  const [pings, setPings] = useState<Partial<Record<LlmProviderId, PingResult>>>({});
 
-export function LLMAdapterAdmin({ workspaceId }: LLMAdapterAdminProps) {
-  const [config, setConfig] = useState<LLMConfig>({
-    workspace_id: workspaceId,
-    primary_provider: 'gemini',
-    auto_switch_enabled: true,
-    gemini_api_key: '',
-    deepseek_api_key: '',
-    openai_api_key: '',
-    claude_api_key: '',
-    active_fallback: 'gemini',
-    latency_ms: 280,
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [pingStatus, setPingStatus] = useState<Record<string, { status: string; latency: number; msg: string }>>({});
-  const [isPinging, setIsPinging] = useState<string | null>(null);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  if (loading && !config) return <LoadingBlock />;
+  if (error && !config) return <Notice notice={{ kind: "error", text: error }} />;
+  if (!config) return null;
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/admin/llm-config`);
-        const json = await res.json();
-        if (json.ok && json.config) {
-          setConfig(json.config);
-        }
-      } catch {
-        // Ignored
-      }
-    }
-    load();
-  }, [workspaceId]);
+  const save = (body: Record<string, unknown>, okText: string) =>
+    run("save", async () => {
+      setData(await merchantApi.updateLlmConfig(workspaceId, body));
+      setKeys({});
+      return okText;
+    });
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setSaveMessage(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/admin/llm-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
-      const json = await res.json();
-      if (json.ok) {
-        setConfig(json.config);
-        setSaveMessage('Đã lưu cấu hình Multi-LLM Adapter thành công!');
-        setTimeout(() => setSaveMessage(null), 3000);
-      }
-    } catch {
-      // Ignored
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePing = async (provider: string) => {
-    setIsPinging(provider);
-    try {
-      const res = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/admin/llm-config/test-ping`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
-      });
-      const json = await res.json();
-      if (json.ok && json.ping) {
-        setPingStatus((prev) => ({
-          ...prev,
-          [provider]: {
-            status: json.ping.status,
-            latency: json.ping.latency_ms,
-            msg: json.ping.message,
-          },
-        }));
-      }
-    } catch {
-      // Ignored
-    } finally {
-      setIsPinging(null);
-    }
+  const move = (provider: LlmProviderId, delta: number) => {
+    const order = [...config.fallback_order];
+    const i = order.indexOf(provider);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    void save({ fallback_order: order }, "Đã cập nhật thứ tự dự phòng");
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* Banner */}
-      <div className="p-6 bg-slate-900 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🎛️</span>
-            <h3 className="text-lg font-bold">Admin: Multi-LLM Adapter & Auto-Switch Controller</h3>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Bộ điều hợp định tuyến thông minh: Tự động chuyển đổi giữa các API LLM khi chạm hạn mức Rate Limit hoặc hết quota.
+    <div className="space-y-5">
+      <Card
+        title="Multi-LLM Router & Auto-Switch"
+        subtitle="Ưu tiên tầng miễn phí (Gemini). Khi gặp 429, hết quota, timeout hoặc lỗi máy chủ, hệ thống tự chuyển sang nhà cung cấp kế tiếp trong cùng lượt và tạm ngưng nhà cung cấp lỗi."
+        actions={
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-blue-700"
+              checked={config.auto_switch_enabled}
+              disabled={busy === "save"}
+              onChange={(e) => save({ auto_switch_enabled: e.target.checked }, e.target.checked ? "Đã bật Auto-Switch" : "Đã tắt Auto-Switch")}
+            />
+            Auto-Switch
+          </label>
+        }
+      >
+        <Notice notice={notice} onClose={() => setNotice(null)} />
+        {config.last_switch_at && (
+          <p className="text-xs text-slate-600 mt-3">
+            Lần chuyển gần nhất: <strong>{new Date(config.last_switch_at).toLocaleString("vi-VN")}</strong> — {config.last_switch_reason}
           </p>
-        </div>
-
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-400/20 text-emerald-400 text-xs font-semibold">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Đang phục vụ: {config.active_fallback.toUpperCase()} (Độ trễ ~{config.latency_ms}ms)
-        </div>
-      </div>
-
-      <div className="p-6">
-        {saveMessage && (
-          <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-            ✓ {saveMessage}
-          </div>
         )}
-
-        {config.last_switch_reason && (
-          <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-            <div className="font-bold flex items-center gap-1.5 mb-1">
-              <span>⚠️</span> Nhật ký chuyển đổi gần nhất (Failover Event):
-            </div>
-            <p className="leading-relaxed">{config.last_switch_reason}</p>
-            {config.last_switch_at && (
-              <span className="text-[10px] text-amber-700 mt-1 block">
-                Thời gian: {new Date(config.last_switch_at).toLocaleString('vi-VN')}
-              </span>
-            )}
-          </div>
-        )}
-
-        <form onSubmit={handleSave} className="space-y-6">
-          {/* General switches */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-bold text-slate-800">Cơ chế Tự Động Chuyển Đổi (Auto-Switch Failover)</div>
-              <div className="text-xs text-slate-500 mt-0.5">
-                Khi API chính gặp lỗi HTTP 429 hoặc cạn quota, hệ thống tự động gọi API phụ mà không làm đứt mạch chat.
-              </div>
-            </div>
-
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.auto_switch_enabled}
-                onChange={(e) => setConfig({ ...config, auto_switch_enabled: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-            </label>
-          </div>
-
-          {/* Providers Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Gemini */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">✨</span>
-                  <span className="font-bold text-sm text-slate-800">Google Gemini (Free / Primary)</span>
-                </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                  Ưu Tiên Số 1
-                </span>
-              </div>
-              <input
-                type="password"
-                placeholder="Dùng biến GEMINI_API_KEY hệ thống hoặc nhập key riêng..."
-                value={config.gemini_api_key || ''}
-                onChange={(e) => setConfig({ ...config, gemini_api_key: e.target.value })}
-                className="w-full text-xs p-2 rounded-lg border border-slate-300 font-mono"
-              />
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-400">
-                  {pingStatus['gemini'] ? `Độ trễ: ${pingStatus['gemini'].latency}ms` : 'Miễn phí, tốc độ cao'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handlePing('gemini')}
-                  disabled={isPinging === 'gemini'}
-                  className="text-xs font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                >
-                  {isPinging === 'gemini' ? 'Đang test...' : 'Kiểm tra Ping'}
-                </button>
-              </div>
-            </div>
-
-            {/* DeepSeek */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🐋</span>
-                  <span className="font-bold text-sm text-slate-800">DeepSeek (Cost-Effective Fallback)</span>
-                </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">Dự Phòng 1</span>
-              </div>
-              <input
-                type="password"
-                placeholder="sk-deepseek-..."
-                value={config.deepseek_api_key || ''}
-                onChange={(e) => setConfig({ ...config, deepseek_api_key: e.target.value })}
-                className="w-full text-xs p-2 rounded-lg border border-slate-300 font-mono"
-              />
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-400">
-                  {pingStatus['deepseek'] ? `Độ trễ: ${pingStatus['deepseek'].latency}ms` : 'Chi phí siêu thấp'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handlePing('deepseek')}
-                  disabled={isPinging === 'deepseek'}
-                  className="text-xs font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                >
-                  {isPinging === 'deepseek' ? 'Đang test...' : 'Kiểm tra Ping'}
-                </button>
-              </div>
-            </div>
-
-            {/* OpenAI */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🤖</span>
-                  <span className="font-bold text-sm text-slate-800">OpenAI (GPT-4o-mini)</span>
-                </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">Dự Phòng 2</span>
-              </div>
-              <input
-                type="password"
-                placeholder="sk-proj-..."
-                value={config.openai_api_key || ''}
-                onChange={(e) => setConfig({ ...config, openai_api_key: e.target.value })}
-                className="w-full text-xs p-2 rounded-lg border border-slate-300 font-mono"
-              />
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-400">
-                  {pingStatus['openai'] ? `Độ trễ: ${pingStatus['openai'].latency}ms` : 'Chuẩn mực ngành'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handlePing('openai')}
-                  disabled={isPinging === 'openai'}
-                  className="text-xs font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                >
-                  {isPinging === 'openai' ? 'Đang test...' : 'Kiểm tra Ping'}
-                </button>
-              </div>
-            </div>
-
-            {/* Claude */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🎭</span>
-                  <span className="font-bold text-sm text-slate-800">Anthropic Claude (Haiku / Sonnet)</span>
-                </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Cao Cấp</span>
-              </div>
-              <input
-                type="password"
-                placeholder="sk-ant-..."
-                value={config.claude_api_key || ''}
-                onChange={(e) => setConfig({ ...config, claude_api_key: e.target.value })}
-                className="w-full text-xs p-2 rounded-lg border border-slate-300 font-mono"
-              />
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-400">
-                  {pingStatus['claude'] ? `Độ trễ: ${pingStatus['claude'].latency}ms` : 'Văn phong tự nhiên'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handlePing('claude')}
-                  disabled={isPinging === 'claude'}
-                  className="text-xs font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                >
-                  {isPinging === 'claude' ? 'Đang test...' : 'Kiểm tra Ping'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-4 border-t border-slate-100">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="px-6 py-2.5 rounded-xl font-bold text-xs bg-slate-900 text-white hover:bg-black transition-all shadow-md disabled:opacity-60"
-            >
-              {isLoading ? 'Đang lưu...' : 'Lưu Cấu Hình Multi-LLM'}
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500 border-b border-slate-200">
+                <th className="py-2 pr-3">Thứ tự</th>
+                <th className="py-2 pr-3">Nhà cung cấp</th>
+                <th className="py-2 pr-3">Trạng thái</th>
+                <th className="py-2 pr-3">API key</th>
+                <th className="py-2">Kiểm tra</th>
+              </tr>
+            </thead>
+            <tbody>
+              {config.fallback_order.map((id, index) => {
+                const p = config.providers.find((x) => x.provider === id)!;
+                const s = STATUS[p.status] ?? STATUS.ready;
+                const ping = pings[id];
+                return (
+                  <tr key={id} className="border-b border-slate-100 align-top">
+                    <td className="py-3 pr-3 whitespace-nowrap">
+                      <span className="font-bold text-slate-900 mr-2">{index + 1}</span>
+                      <button type="button" className="px-1 text-slate-500 disabled:opacity-30" disabled={index === 0 || busy === "save"} onClick={() => move(id, -1)} aria-label={`Đưa ${NAMES[id]} lên`}>
+                        ▲
+                      </button>
+                      <button type="button" className="px-1 text-slate-500 disabled:opacity-30" disabled={index === config.fallback_order.length - 1 || busy === "save"} onClick={() => move(id, 1)} aria-label={`Đưa ${NAMES[id]} xuống`}>
+                        ▼
+                      </button>
+                    </td>
+                    <td className="py-3 pr-3">
+                      <p className="font-semibold text-slate-900">
+                        {NAMES[id]} {config.primary_provider === id && <Pill tone="blue">Chính</Pill>}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {p.model}
+                        {!p.supports_images && " · không phân tích ảnh"}
+                      </p>
+                      {config.primary_provider !== id && p.key_source !== "none" && (
+                        <button type="button" className="text-[11px] font-semibold text-blue-700 mt-1" onClick={() => save({ primary_provider: id }, `${NAMES[id]} là nhà cung cấp chính`)}>
+                          Đặt làm chính
+                        </button>
+                      )}
+                    </td>
+                    <td className="py-3 pr-3">
+                      <Pill tone={s.tone}>{s.label}</Pill>
+                      {p.cooldown_until && <p className="text-[11px] text-slate-500 mt-1">đến {new Date(p.cooldown_until).toLocaleTimeString("vi-VN")}</p>}
+                    </td>
+                    <td className="py-3 pr-3">
+                      <p className="text-[11px] text-slate-500 mb-1">
+                        {p.key_source === "workspace" ? `Khóa riêng: ${p.key_masked}` : p.key_source === "server_env" ? "Dùng khóa của máy chủ" : "Chưa có khóa"}
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          autoComplete="off"
+                          placeholder="Dán khóa mới…"
+                          aria-label={`API key ${NAMES[id]}`}
+                          value={keys[id] ?? ""}
+                          onChange={(e) => setKeys((k) => ({ ...k, [id]: e.target.value }))}
+                          className="w-48 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        />
+                        <Button variant="secondary" busy={busy === "save"} disabled={!keys[id]?.trim()} onClick={() => save({ [`${id}_api_key`]: keys[id]!.trim() }, `Đã lưu khóa ${NAMES[id]} (mã hóa)`)}>
+                          Lưu
+                        </Button>
+                        {p.key_source === "workspace" && (
+                          <Button variant="danger" busy={busy === "save"} onClick={() => save({ [`${id}_api_key`]: null }, `Đã xóa khóa riêng của ${NAMES[id]}`)}>
+                            Xóa
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <Button
+                        variant="secondary"
+                        busy={busy === `ping-${id}`}
+                        disabled={p.key_source === "none"}
+                        onClick={() =>
+                          run(`ping-${id}`, async () => {
+                            const r = await merchantApi.pingLlm(workspaceId, id);
+                            setPings((x) => ({ ...x, [id]: r }));
+                            setData(await merchantApi.llmConfig(workspaceId));
+                          })
+                        }
+                      >
+                        Ping thật
+                      </Button>
+                      {ping && (
+                        <p className={`text-[11px] mt-1 max-w-[220px] ${ping.status === "ok" ? "text-emerald-700" : "text-rose-700"}`}>
+                          {ping.status === "ok" ? `OK · ${ping.latency_ms}ms` : `${ping.error_kind ?? "lỗi"}: ${ping.message}`}
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-slate-500 mt-4">
+          Khóa được mã hóa AES-256-GCM trước khi lưu và không bao giờ gửi lại trình duyệt. Claude cần gói <code>@anthropic-ai/sdk</code> trên máy chủ API.
+        </p>
+      </Card>
     </div>
   );
 }
 
+export default LLMAdapterAdmin;

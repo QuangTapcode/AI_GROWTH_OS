@@ -1,0 +1,38 @@
+-- 029_merchant_agents_live.down.sql
+DROP INDEX IF EXISTS uq_wallet_tx_ref;
+ALTER TABLE merchant_wallet_transactions DROP COLUMN IF EXISTS expires_at;
+ALTER TABLE merchant_wallet_transactions DROP COLUMN IF EXISTS confirmed_by;
+ALTER TABLE merchant_wallet_transactions DROP COLUMN IF EXISTS confirmed_at;
+DROP TABLE IF EXISTS daily_executive_reports CASCADE;
+DROP INDEX IF EXISTS uq_booking_deposit_ref;
+ALTER TABLE booking_leads DROP COLUMN IF EXISTS source_message_id;
+ALTER TABLE booking_leads DROP COLUMN IF EXISTS deposit_reference;
+ALTER TABLE booking_leads DROP COLUMN IF EXISTS contact_ref;
+DROP TABLE IF EXISTS booking_conversations CASCADE;
+DROP TABLE IF EXISTS content_calendar_entries CASCADE;
+DROP INDEX IF EXISTS uq_gmaps_external;
+ALTER TABLE gmaps_reputation DROP COLUMN IF EXISTS updated_at;
+ALTER TABLE gmaps_reputation DROP COLUMN IF EXISTS error_message;
+ALTER TABLE gmaps_reputation DROP COLUMN IF EXISTS reply_source;
+ALTER TABLE gmaps_reputation DROP COLUMN IF EXISTS draft_reply;
+ALTER TABLE gmaps_reputation DROP COLUMN IF EXISTS review_created_at;
+ALTER TABLE gmaps_reputation DROP COLUMN IF EXISTS external_id;
+DROP INDEX IF EXISTS uq_drive_asset_file;
+ALTER TABLE drive_asset_queue DROP COLUMN IF EXISTS source;
+ALTER TABLE drive_asset_queue DROP COLUMN IF EXISTS error_message;
+ALTER TABLE drive_asset_queue DROP COLUMN IF EXISTS analysis_provider;
+ALTER TABLE drive_asset_queue DROP COLUMN IF EXISTS analysis;
+ALTER TABLE drive_asset_queue DROP COLUMN IF EXISTS thumbnail_url;
+ALTER TABLE drive_asset_queue DROP COLUMN IF EXISTS drive_modified_at;
+ALTER TABLE drive_asset_queue DROP COLUMN IF EXISTS mime_type;
+DROP TABLE IF EXISTS merchant_agent_runs CASCADE;
+ALTER TABLE merchant_onboarding DROP COLUMN IF EXISTS welcome_message;
+ALTER TABLE merchant_onboarding DROP COLUMN IF EXISTS activated_at;
+ALTER TABLE merchant_onboarding DROP COLUMN IF EXISTS parsed_refs;
+ALTER TABLE merchant_onboarding DROP COLUMN IF EXISTS business_name;
+DROP TABLE IF EXISTS llm_usage_events CASCADE;
+ALTER TABLE llm_adapter_configs DROP COLUMN IF EXISTS cooldowns;
+ALTER TABLE llm_adapter_configs DROP COLUMN IF EXISTS fallback_order;
+ALTER TABLE community_messages DROP CONSTRAINT IF EXISTS community_messages_platform_check;
+ALTER TABLE community_messages ADD CONSTRAINT community_messages_platform_check
+  CHECK (platform IN ('facebook_comment', 'facebook_message', 'website_comment', 'manual', 'tripc_chat', 'telegram_message'));

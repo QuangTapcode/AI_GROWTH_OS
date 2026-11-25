@@ -3,6 +3,7 @@ import { AuthUser } from "../../lib/auth";
 import { resolveTenantContext, requireRole } from "../../lib/tenant";
 import { createCampaignSchema, CreateCampaignInput } from "./schemas";
 import * as repo from "./repository";
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 export async function createWorkspaceCampaign(
   user: AuthUser,
@@ -36,7 +37,8 @@ export async function listWorkspaceCampaigns(
     await resolveTenantContext(user, workspaceId);
     const items = await repo.listCampaigns(workspaceId);
     return { items };
-  } catch {
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
     return {
       items: [
         {
@@ -66,8 +68,8 @@ export async function getWorkspaceCampaignDetail(
       throw new AppError(404, "NOT_FOUND", "Campaign not found");
     }
     return campaign;
-  } catch (err) {
-    if (err instanceof AppError && err.statusCode === 404) throw err;
+  } catch (err: unknown) {
+    if (!canServeOfflineDemo(err)) throw err;
     return {
       id: campaignId,
       workspace_id: workspaceId,

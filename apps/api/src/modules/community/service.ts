@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { enqueueAiTask } from '../campaignPlans/aiTasks';
 import { PgCommunityRepository } from './repository';
+import { BookingConciergeService, DM_PLATFORMS } from '../booking/concierge';
+import { classifySentiment } from '../merchant/sentiment';
+import { loadMerchantProfile } from '../merchant/profile';
+import { alertOwner } from '../merchant/notify';
 import {
   receiveMessageInputSchema,
   updateMessageStatusSchema,
@@ -119,19 +123,45 @@ export class CommunityService {
  * Autopilot helper: enqueues pending received community messages into workflow_tasks.
  */
 /** A reply counts only once it was sent: a draft nobody sent was never said to this person. */
-async function conversationHistory(pool: Pool, workspaceId: string, platform: string, contact: string, messageId: string) {
+/** How far back an earlier question still belongs to the same conversation. A group moves on faster. */
+export const HISTORY_WINDOW_MINUTES = { group: 30, private: 180 } as const;
+const HISTORY_TURNS = 4;
+
+/**
+ * The asker's own earlier questions in this chat, oldest first: context for a follow-up such as "Khu vực Đà Nẵng".
+ * A Telegram group shares one author_contact (the group's chat id), so there the sender's id picks out their own
+ * turns; commands and join notices (no AI task) and anything older than the window are not part of the conversation.
+ */
+export async function conversationHistory(pool: Pick<Pool, 'query'>, workspaceId: string, platform: string, contact: string, messageId: string) {
+  const isGroup = contact.startsWith('-');
   const prior = (await pool.query<{ content: string; reply: string | null }>(
-    `SELECT m.content,
+    `WITH cur AS (
+       SELECT received_at, metadata->>'sender_id' AS sender_id FROM community_messages WHERE id = $4
+     )
+     SELECT m.content,
             CASE WHEN m.status = 'replied'
                  THEN COALESCE(a.payload->'result'->>'reply', m.metadata->>'reply_text')
             END AS reply
        FROM community_messages m
+       CROSS JOIN cur
        LEFT JOIN content_artifacts a ON a.workspace_id = m.workspace_id AND a.task_id = m.task_id
       WHERE m.workspace_id = $1 AND m.platform = $2 AND m.author_contact = $3 AND m.id <> $4
-      ORDER BY m.received_at DESC LIMIT 6`,
-    [workspaceId, platform, contact, messageId],
+        AND m.task_id IS NOT NULL
+        AND m.received_at <= cur.received_at
+        AND m.received_at > cur.received_at - make_interval(mins => $5::int)
+        AND (cur.sender_id IS NULL OR m.metadata->>'sender_id' = cur.sender_id)
+        AND lower(m.content) <> lower((SELECT content FROM community_messages WHERE id = $4))
+      ORDER BY m.received_at DESC LIMIT $6`,
+    [workspaceId, platform, contact, messageId,
+      isGroup ? HISTORY_WINDOW_MINUTES.group : HISTORY_WINDOW_MINUTES.private, HISTORY_TURNS],
   )).rows;
-  return prior.reverse().map((row) => ({
+  // The same message delivered twice is one turn.
+  const seen = new Set<string>();
+  const unique = prior.filter((row) => {
+    const key = row.content.trim().toLowerCase();
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
+  return unique.reverse().map((row) => ({
     question: row.content.slice(0, 300),
     ...(row.reply ? { reply: row.reply.slice(0, 300) } : {}),
   }));
@@ -200,11 +230,14 @@ async function syncInboundMessengerMessages(pool: Pool, workspaceId: string): Pr
   }
 }
 
+const COMMENT_PLATFORMS = new Set(['facebook_comment', 'instagram_comment']);
+
 export async function processReceivedCommunityMessages(
   pool: Pool,
   workspaceId: string,
   actorId: string,
-  snapshotId: string,
+  /** null: chưa có knowledge context — chỉ chạy Agent 6/7 (cầu chì bình luận, đặt bàn), chưa gửi sang AI hỏi-đáp. */
+  snapshotId: string | null,
   limit = 10,
 ): Promise<number> {
   let autoReplyComments = true;
@@ -224,8 +257,8 @@ export async function processReceivedCommunityMessages(
 
   await syncInboundMessengerMessages(pool, workspaceId);
   const pending = (
-    await pool.query<{ id: string; content: string; platform: string; author_contact: string | null }>(
-      `SELECT id, content, platform, author_contact FROM community_messages
+    await pool.query<{ id: string; content: string; platform: string; author_contact: string | null; author_name: string | null; post_url: string | null; metadata: Record<string, unknown> | null }>(
+      `SELECT id, content, platform, author_contact, author_name, post_url, metadata FROM community_messages
        WHERE workspace_id = $1 AND status = 'received' AND task_id IS NULL
        ORDER BY received_at ASC LIMIT $2`,
       [workspaceId, limit],
@@ -233,8 +266,50 @@ export async function processReceivedCommunityMessages(
   ).rows;
 
   let enqueued = 0;
+  const concierge = new BookingConciergeService(pool);
   for (const msg of pending) {
-    if (msg.platform === 'facebook_comment' && !autoReplyComments) continue;
+    if (COMMENT_PLATFORMS.has(msg.platform) && !autoReplyComments) continue;
+
+    // Agent 7 — Booking Concierge: tin nhắn riêng thuộc luồng đặt bàn được state machine xử lý (không qua RAG).
+    if (DM_PLATFORMS.has(msg.platform)) {
+      const outcome = await concierge
+        .handleInbound(workspaceId, { id: msg.id, platform: msg.platform, author_contact: msg.author_contact, author_name: msg.author_name, content: msg.content, metadata: msg.metadata })
+        .catch((err) => {
+          console.warn('[concierge] falling back to RAG reply:', (err as Error).message);
+          return { handled: false };
+        });
+      if (outcome.handled) continue;
+    }
+
+    // Agent 6 — Comment Reply: "cầu chì" thương hiệu trước khi AI trả lời công khai.
+    if (COMMENT_PLATFORMS.has(msg.platform)) {
+      const sentiment = classifySentiment(msg.content);
+      if (sentiment.label === 'spam') {
+        await pool.query(
+          `UPDATE community_messages SET status = 'ignored', metadata = metadata || $3::jsonb, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
+          [workspaceId, msg.id, JSON.stringify({ agent: 'comment_reply', sentiment: 'spam', sentiment_matched: sentiment.matched })],
+        );
+        continue;
+      }
+      if (sentiment.label === 'crisis' || sentiment.label === 'negative') {
+        await pool.query(
+          `UPDATE community_messages SET status = 'escalated', metadata = metadata || $3::jsonb, updated_at = now() WHERE workspace_id = $1 AND id = $2`,
+          [workspaceId, msg.id, JSON.stringify({ agent: 'comment_reply', sentiment: sentiment.label, sentiment_matched: sentiment.matched })],
+        );
+        const profile = await loadMerchantProfile(pool, workspaceId).catch(() => null);
+        if (profile) {
+          await alertOwner(
+            profile,
+            `${sentiment.label === 'crisis' ? '🚨 CẢNH BÁO PHỐT' : '⚠️ Bình luận tiêu cực'} (${msg.platform === 'instagram_comment' ? 'Instagram' : 'Facebook'})
+${msg.author_name ?? 'Khách'}: "${msg.content.slice(0, 400)}"
+${msg.post_url ? `Bài viết: ${msg.post_url}
+` : ''}AI KHÔNG tự trả lời bình luận này — anh/chị xử lý trong Hộp thư cộng đồng.`,
+          );
+        }
+        continue;
+      }
+    }
+    if (!snapshotId) continue;
     const history = msg.author_contact ? await conversationHistory(pool, workspaceId, msg.platform, msg.author_contact, msg.id) : [];
     const taskId = randomUUID();
     await enqueueAiTask(pool, workspaceId, actorId, {

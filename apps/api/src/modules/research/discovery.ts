@@ -202,7 +202,11 @@ export async function latestDiscovery(pool: Pool, workspaceId: string) {
     `SELECT id, title, url_or_blob, status, version, license, attribution, retrieved_at, ingest_attempts, ingest_error,
             (SELECT count(*)::int FROM source_chunks c WHERE c.source_id=s.id AND c.source_version=s.version) AS chunk_count
      FROM sources s WHERE workspace_id=$1 AND kind='url' AND deleted_at IS NULL AND license IS NOT NULL
-     ORDER BY created_at DESC LIMIT 20`, [workspaceId],
+       -- Every source waiting for the owner, however many, plus the 20 latest of the rest.
+       AND (status='needs_review' OR id IN (
+         SELECT id FROM sources WHERE workspace_id=$1 AND kind='url' AND deleted_at IS NULL AND license IS NOT NULL
+           AND status<>'needs_review' ORDER BY created_at DESC LIMIT 20))
+     ORDER BY (status='needs_review') DESC, created_at DESC`, [workspaceId],
   )).rows;
   return { discovery_run_id, previous_run_id, signals, sources };
 }

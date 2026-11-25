@@ -108,33 +108,37 @@ async function queueDirectReply(
     await client.query('ROLLBACK TO SAVEPOINT sp_queue_direct_settings').catch(() => { });
   }
 
-  if (message.platform === 'facebook_comment' && settings?.auto_reply_comments === false) {
+  if ((message.platform === 'facebook_comment' || message.platform === 'instagram_comment') && settings?.auto_reply_comments === false) {
+    return;
+  }
+
+  // Câu trả lời AI tự đánh dấu cần người kiểm tra (giá, cam kết, dữ kiện chưa xác minh) không được gửi tự động.
+  // Ngoại lệ duy nhất: chỉ thiếu xác minh đồng ý của lead — câu trả lời vẫn có căn cứ, chỉ lead bị ghi "chưa xác minh".
+  const missing = Array.isArray(result.missing_facts) ? result.missing_facts : [];
+  const onlyConsentUnverified = missing.length > 0 && missing.every((fact) => fact === 'verified_lead_owner_and_consent');
+  if (result.escalation_required === true && !onlyConsentUnverified) {
+    await client.query(
+      `UPDATE community_messages SET status = 'escalated', updated_at = NOW() WHERE workspace_id = $1 AND id = $2 AND status IN ('received', 'queued')`,
+      [workspaceId, message.id],
+    );
     return;
   }
 
   const communityName = settings?.community_name?.trim() || DEFAULT_COMMUNITY_NAME;
   const groupUrl = settings?.group_url?.trim() || DEFAULT_FACEBOOK_GROUP_URL;
-  const telegramUrl = process.env.TELEGRAM_COMMUNITY_URL?.trim() || 'https://t.me/tripc_community_bot';
   const dailyCap = Math.max(10, Math.min(15, Number(settings?.daily_invite_limit ?? 12)));
   const canInviteToday = settings?.auto_invite_enabled !== false && !alreadyInvited && todayInviteCount < dailyCap;
 
-  const isComment = message.platform === 'facebook_comment';
+  const isComment = message.platform === 'facebook_comment' || message.platform === 'instagram_comment';
+  const isFacebookComment = message.platform === 'facebook_comment';
   const isTelegram = message.platform === 'telegram_message';
   const commentSource = message.metadata?.comment_source === 'group' ? 'group' : 'page';
   const commentId = message.metadata?.comment_id;
   const recipient = message.author_contact || (isComment && commentId ? `comment:${commentId}` : null);
 
   let text = result.reply?.trim();
-  const isHardQuestion =
-    !text ||
-    text.includes('The verified information needed for this question is unavailable') ||
-    text.includes('A human needs to review it') ||
-    text.includes('chưa có trong cẩm nang') ||
-    text.includes('not yet in TripC') ||
-    (result as Record<string, unknown>).status === 'insufficient_data' ||
-    Boolean((result as Record<string, unknown>).escalation_required);
-  const groupFallback = `Chào bạn! Cảm ơn bạn đã bình luận và chia sẻ trong Cộng đồng. Hiện tại cẩm nang TripC đang cập nhật thêm thông tin chi tiết về chủ đề này — các thành viên và quản trị viên sẽ hỗ trợ thêm ngay bên dưới, hoặc bạn có thể nhắn nhanh qua kênh Telegram cộng đồng tại: ${telegramUrl} nhé!`;
-  const pageFallback = `Chào bạn! Cảm ơn bạn đã liên hệ TripC. Câu hỏi này cần thêm kinh nghiệm thực tế từ cộng đồng địa phương — mời bạn tham gia nhóm Facebook "${communityName}": ${groupUrl} hoặc kênh Telegram hỗ trợ nhanh: ${telegramUrl} để nhận gợi ý chi tiết nhất nhé!`;
+  const groupFallback = `Chào bạn! Cảm ơn bạn đã bình luận và chia sẻ trong Cộng đồng. Hiện tại cẩm nang TripC đang cập nhật thêm thông tin chi tiết về chủ đề này — các thành viên và quản trị viên sẽ hỗ trợ thêm cho bạn ngay bên dưới nhé!`;
+  const pageFallback = `Chào bạn! Cảm ơn bạn đã liên hệ TripC. Hiện tại cẩm nang của chúng tôi đang liên tục cập nhật thêm dữ liệu về chủ đề này. Bạn có thể tham gia thảo luận cùng người dân địa phương và cộng đồng tại nhóm Facebook của chúng tôi: ${groupUrl} để nhận được gợi ý nhanh nhất nhé!`;
   if (!isTelegram && (!text || text.includes("The verified information needed for this question is unavailable") || text.includes("A human needs to review it"))) {
     text = isComment && commentSource === 'group' ? groupFallback : pageFallback;
   }
@@ -177,15 +181,9 @@ async function queueDirectReply(
       community_name: communityName,
       author_name: message.metadata?.from_name || message.author_name || null,
     };
-  } else if (isComment && commentSource === 'page' && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
-    // Only on Fanpage comments do we attach an invite link to join the Facebook Group + Telegram; users in Group are already members.
-    outboxText = `${outboxText}\n\n👉 Mời bạn tham gia ${communityName} (${groupUrl}) hoặc Telegram (${telegramUrl}) để hỏi đáp thêm kinh nghiệm thực tế nhé!`;
-  } else if (isComment && commentSource === 'group' && isHardQuestion && canInviteToday && !outboxText.includes('t.me/')) {
-    // Inside Facebook Group, never re-invite to the same FB Group; offer Telegram for faster Q&A.
-    outboxText = `${outboxText}\n\n💬 Bạn cũng có thể nhắn nhanh qua kênh Telegram cộng đồng (${telegramUrl}) để nhận hỗ trợ thêm nhé!`;
-  } else if (!isComment && isHardQuestion && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
-    // Hard Messenger Inbox questions: redirect naturally to Facebook Group + Telegram (respecting daily & per-user dedup cap).
-    outboxText = `${outboxText}\n\n👉 Để nhận thêm kinh nghiệm thực tế mới nhất từ cộng đồng, bạn có thể tham gia nhóm Facebook "${communityName}": ${groupUrl} hoặc kênh Telegram: ${telegramUrl} nhé!`;
+  } else if (isFacebookComment && commentSource === 'page' && canInviteToday && !outboxText.includes('facebook.com/groups/')) {
+    // Only on Fanpage comments do we attach an invite link to join the Facebook Group; users in Group are already members.
+    outboxText = `${outboxText}\n\n👉 Mời bạn tham gia Cộng đồng Du lịch & Sống tại Việt Nam để hỏi đáp thêm kinh nghiệm thực tế: ${groupUrl}`;
   }
 
   await client.query(
@@ -207,8 +205,8 @@ async function queueDirectReply(
           author_name: message.metadata?.from_name || message.author_name || null,
           question_snippet: message.content ? message.content.slice(0, 140) : null,
           comment_snippet: message.content ? message.content.slice(0, 140) : null,
-          invite_group_url: commentSource === 'page' && canInviteToday ? groupUrl : null,
-          should_private_invite: commentSource === 'page' && Boolean(commentId) && canInviteToday,
+          invite_group_url: isFacebookComment && commentSource === 'page' && canInviteToday ? groupUrl : null,
+          should_private_invite: isFacebookComment && commentSource === 'page' && Boolean(commentId) && canInviteToday,
         } : {}),
       })],
   );
@@ -241,7 +239,7 @@ export async function persistCommunityLead(
   if (!artifactRow || artifactRow.role !== 'community') return null;
 
   const direct = artifactRow.task_id ? (await client.query<DirectMessage>(
-    `SELECT id, platform, author_contact, author_name, post_url, content, metadata FROM community_messages WHERE workspace_id = $1 AND task_id = $2 AND (platform IN ('facebook_message', 'telegram_message') OR platform = 'facebook_comment') LIMIT 1`,
+    `SELECT id, platform, author_contact, author_name, post_url, content, metadata FROM community_messages WHERE workspace_id = $1 AND task_id = $2 AND (platform IN ('facebook_message', 'telegram_message') OR platform IN ('facebook_comment', 'instagram_message', 'instagram_comment', 'zalo_message')) LIMIT 1`,
     [workspaceId, artifactRow.task_id],
   )).rows[0] : undefined;
   if (direct) await queueDirectReply(client, workspaceId, direct, artifactId, artifactRow.payload?.result ?? {});

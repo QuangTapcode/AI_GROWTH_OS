@@ -81,7 +81,7 @@ const EIGHT_AUTONOMOUS_AGENTS = [
     code: "content_planner",
     title: "Content Planner & SEO (Lập Kế Hoạch)",
     desc: "Nghiên cứu xu hướng thị trường (Research), viết bài chuẩn SEO có trích dẫn nguồn (Grounded) và lập Content Calendar đa kênh không trùng lặp.",
-    kpi: "30 Chủ đề • 0% Hallucination • Anti-Duplicate",
+    kpi: "Trích dẫn nguồn đã duyệt • Chống trùng lặp",
     href: "/agents/content",
     cta: "Mở Content & SEO Studio →",
     icon: "✍️",
@@ -101,7 +101,7 @@ const EIGHT_AUTONOMOUS_AGENTS = [
     code: "gmaps_specialist",
     title: "Google Maps Specialist (Local SEO)",
     desc: "Quản lý vị trí Google Business Profile, tự động đăng bài cập nhật Local Post từ ảnh Drive và tự động trả lời 100% đánh giá (Reviews) chuẩn SEO địa phương.",
-    kpi: "100% Auto-Reply Review • Top Local Pack",
+    kpi: "Trả lời review • Local Post từ ảnh Drive",
     href: "/gmaps",
     cta: "Mở Google Maps Hub →",
     icon: "📍",
@@ -109,9 +109,9 @@ const EIGHT_AUTONOMOUS_AGENTS = [
   {
     num: "Agent 6",
     code: "comment_reply",
-    title: "Social Comment Reply 24/7 (SLA < 3m)",
-    desc: "Túc trực 24/7 giám sát và tự động phản hồi 100% bình luận công khai trên Fanpage, Group, TikTok bằng kho tri thức RAG và điều hướng khách vào phễu.",
-    kpi: "Auto-Reply Comment 24/7 • SLA < 2.3 phút",
+    title: "Social Comment Reply",
+    desc: "Túc trực 24/7 giám sát và tự động phản hồi bình luận công khai trên Fanpage, Group, TikTok bằng kho tri thức RAG và điều hướng khách vào phễu.",
+    kpi: "Trả lời comment từ nguồn đã duyệt",
     href: "/agents/community#comments",
     cta: "Mở Tự Động Phản Hồi Comment →",
     icon: "💬",
@@ -328,10 +328,6 @@ function Operations() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-3 py-0.5 text-xs font-bold text-emerald-800">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                8/8 AI Agent Tự Hành 24/7
-              </span>
               <span className="text-xs font-semibold text-blue-800">
                 Mô hình &ldquo;Một tác vụ là một con Agent&rdquo; — Phòng Marketing AI tự vận hành khép kín
               </span>
@@ -370,9 +366,6 @@ function Operations() {
                   <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-800">
                     <span className="text-base">{ag.icon}</span>
                     {ag.num}
-                  </span>
-                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                    ● Tự hành 24/7
                   </span>
                 </div>
                 <h3 className="mt-2 text-sm font-bold text-slate-900 leading-snug">

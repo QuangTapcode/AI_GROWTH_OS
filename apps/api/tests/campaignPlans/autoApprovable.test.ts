@@ -26,6 +26,24 @@ describe('what the autopilot may approve by itself', () => {
     expect(isAutoApprovable(asRole('content', { input_artifact_refs: [{ artifact_id: 'article' }] }, []))).toBe(false);
   });
 
+  it('answers a plain greeting or reaction with a welcome, which needs no source quote', () => {
+    const welcome = { reply: 'Hello there! How can I help you today? Feel free to ask me anything about travel.' };
+    for (const asked of ['Heloo', 'hi', 'xin chào ạ', 'Chào shop', 'cảm ơn ad nha', '👍❤️']) {
+      expect(isAutoApprovable({ ...asRole('community', welcome, []), asked_text: asked })).toBe(true);
+    }
+  });
+
+  it('still sends an unquoted reply to a person when the customer asked anything real', () => {
+    const welcome = { reply: 'Hello there! How can I help you today?' };
+    for (const asked of ['hi, giá tour Bà Nà bao nhiêu?', 'hello where to eat in Hoi An', 'chào bạn, visa mất mấy ngày', '', null]) {
+      expect(isAutoApprovable({ ...asRole('community', welcome, []), asked_text: asked })).toBe(false);
+    }
+    // A greeting whose reply carries a figure or a link is not a plain welcome.
+    expect(isAutoApprovable({ ...asRole('community', { reply: 'Hi! Tours from 500k: https://x.test' }, []), asked_text: 'hi' })).toBe(false);
+    expect(isAutoApprovable({ ...asRole('content', welcome, []), asked_text: 'hi' })).toBe(false);
+    expect(isAutoApprovable({ ...asRole('community', { ...welcome, missing_facts: ['grounded_answer'], status: 'insufficient_data' }, []), asked_text: 'hi' })).toBe(false);
+  });
+
   it('approves a grounded draft with nothing missing', () => {
     expect(isAutoApprovable(row({}))).toBe(true);
   });

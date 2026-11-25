@@ -39,3 +39,20 @@ def test_scraps_and_navigation_leftovers_never_become_chunks_of_their_own():
                             max_tokens=512, target_tokens=350)
     assert all(len(c.text) >= 150 for c in chunks)
     assert not any(c.text.strip().endswith("v\n\nt\n\ne") for c in chunks)
+
+
+def test_a_later_chunk_of_a_section_carries_its_heading():
+    rain = "The rainy season runs from September to December, with typhoons possible in October and November. "
+    chunks = chunk_segments([seg("Climate", 1), seg(LONG, 2), seg(rain * 9, 3), seg("Get in", 4), seg(LONG, 5)],
+                            max_tokens=512, target_tokens=350)
+    rainy = [c for c in chunks if "rainy season" in c.text]
+    assert rainy and all(c.text.startswith("Climate\n\n") for c in rainy)
+    # The next section is not labelled with the one before it.
+    assert not any(c.text.startswith("Climate") and "Get in" in c.text.split("\n\n", 1)[0] for c in chunks)
+    assert any(c.text.startswith("Get in\n\n") for c in chunks)
+
+
+def test_the_heading_label_does_not_cross_pages():
+    other = Segment(text=LONG, paragraph=1, url="https://en.wikivoyage.org/wiki/Hoi_An")
+    chunks = chunk_segments([seg("Climate", 1), seg(LONG, 2), other], max_tokens=512, target_tokens=350)
+    assert not chunks[-1].text.startswith("Climate")

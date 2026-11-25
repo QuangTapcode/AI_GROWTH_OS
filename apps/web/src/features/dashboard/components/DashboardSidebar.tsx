@@ -55,7 +55,27 @@ export default function DashboardSidebar({
     "/distribution": "distribution",
     "/growth-results": "growth-results",
     "/workspace": "workspace-integrations",
+    "/onboarding": "onboarding",
+    "/calendar": "calendar",
+    "/gmaps": "gmaps",
+    "/booking-leads": "booking-leads",
+    "/community-growth": "community-growth",
+    "/reports/daily": "daily-report",
+    "/merchant-settings": "merchant-settings",
+    "/admin/llm": "admin-llm",
   };
+
+  // Phòng Marketing AI: màn hình của 8 agent merchant (F&B / du lịch)
+  const merchantNav = [
+    { id: "onboarding", label: "Kết nối & 8 Agent", href: "/onboarding", icon: "🔗" },
+    { id: "calendar", label: "Lịch đăng bài", href: "/calendar", icon: "🗓️" },
+    { id: "gmaps", label: "Google Maps & Ảnh Drive", href: "/gmaps", icon: "📍" },
+    { id: "booking-leads", label: "Đặt bàn", href: "/booking-leads", icon: "🍽️" },
+    { id: "community-growth", label: "Cộng đồng khách quen", href: "/community-growth", icon: "👥" },
+    { id: "daily-report", label: "Báo cáo ngày", href: "/reports/daily", icon: "📊" },
+    { id: "merchant-settings", label: "Hồ sơ quán", href: "/merchant-settings", icon: "⚙️" },
+    { id: "admin-llm", label: "Multi-LLM (Admin)", href: "/admin/llm", icon: "🎛️" },
+  ];
   const currentTab = TAB_BY_PATH[pathname.replace(/\/$/, "")] ?? activeTab;
 
   // Close dropdown on outside click
@@ -427,6 +447,27 @@ export default function DashboardSidebar({
             );
           })}
         </nav>
+
+        <div className="pt-4">
+          <p className="px-3.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-blue-200/60">Phòng Marketing AI</p>
+          <nav className="space-y-1" aria-label="Phòng Marketing AI">
+            {merchantNav.map((item) => {
+              const isActive = currentTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleNav(item.id, item.href)}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${isActive ? "bg-white text-[#1d4ed8] font-bold shadow-sm" : "text-blue-100/90 hover:bg-white/10 hover:text-white"}`}
+                >
+                  <span aria-hidden className="w-5 text-center">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
       </div>
 
       {/* Bottom Section: Workspace Intelligence & User Profile */}

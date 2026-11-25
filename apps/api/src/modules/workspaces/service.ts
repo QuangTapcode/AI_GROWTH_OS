@@ -9,15 +9,17 @@ import {
   AddMemberInput,
 } from "./schemas";
 import * as repo from "./repository";
+import { canServeOfflineDemo } from "../../lib/offlineDemo";
 
 export async function listUserWorkspaces(user: AuthUser) {
   try {
     await assertActiveSession(user);
     await repo.ensureUserExists(user.id, user.email, user.name);
     const items = await repo.listWorkspacesForUser(user.id);
-    if (items && items.length > 0) return { items };
-  } catch {
-    // Handled in local dev
+    return { items };
+  } catch (offlineErr: unknown) {
+    if (!canServeOfflineDemo(offlineErr)) throw offlineErr;
+    // Demo offline: một workspace mẫu
   }
   return {
     items: [
@@ -93,8 +95,8 @@ export async function listWorkspaceMembers(user: AuthUser, workspaceId: string) 
       },
     }));
     return { items };
-  } catch (err) {
-    if (err instanceof AppError && err.statusCode !== 500) throw err;
+  } catch (err: unknown) {
+    if (!canServeOfflineDemo(err)) throw err;
     return {
       items: [
         {
