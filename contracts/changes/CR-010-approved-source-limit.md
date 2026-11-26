@@ -5,8 +5,10 @@
   cycle keeps approving sources for questions the bot could not answer). Every `research.run` and `community.response`
   request was then refused with `422 INVALID_REQUEST — approved_source_versions: List should have at most 100 items`, so the
   daily six-agent cycle and all Community replies (Group, Fanpage, Telegram) stopped.
-- Contract current → proposed: `JobRequest.approved_source_versions` `maxItems: 100` → `maxItems: 500`
-  (`services/ai/src/app/schemas.py`, regenerated `contracts/schemas/ai-six-role-contracts.json`).
+- Contract current → proposed: `maxItems: 100` → `maxItems: 500` on `JobRequest.approved_source_versions` and on
+  `KnowledgeSnapshot.sources` (the snapshot carried by Research, Growth Lead and Community payloads), in
+  `services/ai/src/app/schemas.py`; `contracts/schemas/ai-six-role-contracts.json` regenerated. The first retry after
+  raising only the JobRequest bound failed on `payload.snapshot.sources` with the same 106. Request body cap (32 MB) unchanged.
 - Endpoint/schema/error/state/authorization/metric changed: only that bound of `POST /internal/v1/runs`. No error code,
   state or authorization change.
 - Breaking or additive: additive. Every request valid before stays valid; the bound only widens.

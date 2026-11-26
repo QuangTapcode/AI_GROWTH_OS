@@ -25,3 +25,17 @@ def test_a_context_with_more_than_a_hundred_sources_is_accepted():
 def test_the_source_list_still_has_an_upper_bound():
     with pytest.raises(ValidationError):
         JobRequest.model_validate(_request(501))
+
+
+def test_a_knowledge_snapshot_with_more_than_a_hundred_sources_is_accepted():
+    from src.app.schemas import KnowledgeSnapshot
+
+    sources = [
+        {"source_id": str(uuid4()), "version": 1, "status": "approved", "title": f"Nguồn {i}"} for i in range(106)
+    ]
+    try:
+        snap = KnowledgeSnapshot.model_validate({"workspace_id": str(uuid4()), "sources": sources})
+    except ValidationError as error:  # other required source fields must not hide the length check
+        assert all("at most" not in str(e["msg"]) for e in error.errors()), error
+        return
+    assert len(snap.sources) == 106

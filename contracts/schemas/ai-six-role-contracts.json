@@ -1236,7 +1236,7 @@
                 "items": {
                   "$ref": "#/$defs/SnapshotSource"
                 },
-                "maxItems": 100,
+                "maxItems": 500,
                 "title": "Sources",
                 "type": "array"
               }
@@ -3859,7 +3859,7 @@
                 "items": {
                   "$ref": "#/$defs/SnapshotSource"
                 },
-                "maxItems": 100,
+                "maxItems": 500,
                 "title": "Sources",
                 "type": "array"
               }
@@ -7052,7 +7052,7 @@
                   "items": {
                     "$ref": "#/$defs/SnapshotSource"
                   },
-                  "maxItems": 100,
+                  "maxItems": 500,
                   "title": "Sources",
                   "type": "array"
                 }
@@ -8937,7 +8937,7 @@
                 "items": {
                   "$ref": "#/$defs/SnapshotSource"
                 },
-                "maxItems": 100,
+                "maxItems": 500,
                 "title": "Sources",
                 "type": "array"
               }
@@ -10992,7 +10992,7 @@
                 "items": {
                   "$ref": "#/$defs/SnapshotSource"
                 },
-                "maxItems": 100,
+                "maxItems": 500,
                 "title": "Sources",
                 "type": "array"
               }
@@ -13460,7 +13460,7 @@
                 "items": {
                   "$ref": "#/$defs/SnapshotSource"
                 },
-                "maxItems": 100,
+                "maxItems": 500,
                 "title": "Sources",
                 "type": "array"
               }
@@ -15425,7 +15425,7 @@
                 "items": {
                   "$ref": "#/$defs/SnapshotSource"
                 },
-                "maxItems": 100,
+                "maxItems": 500,
                 "title": "Sources",
                 "type": "array"
               }

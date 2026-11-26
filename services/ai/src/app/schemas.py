@@ -303,7 +303,7 @@ class KnowledgeSnapshot(BaseModel):
 
     snapshot_id: UUID | None = None
     workspace_id: UUID
-    sources: list[SnapshotSource] = Field(default_factory=list, max_length=100)
+    sources: list[SnapshotSource] = Field(default_factory=list, max_length=500)
 
 
 class AnswerPayload(BaseModel):
