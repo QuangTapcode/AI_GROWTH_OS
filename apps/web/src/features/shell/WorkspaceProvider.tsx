@@ -29,6 +29,9 @@ interface WorkspaceContextValue {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
+/** Tạm thời tắt lớp đăng nhập / API block theo yêu cầu người dùng để kiểm tra giao diện 3D Office trực tiếp. */
+const TEMP_BYPASS_LOGIN_FOR_UI_CHECK = true;
+
 export function useWorkspace(): WorkspaceContextValue {
   const value = useContext(WorkspaceContext);
   if (!value) throw new Error("useWorkspace must be used inside <WorkspaceProvider>");
@@ -51,13 +54,22 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
 
   useEffect(() => {
     const sess = getSession();
-    if (!sess) {
+    const storedId = getSelectedWorkspaceId() || "10000000-0000-4000-8000-000000000001";
+
+    if (!sess && !TEMP_BYPASS_LOGIN_FOR_UI_CHECK) {
       const next = encodeURIComponent(window.location.pathname + window.location.search);
       router.replace(`/login?next=${next}`);
       return;
     }
-    const storedId = getSelectedWorkspaceId() || "10000000-0000-4000-8000-000000000001";
-    if (sess.user) {
+
+    const activeUser = sess?.user ?? {
+      id: "ui-preview-user",
+      email: "preview@growthos.ai",
+      full_name: "Growth Owner",
+      avatar_url: null,
+    };
+
+    if (sess?.user || TEMP_BYPASS_LOGIN_FOR_UI_CHECK) {
       setSelectedId(storedId);
       setState((prev) =>
         prev.status === "ready"
@@ -66,14 +78,14 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
               status: "ready",
               me: {
                 user: {
-                  ...sess.user,
-                  avatar_url: sess.user.avatar_url ?? null,
+                  ...activeUser,
+                  avatar_url: activeUser.avatar_url ?? null,
                   last_login_at: null,
                 },
                 workspaces: [
                   {
                     workspace_id: storedId,
-                    name: "TripC",
+                    name: "TripC HQ (UI Preview)",
                     slug: "tripc",
                     role: "owner",
                   },
@@ -82,6 +94,11 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
             }
       );
     }
+
+    if (!sess && TEMP_BYPASS_LOGIN_FOR_UI_CHECK) {
+      return;
+    }
+
     const controller = new AbortController();
     growthApi
       .me(controller.signal)
@@ -93,6 +110,7 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
+        if (TEMP_BYPASS_LOGIN_FOR_UI_CHECK) return;
         setState({ status: "error", error: err instanceof ApiError ? err : new ApiError(0, "UNKNOWN_ERROR", String(err)) });
       });
     return () => controller.abort();

@@ -254,8 +254,10 @@ async function defaultCancelImageJob(jobId: string) {
 }
 
 export default function ApprovalView({
+  workspaceId = "ws-default",
   workspaceName = "TripC Da Nang",
   userRole = "editor",
+  postId = "post-default",
   initialVersion = 1,
   initialParentSeoVersion = 1,
   requiresImage = true,
@@ -273,6 +275,7 @@ export default function ApprovalView({
 }: ApprovalViewProps) {
   // 1. Channel Selector: Facebook | TikTok
   const [selectedChannel, setSelectedChannel] = useState<"facebook" | "tiktok">("facebook");
+  const [, setClickCount] = useState<number>(0);
 
   // 2. Fact Inspector Selected Sentence
   const [activeSentenceId, setActiveSentenceId] = useState<string | null>(null);

@@ -1,11 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import DashboardSidebar, {
-  DEFAULT_WORKSPACES,
-  type WorkspaceItem,
-} from "@/features/dashboard/components/DashboardSidebar";
-import DashboardHeader from "@/features/dashboard/components/DashboardHeader";
 import {
   MOCK_WORKSPACE_PROFILE,
   MOCK_BRAND_TONES,
@@ -23,10 +18,6 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function WorkspaceIntegrationsClientView() {
   const { language, t } = useLanguage();
-  const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceItem>(
-    DEFAULT_WORKSPACES[0]
-  );
-  const [activeTab, setActiveTab] = useState("workspace-integrations");
 
   // Sub-tab: "workspace" (Profile & Brand Voice) vs "integrations" (Connected Feeds)
   const [currentSubTab, setCurrentSubTab] = useState<"workspace" | "integrations">(
@@ -226,26 +217,8 @@ export default function WorkspaceIntegrationsClientView() {
         </div>
       )}
 
-      {/* ── Left Sidebar ── */}
-      <DashboardSidebar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        selectedWorkspace={currentWorkspace}
-        onWorkspaceChange={setCurrentWorkspace}
-      />
-
-      {/* ── Main Content Area ── */}
-      <div className="main-wrapper">
-        <DashboardHeader
-          workspaceName={currentWorkspace.name}
-          currentPageTitle="Workspace & Integrations"
-          searchPlaceholder={
-            language === "vi"
-              ? "Tìm kiếm cài đặt không gian, tích hợp..."
-              : "Search workspace configuration, feeds..."
-          }
-        />
-
+      {/* ── Main Content Area (No Left Sidebar — Embedded in 3D Integration Reception) ── */}
+      <div className="main-wrapper w-full">
         <main className="content-body">
           {/* 1. PAGE HEADER */}
           <div className="wi-header">
@@ -320,9 +293,8 @@ export default function WorkspaceIntegrationsClientView() {
             <button
               type="button"
               onClick={() => setCurrentSubTab("workspace")}
-              className={`wi-tab-btn ${
-                currentSubTab === "workspace" ? "active" : ""
-              }`}
+              className={`wi-tab-btn ${currentSubTab === "workspace" ? "active" : ""
+                }`}
             >
               <svg
                 width="15"
@@ -341,9 +313,8 @@ export default function WorkspaceIntegrationsClientView() {
             <button
               type="button"
               onClick={() => setCurrentSubTab("integrations")}
-              className={`wi-tab-btn ${
-                currentSubTab === "integrations" ? "active" : ""
-              }`}
+              className={`wi-tab-btn ${currentSubTab === "integrations" ? "active" : ""
+                }`}
             >
               <svg
                 width="15"
@@ -1711,9 +1682,8 @@ export default function WorkspaceIntegrationsClientView() {
                       key={cat.id}
                       type="button"
                       onClick={() => setIntegrationFilter(cat.id)}
-                      className={`wi-cat-btn ${
-                        integrationFilter === cat.id ? "active" : ""
-                      }`}
+                      className={`wi-cat-btn ${integrationFilter === cat.id ? "active" : ""
+                        }`}
                     >
                       {cat.label}
                     </button>
@@ -1748,11 +1718,10 @@ export default function WorkspaceIntegrationsClientView() {
                         </div>
                       </div>
                       <span
-                        className={`wi-int-badge ${
-                          item.status === "connected"
-                            ? "status-connected"
-                            : "status-attention"
-                        }`}
+                        className={`wi-int-badge ${item.status === "connected"
+                          ? "status-connected"
+                          : "status-attention"
+                          }`}
                       >
                         {item.statusLabel}
                       </span>
@@ -1788,11 +1757,10 @@ export default function WorkspaceIntegrationsClientView() {
                       <button
                         type="button"
                         onClick={() => handleToggleIntegration(item.id)}
-                        className={`btn btn-sm ${
-                          item.status === "connected"
-                            ? "btn-secondary"
-                            : "btn-primary"
-                        }`}
+                        className={`btn btn-sm ${item.status === "connected"
+                          ? "btn-secondary"
+                          : "btn-primary"
+                          }`}
                       >
                         {item.status === "connected" ? "Manage API" : "Reconnect"}
                       </button>

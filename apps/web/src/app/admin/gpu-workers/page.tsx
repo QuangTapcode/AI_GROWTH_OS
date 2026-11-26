@@ -88,14 +88,14 @@ export default function GpuWorkersAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-10 font-sans">
+    <div className="text-slate-800 p-4 md:p-6 font-sans">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Navigation Breadcrumb */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-            <Link href="/" className="hover:text-slate-800">Trang chủ</Link>
+            <Link href="/office" className="hover:text-slate-800">3D Office HQ</Link>
             <span>/</span>
-            <span className="text-slate-800 font-semibold">Quản trị GPU Workers</span>
+            <span className="text-slate-800 font-semibold">Phòng Máy Chủ GPU Workers</span>
           </div>
 
           <div className="flex items-center gap-3">

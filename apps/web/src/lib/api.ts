@@ -48,7 +48,11 @@ interface RequestOptions {
   auth?: boolean;
 }
 
+/** Tạm thời tắt lớp đăng nhập theo yêu cầu người dùng để kiểm tra giao diện 3D Office trực tiếp. */
+const TEMP_BYPASS_LOGIN_FOR_UI_CHECK = true;
+
 function redirectToLogin() {
+  if (TEMP_BYPASS_LOGIN_FOR_UI_CHECK) return;
   if (typeof window === "undefined" || window.location.pathname.startsWith("/login")) return;
   const next = encodeURIComponent(window.location.pathname + window.location.search);
   window.location.assign(`/login?next=${next}`);
