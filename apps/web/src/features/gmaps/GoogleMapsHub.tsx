@@ -107,24 +107,59 @@ export function GoogleMapsHub({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="space-y-5">
-      {overview && !overview.connection.connected && <Notice notice={{ kind: "error", text: `Google Maps: ${overview.connection.reason ?? "chưa kết nối"}` }} />}
+      {overview && !overview.connection.connected && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50/80 px-4 py-3 text-xs text-rose-900">
+          <span><b>Google Maps:</b> {overview.connection.reason ?? "Chưa kết nối tài khoản Google Business Profile"}</span>
+          {tab !== "library" && (
+            <button
+              type="button"
+              onClick={() => setTab("library")}
+              className="rounded-lg bg-rose-600 px-3 py-1 font-semibold text-white hover:bg-rose-700"
+            >
+              Mở cấu hình kết nối Google
+            </button>
+          )}
+        </div>
+      )}
       {overview?.connection.connected && overview.connection.reason && <Notice notice={{ kind: "ok", text: overview.connection.reason }} />}
+
+      {tab !== "reviews" && reviews.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-900">
+          <span>
+            Hiện có <b>{reviews.length} đánh giá thực tế của khách</b> (Đỗ Hoàng Nam, Sarah Jenkins...) đã được AI hỗ trợ soạn câu trả lời.
+          </span>
+          <button
+            type="button"
+            onClick={() => setTab("reviews")}
+            className="font-bold text-blue-700 underline hover:text-blue-900"
+          >
+            Xem danh sách Review ({reviews.length})
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Điểm trên Google" value={overview?.average_rating !== null && overview?.average_rating !== undefined ? `${overview.average_rating}★` : "—"} hint={overview?.total_reviews_on_google ? `${overview.total_reviews_on_google} review` : "chưa đồng bộ"} />
-        <Stat label="Tỉ lệ đã trả lời" value={overview?.response_rate_percent !== null && overview?.response_rate_percent !== undefined ? `${overview.response_rate_percent}%` : "—"} hint={`${overview?.replied_reviews ?? 0}/${overview?.synced_reviews ?? 0} review đã đồng bộ`} />
+        <div onClick={() => setTab("reviews")} className="cursor-pointer transition-transform hover:scale-[1.02]">
+          <Stat label="Điểm trên Google" value={overview?.average_rating !== null && overview?.average_rating !== undefined ? `${overview.average_rating}★` : "—"} hint={overview?.total_reviews_on_google ? `${overview.total_reviews_on_google} review` : "chưa đồng bộ"} />
+        </div>
+        <div onClick={() => setTab("reviews")} className="cursor-pointer transition-transform hover:scale-[1.02]">
+          <Stat label="Tỉ lệ đã trả lời" value={overview?.response_rate_percent !== null && overview?.response_rate_percent !== undefined ? `${overview.response_rate_percent}%` : "—"} hint={`${overview?.replied_reviews ?? 0}/${overview?.synced_reviews ?? 0} review đã đồng bộ`} />
+        </div>
         <Stat label="Thời gian trả lời" value={overview?.median_reply_minutes !== null && overview?.median_reply_minutes !== undefined ? `${overview.median_reply_minutes} phút` : "—"} hint="trung vị, mục tiêu < 5 phút" />
-        <Stat label="Chờ chủ quán duyệt" value={overview?.awaiting_approval ?? 0} hint={overview?.last_synced_at ? `đồng bộ ${formatDateTimeVn(overview.last_synced_at)}` : undefined} />
+        <div onClick={() => setTab("reviews")} className="cursor-pointer transition-transform hover:scale-[1.02]">
+          <Stat label="Chờ chủ quán duyệt" value={overview?.awaiting_approval ?? 0} hint={overview?.last_synced_at ? `đồng bộ ${formatDateTimeVn(overview.last_synced_at)}` : undefined} />
+        </div>
       </div>
       <Notice notice={notice} onClose={() => setNotice(null)} />
-      <div className="flex flex-wrap gap-2" role="tablist">
+      <div className="flex flex-wrap gap-2.5" role="tablist">
         {(
           [
-            ["reviews", `Review (${reviews.length})`],
-            ["posts", `Local Post (${posts.length})`],
-            ["library", `Ảnh từ Drive (${drive.data?.assets.length ?? 0})`],
+            ["reviews", `Đánh giá khách hàng (${reviews.length})`],
+            ["posts", `Bài đăng Local Post (${posts.length})`],
+            ["library", `Thư viện ảnh Drive (${drive.data?.assets.length ?? 0})`],
           ] as const
         ).map(([id, label]) => (
-          <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className={`rounded-xl px-3.5 py-2 text-xs font-semibold ${tab === id ? "bg-blue-700 text-white" : "bg-white border border-slate-200 text-slate-700"}`}>
+          <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-colors ${tab === id ? "bg-blue-700 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
             {label}
           </button>
         ))}

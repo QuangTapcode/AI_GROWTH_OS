@@ -475,6 +475,7 @@ export class PublishingOutboxRunner {
       platform_name?: string;
       utm_url?: string | null;
       tiktok_video_id?: string | null;
+      artifact_id?: string | null;
       artifact_payload?: Record<string, unknown> | null;
       artifact_evidence?: unknown;
     },
@@ -508,13 +509,28 @@ export class PublishingOutboxRunner {
     // Sync community_group_posts when the published channel is facebook_group
     if (job.workspace_id && job.platform_name?.toLowerCase() === 'facebook_group') {
       try {
+        let sourceId: string | null = null;
+        if (Array.isArray(job.artifact_evidence) && (job.artifact_evidence as any)[0]?.source_id) {
+          sourceId = String((job.artifact_evidence as any)[0].source_id);
+        } else if (job.artifact_evidence && typeof job.artifact_evidence === 'object' && (job.artifact_evidence as any).source_id) {
+          sourceId = String((job.artifact_evidence as any).source_id);
+        }
+        if (!sourceId && job.artifact_id) {
+          const artRes = await this.pool.query<{ source_id?: string }>(
+            `SELECT (evidence->0->>'source_id')::text as source_id FROM content_artifacts WHERE id = $1`,
+            [job.artifact_id]
+          );
+          sourceId = artRes.rows[0]?.source_id ?? null;
+        }
+
         await this.pool.query(
           `INSERT INTO community_group_posts
-             (workspace_id, article_id, post_title, group_url, facebook_post_url, body_text, image_url, status, published_at, publishing_job_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'published', $8, $9)
+             (workspace_id, article_id, post_title, group_url, facebook_post_url, body_text, image_url, status, published_at, publishing_job_id, source_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'published', $8, $9, $10)
            ON CONFLICT (workspace_id, post_title)
            DO UPDATE SET
              status = 'published',
+             source_id = COALESCE(EXCLUDED.source_id, community_group_posts.source_id),
              facebook_post_url = COALESCE(EXCLUDED.facebook_post_url, community_group_posts.facebook_post_url),
              published_at = EXCLUDED.published_at,
              publishing_job_id = EXCLUDED.publishing_job_id,
@@ -530,6 +546,7 @@ export class PublishingOutboxRunner {
             extra?.imageUrl ?? null,
             at,
             job.id,
+            sourceId,
           ]
         );
       } catch {

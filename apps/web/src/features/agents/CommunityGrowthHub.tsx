@@ -296,6 +296,7 @@ type DailyCalendarItem = {
   week_range_label?: string;
   source_id: string;
   topic_title: string;
+  published_post_title?: string | null;
   source_url: string;
   image_url: string;
   image_attribution: string;
@@ -2353,7 +2354,12 @@ export default function CommunityGrowthHub({
                                 ✓ Đã đăng {pubParts.dateDisplay} • {pubParts.timeHm}
                               </span>
                             </div>
-                            <h4 className="line-clamp-2 text-xs font-bold text-slate-900">{item.topic_title}</h4>
+                            <h4 className="line-clamp-2 text-xs font-bold text-slate-900">{item.published_post_title || item.topic_title}</h4>
+                            {item.published_post_title && item.published_post_title !== item.topic_title && (
+                              <span className="line-clamp-1 text-[10px] text-slate-500 font-normal">
+                                Chủ đề gốc: {item.topic_title}
+                              </span>
+                            )}
                             <div className="flex flex-wrap gap-1 pt-0.5">
                               {isGroupPub && (
                                 <span className="rounded border border-emerald-300 bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900">
@@ -4542,8 +4548,13 @@ export default function CommunityGrowthHub({
                           {/* VÙNG 4: NỘI DUNG BÀI VIẾT & HỆ THỐNG TAG TÁCH BIỆT RÕ RÀNG */}
                           <div className="min-w-0 space-y-2.5 p-4">
                             <h4 className="break-words text-sm font-bold leading-snug text-slate-900">
-                              {item.topic_title}
+                              {item.published_post_title || item.topic_title}
                             </h4>
+                            {item.published_post_title && item.published_post_title !== item.topic_title && (
+                              <p className="break-words text-[11px] text-slate-500 font-medium">
+                                Chủ đề gốc: {item.topic_title}
+                              </p>
+                            )}
 
                             <p className="break-words text-xs font-semibold text-blue-800">
                               🔥 Xu hướng thu hút: {item.target_trend}
@@ -5005,7 +5016,10 @@ export default function CommunityGrowthHub({
                                         : `⏰ HẸN ${targetMode === "fanpage" ? "PAGE" : "GROUP"} (${parts.dateDisplay} ${parts.timeHm})`}
                                 </span>
                               </div>
-                              <p className="mt-1 font-bold text-slate-800">{post.topic_title}</p>
+                              <p className="mt-1 font-bold text-slate-800">{post.published_post_title || post.topic_title}</p>
+                              {post.published_post_title && post.published_post_title !== post.topic_title && (
+                                <p className="text-[10px] text-slate-500 font-normal">Gốc: {post.topic_title}</p>
+                              )}
                               <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex flex-wrap gap-1">
                                   {(post.interest_tags || []).map((t) => (

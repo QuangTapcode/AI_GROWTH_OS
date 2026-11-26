@@ -67,14 +67,14 @@ export default function DashboardSidebar({
 
   // Phòng Marketing AI: màn hình của 8 agent merchant (F&B / du lịch)
   const merchantNav = [
-    { id: "onboarding", label: "Kết nối & 8 Agent", href: "/onboarding", icon: "🔗" },
-    { id: "calendar", label: "Lịch đăng bài", href: "/calendar", icon: "🗓️" },
-    { id: "gmaps", label: "Google Maps & Ảnh Drive", href: "/gmaps", icon: "📍" },
-    { id: "booking-leads", label: "Đặt bàn", href: "/booking-leads", icon: "🍽️" },
-    { id: "community-growth", label: "Cộng đồng khách quen", href: "/community-growth", icon: "👥" },
-    { id: "daily-report", label: "Báo cáo ngày", href: "/reports/daily", icon: "📊" },
-    { id: "merchant-settings", label: "Hồ sơ quán", href: "/merchant-settings", icon: "⚙️" },
-    { id: "admin-llm", label: "Multi-LLM (Admin)", href: "/admin/llm", icon: "🎛️" },
+    { id: "onboarding", label: "Kết nối & 8 Agent", href: "/onboarding" },
+    { id: "calendar", label: "Lịch đăng bài", href: "/calendar" },
+    { id: "gmaps", label: "Google Maps & Ảnh Drive", href: "/gmaps" },
+    { id: "booking-leads", label: "Đặt bàn", href: "/booking-leads" },
+    { id: "community-growth", label: "Cộng đồng khách quen", href: "/community-growth" },
+    { id: "daily-report", label: "Báo cáo ngày", href: "/reports/daily" },
+    { id: "merchant-settings", label: "Hồ sơ quán", href: "/merchant-settings" },
+    { id: "admin-llm", label: "Multi-LLM (Admin)", href: "/admin/llm" },
   ];
   const currentTab = TAB_BY_PATH[pathname.replace(/\/$/, "")] ?? activeTab;
 
@@ -459,9 +459,8 @@ export default function DashboardSidebar({
                   type="button"
                   onClick={() => handleNav(item.id, item.href)}
                   aria-current={isActive ? "page" : undefined}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${isActive ? "bg-white text-[#1d4ed8] font-bold shadow-sm" : "text-blue-100/90 hover:bg-white/10 hover:text-white"}`}
+                  className={`w-full flex items-center px-3.5 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${isActive ? "bg-white text-[#1d4ed8] font-bold shadow-sm" : "text-blue-100/90 hover:bg-white/10 hover:text-white"}`}
                 >
-                  <span aria-hidden className="w-5 text-center">{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               );
@@ -548,7 +547,6 @@ export default function DashboardSidebar({
             onClick={() => router.push("/onboarding")}
             className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
           >
-            <span className="text-sm">🔗</span>
             <span className="text-xs font-medium text-white">
               Kết Nối Kênh & Dữ Liệu
             </span>
@@ -561,7 +559,6 @@ export default function DashboardSidebar({
             onClick={() => router.push("/gmaps")}
             className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
           >
-            <span className="text-sm">📍</span>
             <span className="text-xs font-medium text-white">
               Google Maps & Kho Drive
             </span>
@@ -574,7 +571,6 @@ export default function DashboardSidebar({
             onClick={() => router.push("/booking-leads")}
             className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
           >
-            <span className="text-sm">🛎️</span>
             <span className="text-xs font-medium text-white">
               Inbox 1-1 & Chốt Lead
             </span>
@@ -587,7 +583,6 @@ export default function DashboardSidebar({
             onClick={() => router.push("/admin/llm")}
             className="px-3 py-1.5 rounded-xl text-blue-100 hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-2.5"
           >
-            <span className="text-sm">🎛️</span>
             <span className="text-xs font-medium text-white">
               Multi-LLM Auto-Switch
             </span>

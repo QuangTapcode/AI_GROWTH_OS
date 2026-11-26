@@ -4223,15 +4223,18 @@ Quy tắc:
         source_id: string | null;
         img_url: string | null;
         body_text: string | null;
+        content_title: string | null;
       }>(
         `SELECT j.id AS job_id, j.external_post_id, j.published_at,
                 ch.platform_name, j.utm_url,
                 a.evidence->0->>'source_id' AS source_id,
                 a.payload->'result'->'image_assets'->0->>'url' AS img_url,
-                COALESCE(a.payload->'result'->'facebook'->>'text', a.payload->'result'->>'caption') AS body_text
+                COALESCE(a.payload->'result'->'facebook'->>'text', a.payload->'result'->>'caption') AS body_text,
+                c.title AS content_title
            FROM publishing_jobs j
            JOIN channels ch ON ch.id = j.channel_id
            JOIN content_artifacts a ON a.id = j.artifact_id
+           LEFT JOIN contents c ON c.id = j.content_id
           WHERE j.workspace_id = $1
             AND j.status = 'published'
             AND ch.platform_name IN ('facebook_group', 'facebook')
@@ -4327,11 +4330,11 @@ Quy tắc:
 
     const fanpagePublishedBySource = new Map<
       string,
-      { external_post_id: string; published_at: Date | null; img_url: string | null; body_text: string | null }
+      { external_post_id: string; published_at: Date | null; img_url: string | null; body_text: string | null; post_title?: string | null }
     >();
     const groupPublishedBySource = new Map<
       string,
-      { job_id: string | null; post_url: string; published_at: Date | null; img_url: string | null; body_text: string | null }
+      { job_id: string | null; post_url: string; published_at: Date | null; img_url: string | null; body_text: string | null; post_title?: string | null }
     >();
 
     for (const job of publishedChannelJobs) {
@@ -4348,6 +4351,7 @@ Quy tắc:
             published_at: job.published_at,
             img_url: job.img_url,
             body_text: job.body_text,
+            post_title: job.content_title ?? null,
           });
         }
       } else if (job.platform_name === 'facebook' && job.external_post_id) {
@@ -4357,6 +4361,7 @@ Quy tắc:
             published_at: job.published_at,
             img_url: job.img_url,
             body_text: job.body_text,
+            post_title: job.content_title ?? null,
           });
         }
       }
@@ -4364,7 +4369,7 @@ Quy tắc:
 
     const groupPublishedByTitle = new Map<
       string,
-      { post_url: string; published_at: Date | null; job_id: string | null; img_url: string | null; body_text: string | null }
+      { post_url: string; published_at: Date | null; job_id: string | null; img_url: string | null; body_text: string | null; post_title?: string | null }
     >();
     const groupFailedBySource = new Map<string, { error: string; job_id: string | null }>();
     const groupFailedByTitle = new Map<string, { error: string; job_id: string | null }>();
@@ -4381,6 +4386,7 @@ Quy tắc:
             published_at: existing?.published_at ?? gp.published_at,
             img_url: gp.image_url || existing?.img_url || null,
             body_text: gp.body_text || existing?.body_text || null,
+            post_title: gp.post_title || existing?.post_title || null,
           });
         }
         if (titleKey && !groupPublishedByTitle.has(titleKey)) {
@@ -4390,6 +4396,7 @@ Quy tắc:
             job_id: gp.publishing_job_id,
             img_url: gp.image_url,
             body_text: gp.body_text,
+            post_title: gp.post_title,
           });
         }
       } else if (gp.status === 'failed') {
@@ -4470,6 +4477,7 @@ Quy tắc:
             published_at: byTitle.published_at,
             img_url: byTitle.img_url,
             body_text: byTitle.body_text,
+            post_title: byTitle.post_title,
           }
         : undefined;
     };
@@ -4775,6 +4783,7 @@ Quy tắc:
         week_range_label: weekRangeLabel,
         source_id: source.id,
         topic_title: source.title,
+        published_post_title: groupPub?.post_title ?? fanpagePub?.post_title ?? null,
         source_url: source.source_url,
         image_url: resolvedImageUrl,
         image_attribution: resolvedImageAsset.attribution,

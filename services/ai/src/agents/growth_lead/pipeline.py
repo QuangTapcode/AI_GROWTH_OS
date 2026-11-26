@@ -255,6 +255,33 @@ def validate_growth_lead(job: JobRequest, payload: GrowthLeadPayload, settings: 
     return problems
 
 
+def derive_contextual_cta(topic: str, base_cta: str) -> str:
+    """Derive a relevant CTA matching the specific topic if base_cta is topic-mismatched."""
+    if not base_cta or not base_cta.strip():
+        return "Connect with TripC for practical Vietnam travel and relocation guidance"
+
+    t_lower = (topic or "").lower()
+    b_lower = base_cta.lower()
+
+    is_visa_cta = any(k in b_lower for k in ("visa", "e-visa", "evisa", "passport", "entry"))
+    is_visa_topic = any(k in t_lower for k in ("visa", "e-visa", "evisa", "passport", "entry", "immigration", "embassy"))
+
+    if is_visa_cta and not is_visa_topic:
+        if any(k in t_lower for k in ("apartment", "housing", "rent", "stay", "accommodation", "room", "landlord", "furnish", "goods", "local")):
+            return "Contact TripC for reliable apartment search and setup guidance in Vietnam"
+        if any(k in t_lower for k in ("pack", "luggage", "baggage", "season", "weather", "clothes")):
+            return "Download TripC's Vietnam relocation and packing checklist before you go"
+        if any(k in t_lower for k in ("bank", "money", "cash", "atm", "card", "cost", "budget", "finance", "expense")):
+            return "Ask TripC for foreigner banking and local payment setup advice in Vietnam"
+        if any(k in t_lower for k in ("app", "zalo", "sim", "esim", "internet", "phone", "network", "tech")):
+            return "Connect with TripC for essential apps and local connectivity support in Vietnam"
+        if any(k in t_lower for k in ("transport", "taxi", "grab", "train", "bus", "flight", "plane", "travel")):
+            return "Ask TripC for local transportation tips and city travel advice across Vietnam"
+        return "Connect with TripC for verified Vietnam travel and expat living guidance"
+
+    return base_cta
+
+
 async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
     p: GrowthLeadPayload = ctx.payload
     research = p.research
@@ -326,10 +353,11 @@ async def run_growth_lead(ctx: RunContext) -> OperationOutcome:
                                               ("content", "content.repurpose", "social_pack_draft")):
             task_id = uuid5(NAMESPACE_URL, f"{ctx.job.job_id}:{ctx.job.input_version}:{role}")
             dependencies = [tasks[0].task_id] if tasks else []
+            brief_cta = derive_contextual_cta(selected.topic, p.cta)
             brief = TaskBrief(topic=selected.topic, audience=p.business_profile.audiences,
                               offer=p.business_profile.products + p.business_profile.services,
                               audience_fit=selected.audience_fit, offer_fit=selected.offer_fit,
-                              deliverable=deliverable, cta=p.cta,
+                              deliverable=deliverable, cta=brief_cta,
                               strategy_alignment=alignment,
                               acceptance=["Use cited research and verified snapshot facts only.",
                                           "Report missing facts; do not invent demand, price or availability.",

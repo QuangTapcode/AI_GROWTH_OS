@@ -138,8 +138,24 @@ def generate_deterministic_facebook_post(
 
     body_text = "\n".join(factual_points)
 
-    # 3. CTA: Giữ nguyên văn
+    # 3. CTA: Giữ nguyên văn, tự động bảo vệ không để CTA lệch pha chủ đề
     cta_text = verbatim_cta.strip()
+    t_lower = (title or "").lower()
+    c_lower = cta_text.lower()
+    is_visa_cta = any(k in c_lower for k in ("e-visa", "visa checklist", "visa application"))
+    is_visa_topic = any(k in t_lower for k in ("visa", "passport", "entry", "e-visa", "evisa"))
+    if is_visa_cta and not is_visa_topic:
+        if any(k in t_lower for k in ("apartment", "housing", "rent", "setup", "furnish", "goods", "local")):
+            cta_text = "Tham gia Cộng đồng Du lịch & Sống tại Việt Nam hoặc liên hệ TripC để nhận hỗ trợ setup chỗ ở tiện nghi nhất."
+        elif any(k in t_lower for k in ("pack", "luggage", "season", "weather")):
+            cta_text = "Lưu lại cẩm nang hành lý và chuẩn bị đồ đạc từ TripC trước ngày khởi hành."
+        elif any(k in t_lower for k in ("bank", "money", "cash", "atm", "cost", "budget")):
+            cta_text = "Hỏi TripC để được tư vấn chi tiết về mở tài khoản và chi tiêu tại Việt Nam."
+        elif any(k in t_lower for k in ("app", "zalo", "sim", "esim")):
+            cta_text = "Khám phá thêm các ứng dụng và tiện ích cần thiết cho người mới đến Việt Nam cùng TripC."
+        else:
+            cta_text = "Cùng tham gia thảo luận và kết nối với TripC tại Cộng đồng Du lịch & Sống tại Việt Nam."
+
     explicit_mappings.append({
         "sentence_index": len(explicit_mappings),
         "sentence_type": "cta",

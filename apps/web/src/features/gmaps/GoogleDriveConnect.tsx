@@ -70,9 +70,19 @@ export function GoogleDriveConnect({
           )}
           {g?.last_error && <p className="text-xs text-rose-700">{g.last_error}</p>}
           {g && !g.configured && (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              Máy chủ chưa có OAuth client của Google (GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI). Cần cấu hình một lần trước khi bấm kết nối.
-            </p>
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950 space-y-1.5">
+              <p className="font-bold text-amber-900">
+                Chưa cấu hình Google Cloud OAuth:
+              </p>
+              <p>
+                Để kích hoạt nút <b>"Kết nối Google"</b>, bạn cần tạo OAuth Client ID (loại Web Application) trên <b>Google Cloud Console</b> và cấu hình 3 biến sau vào file <code>apps/api/.env</code>:
+              </p>
+              <ul className="list-disc pl-5 font-mono text-[11px] text-amber-900 space-y-0.5">
+                <li>GOOGLE_OAUTH_CLIENT_ID=...</li>
+                <li>GOOGLE_OAUTH_CLIENT_SECRET=...</li>
+                <li>GOOGLE_OAUTH_REDIRECT_URI=http://localhost:4000/v1/integrations/google/callback</li>
+              </ul>
+            </div>
           )}
           <div className="flex flex-wrap gap-2 pt-1">
             <Button busy={busy === "connect"} disabled={!g?.configured || !isOwner} onClick={connect}>

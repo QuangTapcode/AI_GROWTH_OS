@@ -59,82 +59,74 @@ const EIGHT_AUTONOMOUS_AGENTS = [
   {
     num: "Agent 1",
     code: "growth_lead",
-    title: "AI Growth Lead (Trưởng Nhóm AI)",
-    desc: "Điều phối tự động toàn bộ đội ngũ 8 Agent, chấm điểm cơ hội thị trường, lập kế hoạch chiến dịch và xuất Báo cáo Điều hành Ngày.",
-    kpi: "Điều phối 24/7 • Daily Executive Report",
+    title: "AI Growth Lead (Trưởng nhóm AI)",
+    desc: "Điều phối tự động toàn bộ đội ngũ 8 agent, chấm điểm cơ hội thị trường, lập kế hoạch chiến dịch và xuất báo cáo điều hành ngày.",
+    kpi: "Điều phối 24/7 · Báo cáo điều hành ngày",
     href: "/agents/growth_lead",
-    cta: "Mở Growth Lead →",
-    icon: "🎩",
+    cta: "Mở Growth Lead",
   },
   {
     num: "Agent 2",
     code: "asset_manager",
-    title: "Drive Asset Ingestion (Tư Liệu Thực Tế)",
-    desc: "Tự động quét thư mục Google Drive định kỳ 15-30 phút, dùng Gemini Vision phân tích ảnh chụp thật, gắn thẻ bối cảnh & sinh mô tả SEO.",
-    kpi: "Auto-Scan Drive • Gemini Vision Tagging",
+    title: "Drive Asset Ingestion (Tư liệu thực tế)",
+    desc: "Tự động quét thư mục Google Drive định kỳ 15-30 phút, dùng Gemini Vision phân tích ảnh chụp thật, gắn thẻ bối cảnh và sinh mô tả SEO.",
+    kpi: "Tự động quét Drive · Gắn thẻ Gemini Vision",
     href: "/gmaps?tab=drive_assets",
-    cta: "Mở Kho Tư Liệu Drive →",
-    icon: "📁",
+    cta: "Mở kho tư liệu Drive",
   },
   {
     num: "Agent 3",
     code: "content_planner",
-    title: "Content Planner & SEO (Lập Kế Hoạch)",
-    desc: "Nghiên cứu xu hướng thị trường (Research), viết bài chuẩn SEO có trích dẫn nguồn (Grounded) và lập Content Calendar đa kênh không trùng lặp.",
-    kpi: "Trích dẫn nguồn đã duyệt • Chống trùng lặp",
+    title: "Content Planner & SEO (Lập kế hoạch)",
+    desc: "Nghiên cứu xu hướng thị trường, viết bài chuẩn SEO có trích dẫn nguồn đã duyệt và lập lịch nội dung đa kênh không trùng lặp.",
+    kpi: "Trích dẫn nguồn đã duyệt · Chống trùng lặp",
     href: "/agents/content",
-    cta: "Mở Content & SEO Studio →",
-    icon: "✍️",
+    cta: "Mở Content & SEO Studio",
   },
   {
     num: "Agent 4",
     code: "publisher",
     title: "Multi-Channel Publisher & TikTok Video",
-    desc: "Tự động xuất bản bài viết & dựng video ngắn 9:16 lên Facebook Group, Fanpage, Website, Google Maps và TikTok theo khung giờ vàng.",
-    kpi: "Auto-Publish Đa Kênh • Video 9:16",
+    desc: "Tự động xuất bản bài viết và dựng video ngắn 9:16 lên Facebook Group, Fanpage, Website, Google Maps và TikTok theo khung giờ.",
+    kpi: "Xuất bản đa kênh · Video 9:16",
     href: "/distribution",
-    cta: "Mở Lịch Xuất Bản & TikTok →",
-    icon: "🚀",
+    cta: "Mở lịch xuất bản & TikTok",
   },
   {
     num: "Agent 5",
     code: "gmaps_specialist",
     title: "Google Maps Specialist (Local SEO)",
-    desc: "Quản lý vị trí Google Business Profile, tự động đăng bài cập nhật Local Post từ ảnh Drive và tự động trả lời 100% đánh giá (Reviews) chuẩn SEO địa phương.",
-    kpi: "Trả lời review • Local Post từ ảnh Drive",
+    desc: "Quản lý vị trí Google Business Profile, tự động đăng bài cập nhật Local Post từ ảnh Drive và trả lời 100% đánh giá chuẩn SEO địa phương.",
+    kpi: "Trả lời review · Local Post từ ảnh Drive",
     href: "/gmaps",
-    cta: "Mở Google Maps Hub →",
-    icon: "📍",
+    cta: "Mở Google Maps Hub",
   },
   {
     num: "Agent 6",
     code: "comment_reply",
     title: "Social Comment Reply",
-    desc: "Túc trực 24/7 giám sát và tự động phản hồi bình luận công khai trên Fanpage, Group, TikTok bằng kho tri thức RAG và điều hướng khách vào phễu.",
+    desc: "Túc trực 24/7 giám sát và tự động phản hồi bình luận công khai trên Fanpage, Group, TikTok bằng kho tri thức RAG và điều hướng khách.",
     kpi: "Trả lời comment từ nguồn đã duyệt",
     href: "/agents/community#comments",
-    cta: "Mở Tự Động Phản Hồi Comment →",
-    icon: "💬",
+    cta: "Mở phản hồi comment",
   },
   {
     num: "Agent 7",
     code: "inbox_concierge",
     title: "Omnichannel Inbox & Lead Concierge (1-1)",
-    desc: "Trực hộp thư Messenger, Telegram, Instagram & Webchat 1-1 tự động 24/7 — tư vấn đa lượt theo tri thức doanh nghiệp và tự động thu thập Lead mà con người không cần trực chat.",
-    kpi: "Tư Vấn 1-1 Tự Hành • Auto-Capture Leads",
+    desc: "Trực hộp thư Messenger, Telegram, Instagram và Webchat 1-1 tự động 24/7 — tư vấn đa lượt theo tri thức doanh nghiệp và thu thập lead.",
+    kpi: "Tư vấn 1-1 tự hành · Thu thập lead",
     href: "/booking-leads",
-    cta: "Mở Hộp Thư 1-1 & Lead CRM →",
-    icon: "🛎️",
+    cta: "Mở hộp thư 1-1 & Lead CRM",
   },
   {
     num: "Agent 8",
     code: "community_growth",
     title: "Community Growth & Retention (0 → 1.000)",
-    desc: "Vận hành Group Cộng đồng theo lộ trình tăng trưởng thành viên hàng tuần, đăng chủ đề thảo luận và tự động gửi lời mời an toàn cho người cùng xu hướng.",
-    kpi: "Lộ trình 4 Tuần • Auto-Invite An Toàn",
+    desc: "Vận hành Group cộng đồng theo lộ trình tăng trưởng thành viên hàng tuần, đăng chủ đề thảo luận và gửi lời mời an toàn cho người cùng xu hướng.",
+    kpi: "Lộ trình 4 tuần · Mời thành viên an toàn",
     href: "/agents/community",
-    cta: "Mở Community Growth Hub →",
-    icon: "👥",
+    cta: "Mở Community Growth Hub",
   },
 ] as const;
 const labels: Record<string, string> = {
@@ -323,71 +315,84 @@ function Operations() {
       </header>
       <section
         aria-label="Đội ngũ 8 AI Agent chuyên trách"
-        className="rounded-2xl border border-blue-200 bg-gradient-to-b from-blue-50/60 to-white p-5 space-y-4"
+        className="rounded-xl border border-slate-200 bg-white p-5"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-blue-800">
-                Mô hình &ldquo;Một tác vụ là một con Agent&rdquo; — Phòng Marketing AI tự vận hành khép kín
-              </span>
-            </div>
-            <h2 className="mt-1.5 text-lg font-bold text-slate-900">
-              Đội Ngũ 8 AI Agent Chuyên Trách &amp; Trung Tâm Điều Khiển Trực Tiếp
+            <h2 className="font-bold text-slate-900">
+              Đội ngũ 8 AI Agent chuyên trách
             </h2>
-            <p className="text-xs text-slate-600">
-              Mỗi Agent đảm nhiệm một vị trí chuyên môn độc lập (Trưởng nhóm, Tư liệu Drive, Lập kế hoạch &amp; SEO, Xuất bản Đa kênh &amp; TikTok, Google Maps Local SEO, Trả lời Comment 24/7, Tư vấn Inbox 1-1 &amp; Chốt Lead, Phát triển Cộng đồng). Bấm vào từng Agent để mở trực tiếp giao diện vận hành.
+            <p className="mt-1 text-sm text-slate-600">
+              Mô hình một tác vụ là một agent · Phòng Marketing AI tự vận hành khép kín
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Mỗi agent đảm nhiệm một vị trí chuyên môn độc lập. Chọn từng agent bên dưới để mở trực tiếp giao diện vận hành.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/onboarding"
-              className="rounded-xl border border-blue-300 bg-white px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-50"
-            >
-              🔗 Kết Nối 4 Kênh Đầu Vào
-            </Link>
-            <Link
-              href="/admin/llm"
-              className="rounded-xl border border-slate-300 bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800"
-            >
-              🎛️ Multi-LLM Auto-Switch
-            </Link>
+          <span className="self-start rounded-md bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+            8 agent trực tuyến
+          </span>
+        </div>
+
+        <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+            {EIGHT_AUTONOMOUS_AGENTS.map((ag) => (
+              <article
+                key={ag.code}
+                className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-4 transition-colors hover:border-blue-400"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-blue-800">
+                      {ag.num}
+                    </span>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                      Tự động
+                    </span>
+                  </div>
+                  <h3 className="mt-1.5 text-sm font-semibold text-slate-900 leading-snug">
+                    {ag.title}
+                  </h3>
+                  <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                    {ag.desc}
+                  </p>
+                </div>
+                <div className="mt-4 border-t border-slate-100 pt-3 space-y-2.5">
+                  <p className="text-xs text-slate-500">
+                    KPI: <span className="font-medium text-slate-700">{ag.kpi}</span>
+                  </p>
+                  <div>
+                    <Link
+                      href={ag.href}
+                      className="inline-block rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 transition-colors"
+                    >
+                      {ag.cta}
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
 
-        <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-          {EIGHT_AUTONOMOUS_AGENTS.map((ag) => (
-            <div
-              key={ag.code}
-              className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs transition-all hover:border-blue-400 hover:shadow-md"
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-slate-600">
+            Toàn bộ 8 agent dùng chung kho tri thức đã duyệt và tự động chuyển đổi mô hình khi hết hạn mức.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/onboarding"
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
             >
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-800">
-                    <span className="text-base">{ag.icon}</span>
-                    {ag.num}
-                  </span>
-                </div>
-                <h3 className="mt-2 text-sm font-bold text-slate-900 leading-snug">
-                  {ag.title}
-                </h3>
-                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                  {ag.desc}
-                </p>
-              </div>
-              <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2">
-                <div className="text-[11px] font-semibold text-slate-500">
-                  KPI: <span className="text-slate-700">{ag.kpi}</span>
-                </div>
-                <Link
-                  href={ag.href}
-                  className="flex items-center justify-between rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
-                >
-                  <span>{ag.cta}</span>
-                </Link>
-              </div>
-            </div>
-          ))}
+              Kết nối 4 kênh đầu vào
+            </Link>
+            <Link
+              href="/admin/llm"
+              className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            >
+              Multi-LLM Auto-Switch
+            </Link>
+          </div>
         </div>
       </section>
       {error && <ErrorBlock error={error} onRetry={reload} />}
