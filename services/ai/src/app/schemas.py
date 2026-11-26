@@ -45,7 +45,7 @@ class JobRequest(BaseModel):
     operation: str = Field(min_length=1, max_length=80)
     input_version: int = Field(ge=1)
     context_snapshot_id: UUID | None = None
-    approved_source_versions: list[ApprovedSourceVersion] = Field(default_factory=list, max_length=100)
+    approved_source_versions: list[ApprovedSourceVersion] = Field(default_factory=list, max_length=500)
     constraints: JobConstraints = Field(default_factory=JobConstraints)
     # Optional pins: the worker may require the exact prompt/model it validated against.
     prompt_version: str | None = Field(default=None, max_length=80)

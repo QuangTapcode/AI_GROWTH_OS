@@ -120,7 +120,7 @@
         "items": {
           "$ref": "#/$defs/ApprovedSourceVersion"
         },
-        "maxItems": 100,
+        "maxItems": 500,
         "title": "Approved Source Versions",
         "type": "array"
       },
@@ -8133,7 +8133,8 @@
               "enum": [
                 "draft",
                 "needs_assets",
-                "insufficient_data"
+                "insufficient_data",
+                "image_pending"
               ],
               "title": "Status",
               "type": "string"
@@ -10096,7 +10097,8 @@
             "enum": [
               "draft",
               "needs_assets",
-              "insufficient_data"
+              "insufficient_data",
+              "image_pending"
             ],
             "title": "Status",
             "type": "string"
@@ -12631,7 +12633,8 @@
             "enum": [
               "draft",
               "needs_assets",
-              "insufficient_data"
+              "insufficient_data",
+              "image_pending"
             ],
             "title": "Status",
             "type": "string"
@@ -12832,6 +12835,18 @@
               }
             ],
             "default": null
+          },
+          "image_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Image Job Id"
           }
         },
         "required": [
@@ -14535,7 +14550,8 @@
             "enum": [
               "draft",
               "needs_assets",
-              "insufficient_data"
+              "insufficient_data",
+              "image_pending"
             ],
             "title": "Status",
             "type": "string"
@@ -16850,7 +16866,8 @@
             "enum": [
               "draft",
               "needs_assets",
-              "insufficient_data"
+              "insufficient_data",
+              "image_pending"
             ],
             "title": "Status",
             "type": "string"
