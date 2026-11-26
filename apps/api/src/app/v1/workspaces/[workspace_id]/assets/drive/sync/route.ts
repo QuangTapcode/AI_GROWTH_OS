@@ -35,7 +35,7 @@ export async function POST(
       queued_assets: allAssets.length > 0 ? allAssets : result.items,
       folder_url: result.folder_url,
       message: result.message
-        ? `${result.message} • Agent 5 đã tự động khởi tạo & xuất bản 100% bài đánh giá Local SEO cho toàn bộ ảnh!`
+        ? `${result.message} • Agent 5 đã tự động soạn sẵn bản nháp đánh giá Local SEO cho các ảnh mới trong hàng chờ!`
         : undefined,
     });
   } catch (error: any) {

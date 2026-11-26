@@ -212,6 +212,10 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
   const [selectedAgentDriveAssetId, setSelectedAgentDriveAssetId] = useState<string>('');
   const [isCreatingFromAgent, setIsCreatingFromAgent] = useState(false);
   const [rewritingPostId, setRewritingPostId] = useState<string | null>(null);
+  const [postStatusFilter, setPostStatusFilter] = useState<'all' | 'pending' | 'published'>('all');
+  const [localPostsPageSize, setLocalPostsPageSize] = useState<number>(6);
+  const [pendingPostsPage, setPendingPostsPage] = useState<number>(1);
+  const [publishedPostsPage, setPublishedPostsPage] = useState<number>(1);
 
   const GMAPS_LOGIN_CMD =
     'cd "F:\\luu vao day di\\Thuc_Tap\\AI_GROWTH_OS\\apps\\worker"; npm run gmaps-bot:login';
@@ -317,8 +321,8 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
   );
   const [isAddingAsset, setIsAddingAsset] = useState(false);
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       // Load bot status in background so spawning tsx never blocks items/assets/agentArtifacts
       fetch(`${API_BASE_URL}/workspaces/${workspaceId}/gmaps/bot`)
@@ -360,7 +364,7 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
     } catch {
       // Fallback in-memory
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -417,6 +421,24 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
         setBotNeedsLoginPrompt(true);
         setGmapsBotStatus((prev) => ({ ...prev, isLoggedIn: false }));
       }
+      if (json.updated_post && previewPost) {
+        if (previewPost.id === json.updated_post.id || previewPost.metadata?.asset_id === params.assetId) {
+          setPreviewPost((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: 'replied',
+                  metadata: {
+                    ...prev.metadata,
+                    ...(json.updated_post.metadata || {}),
+                    real_bot_posted: true,
+                    published_to_maps: true,
+                  },
+                }
+              : null
+          );
+        }
+      }
       setBotActionNotice(
         json.detail ||
           json.error ||
@@ -441,6 +463,10 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
       }
     }
     loadData();
+    const pollTimer = setInterval(() => {
+      loadData(true);
+    }, 20_000);
+    return () => clearInterval(pollTimer);
   }, [workspaceId]);
 
   const handleReplyReview = async (reviewId: string) => {
@@ -567,6 +593,7 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
       .split('—')[0]
       .trim();
     const mapsQuery = `${cleanLocation}, ${folderName}, Việt Nam`;
+    const isAssetAlreadyPosted = asset.status === 'published';
     setPreviewPost({
       id: `preview_${asset.id}`,
       item_type: 'local_post',
@@ -577,11 +604,12 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
         `${cleanNotes}\n\n` +
         `Tư liệu hình ảnh thực tế được đồng bộ trực tiếp từ kho Google Drive (Mục: ${folderName}).\n\n` +
         `${asset.vision_tags.map((t) => `#${t.replace(/^Thư mục:\s*/i, '').replace(/\s+/g, '')}`).join(' ')} #TripC #GoogleMapsLocalSEO`,
-      status: 'replied',
+      status: isAssetAlreadyPosted ? 'replied' : 'pending',
       created_at: new Date().toISOString(),
       metadata: {
         image_url: asset.file_url,
-        published_to_maps: true,
+        published_to_maps: isAssetAlreadyPosted,
+        real_bot_posted: isAssetAlreadyPosted,
         asset_id: asset.id,
         spot_name: asset.dish_name || asset.file_name,
         folder_name: folderName,
@@ -743,6 +771,192 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
   const reviews = items.filter((i) => i.item_type === 'review');
   const localPosts = items.filter((i) => i.item_type === 'local_post');
 
+  const isPostPublished = (post?: GMapsItem | null): boolean =>
+    Boolean(post?.metadata?.real_bot_posted);
+
+  const publishedLocalPosts = localPosts.filter((p) => isPostPublished(p));
+  const pendingLocalPosts = localPosts.filter((p) => !isPostPublished(p));
+  const nextPendingPost = pendingLocalPosts[0] || null;
+
+  const getMatchedPostForAsset = (asset: DriveAsset): GMapsItem | undefined =>
+    localPosts.find(
+      (lp) =>
+        lp.metadata?.asset_id === asset.id ||
+        (asset.drive_file_id && lp.metadata?.drive_file_id === asset.drive_file_id)
+    );
+
+  const isAssetPublished = (asset: DriveAsset): boolean => {
+    const matched = getMatchedPostForAsset(asset);
+    return matched ? isPostPublished(matched) : asset.status === 'published';
+  };
+
+  const renderLocalPostCard = (post: GMapsItem) => {
+    const spotTitle = post.metadata?.spot_name || 'Bài cập nhật điểm đến Google Maps';
+    const folderLabel = post.metadata?.folder_name;
+    const externalMapsUrl =
+      post.metadata?.real_place_url ||
+      post.metadata?.google_maps_url ||
+      getGoogleMapsUrlForSpot(spotTitle, folderLabel);
+    const isPublished = isPostPublished(post);
+
+    return (
+      <div
+        key={post.id}
+        className="rounded-xl border border-slate-200 bg-white overflow-hidden transition-colors hover:border-blue-400 flex flex-col"
+      >
+        {post.metadata?.image_url && (
+          <div
+            onClick={() => setPreviewPost(post)}
+            className="relative h-44 bg-slate-100 cursor-pointer group border-b border-slate-100"
+          >
+            <img
+              src={post.metadata.image_url}
+              alt={spotTitle}
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute top-2 left-2 flex flex-wrap items-center gap-1">
+              {folderLabel && (
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white/95 text-slate-800 border border-slate-200">
+                  Mục: {folderLabel}
+                </span>
+              )}
+            </div>
+            <div className="absolute top-2 right-2">
+              {isPublished ? (
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                  Đã đăng lên Google Maps
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-100 text-amber-800">
+                  Chưa đăng (Chờ Bot)
+                </span>
+              )}
+            </div>
+            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span className="px-2.5 py-1 rounded-md bg-white text-slate-900 text-xs font-semibold">
+                Xem chi tiết &amp; Bản đồ
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              {!post.metadata?.image_url && (
+                <span
+                  className={`px-2 py-0.5 rounded-md font-semibold ${
+                    isPublished ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {isPublished ? 'Đã đăng lên Google Maps' : 'Chưa đăng (Chờ Bot)'}
+                </span>
+              )}
+              <span className="px-2 py-0.5 rounded-md font-medium bg-slate-100 text-slate-700">
+                5 sao &amp; Local Post
+              </span>
+              {post.metadata?.written_by_agent && (
+                <span className="px-2 py-0.5 rounded-md font-medium bg-slate-100 text-slate-700">
+                  {post.metadata.written_by_agent}
+                </span>
+              )}
+              <span className="text-slate-500">
+                ·{' '}
+                {isPublished && post.metadata?.real_posted_at
+                  ? `Đăng: ${new Date(post.metadata.real_posted_at).toLocaleString('vi-VN')}`
+                  : `Soạn: ${new Date(post.created_at).toLocaleString('vi-VN')}`}
+              </span>
+            </div>
+
+            <h5 className="font-semibold text-sm text-slate-900 line-clamp-2">{spotTitle}</h5>
+
+            <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line line-clamp-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+              {post.content}
+            </p>
+          </div>
+
+          {/* Thanh nút hành động theo đúng trạng thái Đã đăng / Chưa đăng */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-100">
+            {!isPublished ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleRunRealGoogleMapsReviewBot({
+                      postId: post.id,
+                      assetId: post.metadata?.asset_id,
+                      spotName: spotTitle,
+                    })
+                  }
+                  disabled={runningBotAssetId === post.id}
+                  className="w-full py-2 px-3 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
+                >
+                  {runningBotAssetId === post.id
+                    ? 'Bot đang mở Google Maps & đăng Đánh giá...'
+                    : 'Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)'}
+                </button>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleRewriteWithExistingAgent({ postId: post.id })}
+                    disabled={rewritingPostId === post.id}
+                    className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 text-center"
+                  >
+                    {rewritingPostId === post.id ? 'Đang viết lại...' : 'Viết lại bằng Agent'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPost(post)}
+                    className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-center"
+                  >
+                    Xem nháp &amp; Bản đồ
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-1.5">
+                <a
+                  href="https://www.google.com/maps/contrib/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-center"
+                >
+                  Xem bài trên Maps
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewPost(post)}
+                  className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-center"
+                >
+                  Chi tiết &amp; Bản đồ
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => focusMapOnPost(post)}
+                className="py-1.5 px-2 rounded-lg text-[11px] font-semibold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-center"
+              >
+                Ghim lên bản đồ
+              </button>
+              <a
+                href={externalMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1.5 px-2 rounded-lg text-[11px] font-semibold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-center"
+              >
+                Mở điểm Google Maps
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const embedMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(
     selectedSpot.query
   )}&t=${mapType === 'satellite' ? 'k' : 'm'}&z=${zoom}&ie=UTF8&iwloc=&output=embed`;
@@ -806,22 +1020,28 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                 : 'Bước 1: Mở Edge đăng nhập Google (1 lần)'}
             </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                handleRunRealGoogleMapsReviewBot({
-                  postId: localPosts[0]?.id,
-                  assetId: localPosts[0]?.metadata?.asset_id,
-                  spotName: localPosts[0]?.metadata?.spot_name || selectedSpot.name,
-                })
-              }
-              disabled={Boolean(runningBotAssetId)}
-              className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
-            >
-              {runningBotAssetId
-                ? 'Bot đang đăng lên Google Maps...'
-                : 'Bước 2: Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)'}
-            </button>
+            {nextPendingPost ? (
+              <button
+                type="button"
+                onClick={() =>
+                  handleRunRealGoogleMapsReviewBot({
+                    postId: nextPendingPost.id,
+                    assetId: nextPendingPost.metadata?.asset_id,
+                    spotName: nextPendingPost.metadata?.spot_name || selectedSpot.name,
+                  })
+                }
+                disabled={Boolean(runningBotAssetId)}
+                className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+              >
+                {runningBotAssetId
+                  ? 'Bot đang đăng lên Google Maps...'
+                  : `Bước 2: Đăng bài chờ tiếp theo (${pendingLocalPosts.length} bài chưa đăng)`}
+              </button>
+            ) : (
+              <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800">
+                Bước 2: Đã đăng hết toàn bộ bài trong hàng chờ ({publishedLocalPosts.length} bài)
+              </span>
+            )}
 
             <a
               href="https://www.google.com/maps/contrib/"
@@ -836,8 +1056,8 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
               type="button"
               onClick={() =>
                 handleOpenMapsInCurrentChrome(
-                  localPosts[0]?.metadata?.spot_name || selectedSpot.name,
-                  localPosts[0]?.content
+                  (nextPendingPost || localPosts[0])?.metadata?.spot_name || selectedSpot.name,
+                  (nextPendingPost || localPosts[0])?.content
                 )
               }
               className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -1110,20 +1330,46 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
 
                   {/* Hành động nhanh cho điểm này */}
                   <div className="mt-3.5 pt-3 border-t border-blue-200/70 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleRunRealGoogleMapsReviewBot({
-                          spotName: selectedSpot.name,
-                        })
+                    {(() => {
+                      const cleanSelectedName = selectedSpot.name
+                        .replace(/^\[[^\]]+\]\s*/, '')
+                        .split('—')[0]
+                        .trim()
+                        .toLowerCase();
+                      const matchingSpotPosts = localPosts.filter((lp) =>
+                        (lp.metadata?.spot_name || '').toLowerCase().includes(cleanSelectedName)
+                      );
+                      const pendingSpotPost = matchingSpotPosts.find((lp) => !isPostPublished(lp));
+                      const publishedSpotPost = matchingSpotPosts.find((lp) => isPostPublished(lp));
+                      const isSpotAlreadyPublished = Boolean(publishedSpotPost && !pendingSpotPost);
+
+                      if (isSpotAlreadyPublished) {
+                        return (
+                          <div className="w-full px-3 py-2 text-center text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800">
+                            Địa điểm này đã đăng đánh giá lên Google Maps
+                          </div>
+                        );
                       }
-                      disabled={Boolean(runningBotAssetId)}
-                      className="w-full px-3 py-2 text-xs font-semibold rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
-                    >
-                      {runningBotAssetId
-                        ? 'Bot đang đăng lên Google Maps...'
-                        : 'Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)'}
-                    </button>
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleRunRealGoogleMapsReviewBot({
+                              postId: pendingSpotPost?.id,
+                              assetId: pendingSpotPost?.metadata?.asset_id,
+                              spotName: pendingSpotPost?.metadata?.spot_name || selectedSpot.name,
+                            })
+                          }
+                          disabled={Boolean(runningBotAssetId)}
+                          className="w-full px-3 py-2 text-xs font-semibold rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
+                        >
+                          {runningBotAssetId
+                            ? 'Bot đang đăng lên Google Maps...'
+                            : 'Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)'}
+                        </button>
+                      );
+                    })()}
                     <a
                       href="https://www.google.com/maps/contrib/"
                       target="_blank"
@@ -1414,7 +1660,7 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                     const currentPage = Math.min(folderPages[folderName] || 1, totalPages);
                     const startIdx = (currentPage - 1) * drivePageSize;
                     const pageItems = folderItems.slice(startIdx, startIdx + drivePageSize);
-                    const publishedCount = folderItems.filter((a) => a.status === 'published').length;
+                    const publishedCount = folderItems.filter((a) => isAssetPublished(a)).length;
                     const readyCount = totalItems - publishedCount;
 
                     const setPageForFolder = (page: number) => {
@@ -1436,12 +1682,14 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                             <span className="text-xs text-slate-600">
                               Tổng: <strong>{totalItems}</strong> ảnh từ Google Drive
                             </span>
-                            <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-100 text-amber-800">
-                              {readyCount} sẵn sàng đăng
-                            </span>
+                            {readyCount > 0 && (
+                              <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-100 text-amber-800">
+                                {readyCount} chưa đăng (chờ Bot)
+                              </span>
+                            )}
                             {publishedCount > 0 && (
                               <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800">
-                                {publishedCount} đã xuất bản
+                                {publishedCount} đã đăng lên Maps
                               </span>
                             )}
                           </div>
@@ -1487,12 +1735,8 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                         {/* Lưới ảnh trong trang hiện tại của Mục */}
                         <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {pageItems.map((asset) => {
-                            const matchedPost = localPosts.find(
-                              (lp) =>
-                                lp.metadata?.asset_id === asset.id ||
-                                (asset.drive_file_id && lp.metadata?.drive_file_id === asset.drive_file_id)
-                            );
-                            const isRealBotPosted = Boolean(matchedPost?.metadata?.real_bot_posted);
+                            const matchedPost = getMatchedPostForAsset(asset);
+                            const isRealBotPosted = isAssetPublished(asset);
 
                             return (
                               <div
@@ -1527,12 +1771,12 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                                       className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${
                                         isRealBotPosted
                                           ? 'bg-emerald-100 text-emerald-800'
-                                          : 'bg-blue-100 text-blue-800'
+                                          : 'bg-amber-100 text-amber-800'
                                       }`}
                                     >
                                       {isRealBotPosted
                                         ? 'Đã đăng lên Google Maps'
-                                        : 'AI đã soạn sẵn 5 sao'}
+                                        : 'Chưa đăng (Đã soạn nháp)'}
                                     </span>
                                   </div>
                                 </div>
@@ -1557,39 +1801,51 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                                   </div>
 
                                   <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleRunRealGoogleMapsReviewBot({
-                                          assetId: asset.id,
-                                          postId: matchedPost?.id,
-                                          spotName: asset.dish_name,
-                                        })
-                                      }
-                                      disabled={runningBotAssetId === asset.id}
-                                      className="w-full py-2 px-3 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
-                                    >
-                                      {runningBotAssetId === asset.id
-                                        ? 'Bot đang mở Google Maps & đăng Đánh giá...'
-                                        : 'Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)'}
-                                    </button>
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => openPublishedPostForAsset(asset)}
-                                        className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-center"
-                                      >
-                                        Xem bài &amp; Bản đồ
-                                      </button>
-                                      <a
-                                        href="https://www.google.com/maps/contrib/"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-center"
-                                      >
-                                        Xem Maps/Contrib
-                                      </a>
-                                    </div>
+                                    {!isRealBotPosted ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleRunRealGoogleMapsReviewBot({
+                                              assetId: asset.id,
+                                              postId: matchedPost?.id,
+                                              spotName: asset.dish_name,
+                                            })
+                                          }
+                                          disabled={runningBotAssetId === asset.id}
+                                          className="w-full py-2 px-3 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
+                                        >
+                                          {runningBotAssetId === asset.id
+                                            ? 'Bot đang mở Google Maps & đăng Đánh giá...'
+                                            : 'Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => openPublishedPostForAsset(asset)}
+                                          className="w-full py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-center"
+                                        >
+                                          Xem bản nháp &amp; Bản đồ
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <div className="grid grid-cols-2 gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => openPublishedPostForAsset(asset)}
+                                          className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-center"
+                                        >
+                                          Xem bài &amp; Bản đồ
+                                        </button>
+                                        <a
+                                          href="https://www.google.com/maps/contrib/"
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-center"
+                                        >
+                                          Xem trên Maps
+                                        </a>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -1735,152 +1991,205 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
               </div>
             )}
 
-            {localPosts.map((post) => {
-              const spotTitle = post.metadata?.spot_name || 'Bài cập nhật điểm đến Google Maps';
-              const folderLabel = post.metadata?.folder_name;
-              const externalMapsUrl =
-                post.metadata?.google_maps_url || getGoogleMapsUrlForSpot(spotTitle, folderLabel);
+            {/* Bộ lọc trạng thái bài đăng: Tất cả / Chưa đăng / Đã đăng + Chọn số bài mỗi trang */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 bg-white">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-slate-700">Trạng thái bài viết:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPostStatusFilter('all');
+                    setPendingPostsPage(1);
+                    setPublishedPostsPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    postStatusFilter === 'all'
+                      ? 'bg-blue-700 text-white'
+                      : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Tất cả ({localPosts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPostStatusFilter('pending');
+                    setPendingPostsPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    postStatusFilter === 'pending'
+                      ? 'bg-blue-700 text-white'
+                      : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Chưa đăng ({pendingLocalPosts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPostStatusFilter('published');
+                    setPublishedPostsPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    postStatusFilter === 'published'
+                      ? 'bg-blue-700 text-white'
+                      : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Đã đăng ({publishedLocalPosts.length})
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-500">
+                  Hiển thị lưới 3 cột có phân trang · Tự động ẩn nút đăng thật với bài đã đăng
+                </span>
+                <select
+                  aria-label="Số bài mỗi trang"
+                  value={localPostsPageSize}
+                  onChange={(e) => {
+                    setLocalPostsPageSize(Number(e.target.value));
+                    setPendingPostsPage(1);
+                    setPublishedPostsPage(1);
+                  }}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-semibold text-slate-700"
+                >
+                  <option value={3}>3 bài / trang</option>
+                  <option value={6}>6 bài / trang</option>
+                  <option value={9}>9 bài / trang</option>
+                  <option value={12}>12 bài / trang</option>
+                </select>
+              </div>
+            </div>
+
+            {(postStatusFilter === 'all' || postStatusFilter === 'pending') && (() => {
+              const totalPendPages = Math.max(1, Math.ceil(pendingLocalPosts.length / localPostsPageSize));
+              const currentPendPage = Math.min(Math.max(1, pendingPostsPage), totalPendPages);
+              const startIdx = (currentPendPage - 1) * localPostsPageSize;
+              const pagedPending = pendingLocalPosts.slice(startIdx, startIdx + localPostsPageSize);
 
               return (
-                <div
-                  key={post.id}
-                  className="p-5 rounded-xl border border-slate-200 bg-white transition-colors hover:border-blue-400"
-                >
-                  <div className="flex flex-col md:flex-row items-start justify-between gap-5">
-                    <div className="flex-1 space-y-2.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {post.metadata?.real_bot_posted ? (
-                          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800">
-                            Đã chạy Bot đăng lên Google Maps thật
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-800">
-                            AI đã soạn từ Drive (Chờ Bot đăng lên Google Maps)
-                          </span>
-                        )}
-                        <span className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
-                          Google Maps 5 sao &amp; Local Post
-                        </span>
-                        {folderLabel && (
-                          <span className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
-                            Mục: {folderLabel}
-                          </span>
-                        )}
-                        {post.metadata?.written_by_agent && (
-                          <span className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
-                            {post.metadata.written_by_agent}
-                          </span>
-                        )}
-                        <span className="text-xs text-slate-500">
-                          · {post.metadata?.real_posted_at
-                            ? `Bot chạy lúc: ${new Date(post.metadata.real_posted_at).toLocaleString('vi-VN')}`
-                            : `Soạn lúc: ${new Date(post.created_at).toLocaleString('vi-VN')}`}
-                        </span>
-                      </div>
-
-                      <h5 className="font-semibold text-sm text-slate-900">{spotTitle}</h5>
-
-                      <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-line bg-slate-50 p-3.5 rounded-lg border border-slate-200">
-                        {post.content}
-                      </p>
-
-                      {/* Thanh nút Xem & Đăng Thực Tế Lên Phần Đánh Giá Google Maps */}
-                      <div className="pt-2 flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleRunRealGoogleMapsReviewBot({
-                              postId: post.id,
-                              assetId: post.metadata?.asset_id,
-                              spotName: spotTitle,
-                            })
-                          }
-                          disabled={runningBotAssetId === post.id}
-                          className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
-                        >
-                          {runningBotAssetId === post.id
-                            ? 'Bot đang mở Google Maps & đăng Đánh giá...'
-                            : 'Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)'}
-                        </button>
-
-                        <a
-                          href="https://www.google.com/maps/contrib/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                        >
-                          Xem bài đã đăng trên Google Maps
-                        </a>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRewriteWithExistingAgent({ postId: post.id })}
-                          disabled={rewritingPostId === post.id}
-                          className="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          {rewritingPostId === post.id ? 'Đang viết lại...' : 'Viết lại bằng Agent'}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setPreviewPost(post)}
-                          className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                        >
-                          Xem thẻ hiển thị &amp; Bản đồ
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => focusMapOnPost(post)}
-                          className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                        >
-                          Ghim lên bản đồ trực quan
-                        </button>
-
-                        <a
-                          href={externalMapsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                        >
-                          Mở điểm trên Google Maps
-                        </a>
-
-                        {post.metadata?.drive_file_id && (
-                          <a
-                            href={`https://drive.google.com/file/d/${post.metadata.drive_file_id}/view`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                          >
-                            File Drive gốc
-                          </a>
-                        )}
-                      </div>
+                <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                  <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 text-xs font-bold">
+                        Bài chưa đăng — Hàng đợi Agent tự động đăng lên Google Maps ({pendingLocalPosts.length})
+                      </span>
                     </div>
-
-                    {post.metadata?.image_url && (
-                      <div
-                        onClick={() => setPreviewPost(post)}
-                        className="w-full md:w-48 h-40 rounded-lg overflow-hidden shrink-0 border border-slate-200 cursor-pointer group relative"
-                      >
-                        <img
-                          src={post.metadata.image_url}
-                          alt={spotTitle}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="px-2.5 py-1 rounded-md bg-white text-slate-900 text-xs font-semibold">
-                            Xem trên Maps
-                          </span>
-                        </div>
+                    {pendingLocalPosts.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-slate-600 mr-1">
+                          Hiển thị <strong>{startIdx + 1}–{Math.min(startIdx + localPostsPageSize, pendingLocalPosts.length)}</strong> / {pendingLocalPosts.length} (Trang {currentPendPage}/{totalPendPages})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPendingPostsPage(Math.max(1, currentPendPage - 1))}
+                          disabled={currentPendPage <= 1}
+                          className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                        >
+                          Trước
+                        </button>
+                        {Array.from({ length: totalPendPages }, (_, idx) => idx + 1).map((pNum) => (
+                          <button
+                            key={pNum}
+                            type="button"
+                            onClick={() => setPendingPostsPage(pNum)}
+                            className={`w-7 h-7 rounded-lg font-semibold transition-colors ${
+                              pNum === currentPendPage
+                                ? 'bg-blue-700 text-white'
+                                : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {pNum}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setPendingPostsPage(Math.min(totalPendPages, currentPendPage + 1))}
+                          disabled={currentPendPage >= totalPendPages}
+                          className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                        >
+                          Sau
+                        </button>
                       </div>
                     )}
                   </div>
-                </div>
+                  {pendingLocalPosts.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-500">
+                      Tất cả bài viết trong hàng chờ đều đã được đăng lên Google Maps.
+                    </div>
+                  ) : (
+                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {pagedPending.map((post) => renderLocalPostCard(post))}
+                    </div>
+                  )}
+                </section>
               );
-            })}
+            })()}
+
+            {(postStatusFilter === 'all' || postStatusFilter === 'published') && (() => {
+              const totalPubPages = Math.max(1, Math.ceil(publishedLocalPosts.length / localPostsPageSize));
+              const currentPubPage = Math.min(Math.max(1, publishedPostsPage), totalPubPages);
+              const startIdx = (currentPubPage - 1) * localPostsPageSize;
+              const pagedPublished = publishedLocalPosts.slice(startIdx, startIdx + localPostsPageSize);
+
+              return (
+                <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                  <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-bold">
+                        Bài đã đăng lên Google Maps ({publishedLocalPosts.length})
+                      </span>
+                    </div>
+                    {publishedLocalPosts.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-slate-600 mr-1">
+                          Hiển thị <strong>{startIdx + 1}–{Math.min(startIdx + localPostsPageSize, publishedLocalPosts.length)}</strong> / {publishedLocalPosts.length} (Trang {currentPubPage}/{totalPubPages})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPublishedPostsPage(Math.max(1, currentPubPage - 1))}
+                          disabled={currentPubPage <= 1}
+                          className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                        >
+                          Trước
+                        </button>
+                        {Array.from({ length: totalPubPages }, (_, idx) => idx + 1).map((pNum) => (
+                          <button
+                            key={pNum}
+                            type="button"
+                            onClick={() => setPublishedPostsPage(pNum)}
+                            className={`w-7 h-7 rounded-lg font-semibold transition-colors ${
+                              pNum === currentPubPage
+                                ? 'bg-blue-700 text-white'
+                                : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {pNum}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setPublishedPostsPage(Math.min(totalPubPages, currentPubPage + 1))}
+                          disabled={currentPubPage >= totalPubPages}
+                          className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                        >
+                          Sau
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {publishedLocalPosts.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-500">
+                      Chưa có bài viết nào được Bot đăng lên Google Maps.
+                    </div>
+                  ) : (
+                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {pagedPublished.map((post) => renderLocalPostCard(post))}
+                    </div>
+                  )}
+                </section>
+              );
+            })()}
           </div>
         )}
 
@@ -1889,96 +2198,108 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
         {/* ========================================================= */}
         {activeTab === 'reviews' && (
           <div className="space-y-6">
-            {/* Phần 1: Đánh giá 5★ + Ảnh Google Drive Của Bạn đăng lên Google Maps */}
+            {/* Phần 1: Các bài Đánh giá 5 sao + Ảnh Google Drive ĐÃ ĐĂNG THẬT lên Google Maps */}
             <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/60 space-y-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
                   <h4 className="font-semibold text-sm text-slate-900">
-                    Đánh giá 5 sao &amp; Ảnh Google Drive đăng lên phần Đánh giá Google Maps ({localPosts.length})
+                    Đánh giá 5 sao &amp; Ảnh Google Drive đã đăng lên Google Maps ({publishedLocalPosts.length} đã đăng / {pendingLocalPosts.length} chờ đăng)
                   </h4>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    Bấm <strong>Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)</strong> để mở trình duyệt điền sao, nội dung và ảnh lên Google Maps. Sau khi đăng xong, xem toàn bộ bài của bạn tại <strong>Google Maps Contributions (maps/contrib)</strong>.
+                    Danh sách dưới đây chỉ hiển thị các bài đánh giá đã được Bot đăng thật lên Google Maps. Để đăng các bài đang chờ ({pendingLocalPosts.length} bài), hãy chuyển sang tab <strong>Bài cập nhật Maps</strong>.
                   </p>
                 </div>
-                <a
-                  href="https://www.google.com/maps/contrib/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 px-3.5 py-2 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800"
-                >
-                  Xem bài đã đăng trên Google Maps (maps/contrib)
-                </a>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {pendingLocalPosts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('local_posts');
+                        setPostStatusFilter('pending');
+                      }}
+                      className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                    >
+                      Mở {pendingLocalPosts.length} bài chờ đăng
+                    </button>
+                  )}
+                  <a
+                    href="https://www.google.com/maps/contrib/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800"
+                  >
+                    Xem bài đã đăng trên Google Maps (maps/contrib)
+                  </a>
+                </div>
               </div>
 
-              <div className="space-y-3">
-                {localPosts.map((post) => {
-                  const spotTitle = post.metadata?.spot_name || 'Điểm đến du lịch Google Maps';
-                  return (
-                    <div key={`rev_${post.id}`} className="p-4 rounded-lg border border-slate-200 bg-white flex flex-col md:flex-row gap-4 justify-between">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-100 text-amber-800">5/5 sao</span>
-                          {post.metadata?.real_bot_posted ? (
+              {publishedLocalPosts.length === 0 ? (
+                <div className="p-4 rounded-lg border border-slate-200 bg-white text-xs text-slate-600">
+                  Hiện chưa có bài đánh giá nào từ Drive được đăng lên Google Maps. Hãy sang tab <strong>Bài cập nhật Maps</strong> để chạy Bot đăng bài.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {publishedLocalPosts.map((post) => {
+                    const spotTitle = post.metadata?.spot_name || 'Điểm đến du lịch Google Maps';
+                    return (
+                      <div
+                        key={`rev_${post.id}`}
+                        className="p-4 rounded-lg border border-slate-200 bg-white flex flex-col md:flex-row gap-4 justify-between"
+                      >
+                        <div className="flex-1 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-100 text-amber-800">
+                              5/5 sao
+                            </span>
                             <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800">
-                              Đã chạy Bot đăng lên Google Maps thật
+                              Đã đăng thật lên Google Maps
                             </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-800">
-                              AI đã soạn từ Drive (Chờ Bot đăng lên Google Maps)
-                            </span>
-                          )}
-                          <span className="font-semibold text-xs text-slate-900">{spotTitle}</span>
+                            <span className="font-semibold text-xs text-slate-900">{spotTitle}</span>
+                            {post.metadata?.real_posted_at && (
+                              <span className="text-xs text-slate-500">
+                                · Đăng lúc: {new Date(post.metadata.real_posted_at).toLocaleString('vi-VN')}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-700 whitespace-pre-line line-clamp-3">
+                            {post.content}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <a
+                              href="https://www.google.com/maps/contrib/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                            >
+                              Xem trên Google Maps Contributions
+                            </a>
+                            <a
+                              href={
+                                post.metadata?.real_place_url ||
+                                post.metadata?.google_maps_url ||
+                                getGoogleMapsUrlForSpot(spotTitle, post.metadata?.folder_name)
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                            >
+                              Mở đúng địa điểm đã đăng trên Maps
+                            </a>
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-700 whitespace-pre-line line-clamp-3">
-                          {post.content}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleRunRealGoogleMapsReviewBot({
-                                postId: post.id,
-                                assetId: post.metadata?.asset_id,
-                                spotName: spotTitle,
-                              })
-                            }
-                            disabled={runningBotAssetId === post.id}
-                            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
-                          >
-                            {runningBotAssetId === post.id
-                              ? 'Bot đang đăng lên Google Maps...'
-                              : 'Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh)'}
-                          </button>
-                          <a
-                            href="https://www.google.com/maps/contrib/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                          >
-                            Xem trên Google Maps Contributions
-                          </a>
-                          <a
-                            href={post.metadata?.google_maps_url || getGoogleMapsUrlForSpot(spotTitle, post.metadata?.folder_name)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                          >
-                            Mở điểm trên Maps
-                          </a>
-                        </div>
+                        {post.metadata?.image_url && (
+                          <img
+                            src={post.metadata.image_url}
+                            alt={spotTitle}
+                            referrerPolicy="no-referrer"
+                            className="w-full md:w-32 h-24 rounded-lg object-cover border border-slate-200 shrink-0"
+                          />
+                        )}
                       </div>
-                      {post.metadata?.image_url && (
-                        <img
-                          src={post.metadata.image_url}
-                          alt={spotTitle}
-                          referrerPolicy="no-referrer"
-                          className="w-full md:w-32 h-24 rounded-lg object-cover border border-slate-200 shrink-0"
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Phần 2: Đánh giá của du khách & Phản hồi tự động từ AI Agent 5 */}
@@ -2154,6 +2475,7 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
       {previewPost && (() => {
         const spotTitle = previewPost.metadata?.spot_name || 'Điểm đến du lịch TripC';
         const folderStr = previewPost.metadata?.folder_name || 'Đà Nẵng';
+        const isPreviewPublished = isPostPublished(previewPost);
         const baseSpot = spotTitle
           .replace(/^\[[^\]]+\]\s*/, '')
           .replace(/\([^)]*\)/g, '')
@@ -2177,14 +2499,25 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-bold text-slate-900">
-                      Xem bài viết đã xuất bản trên Google Maps
+                      {isPreviewPublished
+                        ? 'Chi tiết bài viết đã đăng trên Google Maps'
+                        : 'Xem trước bản nháp Google Maps (Chưa đăng)'}
                     </h3>
-                    <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800">
-                      Tự động 24/7
-                    </span>
+                    {isPreviewPublished ? (
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800">
+                        Đã đăng thật lên Google Maps
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-100 text-amber-800">
+                        Chưa đăng — Chờ Bot đăng
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Địa điểm ghim: <strong>{cleanQuery}</strong> · Xuất bản lúc {new Date(previewPost.created_at).toLocaleString('vi-VN')}
+                    Địa điểm ghim: <strong>{cleanQuery}</strong> ·{' '}
+                    {isPreviewPublished && previewPost.metadata?.real_posted_at
+                      ? `Đăng lúc ${new Date(previewPost.metadata.real_posted_at).toLocaleString('vi-VN')}`
+                      : `Soạn lúc ${new Date(previewPost.created_at).toLocaleString('vi-VN')}`}
                   </p>
                 </div>
                 <button
@@ -2238,20 +2571,33 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                     </div>
 
                     <div className="p-4 bg-white border-t border-slate-200 space-y-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleRunRealGoogleMapsReviewBot({
-                            assetId: previewPost.metadata?.asset_id,
-                            postId: previewPost.id.startsWith('preview_') ? undefined : previewPost.id,
-                            spotName: spotTitle,
-                          })
-                        }
-                        disabled={Boolean(runningBotAssetId)}
-                        className="w-full py-2.5 px-4 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
-                      >
-                        Chạy Bot đăng thật lên phần Đánh giá Google Maps (5 sao + Ảnh Drive)
-                      </button>
+                      {!isPreviewPublished ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleRunRealGoogleMapsReviewBot({
+                              assetId: previewPost.metadata?.asset_id,
+                              postId: previewPost.id.startsWith('preview_') ? undefined : previewPost.id,
+                              spotName: spotTitle,
+                            })
+                          }
+                          disabled={Boolean(runningBotAssetId)}
+                          className="w-full py-2.5 px-4 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
+                        >
+                          {runningBotAssetId
+                            ? 'Bot đang mở Google Maps & đăng Đánh giá...'
+                            : 'Đăng thật lên Đánh giá Google Maps (5 sao + Ảnh Drive)'}
+                        </button>
+                      ) : (
+                        <a
+                          href="https://www.google.com/maps/contrib/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block w-full py-2 px-4 rounded-lg text-xs font-semibold border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-center"
+                        >
+                          Xem bài đã đăng trên Google Maps (maps/contrib)
+                        </a>
+                      )}
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <button
                           type="button"
@@ -2266,7 +2612,7 @@ export function GoogleMapsHub({ workspaceId }: GoogleMapsHubProps) {
                           rel="noopener noreferrer"
                           className="flex-1 py-2 px-3 rounded-lg text-xs font-semibold bg-blue-700 text-white hover:bg-blue-800 text-center"
                         >
-                          Xem trên Google Maps
+                          Xem vị trí trên Google Maps
                         </a>
                       </div>
                     </div>

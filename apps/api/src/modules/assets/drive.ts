@@ -631,7 +631,7 @@ export class DriveAssetIngestionService {
             `INSERT INTO drive_asset_queue (
               workspace_id, file_name, file_url, drive_file_id, asset_type, vision_tags, dish_name, flavor_notes, generated_caption, status
             ) VALUES (
-              $1::uuid, $2::varchar, $3::text, $4::varchar, 'destination_photo', $5::jsonb, $6::varchar, $7::text, $8::text, 'published'
+              $1::uuid, $2::varchar, $3::text, $4::varchar, 'destination_photo', $5::jsonb, $6::varchar, $7::text, $8::text, 'staged'
             ) RETURNING *`,
             [
               workspaceId,

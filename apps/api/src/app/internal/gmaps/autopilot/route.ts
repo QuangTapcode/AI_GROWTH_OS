@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { DriveAssetIngestionService, extractGoogleDriveTarget } from '@/modules/assets/drive';
+import { checkGMapsBotSessionFast, publishGMapsPostWithBot } from '@/modules/gmaps/botRunner';
 import { GoogleMapsSpecialistService } from '@/modules/gmaps/specialist';
 
 let gmapsAutopilotInProgress = false;
@@ -38,22 +39,31 @@ export async function POST(req: NextRequest) {
 
     const driveService = new DriveAssetIngestionService(pool);
     const gmapsService = new GoogleMapsSpecialistService(pool);
+    const botSession = checkGMapsBotSessionFast();
     const results: Array<Record<string, unknown>> = [];
 
     for (const row of rows) {
       const target = extractGoogleDriveTarget(row.gdrive_url);
       if (target.kind === 'none') continue;
       try {
-        // 1. Incremental Google Drive scan (only inserts newly added drive_file_ids)
+        // 1. Incremental Google Drive scan (automatically detects any new photos uploaded to Google Drive)
         const syncRes = await driveService.syncDriveFolder(row.workspace_id, row.gdrive_url);
-        // 2. Incremental Agent drafting (skips existing posts, only calls existing Agents for brand-new photos)
+        // 2. Automatic Agent writing (automatically drafts Google Maps posts for any new photos)
         const publishRes = await gmapsService.autoPublishAllStagedDriveAssets(row.workspace_id);
+        // 3. Automatic Google Maps publishing via Playwright Bot (no manual approval needed)
+        let botPostRes: Record<string, any> | null = null;
+        if (botSession.isLoggedIn) {
+          botPostRes = await publishGMapsPostWithBot(row.workspace_id);
+        }
         results.push({
           workspace_id: row.workspace_id,
           assets_scanned: syncRes.assets_scanned,
           truly_new_assets: syncRes.truly_new_assets ?? 0,
           newly_drafted_posts: publishRes.newly_created_count ?? 0,
           total_posts_checked: publishRes.auto_published_count,
+          auto_bot_published: Boolean(botPostRes?.submitted),
+          auto_bot_post_id: botPostRes?.post_id ?? null,
+          auto_bot_spot: botPostRes?.spot_name ?? null,
         });
       } catch (err: any) {
         results.push({
@@ -68,4 +78,3 @@ export async function POST(req: NextRequest) {
     gmapsAutopilotInProgress = false;
   }
 }
-

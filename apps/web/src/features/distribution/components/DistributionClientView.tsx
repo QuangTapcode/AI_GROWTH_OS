@@ -106,16 +106,23 @@ function matchJobPostMetric(
   return null;
 }
 
-const card = "bg-white rounded-2xl border border-slate-200/80 shadow-xs";
 const input =
-  "w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500";
+  "w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 const STATUS_STYLE: Record<PublishingJob["status"], string> = {
-  scheduled: "bg-blue-50 text-blue-700 border-blue-200",
-  publishing: "bg-sky-50 text-sky-700 border-sky-200",
-  published: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  cancelled: "bg-slate-50 text-slate-500 border-slate-200",
-  failed: "bg-rose-50 text-rose-700 border-rose-200",
+  scheduled: "bg-blue-100 text-blue-800",
+  publishing: "bg-sky-100 text-sky-800",
+  published: "bg-emerald-100 text-emerald-800",
+  cancelled: "bg-slate-100 text-slate-600",
+  failed: "bg-rose-100 text-rose-800",
+};
+
+const STATUS_LABEL_VI: Record<PublishingJob["status"], string> = {
+  scheduled: "Đang hẹn giờ",
+  publishing: "Đang xuất bản",
+  published: "Đã đăng",
+  cancelled: "Đã hủy",
+  failed: "Lỗi đăng",
 };
 
 function errorText(err: unknown, fallback: string): string {
@@ -156,20 +163,20 @@ function ScheduleForm({
       });
       onScheduled(job);
     } catch (err) {
-      setError(errorText(err, "Could not schedule this item."));
+      setError(errorText(err, "Không thể lên lịch bài viết này."));
     } finally {
       setSaving(false);
     }
   };
 
   if (channels.length === 0) {
-    return <p className="text-[11px] text-slate-400">Add a channel first to schedule this item.</p>;
+    return <p className="text-xs text-slate-500">Vui lòng thêm kênh phân phối trước khi lên lịch.</p>;
   }
 
   return (
-    <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end mt-3">
+    <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 items-end mt-3 pt-3 border-t border-slate-200">
       <label className="space-y-1">
-        <span className="text-[10px] font-semibold text-slate-500">Channel</span>
+        <span className="text-xs font-semibold text-slate-700">Kênh xuất bản</span>
         <select className={input} value={channelId} onChange={(e) => setChannelId(e.target.value)}>
           {channels.map((c) => (
             <option key={c.id} value={c.id}>
@@ -179,21 +186,25 @@ function ScheduleForm({
         </select>
       </label>
       <label className="space-y-1">
-        <span className="text-[10px] font-semibold text-slate-500">Publish at</span>
+        <span className="text-xs font-semibold text-slate-700">Thời gian đăng</span>
         <input className={input} type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
       </label>
       <label className="space-y-1">
-        <span className="text-[10px] font-semibold text-slate-500">utm_campaign (optional)</span>
+        <span className="text-xs font-semibold text-slate-700">Mã chiến dịch (utm_campaign)</span>
         <input className={input} value={campaign} placeholder="cv-seo-q4" onChange={(e) => setCampaign(e.target.value)} />
       </label>
       <button
         type="submit"
         disabled={saving || !channelId}
-        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2 rounded-xl cursor-pointer disabled:opacity-60"
+        className="bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer disabled:opacity-60"
       >
-        {saving ? "Scheduling…" : "Schedule"}
+        {saving ? "Đang lưu lịch..." : "Xác nhận lên lịch"}
       </button>
-      {error && <p className="sm:col-span-4 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">{error}</p>}
+      {error && (
+        <p className="sm:col-span-4 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
     </form>
   );
 }
@@ -207,7 +218,7 @@ function AddChannelForm({ onAdded }: { onAdded: (c: Channel) => void }) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return setError("Channel name is required.");
+    if (!name.trim()) return setError("Vui lòng nhập tên hiển thị của kênh.");
     setError(null);
     try {
       const channel = await growthApi.createChannel(workspace.id, {
@@ -219,14 +230,14 @@ function AddChannelForm({ onAdded }: { onAdded: (c: Channel) => void }) {
       setIdentifier("");
       onAdded(channel);
     } catch (err) {
-      setError(errorText(err, "Could not add the channel."));
+      setError(errorText(err, "Không thể thêm kênh mới."));
     }
   };
 
   return (
-    <form onSubmit={submit} className="space-y-2 pt-3 border-t border-slate-100">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Add channel</p>
-      <div className="grid grid-cols-3 gap-2">
+    <form onSubmit={submit} className="space-y-3 pt-4 border-t border-slate-200">
+      <p className="text-xs font-bold text-slate-800">Thêm kênh phân phối mới</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <select className={input} value={platform} onChange={(e) => setPlatform(e.target.value as Channel["platform_name"])}>
           {(["website", "facebook_group", "facebook", "tiktok", "instagram", "linkedin", "email"] as const).map((p) => (
             <option key={p} value={p}>
@@ -234,16 +245,21 @@ function AddChannelForm({ onAdded }: { onAdded: (c: Channel) => void }) {
             </option>
           ))}
         </select>
-        <input className={input} placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className={input} placeholder="URL / handle" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+        <input className={input} placeholder="Tên hiển thị kênh" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className={input} placeholder="URL hoặc định danh kênh" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
       </div>
       {error && <p className="text-xs text-rose-700">{error}</p>}
-      <button type="submit" className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-3.5 py-1.5 rounded-xl cursor-pointer">
-        Add channel
+      <button
+        type="submit"
+        className="bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer"
+      >
+        Thêm kênh
       </button>
     </form>
   );
 }
+
+type DistributionTabId = "published_by_date" | "schedule_queue" | "generated_posts" | "channels";
 
 function DistributionContent() {
   const { workspace, canEdit, canApprove } = useWorkspace();
@@ -251,6 +267,13 @@ function DistributionContent() {
   const [scheduling, setScheduling] = useState<string | null>(null);
   const [syncingStats, setSyncingStats] = useState(false);
   const [publishedDateFilter, setPublishedDateFilter] = useState<string>("");
+  const [jobStatusFilter, setJobStatusFilter] = useState<"all" | "pending" | "published" | "failed">("all");
+  const [activeTab, setActiveTab] = useState<DistributionTabId>("published_by_date");
+  const [pubJobPage, setPubJobPage] = useState<number>(1);
+  const [pubJobPageSize, setPubJobPageSize] = useState<number>(6);
+  const [scheduleJobPage, setScheduleJobPage] = useState<number>(1);
+  const [scheduleJobPageSize, setScheduleJobPageSize] = useState<number>(8);
+
   const { data, error, loading, reload } = useApiData(workspace.id, async (signal) => {
     const [channels, jobs, artifacts, approvals, integrations, automation, sitePosts, communityHub] = await Promise.all([
       growthApi.listChannels(workspace.id, signal),
@@ -265,14 +288,17 @@ function DistributionContent() {
     const facebook = integrations.providers.find((p) => p.provider === "facebook_page");
     const facebookGroup = integrations.providers.find((p) => p.provider === "facebook_group");
     return {
-      channels: channels.items, jobs: jobs.items, artifacts: artifacts.items, approvals: approvals.items,
+      channels: channels.items,
+      jobs: jobs.items,
+      artifacts: artifacts.items,
+      approvals: approvals.items,
       facebook: { connected: facebook?.status === "connected", reason: facebook?.missing_reason ?? null },
       facebookGroup: { connected: facebookGroup?.status === "connected", reason: facebookGroup?.missing_reason ?? null },
-      websiteAutoPublish: automation.settings?.auto_publish_website === true, sitePosts: sitePosts.items,
+      websiteAutoPublish: automation.settings?.auto_publish_website === true,
+      sitePosts: sitePosts.items,
       communityHub,
     };
   });
-
 
   const handleSyncPostStats = async () => {
     setSyncingStats(true);
@@ -292,7 +318,7 @@ function DistributionContent() {
       const r = res.sync_stats_result;
       setToast(
         r
-          ? `Đã đồng bộ ${r.group_posts_synced + r.fanpage_posts_synced} bài: ${r.total_likes} Likes · ${r.total_comments} Comments · ${r.total_shares} Chia sẻ.`
+          ? `Đã đồng bộ ${r.group_posts_synced + r.fanpage_posts_synced} bài: ${r.total_likes} lượt thích · ${r.total_comments} bình luận · ${r.total_shares} chia sẻ.`
           : "Đã đồng bộ thống kê tương tác bài viết."
       );
       reload();
@@ -303,7 +329,6 @@ function DistributionContent() {
     }
   };
 
-  // Chỉ artifact có approval mới nhất = approved và khớp đúng version + hash (cùng quy tắc với BE)
   const ready = useMemo(() => {
     if (!data) return [];
     return data.artifacts.filter((a) => {
@@ -315,7 +340,7 @@ function DistributionContent() {
   const updateJob = async (job: PublishingJob, action: "cancel" | "mark_published") => {
     let externalId: string | null = null;
     if (action === "mark_published") {
-      const answer = window.prompt("Post URL or ID on the channel (optional):", "");
+      const answer = window.prompt("Nhập URL hoặc ID bài đã đăng trên kênh (tuỳ chọn):", "");
       if (answer === null) return;
       externalId = answer.trim() || null;
     }
@@ -325,17 +350,29 @@ function DistributionContent() {
         job.id,
         action === "cancel" ? { action } : { action, external_post_id: externalId }
       );
-      setToast(action === "cancel" ? "Publishing job cancelled." : "Marked as published.");
+      setToast(action === "cancel" ? "Đã hủy lịch đăng." : "Đã đánh dấu bài viết là Đã đăng.");
       reload();
     } catch (err) {
-      setToast(errorText(err, "Could not update the job."));
+      setToast(errorText(err, "Không thể cập nhật trạng thái lịch đăng."));
     }
   };
 
   const counts = {
     scheduled: data?.jobs.filter((j) => j.status === "scheduled" || j.status === "publishing").length ?? 0,
     published: data?.jobs.filter((j) => j.status === "published").length ?? 0,
+    failed: data?.jobs.filter((j) => j.status === "failed").length ?? 0,
   };
+
+  const generatedPostsCount = useMemo(() => {
+    if (!data) return 0;
+    return data.artifacts.filter(
+      (a) =>
+        (a.operation === "seo.local_draft" ||
+          a.operation === "content.repurpose" ||
+          a.operation === "content.generate") &&
+        (a.payload?.result as Record<string, unknown> | undefined)?.synthetic !== true
+    ).length;
+  }, [data]);
 
   const publishedJobsByDate = useMemo(() => {
     if (!data) return [];
@@ -368,372 +405,738 @@ function DistributionContent() {
     return Array.from(grouped.entries());
   }, [data, publishedDateFilter]);
 
+  const filteredScheduleJobs = useMemo(() => {
+    if (!data) return [];
+    return data.jobs.filter((j) => {
+      if (jobStatusFilter === "published") return j.status === "published";
+      if (jobStatusFilter === "pending") return j.status === "scheduled" || j.status === "publishing";
+      if (jobStatusFilter === "failed") return j.status === "failed";
+      return true;
+    });
+  }, [data, jobStatusFilter]);
+
   return (
-    <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
+    <main className="flex-1 p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Distribution</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 border border-slate-200/90 text-slate-600">
-              {workspace.name}
+
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        {/* Header theo chuẩn Template Điều khiển tự động / Agent Maps (Không dùng icon) */}
+        <div className="p-5 border-b border-slate-200">
+          <div className="flex flex-wrap justify-between gap-4">
+            <div>
+              <h1 className="font-bold text-slate-900 text-base">
+                Agent 4: Multi-Channel Publisher &amp; Distribution (Lịch xuất bản &amp; Phân phối đa kênh)
+              </h1>
+              <p className="mt-1 text-sm text-slate-600">
+                Đã đăng: {counts.published} bài · Đang hẹn giờ tự động: {counts.scheduled} bài · Sẵn sàng lên lịch: {ready.length} bài
+                {data?.communityHub?.stats
+                  ? ` · Tổng tương tác: ${data.communityHub.stats.total_post_likes ?? 0} lượt thích, ${data.communityHub.stats.total_post_comments ?? 0} bình luận, ${data.communityHub.stats.total_post_shares ?? 0} chia sẻ`
+                  : ""}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Quản lý tập trung toàn bộ bài viết đã xuất bản theo từng ngày, hàng đợi hẹn giờ tự động và kho nội dung từ SEO Worker / Content Agent trên Website, Facebook Group, Fanpage và TikTok.
+              </p>
+            </div>
+            <span className="self-start rounded-md bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+              Tự động xuất bản 24/7 đã bật
             </span>
           </div>
-          <p className="text-xs md:text-sm text-slate-500 mt-1">
-            Schedule approved outputs to channels. Channels without a live connector run in manual mode: post it, then mark it published.
-          </p>
-        </div>
-        {data && (
-          <div className="flex items-center gap-4 bg-white border border-slate-200/90 rounded-2xl px-4 py-2 shadow-2xs text-xs font-semibold text-slate-700">
-            <span>{ready.length} ready</span>
-            <span className="text-slate-200">|</span>
-            <span>{counts.scheduled} scheduled</span>
-            <span className="text-slate-200">|</span>
-            <span>{counts.published} published</span>
-          </div>
-        )}
-      </div>
 
-      {error && <ErrorBlock error={error} onRetry={reload} />}
-      {!data && loading && <LoadingBlock label="Loading distribution…" />}
+          {/* Khung Điều khiển & Thống kê tương tác theo chuẩn hộp xanh nhạt */}
+          <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50/60 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold text-slate-900 text-sm">
+                Đồng bộ tương tác thực tế &amp; Điều phối kênh xuất bản ({workspace.name})
+              </h2>
+              {data?.communityHub?.group?.last_post_stats_sync_at && (
+                <span className="rounded-md bg-white border border-blue-200 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                  Đồng bộ gần nhất: {formatDateTime(data.communityHub.group.last_post_stats_sync_at)}
+                </span>
+              )}
+            </div>
 
-      {data && (
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-          <div className="xl:col-span-8 min-w-0 space-y-6">
-            {data.communityHub?.stats && (
-              <section className={`${card} p-5 border-rose-200/80 bg-gradient-to-r from-rose-50/50 via-white to-emerald-50/40`}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0 flex-[1_1_420px] space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
-                        📊 Thống kê Tương tác &amp; Phát triển
-                      </span>
-                      <span className="text-[11px] font-semibold text-slate-600">
-                        {data.communityHub.stats.tracked_posts_count ?? 0} bài đã đồng bộ
-                      </span>
-                      {data.communityHub.group?.last_post_stats_sync_at && (
-                        <span className="text-[11px] text-slate-400">
-                          • Lúc {formatDateTime(data.communityHub.group.last_post_stats_sync_at)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-                      <span className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-rose-800">
-                        ❤️ {data.communityHub.stats.total_post_likes ?? 0} Likes
-                      </span>
-                      <span className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-blue-800">
-                        💬 {data.communityHub.stats.total_post_comments ?? 0} Comments
-                      </span>
-                      <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">
-                        ↗️ {data.communityHub.stats.total_post_shares ?? 0} Chia sẻ
-                      </span>
-                      <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-800">
-                        👥 {data.communityHub.stats.real_group_members ?? 5} thành viên (
-                        {(data.communityHub.stats.member_growth_delta ?? 0) >= 0
-                          ? `+${data.communityHub.stats.member_growth_delta ?? 0}`
-                          : data.communityHub.stats.member_growth_delta}
-                        )
-                      </span>
-                      <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-700">
-                        📈 Biến động tương tác:{" "}
-                        {(data.communityHub.stats.engagement_growth_delta ?? 0) >= 0
-                          ? `+${data.communityHub.stats.engagement_growth_delta ?? 0}`
-                          : data.communityHub.stats.engagement_growth_delta}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {canEdit && (
-                      <button
-                        type="button"
-                        disabled={syncingStats}
-                        onClick={() => void handleSyncPostStats()}
-                        className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60"
-                      >
-                        {syncingStats ? "Đang đồng bộ…" : "📊 Đồng bộ Like, Comment, Share"}
-                      </button>
-                    )}
-                    <Link
-                      href="/agents/community"
-                      className="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 text-xs font-bold"
-                    >
-                      👥 Chi tiết Stats &amp; Auto-Reply ↗
-                    </Link>
-                  </div>
-                </div>
-              </section>
+            {data?.communityHub?.stats && (
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-800">
+                  Bài theo dõi: {data.communityHub.stats.tracked_posts_count ?? 0} bài
+                </span>
+                <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-800">
+                  Lượt thích: {data.communityHub.stats.total_post_likes ?? 0}
+                </span>
+                <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-800">
+                  Bình luận: {data.communityHub.stats.total_post_comments ?? 0}
+                </span>
+                <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-800">
+                  Chia sẻ: {data.communityHub.stats.total_post_shares ?? 0}
+                </span>
+                <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-800">
+                  Thành viên Group: {data.communityHub.stats.real_group_members ?? 5} người (
+                  {(data.communityHub.stats.member_growth_delta ?? 0) >= 0
+                    ? `+${data.communityHub.stats.member_growth_delta ?? 0}`
+                    : data.communityHub.stats.member_growth_delta}
+                  )
+                </span>
+              </div>
             )}
 
-            <section className={`${card} p-6 border-emerald-200/90 bg-emerald-50/20`}>
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">
-                    📚 Các bài đã đăng theo Ngày / Tháng / Năm ({counts.published} bài)
-                  </h2>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Toàn bộ bài đã xuất bản lên Group Cộng đồng, Website và Fanpage được lưu cố định theo ngày tháng năm, không bị ẩn.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    aria-label="Lọc bài đã đăng theo ngày tháng năm"
-                    className={input}
-                    value={publishedDateFilter}
-                    onChange={(e) => setPublishedDateFilter(e.target.value)}
-                  />
-                  {publishedDateFilter && (
-                    <button
-                      type="button"
-                      onClick={() => setPublishedDateFilter("")}
-                      className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-semibold"
-                    >
-                      Xóa lọc
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {publishedJobsByDate.length === 0 ? (
-                <p className="text-xs text-slate-500 bg-white rounded-xl border border-slate-200/80 p-4">
-                  Không có bài đã đăng nào trong ngày đã chọn.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {publishedJobsByDate.map(([dateLabel, jobsOnDate]) => (
-                    <div key={dateLabel} className="rounded-xl border border-emerald-200/80 bg-white p-4 space-y-2.5">
-                      <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-emerald-700 text-white text-xs font-bold">
-                          📅 Ngày {dateLabel}
-                        </span>
-                        <span className="text-[11px] font-semibold text-emerald-800">
-                          {jobsOnDate.length} bài đã đăng
-                        </span>
-                      </div>
-                      <ul className="divide-y divide-slate-100">
-                        {jobsOnDate.map((job) => {
-                          const matchedMetric = matchJobPostMetric(job, data.communityHub?.post_metrics);
-                          return (
-                            <li key={job.id} className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-bold text-slate-900 break-words">{job.content_title}</p>
-                                <p className="text-[11px] text-slate-500 mt-0.5">
-                                  {job.channel_name ?? (job.platform_name ? humanize(job.platform_name) : "Kênh")} · Đăng lúc{" "}
-                                  {formatDateTime(job.published_at || job.scheduled_for)}
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {matchedMetric && (
-                                  <span className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-900">
-                                    ❤️ {matchedMetric.likes_count} · 💬 {matchedMetric.comments_count} · ↗️{" "}
-                                    {matchedMetric.shares_count}
-                                  </span>
-                                )}
-                                {job.utm_url && (
-                                  <a
-                                    href={job.utm_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold hover:bg-blue-100"
-                                  >
-                                    Xem bài đã đăng ↗
-                                  </a>
-                                )}
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <GeneratedPosts artifacts={data.artifacts} approvals={data.approvals} jobs={data.jobs} sitePosts={data.sitePosts}
-              facebook={data.facebook} facebookGroup={data.facebookGroup} websiteAutoPublish={data.websiteAutoPublish} />
-
-            <section className={`${card} p-6`}>
-              <h2 className="text-sm font-bold text-slate-900">Ready to publish</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5 mb-4">Artifacts whose exact current version was approved by an owner.</p>
-              {ready.length === 0 ? (
-                <EmptyBlock title="Nothing approved yet" description="Approve an output in the Review Queue to make it available here." />
-              ) : (
-                <ul className="space-y-3">
-                  {ready.map((a) => (
-                    <li key={a.id} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-900">{a.title}</p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {shortCode("ART", a.id)} · v{a.version} · {humanize(a.artifact_type)} · {agentLabel(a.role)}
-                          </p>
-                        </div>
-                        {canEdit && scheduling !== a.id && (
-                          <button
-                            type="button"
-                            onClick={() => setScheduling(a.id)}
-                            className="shrink-0 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-3.5 py-1.5 rounded-xl cursor-pointer"
-                          >
-                            Schedule
-                          </button>
-                        )}
-                      </div>
-                      {scheduling === a.id && (
-                        <ScheduleForm
-                          artifact={a}
-                          channels={data.channels}
-                          onScheduled={(job) => {
-                            setScheduling(null);
-                            setToast(`Scheduled on ${job.channel_name ?? job.platform_name} (${job.mode}).`);
-                            reload();
-                          }}
-                        />
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className={`${card} min-w-0`}>
-              <div className="p-6 pb-3">
-                <h2 id="publishing-schedule-heading" className="text-sm font-bold text-slate-900">Publishing schedule</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">{data.jobs.length} jobs</p>
-              </div>
-              {data.jobs.length === 0 ? (
-                <p className="px-6 pb-6 text-xs text-slate-400">No publishing jobs yet.</p>
-              ) : (
-                <div
-                  tabIndex={0}
-                  role="region"
-                  aria-labelledby="publishing-schedule-heading"
-                  className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-b-2xl"
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              {canEdit && (
+                <button
+                  type="button"
+                  disabled={syncingStats}
+                  onClick={() => void handleSyncPostStats()}
+                  className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50 cursor-pointer"
                 >
-                  <table className="w-full text-xs">
-                    <caption className="visually-hidden">Publishing schedule jobs and post engagement metrics</caption>
-                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
-                      <tr>
-                        <th scope="col" className="text-left font-bold px-6 py-2.5">Content</th>
-                        <th scope="col" className="text-left font-bold px-3 py-2.5">Channel</th>
-                        <th scope="col" className="text-left font-bold px-3 py-2.5">Scheduled</th>
-                        <th scope="col" className="text-left font-bold px-3 py-2.5">Status</th>
-                        <th scope="col" className="text-right font-bold px-6 py-2.5">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {data.jobs.map((job) => {
-                        const matchedMetric =
-                          job.status === "published"
-                            ? matchJobPostMetric(job, data.communityHub?.post_metrics)
-                            : undefined;
-                        return (
-                        <tr key={job.id}>
-                          <th scope="row" className="px-6 py-3 text-left font-normal">
-                            <p className="font-semibold text-slate-900">{job.content_title}</p>
-                            <p className="text-[11px] text-slate-400">
-                              v{job.artifact_version ?? "?"}
-                              {job.utm_url && (
-                                <>
-                                  {" · "}
-                                  <a href={job.utm_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                                    tracking link
-                                  </a>
-                                </>
-                              )}
-                            </p>
-                          </th>
-                          <td className="px-3 py-3 text-slate-700">
-                            {job.channel_name ?? (job.platform_name ? humanize(job.platform_name) : "Kênh")}
-                            <span className="ml-1.5 text-[10px] text-slate-400">{job.mode}</span>
-                          </td>
-                          <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{formatDateTime(job.scheduled_for)}</td>
-                          <td className="px-3 py-3">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_STYLE[job.status] ?? STATUS_STYLE.scheduled}`}>
-                              {humanize(job.status)}
-                            </span>
-                            {matchedMetric && (
-                              <p className="mt-1 text-[10px] font-bold text-rose-800 whitespace-nowrap">
-                                ❤️ {matchedMetric.likes_count} · 💬 {matchedMetric.comments_count} · ↗️ {matchedMetric.shares_count}
-                              </p>
-                            )}
-                            {job.status === "failed" && job.error_message && (
-                              <p className="mt-1 text-[10px] text-rose-700 max-w-xs break-words">{job.error_message}</p>
-                            )}
-                            {job.status === "published" && job.external_post_id && (
-                              <p className="mt-1 text-[10px] text-slate-500 font-mono truncate max-w-[160px]" title={job.external_post_id}>
-                                ID: {job.external_post_id}
-                              </p>
-                            )}
-                            {job.published_at && <p className="text-[10px] text-slate-400 mt-0.5">{timeAgo(job.published_at)}</p>}
-                          </td>
-                          <td className="px-6 py-3 text-right whitespace-nowrap">
-                            {canEdit && (job.status === "scheduled" || job.status === "publishing") ? (
-                              <div className="flex justify-end gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => updateJob(job, "mark_published")}
-                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer"
-                                >
-                                  Mark published
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => updateJob(job, "cancel")}
-                                  className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold cursor-pointer"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="text-slate-300">—</span>
-                            )}
-                          </td>
-                        </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                  {syncingStats ? "Đang đồng bộ tương tác..." : "Đồng bộ Thích, Bình luận, Chia sẻ"}
+                </button>
               )}
-            </section>
-          </div>
-
-          <div className="xl:col-span-4 min-w-0">
-            <section className={`${card} p-6 space-y-3`}>
-              <h2 className="text-sm font-bold text-slate-900">Channels</h2>
-              {data.channels.length === 0 && <p className="text-xs text-slate-400">No channels yet.</p>}
-              <ul className="space-y-2">
-                {data.channels.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/40">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 truncate">{c.display_name ?? (c.platform_name ? humanize(c.platform_name) : c.id)}</p>
-                      <p className="text-[11px] text-slate-500 truncate">
-                        {c.platform_name ? humanize(c.platform_name) : "Channel"}
-                        {c.channel_identifier ? ` · ${c.channel_identifier}` : ""}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${c.publish_mode === "live" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
-                        }`}
-                    >
-                      {c.publish_mode}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {canApprove && (
-                <AddChannelForm
-                  onAdded={(c) => {
-                    setToast(`Channel added: ${c.display_name}`);
-                    reload();
-                  }}
-                />
-              )}
-            </section>
+              <Link
+                href="/agents/community"
+                className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Mở Trung tâm Cộng đồng (Agent 8)
+              </Link>
+              <button
+                type="button"
+                onClick={reload}
+                className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Làm mới dữ liệu
+              </button>
+            </div>
           </div>
         </div>
-      )}
+
+        {/* Thanh Tabs điều hướng chuẩn Agent Maps (không icon) */}
+        <div className="px-5 border-b border-slate-200 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-5">
+            <button
+              type="button"
+              onClick={() => setActiveTab("published_by_date")}
+              className={`py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                activeTab === "published_by_date"
+                  ? "border-blue-700 text-blue-700"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Bài đã đăng theo ngày ({counts.published})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("schedule_queue")}
+              className={`py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                activeTab === "schedule_queue"
+                  ? "border-blue-700 text-blue-700"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Lịch xuất bản &amp; Hàng đợi ({data?.jobs.length ?? 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("generated_posts")}
+              className={`py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                activeTab === "generated_posts"
+                  ? "border-blue-700 text-blue-700"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Kho bài viết Agent đã soạn ({generatedPostsCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("channels")}
+              className={`py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                activeTab === "channels"
+                  ? "border-blue-700 text-blue-700"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Kênh phân phối ({data?.channels.length ?? 0})
+            </button>
+          </div>
+        </div>
+
+        {/* Nội dung từng Tab */}
+        <div className="p-6">
+          {error && <ErrorBlock error={error} onRetry={reload} />}
+          {!data && loading && <LoadingBlock label="Đang tải dữ liệu phân phối..." />}
+
+          {data && (
+            <>
+              {/* TAB 1: CÁC BÀI ĐÃ ĐĂNG THEO NGÀY / THÁNG / NĂM (LƯỚI 3 CỘT + PHÂN TRANG) */}
+              {activeTab === "published_by_date" && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div>
+                      <h2 className="text-sm font-semibold text-slate-900">
+                        Các bài đã xuất bản theo Ngày / Tháng / Năm ({counts.published} bài)
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Hiển thị dạng lưới 3 cột gọn gàng có phân trang cho toàn bộ bài đã đăng lên Facebook Group Cộng đồng, Website và Fanpage.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="date"
+                        aria-label="Lọc bài đã đăng theo ngày tháng năm"
+                        className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                        value={publishedDateFilter}
+                        onChange={(e) => {
+                          setPublishedDateFilter(e.target.value);
+                          setPubJobPage(1);
+                        }}
+                      />
+                      {publishedDateFilter && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPublishedDateFilter("");
+                            setPubJobPage(1);
+                          }}
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50"
+                        >
+                          Xóa lọc ngày
+                        </button>
+                      )}
+                      <select
+                        aria-label="Số bài đã đăng mỗi trang"
+                        value={pubJobPageSize}
+                        onChange={(e) => {
+                          setPubJobPageSize(Number(e.target.value));
+                          setPubJobPage(1);
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700"
+                      >
+                        <option value={6}>6 bài / trang</option>
+                        <option value={9}>9 bài / trang</option>
+                        <option value={12}>12 bài / trang</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const flatPubJobs = publishedJobsByDate.flatMap(([dateLabel, jobsOnDate]) =>
+                      jobsOnDate.map((job) => ({ dateLabel, job }))
+                    );
+                    if (flatPubJobs.length === 0) {
+                      return (
+                        <div className="p-8 rounded-xl border border-slate-200 bg-slate-50 text-center text-xs text-slate-500">
+                          Không có bài đã đăng nào trong ngày đã chọn.
+                        </div>
+                      );
+                    }
+                    const totalPubPages = Math.max(1, Math.ceil(flatPubJobs.length / pubJobPageSize));
+                    const currentPubPage = Math.min(Math.max(1, pubJobPage), totalPubPages);
+                    const startIdx = (currentPubPage - 1) * pubJobPageSize;
+                    const pageItems = flatPubJobs.slice(startIdx, startIdx + pubJobPageSize);
+
+                    return (
+                      <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <span className="text-slate-600">
+                            Hiển thị <strong>{startIdx + 1}–{Math.min(startIdx + pubJobPageSize, flatPubJobs.length)}</strong> / {flatPubJobs.length} bài đã đăng (Trang <strong>{currentPubPage}/{totalPubPages}</strong>)
+                          </span>
+                          {totalPubPages > 1 && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={currentPubPage <= 1}
+                                onClick={() => setPubJobPage((p) => Math.max(1, p - 1))}
+                                className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                              >
+                                Trước
+                              </button>
+                              {Array.from({ length: totalPubPages }, (_, idx) => idx + 1).map((pNum) => (
+                                <button
+                                  key={pNum}
+                                  type="button"
+                                  onClick={() => setPubJobPage(pNum)}
+                                  className={`w-7 h-7 rounded-lg font-semibold transition-colors ${
+                                    pNum === currentPubPage
+                                      ? "bg-blue-700 text-white"
+                                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  {pNum}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                disabled={currentPubPage >= totalPubPages}
+                                onClick={() => setPubJobPage((p) => Math.min(totalPubPages, p + 1))}
+                                className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                              >
+                                Sau
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <ul className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {pageItems.map(({ dateLabel, job }) => {
+                            const matchedMetric = matchJobPostMetric(job, data.communityHub?.post_metrics);
+                            return (
+                              <li
+                                key={job.id}
+                                className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between space-y-3 transition-colors hover:border-blue-400"
+                              >
+                                <div className="space-y-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+                                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-bold">
+                                      Ngày {dateLabel}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-semibold">
+                                      Đã đăng
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                                      {job.channel_name ?? (job.platform_name ? humanize(job.platform_name) : "Kênh")}
+                                    </span>
+                                    <span className="text-slate-500">
+                                      · {formatDateTime(job.published_at || job.scheduled_for)}
+                                    </span>
+                                  </div>
+                                  <p className="font-semibold text-slate-900 text-sm line-clamp-2 break-words">
+                                    {job.content_title}
+                                  </p>
+                                  {matchedMetric && (
+                                    <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                                      Thích: {matchedMetric.likes_count} · Bình luận: {matchedMetric.comments_count} · Chia sẻ: {matchedMetric.shares_count}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="pt-2 border-t border-slate-100">
+                                  {job.utm_url ? (
+                                    <a
+                                      href={job.utm_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block w-full text-center px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-700 font-semibold hover:bg-slate-50"
+                                    >
+                                      Xem bài đã đăng
+                                    </a>
+                                  ) : (
+                                    <span className="block w-full text-center py-1.5 text-xs text-slate-400">
+                                      Đã xuất bản
+                                    </span>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+
+                        {totalPubPages > 1 && (
+                          <div className="px-5 py-3 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <span className="text-slate-600 font-medium">
+                              Đang xem trang <strong>{currentPubPage} / {totalPubPages}</strong>
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={currentPubPage <= 1}
+                                onClick={() => setPubJobPage(1)}
+                                className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                              >
+                                « Đầu
+                              </button>
+                              <button
+                                type="button"
+                                disabled={currentPubPage <= 1}
+                                onClick={() => setPubJobPage((p) => Math.max(1, p - 1))}
+                                className="px-3 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                              >
+                                ‹ Trang trước
+                              </button>
+                              {Array.from({ length: totalPubPages }, (_, idx) => idx + 1).map((pNum) => (
+                                <button
+                                  key={pNum}
+                                  type="button"
+                                  onClick={() => setPubJobPage(pNum)}
+                                  className={`w-7 h-7 rounded-lg font-bold transition-colors ${
+                                    pNum === currentPubPage
+                                      ? "bg-blue-700 text-white"
+                                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  {pNum}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                disabled={currentPubPage >= totalPubPages}
+                                onClick={() => setPubJobPage((p) => Math.min(totalPubPages, p + 1))}
+                                className="px-3 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                              >
+                                Trang sau ›
+                              </button>
+                              <button
+                                type="button"
+                                disabled={currentPubPage >= totalPubPages}
+                                onClick={() => setPubJobPage(totalPubPages)}
+                                className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                              >
+                                Cuối »
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </section>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* TAB 2: LỊCH XUẤT BẢN & HÀNG ĐỢI */}
+              {activeTab === "schedule_queue" && (
+                <div className="space-y-6">
+                  {/* Phần 1: Nội dung đã duyệt sẵn sàng lên lịch mới */}
+                  <section className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+                    <div>
+                      <h2 className="text-sm font-semibold text-slate-900">
+                        Bài viết đã duyệt sẵn sàng lên lịch mới ({ready.length})
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Các bài viết đã được phê duyệt phiên bản mới nhất, có thể đặt lịch xuất bản bổ sung lên kênh bất kỳ.
+                      </p>
+                    </div>
+                    {ready.length === 0 ? (
+                      <EmptyBlock
+                        title="Chưa có bài mới chờ đặt lịch thủ công"
+                        description="Các bài trong kế hoạch tự động đã được Worker xếp lịch. Bạn cũng có thể duyệt bài mới trong Review Queue."
+                      />
+                    ) : (
+                      <ul className="space-y-2.5">
+                        {ready.map((a) => (
+                          <li key={a.id} className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-900">{a.title}</p>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                  {shortCode("ART", a.id)} · v{a.version} · {humanize(a.artifact_type)} · {agentLabel(a.role)}
+                                </p>
+                              </div>
+                              {canEdit && scheduling !== a.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => setScheduling(a.id)}
+                                  className="shrink-0 bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs px-3.5 py-1.5 rounded-lg cursor-pointer"
+                                >
+                                  Đặt lịch đăng
+                                </button>
+                              )}
+                            </div>
+                            {scheduling === a.id && (
+                              <ScheduleForm
+                                artifact={a}
+                                channels={data.channels}
+                                onScheduled={(job) => {
+                                  setScheduling(null);
+                                  setToast(`Đã lên lịch trên ${job.channel_name ?? job.platform_name} (${job.mode}).`);
+                                  reload();
+                                }}
+                              />
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+
+                  {/* Phần 2: Bảng danh sách toàn bộ tác vụ xuất bản */}
+                  <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                    <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 id="publishing-schedule-heading" className="text-sm font-semibold text-slate-900">
+                          Danh sách tác vụ xuất bản ({filteredScheduleJobs.length} / {data.jobs.length})
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Phân tách rõ các bài đang hẹn giờ chờ đăng và các bài đã hoàn tất xuất bản.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(
+                          [
+                            { id: "all", label: `Tất cả (${data.jobs.length})` },
+                            { id: "pending", label: `Chưa đăng / Hẹn giờ (${counts.scheduled})` },
+                            { id: "published", label: `Đã đăng (${counts.published})` },
+                            ...(counts.failed > 0 ? [{ id: "failed", label: `Lỗi (${counts.failed})` }] : []),
+                          ] as const
+                        ).map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => {
+                              setJobStatusFilter(tab.id as any);
+                              setScheduleJobPage(1);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                              jobStatusFilter === tab.id
+                                ? "bg-blue-700 text-white"
+                                : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                        <select
+                          aria-label="Số tác vụ mỗi trang"
+                          value={scheduleJobPageSize}
+                          onChange={(e) => {
+                            setScheduleJobPageSize(Number(e.target.value));
+                            setScheduleJobPage(1);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700"
+                        >
+                          <option value={5}>5 dòng / trang</option>
+                          <option value={8}>8 dòng / trang</option>
+                          <option value={12}>12 dòng / trang</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {filteredScheduleJobs.length === 0 ? (
+                      <p className="p-6 text-xs text-slate-500 text-center">
+                        Không có tác vụ xuất bản nào khớp với bộ lọc hiện tại.
+                      </p>
+                    ) : (
+                      (() => {
+                        const totalSchedPages = Math.max(1, Math.ceil(filteredScheduleJobs.length / scheduleJobPageSize));
+                        const currentSchedPage = Math.min(Math.max(1, scheduleJobPage), totalSchedPages);
+                        const startIdx = (currentSchedPage - 1) * scheduleJobPageSize;
+                        const pagedJobs = filteredScheduleJobs.slice(startIdx, startIdx + scheduleJobPageSize);
+
+                        return (
+                          <>
+                            <div className="px-5 py-2.5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <span className="text-slate-600">
+                                Hiển thị <strong>{startIdx + 1}–{Math.min(startIdx + scheduleJobPageSize, filteredScheduleJobs.length)}</strong> / {filteredScheduleJobs.length} tác vụ (Trang <strong>{currentSchedPage}/{totalSchedPages}</strong>)
+                              </span>
+                              {totalSchedPages > 1 && (
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <button
+                                    type="button"
+                                    disabled={currentSchedPage <= 1}
+                                    onClick={() => setScheduleJobPage((p) => Math.max(1, p - 1))}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                                  >
+                                    Trước
+                                  </button>
+                                  {Array.from({ length: totalSchedPages }, (_, idx) => idx + 1).map((pNum) => (
+                                    <button
+                                      key={pNum}
+                                      type="button"
+                                      onClick={() => setScheduleJobPage(pNum)}
+                                      className={`w-7 h-7 rounded-lg font-semibold transition-colors ${
+                                        pNum === currentSchedPage
+                                          ? "bg-blue-700 text-white"
+                                          : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                      }`}
+                                    >
+                                      {pNum}
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    disabled={currentSchedPage >= totalSchedPages}
+                                    onClick={() => setScheduleJobPage((p) => Math.min(totalSchedPages, p + 1))}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                                  >
+                                    Sau
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            <div
+                              tabIndex={0}
+                              role="region"
+                              aria-labelledby="publishing-schedule-heading"
+                              className="overflow-x-auto"
+                            >
+                              <table className="w-full text-xs">
+                                <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                                  <tr>
+                                    <th scope="col" className="text-left font-bold px-5 py-3">Nội dung bài viết</th>
+                                    <th scope="col" className="text-left font-bold px-3 py-3">Kênh đích</th>
+                                    <th scope="col" className="text-left font-bold px-3 py-3">Thời gian hẹn / đăng</th>
+                                    <th scope="col" className="text-left font-bold px-3 py-3">Trạng thái</th>
+                                    <th scope="col" className="text-right font-bold px-5 py-3">Thao tác</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {pagedJobs.map((job) => {
+                                    const matchedMetric =
+                                      job.status === "published"
+                                        ? matchJobPostMetric(job, data.communityHub?.post_metrics)
+                                        : undefined;
+                                    return (
+                                      <tr key={job.id} className="hover:bg-slate-50/60">
+                                        <th scope="row" className="px-5 py-3.5 text-left font-normal">
+                                          <p className="font-semibold text-slate-900">{job.content_title}</p>
+                                          <p className="text-[11px] text-slate-500 mt-0.5">
+                                            Phiên bản v{job.artifact_version ?? "?"}
+                                            {job.utm_url && (
+                                              <>
+                                                {" · "}
+                                                <a
+                                                  href={job.utm_url}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className="text-blue-700 font-semibold hover:underline"
+                                                >
+                                                  Mở liên kết bài đăng
+                                                </a>
+                                              </>
+                                            )}
+                                          </p>
+                                        </th>
+                                        <td className="px-3 py-3.5 text-slate-700">
+                                          <span className="font-medium">
+                                            {job.channel_name ?? (job.platform_name ? humanize(job.platform_name) : "Kênh")}
+                                          </span>
+                                          <span className="ml-1.5 text-[11px] text-slate-400">({job.mode})</span>
+                                        </td>
+                                        <td className="px-3 py-3.5 text-slate-600 whitespace-nowrap">
+                                          {formatDateTime(job.published_at || job.scheduled_for)}
+                                        </td>
+                                        <td className="px-3 py-3.5">
+                                          <span
+                                            className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md ${
+                                              STATUS_STYLE[job.status] ?? STATUS_STYLE.scheduled
+                                            }`}
+                                          >
+                                            {STATUS_LABEL_VI[job.status] ?? humanize(job.status)}
+                                          </span>
+                                          {matchedMetric && (
+                                            <p className="mt-1 text-[11px] font-medium text-slate-600 whitespace-nowrap">
+                                              Thích: {matchedMetric.likes_count} · Bình luận: {matchedMetric.comments_count} · Chia sẻ: {matchedMetric.shares_count}
+                                            </p>
+                                          )}
+                                          {job.status === "failed" && job.error_message && (
+                                            <p className="mt-1 text-[11px] text-rose-700 max-w-xs break-words">
+                                              {job.error_message}
+                                            </p>
+                                          )}
+                                          {job.published_at && (
+                                            <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(job.published_at)}</p>
+                                          )}
+                                        </td>
+                                        <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                                          {canEdit && (job.status === "scheduled" || job.status === "publishing") ? (
+                                            <div className="flex justify-end gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => updateJob(job, "mark_published")}
+                                                className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold cursor-pointer"
+                                              >
+                                                Đánh dấu đã đăng
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => updateJob(job, "cancel")}
+                                                className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer"
+                                              >
+                                                Hủy lịch
+                                              </button>
+                                            </div>
+                                          ) : job.utm_url ? (
+                                            <a
+                                              href={job.utm_url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold hover:bg-slate-50 inline-block"
+                                            >
+                                              Xem bài đã đăng
+                                            </a>
+                                          ) : (
+                                            <span className="text-slate-400">Đã hoàn tất</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </>
+                        );
+                      })()
+                    )}
+                  </section>
+                </div>
+              )}
+
+              {/* TAB 3: KHO BÀI VIẾT AGENT ĐÃ SOẠN */}
+              {activeTab === "generated_posts" && (
+                <GeneratedPosts
+                  artifacts={data.artifacts}
+                  approvals={data.approvals}
+                  jobs={data.jobs}
+                  sitePosts={data.sitePosts}
+                  facebook={data.facebook}
+                  facebookGroup={data.facebookGroup}
+                  websiteAutoPublish={data.websiteAutoPublish}
+                />
+              )}
+
+              {/* TAB 4: KÊNH PHÂN PHỐI */}
+              {activeTab === "channels" && (
+                <section className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 max-w-3xl">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-900">
+                      Danh sách kênh phân phối đang kết nối ({data.channels.length})
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Các kênh ở chế độ live sẽ được Worker tự động đăng khi đến giờ hẹn.
+                    </p>
+                  </div>
+                  {data.channels.length === 0 && (
+                    <p className="text-xs text-slate-500">Chưa có kênh phân phối nào.</p>
+                  )}
+                  <ul className="space-y-2">
+                    {data.channels.map((c) => (
+                      <li
+                        key={c.id}
+                        className="flex items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 bg-slate-50/50"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">
+                            {c.display_name ?? (c.platform_name ? humanize(c.platform_name) : c.id)}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                            {c.platform_name ? humanize(c.platform_name) : "Channel"}
+                            {c.channel_identifier ? ` · ${c.channel_identifier}` : ""}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md shrink-0 ${
+                            c.publish_mode === "live"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {c.publish_mode === "live" ? "Tự động (live)" : "Thủ công (manual)"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {canApprove && (
+                    <AddChannelForm
+                      onAdded={(c) => {
+                        setToast(`Đã thêm kênh: ${c.display_name}`);
+                        reload();
+                      }}
+                    />
+                  )}
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </main>
   );
 }

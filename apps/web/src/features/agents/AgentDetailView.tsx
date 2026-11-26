@@ -753,34 +753,41 @@ function AgentPage({ role }: { role: RoleId }) {
       {role === "community" && (
         <CommunityGrowthHub workspaceId={workspace.id} canEdit={canEdit} onUpdated={reload} />
       )}
-      {role === "community" && data && <>
-        <TikTokStudioSection workspaceId={workspace.id} canEdit={canEdit} returnTo="/agents/community/" />
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
-        <SectionTitle title="Soạn phản hồi Community" subtitle="Nhập câu hỏi hoặc comment. Agent sử dụng nguồn đã duyệt để soạn nháp; không tự gửi phản hồi lên mạng xã hội." />
-        <form onSubmit={submitCommunity} className="mt-5 space-y-3">
-          <label htmlFor="community-question" className="block text-sm font-semibold">Câu hỏi cần phản hồi</label>
-          <textarea id="community-question" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={1000} required rows={4} disabled={!canEdit || submitting} className="w-full rounded-lg border border-slate-300 p-3 text-sm" />
-          <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-500">{question.length}/1000 ký tự</p><button type="submit" disabled={!canEdit || !contextId || !approvedSources || !question.trim() || submitting} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{submitting ? "Đang gửi…" : "Tạo phản hồi nháp"}</button></div>
-          {!canEdit && <p className="text-sm text-amber-800">Cần quyền owner hoặc editor để tạo phản hồi.</p>}
-          {notice && <p role="status" className="text-sm text-blue-800">{notice}</p>}
-        </form>
-        {waitingTaskId && <p role="status" className="mt-4 text-sm text-blue-800">Đang xử lý câu hỏi mới…</p>}
-        {communityArtifact?.operation === "community.response" && <div className="mt-6 space-y-3 rounded-lg bg-slate-50 p-4">
-          <h3 className="font-semibold">Phản hồi gần nhất</h3>
-          <label htmlFor="community-reply" className="block text-sm font-semibold">Lịch sử phản hồi</label>
-          <select id="community-reply" value={communityArtifact.id} onChange={(event) => setSelectedReplyId(event.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-sm">{roleArtifacts.filter((item) => item.operation === "community.response").map((item) => <option key={item.id} value={item.id}>{formatDate(item.created_at)} · {valueText((roleTasks.find((task) => task.id === item.task_id)?.payload.input as Record<string, unknown> | undefined)?.question) || item.id.slice(0, 12)}</option>)}</select>
-          <p className="whitespace-pre-wrap text-sm">{valueText(communityResult?.reply) || "Chưa có nội dung phản hồi."}</p>
-          <p className="text-sm font-semibold">{communityResult?.status === "insufficient_data" ? "Thiếu dữ liệu" : "Phản hồi nháp"}{communityResult?.synthetic === true ? " · Demo (AI mô phỏng)" : ""}</p>
-          {communityResult?.escalation_required === true && <p className="text-sm text-amber-800">Chưa đủ thông tin xác minh. Cần người phụ trách xử lý trước khi trả lời khách.</p>}
-          <p className="text-sm text-slate-700">Dữ liệu còn thiếu: {Array.isArray(communityResult?.missing_facts) && communityResult.missing_facts.length ? communityResult.missing_facts.map((item) => item === "grounded_answer" ? "Chưa tìm thấy nguồn đã duyệt phù hợp với câu hỏi" : item === "verified_lead_owner_and_consent" ? "Chưa xác minh người phụ trách và sự đồng ý của khách" : String(item)).join("; ") : "Không có mục thiếu được báo cáo."}</p>
-          <p className="text-xs text-slate-600">{communityEvidence.length} trích dẫn nguồn · Chưa tự gửi cho khách</p>
-          {!communityEvidence.length && <p className="text-sm text-amber-800">Không có trích dẫn phù hợp. Cần bổ sung nguồn đã duyệt; không tạo trích dẫn giả.</p>}
-          {communityEvidence.map((item, index) => <blockquote key={index} className="border-l-2 border-blue-300 pl-3 text-sm text-slate-600"><p>{valueText(item.quote)}</p><p className="mt-1 text-xs">{valueText(item.source_url)} · {valueText(item.locator)}</p></blockquote>)}
-          {communityResult?.lead_proposal != null ? <div className="text-sm text-amber-800"><p>Có đề xuất lead. Cần người phụ trách xác minh sự đồng ý của khách trước khi lưu hoặc liên hệ.</p><p>Ý định: {valueText((communityResult.lead_proposal as Record<string, unknown>).intent)} · Trạng thái: đề xuất, chưa lưu lead.</p></div> : <p className="text-sm text-slate-600">Chưa có đề xuất lead từ câu hỏi này.</p>}
-          <Link href="/review-queue" className="inline-block text-sm font-semibold text-blue-700 hover:underline">Xem và duyệt phản hồi →</Link>
-        </div>}
-      </section>
-      </>}
+      {role === "community" && data && (
+        <details className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <summary className="cursor-pointer px-5 py-3.5 bg-slate-50/70 text-xs font-bold text-slate-800 hover:bg-slate-100">
+            Công cụ mở rộng: TikTok Video Studio &amp; Soạn phản hồi Community thủ công
+          </summary>
+          <div className="p-5 space-y-6 border-t border-slate-200">
+            <TikTokStudioSection workspaceId={workspace.id} canEdit={canEdit} returnTo="/agents/community/" />
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <SectionTitle title="Soạn phản hồi Community" subtitle="Nhập câu hỏi hoặc comment. Agent sử dụng nguồn đã duyệt để soạn nháp; không tự gửi phản hồi lên mạng xã hội." />
+              <form onSubmit={submitCommunity} className="mt-4 space-y-3">
+                <label htmlFor="community-question" className="block text-xs font-semibold text-slate-700">Câu hỏi cần phản hồi</label>
+                <textarea id="community-question" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={1000} required rows={3} disabled={!canEdit || submitting} className="w-full rounded-lg border border-slate-300 p-2.5 text-xs" />
+                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-500">{question.length}/1000 ký tự</p><button type="submit" disabled={!canEdit || !contextId || !approvedSources || !question.trim() || submitting} className="rounded-lg bg-blue-700 px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-50">{submitting ? "Đang gửi…" : "Tạo phản hồi nháp"}</button></div>
+                {!canEdit && <p className="text-xs text-amber-800">Cần quyền owner hoặc editor để tạo phản hồi.</p>}
+                {notice && <p role="status" className="text-xs text-blue-800">{notice}</p>}
+              </form>
+              {waitingTaskId && <p role="status" className="mt-3 text-xs text-blue-800">Đang xử lý câu hỏi mới…</p>}
+              {communityArtifact?.operation === "community.response" && <div className="mt-4 space-y-2.5 rounded-lg bg-slate-50 p-4 border border-slate-200">
+                <h3 className="text-xs font-bold text-slate-900">Phản hồi gần nhất</h3>
+                <label htmlFor="community-reply" className="block text-xs font-semibold text-slate-700">Lịch sử phản hồi</label>
+                <select id="community-reply" value={communityArtifact.id} onChange={(event) => setSelectedReplyId(event.target.value)} className="w-full rounded-lg border border-slate-300 p-2 text-xs bg-white">{roleArtifacts.filter((item) => item.operation === "community.response").map((item) => <option key={item.id} value={item.id}>{formatDate(item.created_at)} · {valueText((roleTasks.find((task) => task.id === item.task_id)?.payload.input as Record<string, unknown> | undefined)?.question) || item.id.slice(0, 12)}</option>)}</select>
+                <p className="whitespace-pre-wrap text-xs text-slate-800">{valueText(communityResult?.reply) || "Chưa có nội dung phản hồi."}</p>
+                <p className="text-xs font-semibold text-slate-700">{communityResult?.status === "insufficient_data" ? "Thiếu dữ liệu" : "Phản hồi nháp"}{communityResult?.synthetic === true ? " · Demo (AI mô phỏng)" : ""}</p>
+                {communityResult?.escalation_required === true && <p className="text-xs text-amber-800">Chưa đủ thông tin xác minh. Cần người phụ trách xử lý trước khi trả lời khách.</p>}
+                <p className="text-xs text-slate-700">Dữ liệu còn thiếu: {Array.isArray(communityResult?.missing_facts) && communityResult.missing_facts.length ? communityResult.missing_facts.map((item) => item === "grounded_answer" ? "Chưa tìm thấy nguồn đã duyệt phù hợp với câu hỏi" : item === "verified_lead_owner_and_consent" ? "Chưa xác minh người phụ trách và sự đồng ý của khách" : String(item)).join("; ") : "Không có mục thiếu được báo cáo."}</p>
+                <p className="text-xs text-slate-600">{communityEvidence.length} trích dẫn nguồn · Chưa tự gửi cho khách</p>
+                {!communityEvidence.length && <p className="text-xs text-amber-800">Không có trích dẫn phù hợp. Cần bổ sung nguồn đã duyệt; không tạo trích dẫn giả.</p>}
+                {communityEvidence.map((item, index) => <blockquote key={index} className="border-l-2 border-blue-300 pl-3 text-xs text-slate-600"><p>{valueText(item.quote)}</p><p className="mt-1 text-[11px]">{valueText(item.source_url)} · {valueText(item.locator)}</p></blockquote>)}
+                {communityResult?.lead_proposal != null ? <div className="text-xs text-amber-800"><p>Có đề xuất lead. Cần người phụ trách xác minh sự đồng ý của khách trước khi lưu hoặc liên hệ.</p><p>Ý định: {valueText((communityResult.lead_proposal as Record<string, unknown>).intent)} · Trạng thái: đề xuất, chưa lưu lead.</p></div> : <p className="text-xs text-slate-600">Chưa có đề xuất lead từ câu hỏi này.</p>}
+                <Link href="/review-queue" className="inline-block text-xs font-semibold text-blue-700 hover:underline">Xem và duyệt phản hồi →</Link>
+              </div>}
+            </section>
+          </div>
+        </details>
+      )}
       {!data && loading && <LoadingBlock label="Đang tải dữ liệu vận hành của agent…" />}
       {data && <>
         <div className="grid gap-6 xl:grid-cols-[1.15fr_.85fr]">

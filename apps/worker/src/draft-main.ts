@@ -163,6 +163,29 @@ async function main() {
         .finally(() => { merchantBusy = false; });
     };
     timers.push(setTimeout(triggerMerchantTick, 10_000), setInterval(triggerMerchantTick, 60_000));
+
+    // Zero-touch Google Drive -> AI Agent writing -> Google Maps Bot auto-publish loop
+    let gmapsDriveBusy = false;
+    const gmapsDriveIntervalMs = Number(process.env.GMAPS_DRIVE_SYNC_SECONDS ?? 60) * 1_000;
+    const triggerGmapsDriveAutopilot = () => {
+      if (gmapsDriveBusy) return;
+      gmapsDriveBusy = true;
+      void fetch(`${apiBase}/internal/gmaps/autopilot`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(210_000),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`gmaps drive autopilot HTTP ${res.status}`);
+          const data = (await res.json().catch(() => null)) as { results?: Array<Record<string, unknown>> } | null;
+          if (data?.results && data.results.length > 0) {
+            console.log('[gmaps-drive-autopilot]', JSON.stringify(data.results));
+          }
+        })
+        .catch((error) => console.error('[gmaps-drive-autopilot]', (error as Error).message))
+        .finally(() => { gmapsDriveBusy = false; });
+    };
+    timers.push(setTimeout(triggerGmapsDriveAutopilot, 12_000), setInterval(triggerGmapsDriveAutopilot, gmapsDriveIntervalMs));
     const tiktokCarousel = new MerchantTikTokCarouselRunner(pool);
     let carouselBusy = false;
     timers.push(setInterval(() => {

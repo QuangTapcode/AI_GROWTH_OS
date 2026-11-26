@@ -229,20 +229,19 @@ export class GoogleMapsSpecialistService {
         );
         row = direct.rows[0] || null;
       } else {
-        const keywords = spotName
+        const cleanSpotTitle = spotName
           .replace(/^\[[^\]]+\]\s*/, '')
-          .split(/[\s—\-(),]+/)
-          .map((w) => w.trim())
-          .filter((w) => w.length >= 4)
-          .slice(0, 4);
-        if (keywords.length > 0) {
-          const pattern = `%${keywords[0]}%`;
+          .replace(/\([^)]*\)/g, '')
+          .split('—')[0]
+          .trim();
+        if (cleanSpotTitle.length >= 6) {
+          const pattern = `%${cleanSpotTitle}%`;
           const matched = await this.db.query(
             `SELECT id, role, operation, title, payload
              FROM content_artifacts
              WHERE workspace_id = $1::uuid
                AND operation IN ('content.generate', 'seo.local_draft', 'content.repurpose')
-               AND (title ILIKE $2::text OR payload::text ILIKE $2::text)
+               AND title ILIKE $2::text
              ORDER BY created_at DESC
              LIMIT 1`,
             [workspaceId, pattern]
@@ -375,7 +374,11 @@ export class GoogleMapsSpecialistService {
     let rows: any[] = [];
     if (options.postId) {
       const r = await this.db.query(
-        `SELECT * FROM gmaps_reputation WHERE workspace_id = $1::uuid AND id = $2::uuid LIMIT 1`,
+        `SELECT * FROM gmaps_reputation
+         WHERE workspace_id = $1::uuid
+           AND id = $2::uuid
+           AND COALESCE((metadata->>'real_bot_posted')::boolean, false) = false
+         LIMIT 1`,
         [workspaceId, options.postId]
       );
       rows = r.rows;
@@ -384,6 +387,7 @@ export class GoogleMapsSpecialistService {
         `SELECT * FROM gmaps_reputation
          WHERE workspace_id = $1::uuid
            AND item_type = 'local_post'
+           AND COALESCE((metadata->>'real_bot_posted')::boolean, false) = false
            AND (content LIKE '%Agent 2 & Agent 5%' OR content LIKE '%GoogleMapsLocalSEO%' OR metadata->>'written_by_agent' IS NULL)
          ORDER BY created_at DESC
          LIMIT 25`,
@@ -552,15 +556,6 @@ export class GoogleMapsSpecialistService {
         const mapsQuery = `${cleanLocationName}, ${regionSuffix}`;
         const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
 
-        await this.db.query(
-          `UPDATE drive_asset_queue
-           SET status = 'published',
-               suggested_channels = ARRAY['google_maps', 'facebook', 'tiktok']::text[],
-               updated_at = NOW()
-           WHERE id = $1::uuid`,
-          [asset.id]
-        );
-
         // Avoid duplicate local_post for the same asset_id or drive_file_id
         const existingPost = await this.db.query(
           `SELECT * FROM gmaps_reputation
@@ -569,6 +564,18 @@ export class GoogleMapsSpecialistService {
              AND (metadata->>'asset_id' = $2::text OR ($3::text IS NOT NULL AND metadata->>'drive_file_id' = $3::text))
            LIMIT 1`,
           [workspaceId, String(asset.id), driveFileId || null]
+        );
+
+        const isActuallyPostedOnMaps = Boolean(existingPost.rows[0]?.metadata?.real_bot_posted);
+        const targetAssetStatus = isActuallyPostedOnMaps ? 'published' : 'staged';
+
+        await this.db.query(
+          `UPDATE drive_asset_queue
+           SET status = $2::varchar,
+               suggested_channels = ARRAY['google_maps', 'facebook', 'tiktok']::text[],
+               updated_at = NOW()
+           WHERE id = $1::uuid`,
+          [asset.id, targetAssetStatus]
         );
 
         if (existingPost.rows.length > 0) {
@@ -589,7 +596,9 @@ export class GoogleMapsSpecialistService {
             maps_query: mapsQuery,
             google_maps_url: googleMapsUrl,
             seo_tags: visionTags,
-            auto_published: true,
+            auto_published: false,
+            published_to_maps: false,
+            real_bot_posted: false,
             written_by_agent: composed.writtenByAgent,
             source_artifact_id: composed.sourceArtifactId || null,
             source_artifact_title: composed.sourceArtifactTitle || null,
@@ -684,9 +693,12 @@ export class GoogleMapsSpecialistService {
     const googleMapsUrl =
       extraMeta?.google_maps_url ||
       `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
+    const isPosted = Boolean(extraMeta?.real_bot_posted);
+    const rowStatus: 'pending' | 'replied' = isPosted ? 'replied' : 'pending';
     const metadata = {
       image_url: imageUrl,
-      published_to_maps: true,
+      published_to_maps: isPosted,
+      real_bot_posted: isPosted,
       spot_name: cleanSpot,
       maps_query: mapsQuery,
       google_maps_url: googleMapsUrl,
@@ -698,9 +710,9 @@ export class GoogleMapsSpecialistService {
         `INSERT INTO gmaps_reputation (
           workspace_id, item_type, author_name, rating, content, status, metadata
         ) VALUES (
-          $1::uuid, 'local_post', 'TripC — Google Business Profile', 5, $2::text, 'replied', $3::jsonb
+          $1::uuid, 'local_post', 'TripC — Google Business Profile', 5, $2::text, $3::varchar, $4::jsonb
         ) RETURNING *`,
-        [workspaceId, content, JSON.stringify(metadata)]
+        [workspaceId, content, rowStatus, JSON.stringify(metadata)]
       );
 
       return this.mapItemRow(res.rows[0]);
@@ -713,7 +725,7 @@ export class GoogleMapsSpecialistService {
         rating: 5,
         content,
         seo_keywords: extraMeta?.seo_tags || ['Du lịch trải nghiệm Đà Nẵng', 'Bán đảo Sơn Trà', 'Biển Mỹ Khê'],
-        status: 'replied',
+        status: rowStatus,
         created_at: new Date().toISOString(),
         metadata,
       };
@@ -790,8 +802,7 @@ export class GoogleMapsSpecialistService {
     try {
       await this.db.query(
         `UPDATE drive_asset_queue
-         SET status = 'published',
-             suggested_channels = array_append(COALESCE(suggested_channels, ARRAY[]::text[]), 'google_maps'),
+         SET suggested_channels = array_append(COALESCE(suggested_channels, ARRAY[]::text[]), 'google_maps'),
              updated_at = NOW()
          WHERE id = $1::uuid`,
         [assetId]
