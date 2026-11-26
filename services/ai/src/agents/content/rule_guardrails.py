@@ -540,8 +540,8 @@ def check_unsupported_claims(
 # 4. CHANNELS, URL WHITELIST, SENTENCE MAP & TENANT FORBIDDEN TERMS
 # ==============================================================================
 
-SYSTEM_SUPPORTED_CHANNELS = frozenset({"facebook", "tiktok"})
-DEFAULT_ALLOWED_DOMAINS = frozenset({"tripc.vn", "m.me", "cdn.tripc.vn"})
+SYSTEM_SUPPORTED_CHANNELS = frozenset({"facebook", "tiktok", "facebook_group"})
+DEFAULT_ALLOWED_DOMAINS = frozenset({"tripc.vn", "m.me", "cdn.tripc.vn", "facebook.com"})
 
 
 def check_channels(

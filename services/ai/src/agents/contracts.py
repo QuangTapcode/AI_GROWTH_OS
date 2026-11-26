@@ -37,7 +37,7 @@ class DraftResult(BaseModel):
     context_snapshot_id: UUID
     profile_version: int
     version: int
-    status: Literal["draft", "needs_assets", "insufficient_data"]
+    status: Literal["draft", "needs_assets", "insufficient_data", "image_pending"]
     missing_facts: list[str] = Field(default_factory=list)
     input_artifact_refs: list[RunArtifact] = Field(default_factory=list)
     requires_human_approval: Literal[True] = True

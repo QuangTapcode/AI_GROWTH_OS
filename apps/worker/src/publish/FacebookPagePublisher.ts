@@ -57,6 +57,15 @@ export class FacebookPagePublisher implements CmsPublisher {
   }
 
   async publish(req: CmsPublishRequest): Promise<CmsPublishResult & { manualPack?: ManualPack }> {
+    // Nếu bài viết yêu cầu ảnh nhưng không có mediaUrl -> Dừng ngay, không đăng bài hỏng
+    if ((req.requiresImage || req.imageContentHash) && !req.mediaUrl) {
+      return {
+        success: false,
+        errorCode: 'MISSING_MEDIA_ASSET',
+        errorMessage: 'Bài viết yêu cầu hình ảnh nhưng thiếu file ảnh hợp lệ từ media_assets theo content_hash đã duyệt. Dừng xuất bản để tránh đăng bài hỏng.',
+      };
+    }
+
     const text = toPlainText(req.bodyMarkdown);
     let message = text;
     if (!message && !req.mediaUrl) {
@@ -113,30 +122,39 @@ export class FacebookPagePublisher implements CmsPublisher {
           payload?.error?.code === 10 || // Application does not have permission
           String(payload?.error?.message).toLowerCase().includes('permission');
 
-        // Facebook could not read the image (324 invalid file, 100 bad url): the text still goes out, without
-        // the label for an image it no longer has. Any other failure may be temporary, and a second post
-        // here could duplicate one that did go through, so it is left to the retry.
+        // Facebook could not read the image (324 invalid file, 100 bad url):
+        // Nếu bài viết KHÔNG bắt buộc ảnh thì có thể cho text đi qua. Nhưng nếu bài viết yêu cầu ảnh (đã duyệt có ảnh),
+        // thì KHÔNG được tự ý đăng bài thiếu ảnh (không đăng bài hỏng).
         const imageUnreadable = hasImage && !isPermissionDenied && (payload?.error?.code === 324 || payload?.error?.code === 100);
-        if (imageUnreadable && text) {
-          const feedBody = new URLSearchParams();
-          feedBody.set('access_token', this.accessToken);
-          feedBody.set('message', text);
-          if (link) feedBody.set('link', link);
-          const feedRes = await fetch(this.endpoint('feed'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: feedBody,
-            signal: AbortSignal.timeout(Number(process.env.SOCIAL_REQUEST_TIMEOUT_MS || 10000)),
-          });
-          const feedPayload = await readJson(feedRes);
-          if (feedRes.ok && (typeof feedPayload?.id === 'string' || typeof feedPayload?.post_id === 'string')) {
-            const fallbackId = (feedPayload.id || feedPayload.post_id) as string;
+        if (imageUnreadable) {
+          if (req.requiresImage || req.imageContentHash) {
             return {
-              success: true,
-              externalPostId: fallbackId,
-              publishedUrl: `https://www.facebook.com/${fallbackId}`,
-              publishedAt: new Date(),
+              success: false,
+              errorCode: 'MISSING_MEDIA_ASSET',
+              errorMessage: `Facebook không thể tải ảnh từ media_assets (${payload?.error?.message || 'invalid file/url'}). Dừng xuất bản để tránh đăng bài hỏng.`,
             };
+          }
+          if (text) {
+            const feedBody = new URLSearchParams();
+            feedBody.set('access_token', this.accessToken);
+            feedBody.set('message', text);
+            if (link) feedBody.set('link', link);
+            const feedRes = await fetch(this.endpoint('feed'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: feedBody,
+              signal: AbortSignal.timeout(Number(process.env.SOCIAL_REQUEST_TIMEOUT_MS || 10000)),
+            });
+            const feedPayload = await readJson(feedRes);
+            if (feedRes.ok && (typeof feedPayload?.id === 'string' || typeof feedPayload?.post_id === 'string')) {
+              const fallbackId = (feedPayload.id || feedPayload.post_id) as string;
+              return {
+                success: true,
+                externalPostId: fallbackId,
+                publishedUrl: `https://www.facebook.com/${fallbackId}`,
+                publishedAt: new Date(),
+              };
+            }
           }
         }
 
@@ -151,6 +169,11 @@ export class FacebookPagePublisher implements CmsPublisher {
               mediaUrl: req.mediaUrl,
               mediaType: req.mediaType,
               isAiGenerated,
+              imageContentHash: req.imageContentHash,
+              storageKey: req.storageKey,
+              imageFileName: req.imageFileName,
+              imageFileContent: req.imageFileContent,
+              requiresImage: req.requiresImage,
             },
             'Facebook'
           );

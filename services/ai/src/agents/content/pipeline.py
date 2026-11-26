@@ -168,11 +168,28 @@ async def generated_image(ctx, p, suggestion, alt_text):
     if not blocker and ctx.seconds_left() < IMAGE_SECONDS_NEEDED:
         blocker = "NOT_ENOUGH_TIME"
     if blocker:
+        if suggestion:
+            suggestion.status = "needs_assets"
         return None, [f"AI_IMAGE_SKIPPED:{blocker}"]
     request = image_request(suggestion.prompt, suggestion.negative_prompt, suggestion.aspect_ratio, alt_text, ctx.job.workspace_id)
+    article_id = None
+    if p and getattr(p, "source_article", None):
+        res = getattr(p.source_article, "result", None)
+        if isinstance(res, dict):
+            article_id = res.get("article_id")
+    post_id = getattr(ctx.job, "job_id", None) if getattr(ctx, "job", None) else None
+
     try:
-        outcome = await asyncio.wait_for(asyncio.to_thread(pipeline.generate_guarded_image, request, ctx.job.workspace_id),
-                                         timeout=ctx.seconds_left() - IMAGE_SECONDS_MARGIN)
+        outcome = await asyncio.wait_for(
+            asyncio.to_thread(
+                pipeline.generate_guarded_image,
+                request,
+                ctx.job.workspace_id,
+                article_id=article_id,
+                post_id=post_id,
+            ),
+            timeout=ctx.seconds_left() - IMAGE_SECONDS_MARGIN,
+        )
     except ImageProviderError as error:
         return None, [f"AI_IMAGE_SKIPPED:{error.code}"]
     except asyncio.TimeoutError:
@@ -181,6 +198,10 @@ async def generated_image(ctx, p, suggestion, alt_text):
         # Whatever an outside service answers, the post is already written and must survive it.
         ctx.logger.exception("AI image pipeline failed")
         return None, ["AI_IMAGE_SKIPPED:IMAGE_PIPELINE_ERROR"]
+    if outcome.status == "image_pending":
+        if suggestion:
+            suggestion.status = "image_pending"
+        return None, [f"AI_IMAGE_SUBMITTED:{outcome.job_id}"]
     if outcome.status != "approved":
         return None, [f"AI_IMAGE_REJECTED:{outcome.attempts_made}"]
     stored, metadata = outcome.result, outcome.result.ai_metadata
@@ -271,7 +292,14 @@ async def run_content(ctx):
     fields = result_fields(ctx, [p.source_article])
     fields['strategy_alignment'] = article.get('strategy_alignment')
     fields["synthetic"] = fields["synthetic"] or any(a.synthetic for a in assets)
-    result = SocialPack(**fields, status="needs_assets" if (not assets and requires_media) else "insufficient_data" if article.get("missing_facts") else "draft",
+    is_image_pending = (suggestion is not None and getattr(suggestion, "status", None) == "image_pending")
+    status = (
+        "image_pending" if is_image_pending
+        else "needs_assets" if (not assets and requires_media)
+        else "insufficient_data" if article.get("missing_facts")
+        else "draft"
+    )
+    result = SocialPack(**fields, status=status,
         missing_facts=sorted(set(missing)), pack_id=stable_id(ctx, "social"), parent_content_id=article["article_id"],
         parent_version=p.source_article.artifact.version, caption=draft.caption, cta=p.cta,
         channels=channels, facebook=facebook, image_assets=assets, alt_text=draft.alt_text, citations=p.source_article.evidence,

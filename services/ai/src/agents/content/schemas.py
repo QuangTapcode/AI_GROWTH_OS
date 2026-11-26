@@ -122,6 +122,7 @@ class SocialPack(DraftResult):
     tiktok: TikTokScript | None = None
     image_suggestion: ImageSuggestion | None = None
     generated_image: GeneratedImage | None = None
+    image_job_id: str | None = None
 
 
 # Re-export v2 models for CM-01
@@ -215,8 +216,12 @@ from .rule_guardrails import (
 # Re-export CM-10 (Image Prompt Generator)
 from .img_prompt_gen import (
     ASPECT_RATIO_DIMENSIONS,
+    JUGGERNAUT_NEGATIVE_TOKENS,
+    JUGGERNAUT_POSITIVE_TRIGGERS,
     MANDATORY_NEGATIVE_PROMPT,
     ImagePromptResult,
+    deduplicate_clauses,
+    estimate_clip_tokens,
     extract_abstract_concepts,
     generate_image_prompt,
 )
@@ -228,23 +233,33 @@ from .image_client import (
     FakeImageProvider,
     FakeStorageClient,
     FluxImageProvider,
+    GpuWorkerImageProvider,
     ImageClient,
     ImageGenerationRequest,
     ImageGenerationResult,
     ImageProviderError,
+    LocalStorageClient,
     ProviderImageOutput,
     R2StorageClient,
+    create_image_provider,
+    create_storage_client,
+    get_image_provider,
+    get_storage_client,
 )
 
 # Re-export CM-12 (Image Guardrail: OCR & Safety)
 from .image_guardrail import (
     BaseOcrEngine,
+    FABRICATED_PRICE_PATTERNS,
+    FABRICATED_PRICE_REGEX,
     GuardedImageOutcome,
     GuardedImagePipeline,
     ImageGuardrail,
     ImageGuardrailReport,
     MockOcrEngine,
+    OcrUnavailableError,
     TesseractOcrEngine,
+    reinforce_negative_prompt_compel,
 )
 
 # Re-export CM-14 (Independent Calibrated LLM Judge)

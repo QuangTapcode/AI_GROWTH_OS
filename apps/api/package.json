@@ -20,9 +20,13 @@
     "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.ts",
     "db:seed-context": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed-demo-knowledge.ts",
     "db:demo-accounts": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/list-demo-accounts.ts",
-    "user:set-password": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/set-password.ts"
+    "user:set-password": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/set-password.ts",
+    "worker:create": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/create-gpu-worker.ts",
+    "worker:revoke": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/revoke-gpu-worker.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1167.0",
+    "@aws-sdk/s3-request-presigner": "^3.1167.0",
     "next": "^14.2.15",
     "pg": "^8.23.1",
     "pgvector": "^0.2.0",
@@ -38,6 +42,7 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/uuid": "^10.0.0",
+    "aws-sdk-client-mock": "^4.1.0",
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.15",
     "tsx": "^4.23.15",

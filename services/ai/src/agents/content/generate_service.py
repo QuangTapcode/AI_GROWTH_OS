@@ -148,10 +148,10 @@ def validate_content_generate(job: JobRequest, p: Any, settings: Settings) -> li
             problems += evidence_problems(job, p.snapshot, p.source_article.evidence)
 
     # Kiểm tra kênh phân phối
-    target_channels = getattr(p, "target_channels", ["facebook", "tiktok"])
+    target_channels = getattr(p, "target_channels", ["facebook_group"])
     for ch in target_channels:
-        if ch not in ("facebook", "tiktok"):
-            problems.append(("INVALID_CHANNELS", f"Kênh '{ch}' không được hỗ trợ. Chỉ chấp nhận facebook hoặc tiktok."))
+        if ch not in ("facebook", "tiktok", "facebook_group"):
+            problems.append(("INVALID_CHANNELS", f"Kênh '{ch}' không được hỗ trợ. Chỉ chấp nhận facebook, tiktok hoặc facebook_group."))
 
     # Kiểm tra tenant assets
     assets = getattr(p, "assets", [])
@@ -249,9 +249,9 @@ async def run_content_generate(ctx: RunContext) -> OperationOutcome:
     t_step_llm = time.perf_counter()
 
     # Kênh được chọn
-    channels: list[ChannelType] = [ch for ch in target_channels if ch in ("facebook", "tiktok")]
+    channels: list[ChannelType] = [ch for ch in target_channels if ch in ("facebook", "tiktok", "facebook_group")]
     if not channels:
-        channels = ["facebook", "tiktok"]
+        channels = ["facebook_group"]
 
     # CTA lấy nguyên văn từ request hoặc profile
     verbatim_cta = str(getattr(p, "cta", "")).strip()

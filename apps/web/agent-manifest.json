@@ -1,0 +1,369 @@
+{
+  "pack": "AI Growth OS – 8 Agent Character GLB Pack",
+  "version": "1.0.0",
+  "coordinateSystem": {
+    "up": "+Y",
+    "forward": "+Z",
+    "units": "meters",
+    "approximateHeight": 1.82
+  },
+  "models": [
+    {
+      "agentId": "growth_lead",
+      "name": "Growth Lead",
+      "backendRole": "research",
+      "file": "growth-lead.glb",
+      "animations": [
+        "Idle",
+        "Typing",
+        "Walk",
+        "Thinking",
+        "Talking",
+        "Success",
+        "SitDown"
+      ],
+      "morphTargets": [
+        "smile",
+        "blinkLeft",
+        "blinkRight",
+        "focused",
+        "surprised",
+        "jawOpen"
+      ],
+      "bones": [
+        "Hips",
+        "Spine",
+        "Chest",
+        "Neck",
+        "Head",
+        "UpperArm_L",
+        "LowerArm_L",
+        "Hand_L",
+        "UpperArm_R",
+        "LowerArm_R",
+        "Hand_R",
+        "UpperLeg_L",
+        "LowerLeg_L",
+        "Foot_L",
+        "UpperLeg_R",
+        "LowerLeg_R",
+        "Foot_R"
+      ],
+      "style": "semi-realistic stylized professional humanoid"
+    },
+    {
+      "agentId": "drive_ingest",
+      "name": "Drive Asset Manager",
+      "backendRole": "growth_lead",
+      "file": "drive-asset-manager.glb",
+      "animations": [
+        "Idle",
+        "Typing",
+        "Walk",
+        "Thinking",
+        "Talking",
+        "Success",
+        "SitDown"
+      ],
+      "morphTargets": [
+        "smile",
+        "blinkLeft",
+        "blinkRight",
+        "focused",
+        "surprised",
+        "jawOpen"
+      ],
+      "bones": [
+        "Hips",
+        "Spine",
+        "Chest",
+        "Neck",
+        "Head",
+        "UpperArm_L",
+        "LowerArm_L",
+        "Hand_L",
+        "UpperArm_R",
+        "LowerArm_R",
+        "Hand_R",
+        "UpperLeg_L",
+        "LowerLeg_L",
+        "Foot_L",
+        "UpperLeg_R",
+        "LowerLeg_R",
+        "Foot_R"
+      ],
+      "style": "semi-realistic stylized professional humanoid"
+    },
+    {
+      "agentId": "content_planner",
+      "name": "Content Planner & SEO",
+      "backendRole": "seo",
+      "file": "content-planner-seo.glb",
+      "animations": [
+        "Idle",
+        "Typing",
+        "Walk",
+        "Thinking",
+        "Talking",
+        "Success",
+        "SitDown"
+      ],
+      "morphTargets": [
+        "smile",
+        "blinkLeft",
+        "blinkRight",
+        "focused",
+        "surprised",
+        "jawOpen"
+      ],
+      "bones": [
+        "Hips",
+        "Spine",
+        "Chest",
+        "Neck",
+        "Head",
+        "UpperArm_L",
+        "LowerArm_L",
+        "Hand_L",
+        "UpperArm_R",
+        "LowerArm_R",
+        "Hand_R",
+        "UpperLeg_L",
+        "LowerLeg_L",
+        "Foot_L",
+        "UpperLeg_R",
+        "LowerLeg_R",
+        "Foot_R"
+      ],
+      "style": "semi-realistic stylized professional humanoid"
+    },
+    {
+      "agentId": "multi_publisher",
+      "name": "Multi-Channel Publisher",
+      "backendRole": "content",
+      "file": "multi-channel-publisher.glb",
+      "animations": [
+        "Idle",
+        "Typing",
+        "Walk",
+        "Thinking",
+        "Talking",
+        "Success",
+        "SitDown"
+      ],
+      "morphTargets": [
+        "smile",
+        "blinkLeft",
+        "blinkRight",
+        "focused",
+        "surprised",
+        "jawOpen"
+      ],
+      "bones": [
+        "Hips",
+        "Spine",
+        "Chest",
+        "Neck",
+        "Head",
+        "UpperArm_L",
+        "LowerArm_L",
+        "Hand_L",
+        "UpperArm_R",
+        "LowerArm_R",
+        "Hand_R",
+        "UpperLeg_L",
+        "LowerLeg_L",
+        "Foot_L",
+        "UpperLeg_R",
+        "LowerLeg_R",
+        "Foot_R"
+      ],
+      "style": "semi-realistic stylized professional humanoid"
+    },
+    {
+      "agentId": "gmaps_specialist",
+      "name": "Google Maps Specialist",
+      "backendRole": "growth_lead",
+      "file": "google-maps-specialist.glb",
+      "animations": [
+        "Idle",
+        "Typing",
+        "Walk",
+        "Thinking",
+        "Talking",
+        "Success",
+        "SitDown"
+      ],
+      "morphTargets": [
+        "smile",
+        "blinkLeft",
+        "blinkRight",
+        "focused",
+        "surprised",
+        "jawOpen"
+      ],
+      "bones": [
+        "Hips",
+        "Spine",
+        "Chest",
+        "Neck",
+        "Head",
+        "UpperArm_L",
+        "LowerArm_L",
+        "Hand_L",
+        "UpperArm_R",
+        "LowerArm_R",
+        "Hand_R",
+        "UpperLeg_L",
+        "LowerLeg_L",
+        "Foot_L",
+        "UpperLeg_R",
+        "LowerLeg_R",
+        "Foot_R"
+      ],
+      "style": "semi-realistic stylized professional humanoid"
+    },
+    {
+      "agentId": "comment_reply",
+      "name": "Social Comment Reply",
+      "backendRole": "community",
+      "file": "social-comment-reply.glb",
+      "animations": [
+        "Idle",
+        "Typing",
+        "Walk",
+        "Thinking",
+        "Talking",
+        "Success",
+        "SitDown"
+      ],
+      "morphTargets": [
+        "smile",
+        "blinkLeft",
+        "blinkRight",
+        "focused",
+        "surprised",
+        "jawOpen"
+      ],
+      "bones": [
+        "Hips",
+        "Spine",
+        "Chest",
+        "Neck",
+        "Head",
+        "UpperArm_L",
+        "LowerArm_L",
+        "Hand_L",
+        "UpperArm_R",
+        "LowerArm_R",
+        "Hand_R",
+        "UpperLeg_L",
+        "LowerLeg_L",
+        "Foot_L",
+        "UpperLeg_R",
+        "LowerLeg_R",
+        "Foot_R"
+      ],
+      "style": "semi-realistic stylized professional humanoid"
+    },
+    {
+      "agentId": "inbox_concierge",
+      "name": "Omnichannel Inbox Concierge",
+      "backendRole": "community",
+      "file": "omnichannel-inbox-concierge.glb",
+      "animations": [
+        "Idle",
+        "Typing",
+        "Walk",
+        "Thinking",
+        "Talking",
+        "Success",
+        "SitDown"
+      ],
+      "morphTargets": [
+        "smile",
+        "blinkLeft",
+        "blinkRight",
+        "focused",
+        "surprised",
+        "jawOpen"
+      ],
+      "bones": [
+        "Hips",
+        "Spine",
+        "Chest",
+        "Neck",
+        "Head",
+        "UpperArm_L",
+        "LowerArm_L",
+        "Hand_L",
+        "UpperArm_R",
+        "LowerArm_R",
+        "Hand_R",
+        "UpperLeg_L",
+        "LowerLeg_L",
+        "Foot_L",
+        "UpperLeg_R",
+        "LowerLeg_R",
+        "Foot_R"
+      ],
+      "style": "semi-realistic stylized professional humanoid"
+    },
+    {
+      "agentId": "community_growth",
+      "name": "Community Growth",
+      "backendRole": "performance",
+      "file": "community-growth.glb",
+      "animations": [
+        "Idle",
+        "Typing",
+        "Walk",
+        "Thinking",
+        "Talking",
+        "Success",
+        "SitDown"
+      ],
+      "morphTargets": [
+        "smile",
+        "blinkLeft",
+        "blinkRight",
+        "focused",
+        "surprised",
+        "jawOpen"
+      ],
+      "bones": [
+        "Hips",
+        "Spine",
+        "Chest",
+        "Neck",
+        "Head",
+        "UpperArm_L",
+        "LowerArm_L",
+        "Hand_L",
+        "UpperArm_R",
+        "LowerArm_R",
+        "Hand_R",
+        "UpperLeg_L",
+        "LowerLeg_L",
+        "Foot_L",
+        "UpperLeg_R",
+        "LowerLeg_R",
+        "Foot_R"
+      ],
+      "style": "semi-realistic stylized professional humanoid"
+    }
+  ],
+  "integration": {
+    "directory": "public/models/agents/",
+    "loader": "GLTFLoader / useGLTF",
+    "animation": "THREE.AnimationMixer",
+    "facialExpressions": "mesh.morphTargetDictionary / mesh.morphTargetInfluences",
+    "defaultScale": 1.0,
+    "note": "Verify current AgentGlbLoader scale/orientation and animation naming before integration."
+  },
+  "limitations": [
+    "These are original procedural semi-realistic stylized humanoids, not photogrammetry scans or hand-sculpted ZBrush assets.",
+    "Facial morph targets are foundational procedural expressions; close-up photoreal facial deformation requires artist-authored facial topology and corrective shapes.",
+    "The bundled animation clips are generic base motions and should be retargeted/refined for the actual workstation layout."
+  ]
+}

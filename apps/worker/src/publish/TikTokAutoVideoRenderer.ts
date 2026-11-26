@@ -57,7 +57,15 @@ export async function ensureAutoTikTokVideo(
   }
 
   fs.mkdirSync(outDir, { recursive: true });
-  const pythonExe = options?.pythonExecutable ?? (process.env.PYTHON_BIN?.trim() || 'python');
+  const venvPythonWin = path.resolve(__dirname, '../../../../services/ai/.venv/Scripts/python.exe');
+  const venvPythonUnix = path.resolve(__dirname, '../../../../services/ai/.venv/bin/python');
+  const defaultPython =
+    fs.existsSync(venvPythonWin)
+      ? venvPythonWin
+      : fs.existsSync(venvPythonUnix)
+      ? venvPythonUnix
+      : 'python';
+  const pythonExe = options?.pythonExecutable ?? (process.env.PYTHON_BIN?.trim() || defaultPython);
   const scriptPath = options?.scriptPath ?? path.resolve(__dirname, 'render_tiktok_video.py');
   const payload = JSON.stringify({
     output_path: outPath,

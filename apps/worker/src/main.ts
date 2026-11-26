@@ -31,6 +31,8 @@ import { PublishingOutboxRunner } from './publish/PublishingOutboxRunner';
 import { TelegramBotRunner } from './publish/TelegramBotRunner';
 import { SourceIngestRunner } from './workflow/SourceIngestRunner';
 import { MerchantTikTokCarouselRunner } from './publish/MerchantTikTokCarouselRunner';
+import { GpuRecoveryScanner } from './recovery/GpuRecoveryScanner';
+
 
 /** Workflow DB store (MY-03) — khởi tạo ở worker start để verify kết nối Postgres. */
 let workflowStore: DbWorkflowStore | null = null;
@@ -139,7 +141,35 @@ async function main(): Promise<void> {
       .finally(() => { carouselRunning = false; });
   }, 15_000);
   carouselTimer.unref();
+
+  // GPU Worker reverse-connection recovery scanner (Prompt 10)
+  const gpuRecovery = new GpuRecoveryScanner(planPool);
+  let gpuRecoveryRunning = false;
+  const runGpuRecovery = () => {
+    if (gpuRecoveryRunning) return;
+    gpuRecoveryRunning = true;
+    void gpuRecovery.runOnce()
+      .then((result) => {
+        const total =
+          result.requeuedLeases.length +
+          result.failedPoisonJobs.length +
+          result.offlineWorkers.length +
+          result.rejectedTtlJobs.length +
+          result.maxAgeExceededJobs.length;
+        if (total > 0) {
+          console.log(
+            `[gpu-recovery] scanned: requeued=${result.requeuedLeases.length} poison_failed=${result.failedPoisonJobs.length} offline_workers=${result.offlineWorkers.length} ttl_rejected=${result.rejectedTtlJobs.length} max_age=${result.maxAgeExceededJobs.length}`
+          );
+        }
+      })
+      .catch((error) => console.error('[gpu-recovery]', (error as Error).message))
+      .finally(() => { gpuRecoveryRunning = false; });
+  };
+  const gpuRecoveryTimer = setInterval(runGpuRecovery, 30_000);
+  gpuRecoveryTimer.unref();
+
   const telegramBot = new TelegramBotRunner(planPool, {
+
     onMessageIngested: triggerAutomationTick,
   });
   telegramBot.start();
@@ -170,6 +200,7 @@ async function main(): Promise<void> {
   const handlers = buildOperationHandlers();
   const queueNames = Object.values(QueueJobs);
   for (const name of queueNames) {
+    if (name === QueueJobs.GPU_RECOVERY) continue;
     await queue.register(name, async (data) => {
       const jobId = typeof data.job_id === 'string' ? data.job_id : null;
       if (!jobId) throw new Error('MISSING_JOB_ID');
@@ -185,6 +216,12 @@ async function main(): Promise<void> {
       }
     });
   }
+
+  // Register pg-boss job for GPU recovery scanner
+  await queue.register(QueueJobs.GPU_RECOVERY, async () => {
+    await gpuRecovery.runOnce();
+  });
+
 
   // Recovery sweep: job của worker bị kill giữa chừng → requeue
   const sweep = setInterval(() => {
@@ -211,6 +248,7 @@ async function main(): Promise<void> {
     clearInterval(planTimer);
     clearInterval(publishingTimer);
     clearInterval(automationTimer);
+    clearInterval(gpuRecoveryTimer);
     console.log(`[worker] ${signal} received, stopping queue...`);
     await queue.stop();
     await planPool.end();
@@ -226,6 +264,8 @@ async function main(): Promise<void> {
 
 export { submitJob } from './jobs';
 export { workflowStore };
+export { GpuRecoveryScanner } from './recovery/GpuRecoveryScanner';
+
 
 if (require.main === module) {
   main().catch((err) => {

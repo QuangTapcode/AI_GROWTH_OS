@@ -52,6 +52,7 @@ from .social_pack_v2 import (
 )
 from .tenant_guard import TenantAccessForbiddenError, TenantGuard
 from .tiktok_repurposer import TikTokRepurposer
+from .fb_group_debate import GroupDiscussionRepurposer
 
 logger = logging.getLogger(__name__)
 
@@ -124,10 +125,10 @@ def route_repurpose(
 ) -> SocialPackV2:
     """Hàm định tuyến độc lập cốt lõi cho content.repurpose."""
     normalized_channel = str(target_channel).strip().lower()
-    if normalized_channel not in ("facebook", "tiktok"):
+    if normalized_channel not in ("facebook", "tiktok", "facebook_group"):
         raise OperationError(
             "UNSUPPORTED_TARGET_CHANNEL",
-            f"Kênh '{target_channel}' không được hỗ trợ. Chỉ hỗ trợ 'facebook' hoặc 'tiktok'."
+            f"Kênh '{target_channel}' không được hỗ trợ. Chỉ hỗ trợ 'facebook', 'tiktok' hoặc 'facebook_group'."
         )
 
     # Trích xuất facts từ bài SEO nếu chưa có sẵn
@@ -157,8 +158,46 @@ def route_repurpose(
             image_assets=image_assets,
             citations=citations,
             is_real_product=is_real_product,
-            version=current_version,
+            current_version=current_version,
         )
+    elif normalized_channel == "facebook_group":
+        format_style = source_article.get("format_style", "standard_post")
+        if format_style in ("debate_discussion", "group_debate"):
+            grp_debater = GroupDiscussionRepurposer()
+            return grp_debater.repurpose(
+                workspace_id=workspace_id,
+                parent_content_id=parent_content_id,
+                parent_version=parent_version,
+                title=article_title,
+                facts=facts,
+                verbatim_cta=verbatim_cta,
+                cta_object=cta_obj,
+                brand_voice=brand_voice,
+                image_assets=image_assets,
+                citations=citations,
+                is_real_product=is_real_product,
+                current_version=current_version,
+            )
+        else:
+            fb_repurposer = FacebookRepurposer()
+            pack = fb_repurposer.repurpose(
+                workspace_id=workspace_id,
+                parent_content_id=parent_content_id,
+                parent_version=parent_version,
+                title=article_title,
+                facts=facts,
+                verbatim_cta=verbatim_cta,
+                cta_object=cta_obj,
+                brand_voice=brand_voice,
+                image_assets=image_assets,
+                citations=citations,
+                is_real_product=is_real_product,
+                current_version=current_version,
+            )
+            pack.channels = ["facebook_group"]
+            pack.group_post_format = "case_study"
+            pack.content_hash = compute_content_hash(pack)
+            return pack
     elif normalized_channel == "tiktok":
         tt_repurposer = TikTokRepurposer()
         return tt_repurposer.repurpose(
@@ -173,7 +212,7 @@ def route_repurpose(
             image_assets=image_assets,
             citations=citations,
             is_real_product=is_real_product,
-            version=current_version,
+            current_version=current_version,
         )
     else:
         raise OperationError("UNSUPPORTED_TARGET_CHANNEL", f"Kênh '{target_channel}' không hợp lệ.")
@@ -191,8 +230,8 @@ def validate_content_repurpose(job: JobRequest, p: Any, settings: Settings) -> l
 
     # Xác thực kênh mục tiêu
     channel = getattr(p, "target_channel", None)
-    if channel and channel not in ("facebook", "tiktok"):
-        problems.append(("UNSUPPORTED_TARGET_CHANNEL", f"Kênh '{channel}' không được hỗ trợ."))
+    if channel and channel not in ("facebook", "tiktok", "facebook_group"):
+        problems.append(("UNSUPPORTED_TARGET_CHANNEL", f"Kênh '{channel}' không được hỗ trợ. Chỉ hỗ trợ facebook, tiktok hoặc facebook_group."))
 
     # Xác thực cách ly tài sản tenant
     assets = getattr(p, "assets", [])
@@ -230,10 +269,10 @@ async def run_content_repurpose(ctx: RunContext) -> OperationOutcome:
         channels_list = getattr(p, "target_channels", ["facebook"])
         target_channel = channels_list[0] if channels_list else "facebook"
 
-    if target_channel not in ("facebook", "tiktok"):
+    if target_channel not in ("facebook", "tiktok", "facebook_group"):
         raise OperationError(
             "UNSUPPORTED_TARGET_CHANNEL",
-            f"Kênh '{target_channel}' không được hỗ trợ. Chỉ hỗ trợ 'facebook' hoặc 'tiktok'."
+            f"Kênh '{target_channel}' không được hỗ trợ. Chỉ hỗ trợ 'facebook', 'tiktok' hoặc 'facebook_group'."
         )
 
     # Validate cấu trúc đầu vào theo tiêu chuẩn SEO consumer

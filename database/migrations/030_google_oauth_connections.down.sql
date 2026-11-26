@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS google_oauth_connections;
+DROP TABLE IF EXISTS google_oauth_connections CASCADE;

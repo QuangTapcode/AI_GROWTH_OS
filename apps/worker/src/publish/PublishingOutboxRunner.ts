@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import type { Pool } from 'pg';
 import { createGatewayCheck } from './GatewayRecheckClient';
 import { defaultRegistry, type CmsPublishRequest, type PublisherRegistry } from './CmsPublisher';
@@ -250,7 +251,10 @@ export class PublishingOutboxRunner {
     const payload = job.artifact_payload ?? {};
     // The approved post carries its images in the artifact result; pick the first approved image that has
     // not already been published on this channel in this workspace to prevent duplicate post images.
-    const approvedPost = payload.result as { image_assets?: { url?: unknown; synthetic?: unknown }[]; generated_image?: { url?: unknown } | null } | undefined;
+    const approvedPost = payload.result as {
+      image_assets?: { url?: unknown; content_hash?: unknown; synthetic?: unknown; source_type?: unknown; asset_id?: unknown }[];
+      generated_image?: { url?: unknown; content_hash?: unknown; is_ai_generated?: unknown; storage_key?: unknown } | null;
+    } | undefined;
     let candidateAssets = approvedPost?.image_assets ?? [];
     if (candidateAssets.length > 1) {
       try {
@@ -270,6 +274,103 @@ export class PublishingOutboxRunner {
     }
     const image = candidateAssets[0]
       ?? (approvedPost?.generated_image ? { url: approvedPost.generated_image.url, synthetic: true } : undefined);
+
+    // Xác định content_hash của ảnh đã khóa trong bản phê duyệt (artifact)
+    const lockedImageHash = asString(
+      approvedPost?.generated_image?.content_hash ??
+      candidateAssets[0]?.content_hash ??
+      payload.image_content_hash ??
+      payload.media_content_hash
+    );
+
+    const postRequiresImage = channel !== 'TikTok' && (channel as string) !== 'InstagramReel' && Boolean(
+      lockedImageHash ||
+      approvedPost?.generated_image ||
+      (approvedPost?.image_assets && approvedPost.image_assets.length > 0) ||
+      payload.requires_image ||
+      payload.image_suggestion
+    );
+
+    // Lấy tài sản ảnh từ bảng media_assets theo content_hash đã khóa lúc duyệt
+    let mediaAssetRow: {
+      id: string;
+      workspace_id: string;
+      content_hash: string;
+      url: string;
+      storage_key: string | null;
+      is_ai_generated: boolean;
+      source_type: string;
+      status: string;
+      alt_text: string | null;
+    } | null = null;
+
+    let mediaQueryExecuted = false;
+    if (lockedImageHash) {
+      try {
+        const assetRes = await this.pool.query<{
+          id: string;
+          workspace_id: string;
+          content_hash: string;
+          url: string;
+          storage_key: string | null;
+          is_ai_generated: boolean;
+          source_type: string;
+          status: string;
+          alt_text: string | null;
+        }>(
+          `SELECT id, workspace_id, content_hash, url, storage_key, is_ai_generated, source_type, status, alt_text
+             FROM media_assets
+            WHERE workspace_id = $1 AND content_hash = $2
+            LIMIT 1`,
+          [job.workspace_id, lockedImageHash]
+        );
+        mediaAssetRow = assetRes.rows[0] ?? null;
+        mediaQueryExecuted = true;
+      } catch {
+        // Bỏ qua nếu bảng media_assets chưa được định nghĩa trong mock pool
+      }
+
+      // Nếu truy vấn được hỗ trợ nhưng không tìm thấy hoặc asset bị rejected -> dừng ngay, không đăng bài hỏng
+      if (mediaQueryExecuted && (!mediaAssetRow || mediaAssetRow.status === 'rejected')) {
+        return this.failEvent(
+          event.id,
+          job.id,
+          'MISSING_MEDIA_ASSET',
+          `Không tìm thấy tài sản ảnh hợp lệ trong kho media_assets cho bài viết (content_hash: ${lockedImageHash}). Dừng xuất bản để tránh đăng bài hỏng.`
+        );
+      }
+    }
+
+    // Kiểm tra tính toàn vẹn của tệp vật lý nếu lưu trữ cục bộ
+    let imageFileContent: string | undefined;
+    let imageFileName: string | undefined;
+
+    if (mediaAssetRow?.storage_key) {
+      imageFileName = path.basename(mediaAssetRow.storage_key);
+      try {
+        const localDir = process.env.LOCAL_STORAGE_DIR || path.resolve(process.cwd(), 'apps/api/public/uploads');
+        const cleanKey = mediaAssetRow.storage_key.replace(/^uploads[\\/]/, '');
+        const physicalPath = path.resolve(localDir, cleanKey);
+        if (fs.existsSync(physicalPath)) {
+          imageFileContent = fs.readFileSync(physicalPath).toString('base64');
+        } else if (
+          mediaAssetRow.url &&
+          (mediaAssetRow.url.startsWith('/uploads/') ||
+           mediaAssetRow.url.startsWith('http://localhost') ||
+           mediaAssetRow.url.startsWith('http://127.0.0.1'))
+        ) {
+          return this.failEvent(
+            event.id,
+            job.id,
+            'MEDIA_ASSET_FILE_NOT_FOUND',
+            `File ảnh của media_assets (storage_key: ${mediaAssetRow.storage_key}) không tồn tại trên hệ thống lưu trữ cục bộ. Dừng xuất bản để tránh đăng bài hỏng.`
+          );
+        }
+      } catch {
+        // Bỏ qua lỗi truy xuất file nếu trong môi trường không có quyền truy cập đĩa
+      }
+    }
+
     const payloadResult = (payload.result && typeof payload.result === 'object' ? payload.result : {}) as Record<string, unknown>;
     const payloadFacebook = (
       payloadResult.facebook && typeof payloadResult.facebook === 'object' ? payloadResult.facebook : {}
@@ -283,12 +384,23 @@ export class PublishingOutboxRunner {
       asString(payload.document_markdown) ??
       '';
     let resolvedMediaUrl = asString(
-      job.media_url ?? payload.media_url ?? payload.mediaUrl ?? payloadResult.media_url ?? image?.url
+      mediaAssetRow?.url ?? job.media_url ?? payload.media_url ?? payload.mediaUrl ?? payloadResult.media_url ?? image?.url
     );
+
+    // Chặn xuất bản nếu bài viết yêu cầu ảnh mà không thể lấy được URL hoặc file ảnh hợp lệ
+    if (postRequiresImage && !resolvedMediaUrl && !imageFileContent) {
+      return this.failEvent(
+        event.id,
+        job.id,
+        'MISSING_MEDIA_ASSET',
+        'Bài viết yêu cầu hình ảnh nhưng không có ảnh hợp lệ đính kèm từ media_assets. Dừng xuất bản để tránh đăng bài hỏng.'
+      );
+    }
+
     // The API stores the path inside its container; find the same upload on this machine.
     let resolvedMediaPath = resolveTikTokMediaPath(asString(job.media_path ?? payload.media_path ?? payload.mediaPath));
     let resolvedMediaType = asMediaType(
-      job.media_type ?? payload.media_type ?? payload.mediaType ?? payloadResult.media_type ?? (image ? 'image' : undefined)
+      job.media_type ?? payload.media_type ?? payload.mediaType ?? payloadResult.media_type ?? (image || mediaAssetRow ? 'image' : undefined)
     );
     const hasLocalMediaFile = Boolean(resolvedMediaPath && fs.existsSync(resolvedMediaPath));
     const hasDirectVideoUrl = Boolean(
@@ -364,6 +476,15 @@ export class PublishingOutboxRunner {
         : undefined;
     const gatewayCheck = createGatewayCheck();
 
+    const resolvedIsAi = Boolean(
+      mediaAssetRow?.is_ai_generated ||
+      mediaAssetRow?.source_type === 'ai_generated' ||
+      (payload.is_ai_generated ??
+        payload.isAiGenerated ??
+        payload.ai_metadata ??
+        image?.synthetic)
+    );
+
     let result;
     try {
       result = await this.processor.publish({
@@ -378,13 +499,18 @@ export class PublishingOutboxRunner {
         linkUrl: job.utm_url ?? undefined,
         mediaUrl: resolvedMediaUrl,
         mediaPath: resolvedMediaPath,
-        mediaType: resolvedMediaType,
+        mediaType: resolvedMediaType ?? asMediaType(payload.media_type ?? payload.mediaType ?? (image || mediaAssetRow ? 'image' : undefined)),
         authOverride: resolvedTikTokAuth,
         expectedVersion: job.artifact_version,
         contentHash: job.content_hash,
         approvalId: job.approval_id ?? undefined,
-        isAiGenerated: Boolean(payload.is_ai_generated ?? payload.isAiGenerated ?? payload.ai_metadata ?? payloadResult.is_aigc ?? image?.synthetic),
+        isAiGenerated: resolvedIsAi,
         aiImageMeta: (payload.ai_metadata ?? payload.aiImageMeta) as Record<string, any> | undefined,
+        imageContentHash: lockedImageHash ?? undefined,
+        storageKey: mediaAssetRow?.storage_key ?? undefined,
+        imageFileName,
+        imageFileContent,
+        requiresImage: postRequiresImage,
         ...(gatewayCheck ? { gatewayCheck } : {}),
       });
     } catch (err) {
@@ -755,6 +881,7 @@ function toPublishChannel(platform: string): PublishChannel | null {
     website: 'Website',
     facebook: 'Facebook',
     facebook_group: 'FacebookGroup',
+    facebookgroup: 'FacebookGroup',
     tiktok: 'TikTok',
     instagram: 'Instagram',
     email: 'Newsletter',

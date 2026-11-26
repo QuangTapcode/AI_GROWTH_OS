@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { ApiError, growthApi } from "@/lib/api";
 import { getSession, saveSession } from "@/lib/session";
 
-/** Chỉ cho phép quay lại đường dẫn nội bộ (chống open redirect qua ?next=). */
+/** Chỉ cho phép quay lại đường dẫn nội bộ (chống open redirect qua ?next=); mặc định vào thẳng 3D Office. */
 function nextPath(): string {
   const next = new URLSearchParams(window.location.search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/login") ? next : "/dashboard";
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/login") ? next : "/office";
 }
 
 export function LoginForm() {
@@ -251,6 +251,30 @@ export function LoginForm() {
           </svg>
           Sign in with Google (coming soon)
         </button>
+
+        {process.env.NODE_ENV === "development" && (
+          <div className="mt-5 pt-5 border-t border-slate-100 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                saveSession({
+                  token: "demo-token-preview",
+                  expiresAt: new Date(Date.now() + 86400000 * 365).toISOString(),
+                  user: {
+                    id: "demo-user-1",
+                    email: "demo@growthos.ai",
+                    full_name: "AI Growth Director",
+                  },
+                });
+                router.replace(nextPath());
+              }}
+              className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <span>🛠️</span>
+              <span>Dev Preview UI (Local Dev Only)</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Footer */}

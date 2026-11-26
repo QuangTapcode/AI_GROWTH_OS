@@ -603,3 +603,37 @@ def test_26_content_quality_check_operation_models(sample_cta, sample_facts):
     assert res.passed is True
     assert res.score == 95.5
     assert res.attribution_rate == 1.0
+
+
+def test_27_facebook_group_channel_and_post_format(sample_cta, sample_facts):
+    """Kiểm tra hỗ trợ kênh facebook_group, group_post_format và discussion_prompt (v3.0)."""
+    pack = SocialPack(
+        pack_id="sp_grp_01",
+        workspace_id="ws_tripc",
+        parent_content_id="art_01",
+        parent_version=1,
+        channels=["facebook_group"],
+        group_post_format="case_study",
+        discussion_prompt="Bác nào có câu hỏi về trải nghiệm phòng cứ để lại bình luận nhé!",
+        caption="Bài chia sẻ kinh nghiệm thuê phòng cho anh em remote.",
+        cta=sample_cta,
+        extracted_facts=sample_facts,
+    )
+    assert pack.channels == ["facebook_group"]
+    assert pack.group_post_format == "case_study"
+    assert "bình luận" in pack.discussion_prompt
+    assert len(pack.content_hash) == 64
+
+    # Test ContentRepurposeRequest with facebook_group
+    req = ContentRepurposeRequest(
+        workspace_id="ws_tripc",
+        parent_content_id="art_01",
+        parent_version=1,
+        source_article={"title": "Test Art"},
+        target_channel="facebook_group",
+        format_style="case_study",
+        cta=sample_cta,
+    )
+    assert req.target_channel == "facebook_group"
+    assert req.format_style == "case_study"
+

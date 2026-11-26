@@ -425,3 +425,50 @@ class TestRepurposeRouter:
         )
         assert pack.status == "needs_assets"
         assert len(pack.image_assets) == 0, "Không được giữ ảnh AI cho sản phẩm thực tế"
+
+    def test_facebook_group_repurposing_and_debate(
+        self,
+        sample_seo_facts: list[FactItem],
+        sample_approved_assets: list[AssetV2],
+        sample_citations: list[CitationItem],
+    ):
+        """Kiểm tra tái cấu trúc nội dung sang Facebook Group và Group Debate."""
+        # Test standard group repurpose
+        pack_grp = route_repurpose(
+            workspace_id="00000000-0000-4000-8000-000000000001",
+            parent_content_id="art_grp_01",
+            parent_version=2,
+            target_channel="facebook_group",
+            source_article={"title": "Căn hộ Studio TripC Da Nang", "format_style": "standard_post"},
+            verbatim_cta="Bác nào có câu hỏi cứ bình luận bên dưới nhé!",
+            facts=sample_seo_facts,
+            brand_voice="Thân thiện, cộng đồng",
+            image_assets=sample_approved_assets,
+            citations=sample_citations,
+            is_real_product=False,
+            current_version=2,
+        )
+        assert pack_grp.channels == ["facebook_group"]
+        assert pack_grp.status == "draft"
+        assert pack_grp.version == 3
+
+        # Test group debate repurpose (CM-17)
+        pack_debate = route_repurpose(
+            workspace_id="00000000-0000-4000-8000-000000000001",
+            parent_content_id="art_grp_02",
+            parent_version=1,
+            target_channel="facebook_group",
+            source_article={"title": "Căn hộ Studio TripC Da Nang", "format_style": "debate_discussion"},
+            verbatim_cta="Cùng chia sẻ góc nhìn thực tế nhé!",
+            facts=sample_seo_facts,
+            brand_voice="Chuyên môn, phân tích",
+            image_assets=sample_approved_assets,
+            citations=sample_citations,
+            is_real_product=False,
+            current_version=1,
+        )
+        assert pack_debate.channels == ["facebook_group"]
+        assert pack_debate.group_post_format == "debate_discussion"
+        assert pack_debate.status == "draft"
+        assert "thảo luận" in pack_debate.caption.lower()
+
