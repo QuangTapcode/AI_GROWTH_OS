@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+
+// Reads the session and ?workspace_id on every request; never prerendered at build time.
+export const dynamic = "force-dynamic";
 import { AppError, handleApiError } from "@/lib/errors";
 import { requireWorkspaceRole } from "@/lib/workspaceRoute";
 import {
