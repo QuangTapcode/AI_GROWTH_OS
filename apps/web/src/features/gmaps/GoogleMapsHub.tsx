@@ -126,7 +126,9 @@ export function GoogleMapsHub({ workspaceId }: { workspaceId: string }) {
       {tab !== "reviews" && reviews.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-900">
           <span>
-            Hiện có <b>{reviews.length} đánh giá thực tế của khách</b> (Đỗ Hoàng Nam, Sarah Jenkins...) đã được AI hỗ trợ soạn câu trả lời.
+            Hiện có <b>{reviews.length} đánh giá của khách</b>
+            {reviews.length > 0 && ` (${reviews.slice(0, 2).map((r) => r.author_name).filter(Boolean).join(", ")}${reviews.length > 2 ? "…" : ""})`}
+            {awaiting.length > 0 ? `, ${awaiting.length} câu trả lời chờ duyệt.` : "."}
           </span>
           <button
             type="button"
@@ -139,16 +141,16 @@ export function GoogleMapsHub({ workspaceId }: { workspaceId: string }) {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div onClick={() => setTab("reviews")} className="cursor-pointer transition-transform hover:scale-[1.02]">
+        <button type="button" onClick={() => setTab("reviews")} className="block w-full text-left transition-transform hover:scale-[1.02]">
           <Stat label="Điểm trên Google" value={overview?.average_rating !== null && overview?.average_rating !== undefined ? `${overview.average_rating}★` : "—"} hint={overview?.total_reviews_on_google ? `${overview.total_reviews_on_google} review` : "chưa đồng bộ"} />
-        </div>
-        <div onClick={() => setTab("reviews")} className="cursor-pointer transition-transform hover:scale-[1.02]">
+        </button>
+        <button type="button" onClick={() => setTab("reviews")} className="block w-full text-left transition-transform hover:scale-[1.02]">
           <Stat label="Tỉ lệ đã trả lời" value={overview?.response_rate_percent !== null && overview?.response_rate_percent !== undefined ? `${overview.response_rate_percent}%` : "—"} hint={`${overview?.replied_reviews ?? 0}/${overview?.synced_reviews ?? 0} review đã đồng bộ`} />
-        </div>
+        </button>
         <Stat label="Thời gian trả lời" value={overview?.median_reply_minutes !== null && overview?.median_reply_minutes !== undefined ? `${overview.median_reply_minutes} phút` : "—"} hint="trung vị, mục tiêu < 5 phút" />
-        <div onClick={() => setTab("reviews")} className="cursor-pointer transition-transform hover:scale-[1.02]">
+        <button type="button" onClick={() => setTab("reviews")} className="block w-full text-left transition-transform hover:scale-[1.02]">
           <Stat label="Chờ chủ quán duyệt" value={overview?.awaiting_approval ?? 0} hint={overview?.last_synced_at ? `đồng bộ ${formatDateTimeVn(overview.last_synced_at)}` : undefined} />
-        </div>
+        </button>
       </div>
       <Notice notice={notice} onClose={() => setNotice(null)} />
       <div className="flex flex-wrap gap-2.5" role="tablist">
