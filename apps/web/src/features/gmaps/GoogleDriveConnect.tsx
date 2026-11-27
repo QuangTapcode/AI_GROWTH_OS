@@ -75,12 +75,12 @@ export function GoogleDriveConnect({
                 Chưa cấu hình Google Cloud OAuth:
               </p>
               <p>
-                Để kích hoạt nút <b>"Kết nối Google"</b>, bạn cần tạo OAuth Client ID (loại Web Application) trên <b>Google Cloud Console</b> và cấu hình 3 biến sau vào file <code>apps/api/.env</code>:
+                Để kích hoạt nút <b>"Kết nối Google"</b>, bạn cần tạo OAuth Client ID (loại Web Application) trên <b>Google Cloud Console</b> và cấu hình 3 biến sau vào file <code>apps/api/.env.local</code> của máy chủ API:
               </p>
               <ul className="list-disc pl-5 font-mono text-[11px] text-amber-900 space-y-0.5">
                 <li>GOOGLE_OAUTH_CLIENT_ID=...</li>
                 <li>GOOGLE_OAUTH_CLIENT_SECRET=...</li>
-                <li>GOOGLE_OAUTH_REDIRECT_URI=http://localhost:4000/v1/integrations/google/callback</li>
+                <li>GOOGLE_OAUTH_REDIRECT_URI={g.redirect_uri ?? "https://<địa-chỉ-API-công-khai>/v1/integrations/google/callback"}</li>
               </ul>
             </div>
           )}

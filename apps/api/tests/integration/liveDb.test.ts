@@ -15,8 +15,13 @@ const OTHER_TENANT_ARTIFACT = "d0000000-0000-4000-8000-000000000006";
 const FAILED_TASK = "b0000000-0000-4000-8000-000000000007";
 
 describe.skipIf(!RUN)("Live DB: sessions, distribution, profile, metrics, retry", () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.AUTH_SECRET = process.env.AUTH_SECRET || "integration_secret_value_long_enough_for_hs256";
+    try {
+      const { query } = await import("../../src/lib/db");
+      await query(`UPDATE workflow_tasks SET status = 'failed' WHERE id = $1;`, [FAILED_TASK]);
+      await query(`DELETE FROM metrics_snapshots WHERE workspace_id = $1 AND period_from >= '2026-01-01';`, [TRIPC]);
+    } catch {}
   });
 
   it("logout thu hồi phiên: request sau đó bị 401 SESSION_REVOKED", async () => {

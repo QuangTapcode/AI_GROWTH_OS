@@ -55,10 +55,19 @@ foreach ($name in @('api','web','pilot','ai','worker')) {
 }
 $apiCommand = if ($ProductionApi) { 'start' } else { 'dev' }
 Start-AgentProcess 'api' (Get-Command node.exe).Source @('--env-file=.env.local','node_modules/next/dist/bin/next',$apiCommand,'--hostname','127.0.0.1','--port','4000') (Join-Path $repo 'apps/api') 4000
-Start-AgentProcess 'web' (Get-Command node.exe).Source @('node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3000') (Join-Path $repo 'apps/web') 3000
+
+$webCommand = if (Test-Path (Join-Path $repo 'apps/web/.next/BUILD_ID')) { 'start' } else { 'dev' }
+Start-AgentProcess 'web' (Get-Command node.exe).Source @('node_modules/next/dist/bin/next',$webCommand,'--hostname','127.0.0.1','--port','3000') (Join-Path $repo 'apps/web') 3000
+
 # Public TripC site (first-party publishing + measurement); build apps/pilot before starting.
-Start-AgentProcess 'pilot' (Get-Command node.exe).Source @('node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3001') (Join-Path $repo 'apps/pilot') 3001
-Start-AgentProcess 'ai' (Get-Command python.exe).Source @('-m','uvicorn','src.app.main:app','--app-dir','services/ai','--host','127.0.0.1','--port','5000') $repo 5000
+$pilotCommand = if (Test-Path (Join-Path $repo 'apps/pilot/.next/BUILD_ID')) { 'start' } else { 'dev' }
+Start-AgentProcess 'pilot' (Get-Command node.exe).Source @('node_modules/next/dist/bin/next',$pilotCommand,'--hostname','127.0.0.1','--port','3001') (Join-Path $repo 'apps/pilot') 3001
+
+$aiPython = Join-Path $repo 'services/ai/.venv/Scripts/python.exe'
+if (-not (Test-Path $aiPython)) {
+  $aiPython = (Get-Command python.exe).Source
+}
+Start-AgentProcess 'ai' $aiPython @('-m','uvicorn','src.app.main:app','--app-dir','services/ai','--host','127.0.0.1','--port','5000') $repo 5000
 Start-AgentProcess 'worker' (Get-Command node.exe).Source @('--import','tsx','src/main.ts') (Join-Path $repo 'apps/worker') 0
 Write-Output 'Dashboard: http://localhost:3000/agents (requires login). Logs: infra/staging/.runtime/'
 Write-Output "AI mode: $Mode; generation model: $Model. Live readiness also requires embeddinggemma:latest."

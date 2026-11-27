@@ -215,9 +215,23 @@ export class HttpAiAdapter implements AiAdapter {
       let code = `HTTP_${response.status}`;
       let message = `AI service trả HTTP ${response.status}`;
       try {
-        const envelope = (await response.json()) as { error?: { code?: string; message?: string } };
+        const envelope = (await response.json()) as {
+          error?: { code?: string; message?: string; details?: Array<{ loc?: unknown; field?: unknown; msg?: unknown; message?: unknown; type?: unknown }> };
+        };
         if (envelope.error?.code) code = envelope.error.code;
         if (envelope.error?.message) message = envelope.error.message;
+        // A 422 names the offending fields; without them "Request does not match the schema" cannot be traced.
+        const details = Array.isArray(envelope.error?.details) ? envelope.error!.details : [];
+        if (details.length) {
+          const fields = details
+            .slice(0, 5)
+            .map((d) => {
+              const where = Array.isArray(d.loc) ? d.loc.join('.') : String(d.field ?? '?');
+              return `${where}: ${String(d.msg ?? d.message ?? d.type ?? '')}`.slice(0, 160);
+            })
+            .join('; ');
+          message = `${message} (${fields})`;
+        }
       } catch {
         // response không phải JSON envelope → giữ mã HTTP mặc định
       }

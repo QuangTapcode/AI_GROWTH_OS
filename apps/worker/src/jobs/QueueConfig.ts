@@ -51,6 +51,7 @@ export const QueueJobs = {
   METRICS: 'metrics',
   LEAD: 'lead',
   INTEGRATIONS: 'integrations',
+  GPU_RECOVERY: 'gpu-recovery',
 } as const;
 
 export type QueueJobName = (typeof QueueJobs)[keyof typeof QueueJobs];

@@ -143,7 +143,12 @@ async function loadConnection(db: Db, workspaceId: string) {
 export async function googleConnectionStatus(db: Db, workspaceId: string): Promise<GoogleConnectionStatus> {
   const client = googleOAuthClient();
   const row = await loadConnection(db, workspaceId);
-  const base = { configured: Boolean(client), redirect_uri: client?.redirectUri ?? null, last_error: row?.last_error ?? null };
+  const base = {
+    configured: Boolean(client),
+    // Shown before the client exists too: it is the exact value to register in Google Cloud Console.
+    redirect_uri: client?.redirectUri ?? (process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim() || null),
+    last_error: row?.last_error ?? null,
+  };
   if (row) {
     return { ...base, connected: true, source: "workspace", email: row.google_email, scopes: row.scopes ?? [], connected_at: new Date(row.connected_at).toISOString() };
   }

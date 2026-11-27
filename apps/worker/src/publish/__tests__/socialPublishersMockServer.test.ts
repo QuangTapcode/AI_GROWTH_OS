@@ -301,4 +301,22 @@ describe('CM-28 & CM-29: Facebook & TikTok Publishers (Mock Server Tests)', () =
     const defaultTt = new TikTokPublisher('t2');
     assert.equal(defaultTt.privacyLevel, 'SELF_ONLY', 'Mặc định an toàn tuyệt đối không đăng public ngoài ý muốn');
   });
+
+  it('7. FacebookPagePublisher: Từ chối đăng bài hỏng khi bài viết yêu cầu ảnh nhưng mediaUrl bị thiếu', async () => {
+    const fbPublisher = new FacebookPagePublisher('page_test_123', 'valid_token', 'v21.0');
+    const result = await fbPublisher.publish({
+      contentId: 'pack_missing_img',
+      channel: 'Facebook',
+      bodyMarkdown: 'Bài viết yêu cầu ảnh nhưng không có ảnh',
+      requiresImage: true,
+      imageContentHash: '99998888'.repeat(8),
+      mediaUrl: undefined,
+      idempotencyKey: 'publish:ws_01:missing:facebook:1',
+      workspaceId: 'ws_01',
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.errorCode, 'MISSING_MEDIA_ASSET');
+    assert.ok(result.errorMessage?.includes('Bài viết yêu cầu hình ảnh'));
+  });
 });

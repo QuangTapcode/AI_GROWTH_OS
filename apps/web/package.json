@@ -12,15 +12,21 @@
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/bootstrap.test.mjs",
+    "test:components": "npx vitest run tests/ApprovalView.test.tsx tests/MediaAssetImage.test.tsx tests/OfficeFeature.test.tsx",
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/three": "^0.187.0",
+    "motion": "^14.14.0",
     "next": "16.3.8",
     "postcss": "^8.5.30",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

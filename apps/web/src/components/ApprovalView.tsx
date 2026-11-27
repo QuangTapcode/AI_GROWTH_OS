@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import MediaAssetImage, { MediaAssetData } from "./ui/MediaAssetImage";
+import { getSession } from "../lib/session";
 
 /**
  * Danh sách 8 nhóm lỗi chuẩn hóa (từ CM-19 Annotation Guide) để chọn khi từ chối duyệt
@@ -74,13 +76,48 @@ export interface VersionRecord {
   created_at: string;
 }
 
+export type ImageJobDisplayStatus =
+  | "image_pending"
+  | "queued"
+  | "claimed"
+  | "running"
+  | "uploaded"
+  | "reviewing"
+  | "completed"
+  | "needs_assets"
+  | "failed"
+  | "cancelled";
+
+export interface ImageJobUiState {
+  status: ImageJobDisplayStatus;
+  job_id: string | null;
+  gpu_online: boolean;
+  image_url: string | null;
+  content_hash: string | null;
+  media_asset_id: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  message: string | null;
+  prompt: string;
+  model_name: string;
+  seed: number | null;
+  dimensions: string;
+  aspect_ratio: "1:1" | "9:16";
+  ocr_checked: boolean;
+  safety_passed: boolean;
+}
+
 export interface ApprovalViewProps {
-  workspaceId: string;
+  workspaceId?: string;
   workspaceName?: string;
   userRole?: "owner" | "editor" | "viewer";
-  postId: string;
+  postId?: string;
   initialVersion?: number;
   initialParentSeoVersion?: number;
+  requiresImage?: boolean;
+  initialImageJobId?: string | null;
+  initialImageStatus?: ImageJobDisplayStatus;
+  initialGpuOnline?: boolean;
   initialData?: {
     facebook: ChannelPackData;
     tiktok: ChannelPackData;
@@ -89,12 +126,47 @@ export interface ApprovalViewProps {
     target_version: number;
     target_hash: string;
     approved_by_role: string;
+    image_asset_id?: string | null;
+    image_content_hash?: string | null;
   }) => void;
   onRejectSuccess?: (rejectionPayload: {
     reason_category: string;
     review_note: string;
   }) => void;
   onEditSaveSuccess?: (newVersion: VersionRecord) => void;
+  onPublishClick?: () => void;
+  // Overridable API client methods for testing or custom host configuration
+  fetchImageJob?: (jobId: string) => Promise<{
+    job_id?: string;
+    status?: string;
+    customer_status?: string;
+    message?: string;
+    image_url?: string | null;
+    content_hash?: string | null;
+    media_asset_id?: string | null;
+    error_code?: string | null;
+    error_message?: string | null;
+    gpu_online?: boolean;
+    seed?: number;
+  }>;
+  createImageJobFn?: (params: {
+    workspace_id: string;
+    post_id?: string;
+    prompt: string;
+    negative_prompt?: string;
+    aspect_ratio: "1:1" | "9:16";
+    seed?: number;
+  }) => Promise<{
+    job_id?: string;
+    id?: string;
+    status: string;
+    gpu_online?: boolean;
+    seed?: number;
+  }>;
+  cancelImageJobFn?: (jobId: string) => Promise<{
+    job_id?: string;
+    status: string;
+  }>;
 }
 
 /**
@@ -108,7 +180,6 @@ async function computeSha256Client(text: string): Promise<string> {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
   }
-  // Fallback simple checksum hex
   let hash = 0;
   for (let i = 0; i < text.length; i++) {
     hash = (hash << 5) - hash + text.charCodeAt(i);
@@ -117,18 +188,94 @@ async function computeSha256Client(text: string): Promise<string> {
   return Math.abs(hash).toString(16).padStart(64, "0");
 }
 
+function getApiBaseUrl(): string {
+  if (typeof window !== "undefined" && (window as any).__AGOS_API_URL) {
+    return (window as any).__AGOS_API_URL;
+  }
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+  return envUrl.replace(/\/v1\/?$/, "").replace(/\/$/, "");
+}
+
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  const session = getSession();
+  const token = session?.token || process.env.NEXT_PUBLIC_DEV_TOKEN || "dev_internal_secret_token_123";
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function defaultCreateImageJob(params: {
+  workspace_id: string;
+  post_id?: string;
+  prompt: string;
+  negative_prompt?: string;
+  aspect_ratio: "1:1" | "9:16";
+  seed?: number;
+}) {
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/image-jobs`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+async function defaultFetchImageJob(jobId: string) {
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/image-jobs/${encodeURIComponent(jobId)}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+async function defaultCancelImageJob(jobId: string) {
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/image-jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
 export default function ApprovalView({
+  workspaceId = "ws-default",
   workspaceName = "TripC Da Nang",
   userRole = "editor",
+  postId = "post-default",
   initialVersion = 1,
   initialParentSeoVersion = 1,
+  requiresImage = true,
+  initialImageJobId = null,
+  initialImageStatus,
+  initialGpuOnline = true,
   initialData,
   onApproveSuccess,
   onRejectSuccess,
   onEditSaveSuccess,
+  onPublishClick,
+  fetchImageJob,
+  createImageJobFn,
+  cancelImageJobFn,
 }: ApprovalViewProps) {
   // 1. Channel Selector: Facebook | TikTok
   const [selectedChannel, setSelectedChannel] = useState<"facebook" | "tiktok">("facebook");
+  const [, setClickCount] = useState<number>(0);
 
   // 2. Fact Inspector Selected Sentence
   const [activeSentenceId, setActiveSentenceId] = useState<string | null>(null);
@@ -210,9 +357,9 @@ export default function ApprovalView({
           url: "https://assets.tripc.vn/media/ai_generated_sontra_sunset_1080x1080.webp",
           prompt: "Panoramic sunset view from Son Tra peninsula looking over Da Nang bay, golden hour, misty mountains, high aesthetic cinematic lighting, no text, no logo, no people face close-up",
           negative_prompt: "text, numbers, price tags, watermarks, corporate logo, real identifiable face, low resolution, blurry",
-          model: "flux-1-dev",
+          model: "Juggernaut XL v9",
           aspect_ratio: "1:1",
-          dimensions: "1080x1080",
+          dimensions: "1024x1024",
           ocr_checked: true,
           ocr_text_found: [],
           safety_passed: true,
@@ -312,9 +459,9 @@ export default function ApprovalView({
           url: "https://assets.tripc.vn/media/ai_generated_tiktok_cover_1080x1920.webp",
           prompt: "Vertical 9:16 mobile video poster, sunset overlooking Da Nang coastal city from Son Tra mountain peak, dramatic clouds, cinematic golden hour lighting, no text, no watermark",
           negative_prompt: "text, numbers, price tags, watermarks, face close up, blurry",
-          model: "flux-1-dev",
+          model: "Juggernaut XL v9",
           aspect_ratio: "9:16",
-          dimensions: "1080x1920",
+          dimensions: "768x1344",
           ocr_checked: true,
           ocr_text_found: [],
           safety_passed: true,
@@ -341,6 +488,245 @@ export default function ApprovalView({
     },
   ]);
 
+  // 6. Dynamic AI Image State per channel
+  const [channelImageStates, setChannelImageStates] = useState<{
+    facebook: ImageJobUiState;
+    tiktok: ImageJobUiState;
+  }>(() => {
+    const fbInitial = (initialData || defaultPack).facebook;
+    const ttInitial = (initialData || defaultPack).tiktok;
+
+    const computeInitialStatus = (hasUrl: boolean): ImageJobDisplayStatus => {
+      if (initialImageStatus) return initialImageStatus;
+      return hasUrl ? "completed" : "image_pending";
+    };
+
+    return {
+      facebook: {
+        status: computeInitialStatus(Boolean(fbInitial.ai_image?.url)),
+        job_id: initialImageJobId || null,
+        gpu_online: initialGpuOnline,
+        image_url: initialImageStatus && initialImageStatus !== "completed" ? null : fbInitial.ai_image?.url || null,
+        content_hash: initialImageStatus && initialImageStatus !== "completed" ? null : fbInitial.ai_image?.sha256_hash || null,
+        media_asset_id: null,
+        error_code: null,
+        error_message: null,
+        message: null,
+        prompt: fbInitial.ai_image?.prompt || "",
+        model_name: "Juggernaut XL v9",
+        seed: 428192,
+        dimensions: fbInitial.ai_image?.dimensions || "1024x1024",
+        aspect_ratio: "1:1",
+        ocr_checked: fbInitial.ai_image?.ocr_checked ?? true,
+        safety_passed: fbInitial.ai_image?.safety_passed ?? true,
+      },
+      tiktok: {
+        status: computeInitialStatus(Boolean(ttInitial.ai_image?.url)),
+        job_id: null,
+        gpu_online: initialGpuOnline,
+        image_url: initialImageStatus && initialImageStatus !== "completed" ? null : ttInitial.ai_image?.url || null,
+        content_hash: initialImageStatus && initialImageStatus !== "completed" ? null : ttInitial.ai_image?.sha256_hash || null,
+        media_asset_id: null,
+        error_code: null,
+        error_message: null,
+        message: null,
+        prompt: ttInitial.ai_image?.prompt || "",
+        model_name: "Juggernaut XL v9",
+        seed: 893122,
+        dimensions: ttInitial.ai_image?.dimensions || "768x1344",
+        aspect_ratio: "9:16",
+        ocr_checked: ttInitial.ai_image?.ocr_checked ?? true,
+        safety_passed: ttInitial.ai_image?.safety_passed ?? true,
+      },
+    };
+  });
+
+  const currentImageState = channelImageStates[selectedChannel];
+  const [isRegenerating, setIsRegenerating] = useState<boolean>(false);
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
+
+  // Gating rule: Không cho duyệt hoặc đăng bài khi ảnh còn pending nếu bài bắt buộc có ảnh
+  const isImagePending =
+    currentImageState.status === "image_pending" ||
+    currentImageState.status === "queued" ||
+    currentImageState.status === "claimed" ||
+    currentImageState.status === "running" ||
+    currentImageState.status === "uploaded" ||
+    currentImageState.status === "reviewing";
+
+  const isImageIncomplete =
+    isImagePending ||
+    currentImageState.status === "needs_assets" ||
+    currentImageState.status === "failed" ||
+    currentImageState.status === "cancelled";
+
+  const isApprovalBlocked = requiresImage && isImageIncomplete;
+
+  // 7. Polling with Exponential Backoff
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const activeJobId = currentImageState.job_id;
+    if (!activeJobId) return;
+
+    const terminalStatuses: ImageJobDisplayStatus[] = ["completed", "needs_assets", "failed", "cancelled"];
+    if (terminalStatuses.includes(currentImageState.status)) {
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      return;
+    }
+
+    let isSubscribed = true;
+    let currentDelay = 2000;
+    const maxDelay = 10000;
+    const backoffFactor = 1.5;
+
+    const poll = async () => {
+      try {
+        const fetchFn = fetchImageJob || defaultFetchImageJob;
+        const job = await fetchFn(activeJobId);
+        if (!isSubscribed) return;
+
+        if (job) {
+          const nextStatus = (job.status as ImageJobDisplayStatus) || currentImageState.status;
+          setChannelImageStates((prev) => ({
+            ...prev,
+            [selectedChannel]: {
+              ...prev[selectedChannel],
+              status: nextStatus,
+              gpu_online: job.gpu_online !== undefined ? Boolean(job.gpu_online) : prev[selectedChannel].gpu_online,
+              image_url: job.image_url !== undefined ? job.image_url : prev[selectedChannel].image_url,
+              content_hash: job.content_hash !== undefined ? job.content_hash : prev[selectedChannel].content_hash,
+              media_asset_id: job.media_asset_id !== undefined ? job.media_asset_id : prev[selectedChannel].media_asset_id,
+              error_code: job.error_code !== undefined ? job.error_code : prev[selectedChannel].error_code,
+              error_message: job.error_message !== undefined ? job.error_message : prev[selectedChannel].error_message,
+              message: job.message !== undefined ? job.message : prev[selectedChannel].message,
+              seed: job.seed !== undefined ? job.seed : prev[selectedChannel].seed,
+            },
+          }));
+
+          if (terminalStatuses.includes(nextStatus)) {
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Error polling image job:", err);
+      }
+
+      if (isSubscribed) {
+        currentDelay = Math.min(currentDelay * backoffFactor, maxDelay);
+        pollTimerRef.current = setTimeout(poll, currentDelay);
+      }
+    };
+
+    pollTimerRef.current = setTimeout(poll, currentDelay);
+
+    return () => {
+      isSubscribed = false;
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [currentImageState.job_id, currentImageState.status, selectedChannel, fetchImageJob]);
+
+  // Hành động: Tạo lại ảnh (Re-generate Image)
+  const handleRegenerateImage = async () => {
+    setClickCount((c) => c + 1);
+    setIsRegenerating(true);
+    setActionNotice(null);
+
+    const targetAspectRatio: "1:1" | "9:16" = selectedChannel === "facebook" ? "1:1" : "9:16";
+    const prompt = currentImageState.prompt || channelData.ai_image?.prompt || "Ảnh minh họa du lịch Đà Nẵng";
+    const newSeed = Math.floor(Math.random() * 2147483647) + 1;
+
+    try {
+      const createFn = createImageJobFn || defaultCreateImageJob;
+      const res = await createFn({
+        workspace_id: workspaceId,
+        post_id: postId,
+        prompt,
+        negative_prompt: channelData.ai_image?.negative_prompt,
+        aspect_ratio: targetAspectRatio,
+        seed: newSeed,
+      });
+
+      const newJobId = res.job_id || res.id || `job_${Date.now()}`;
+      const gpuOnlineStatus = res.gpu_online ?? true;
+
+      setChannelImageStates((prev) => ({
+        ...prev,
+        [selectedChannel]: {
+          ...prev[selectedChannel],
+          job_id: newJobId,
+          status: (res.status as ImageJobDisplayStatus) || "queued",
+          gpu_online: gpuOnlineStatus,
+          seed: newSeed,
+          error_code: null,
+          error_message: null,
+          image_url: null,
+          content_hash: null,
+        },
+      }));
+
+      setActionNotice({
+        type: "success",
+        msg: `Đã gửi yêu cầu tạo lại ảnh mới (Job: ${newJobId.slice(0, 8)}..., Seed: ${newSeed}).`,
+      });
+    } catch (err: any) {
+      setActionNotice({
+        type: "error",
+        msg: `Không thể tạo lại ảnh: ${err?.message || "Lỗi kết nối máy chủ"}`,
+      });
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  // Hành động: Hủy yêu cầu sinh ảnh khi còn queued
+  const handleCancelImageJob = async () => {
+    const activeJobId = currentImageState.job_id;
+    if (!activeJobId) {
+      setChannelImageStates((prev) => ({
+        ...prev,
+        [selectedChannel]: {
+          ...prev[selectedChannel],
+          status: "cancelled",
+        },
+      }));
+      return;
+    }
+
+    setClickCount((c) => c + 1);
+    setIsCancelling(true);
+    try {
+      const cancelFn = cancelImageJobFn || defaultCancelImageJob;
+      await cancelFn(activeJobId);
+
+      setChannelImageStates((prev) => ({
+        ...prev,
+        [selectedChannel]: {
+          ...prev[selectedChannel],
+          status: "cancelled",
+        },
+      }));
+
+      setActionNotice({
+        type: "info",
+        msg: `Đã hủy tác vụ sinh ảnh (${activeJobId.slice(0, 8)}...).`,
+      });
+    } catch (err: any) {
+      setActionNotice({
+        type: "error",
+        msg: `Không thể hủy tác vụ: ${err?.message || "Lỗi máy chủ"}`,
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   // Kiểm tra RBAC
   const canApprove = userRole === "owner" || userRole === "editor";
 
@@ -359,6 +745,30 @@ export default function ApprovalView({
       return;
     }
 
+    if (isApprovalBlocked) {
+      setActionNotice({
+        type: "error",
+        msg: "Không thể phê duyệt bài viết khi ảnh đang trong quá trình tạo (image pending). Vui lòng đợi hoàn tất hoặc hủy tác vụ ảnh.",
+      });
+      return;
+    }
+
+    if (requiresImage && currentImageState.status === "needs_assets") {
+      setActionNotice({
+        type: "error",
+        msg: "Bài viết này yêu cầu ảnh chụp thực tế. Vui lòng chọn hoặc tải ảnh thật từ kho tài nguyên trước khi duyệt.",
+      });
+      return;
+    }
+
+    if (requiresImage && currentImageState.status === "failed") {
+      setActionNotice({
+        type: "error",
+        msg: "Ảnh minh họa đang bị lỗi. Vui lòng tạo lại ảnh thành công trước khi duyệt.",
+      });
+      return;
+    }
+
     try {
       const computedHash = await computeSha256Client(editableText);
       setLockedHash(computedHash);
@@ -373,6 +783,8 @@ export default function ApprovalView({
           target_version: currentVersion,
           target_hash: computedHash,
           approved_by_role: userRole,
+          image_asset_id: currentImageState.media_asset_id || null,
+          image_content_hash: currentImageState.content_hash || null,
         });
       }
     } catch {
@@ -422,7 +834,6 @@ export default function ApprovalView({
     const newVersionNum = currentVersion + 1;
     const computedHash = await computeSha256Client(editableText);
 
-    // Tính diff đơn giản theo từ giữa bản cũ và bản mới
     const oldWords = new Set(channelData.full_caption.split(/\s+/));
     const newWords = new Set(editableText.split(/\s+/));
 
@@ -446,7 +857,7 @@ export default function ApprovalView({
     setVersionHistory((prev) => [newRecord, ...prev]);
     setCurrentVersion(newVersionNum);
     setIsEditing(false);
-    setStatus("pending"); // Reset về pending để duyệt version mới
+    setStatus("pending");
 
     setActionNotice({
       type: "success",
@@ -527,6 +938,7 @@ export default function ApprovalView({
       {/* ── NOTIFICATION ALERT ── */}
       {actionNotice && (
         <div
+          data-testid="approval-action-notice"
           className={`p-4 rounded-xl text-sm font-medium flex items-center justify-between border ${
             actionNotice.type === "success"
               ? "bg-emerald-50 border-emerald-200 text-emerald-900"
@@ -541,7 +953,7 @@ export default function ApprovalView({
           </div>
           <button
             onClick={() => setActionNotice(null)}
-            className="text-xs opacity-60 hover:opacity-100 px-2 py-1"
+            className="text-xs opacity-60 hover:opacity-100 px-2 py-1 cursor-pointer"
           >
             Đóng
           </button>
@@ -556,7 +968,8 @@ export default function ApprovalView({
             onClick={() => {
               setSelectedChannel("facebook");
             }}
-            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+            data-testid="channel-facebook-tab"
+            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
               selectedChannel === "facebook"
                 ? "bg-blue-600 text-white shadow-sm"
                 : "bg-white text-slate-600 hover:bg-slate-100"
@@ -572,7 +985,8 @@ export default function ApprovalView({
             onClick={() => {
               setSelectedChannel("tiktok");
             }}
-            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+            data-testid="channel-tiktok-tab"
+            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
               selectedChannel === "tiktok"
                 ? "bg-black text-white shadow-sm"
                 : "bg-white text-slate-600 hover:bg-slate-100"
@@ -586,11 +1000,30 @@ export default function ApprovalView({
         </div>
 
         {/* 3-Click Action Group */}
-        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end flex-wrap">
+          {/* Cảnh báo nếu đang pending ảnh và bắt buộc có ảnh */}
+          {isApprovalBlocked && (
+            <div
+              data-testid="approval-blocked-badge"
+              className="text-xs text-amber-800 bg-amber-50 border border-amber-300 px-3 py-1.5 rounded-xl flex items-center gap-2 font-medium"
+            >
+              <span className="text-amber-600">⏳</span>
+              <span>
+                {isImagePending
+                  ? "Không thể duyệt bài khi ảnh đang chờ tạo (image pending)."
+                  : currentImageState.status === "needs_assets"
+                  ? "Bài viết yêu cầu bổ sung ảnh thật trước khi duyệt."
+                  : currentImageState.status === "failed"
+                  ? "Không thể duyệt bài khi ảnh bị lỗi tạo."
+                  : "Không thể duyệt bài khi chưa có ảnh hợp lệ."}
+              </span>
+            </div>
+          )}
+
           <button
             onClick={handleToggleEdit}
             disabled={status === "approved"}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
               isEditing
                 ? "bg-amber-500 text-white border-amber-600"
                 : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 disabled:opacity-40"
@@ -602,18 +1035,44 @@ export default function ApprovalView({
           <button
             onClick={handleOpenRejectModal}
             disabled={status === "approved" || !canApprove}
-            className="px-4 py-2.5 rounded-xl text-sm font-bold bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 disabled:opacity-40 transition-all flex items-center gap-1.5"
+            className="px-4 py-2.5 rounded-xl text-sm font-bold bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             ❌ Reject (Từ chối)
           </button>
 
           <button
+            data-testid="approve-btn"
             onClick={handleApprove}
-            disabled={status === "approved" || !canApprove}
-            className="px-6 py-2.5 rounded-xl text-sm font-black bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg disabled:opacity-40 transition-all flex items-center gap-2"
+            disabled={status === "approved" || !canApprove || isApprovalBlocked}
+            title={
+              isApprovalBlocked
+                ? "Không thể duyệt bài khi ảnh đang chờ tạo (image pending)"
+                : "Phê duyệt bài viết"
+            }
+            className="px-6 py-2.5 rounded-xl text-sm font-black bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2 cursor-pointer"
           >
             ✅ Approve (Duyệt ≤3 click)
           </button>
+
+          {onPublishClick && (
+            <button
+              data-testid="publish-btn"
+              onClick={() => {
+                if (isApprovalBlocked) {
+                  setActionNotice({
+                    type: "error",
+                    msg: "Không thể đăng bài khi ảnh đang chờ tạo.",
+                  });
+                  return;
+                }
+                onPublishClick();
+              }}
+              disabled={status !== "approved" || isApprovalBlocked}
+              className="px-5 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              🚀 Đăng bài (Publish)
+            </button>
+          )}
         </div>
       </div>
 
@@ -650,7 +1109,7 @@ export default function ApprovalView({
                   <span>Số từ hiện tại: {editableText.trim().split(/\s+/).length} từ</span>
                   <button
                     onClick={handleSaveEdit}
-                    className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg shadow hover:bg-emerald-700"
+                    className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg shadow hover:bg-emerald-700 cursor-pointer"
                   >
                     💾 Lưu Thay Đổi & Tạo Version {currentVersion + 1}
                   </button>
@@ -813,59 +1272,340 @@ export default function ApprovalView({
           </div>
         </div>
 
-        {/* ── CỘT PHẢI: ẢNH AI KÈM NHÃN & STORYBOARD TIKTOK (5 CỘT) ── */}
+        {/* ── CỘT PHẢI: ẢNH AI KÈM NHÃN & CÁC TRẠNG THÁI (5 CỘT) ── */}
         <div className="lg:col-span-5 space-y-6">
-          {/* AI Image Card */}
-          {channelData.ai_image && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-900">Hình Ảnh Minh Họa</h3>
-                {/* NHÃN ẢNH AI BẮT BUỘC */}
-                <span className="px-3 py-1 rounded-full text-xs font-black tracking-wide bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1.5 shadow-2xs">
-                  <span>✨</span> Ảnh do AI tạo
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4" data-testid="ai-image-section">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900">Hình Ảnh Minh Họa</h3>
+              {/* STATUS BADGE */}
+              {currentImageState.status === "completed" && (
+                <span
+                  data-testid="ai-badge-completed"
+                  className="px-3 py-1 rounded-full text-xs font-black tracking-wide bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1.5 shadow-2xs"
+                >
+                  <span>✨</span> [Ảnh tạo bởi AI]
                 </span>
-              </div>
-
-              {/* Image Thumbnail Container */}
-              <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center">
-                <div className="w-full h-64 bg-gradient-to-tr from-purple-900 via-indigo-900 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
-                  <div className="text-4xl mb-2">🌄</div>
-                  <div className="text-white text-xs font-mono font-medium max-w-xs line-clamp-3">
-                    "{channelData.ai_image.prompt}"
-                  </div>
-                  <div className="mt-3 px-2 py-0.5 rounded bg-black/40 text-[11px] text-purple-300 border border-purple-500/30 font-mono">
-                    Tỉ lệ: {channelData.ai_image.dimensions} ({channelData.ai_image.aspect_ratio})
-                  </div>
-                </div>
-              </div>
-
-              {/* Metadata Card */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Model Engine:</span>
-                  <span className="font-mono font-bold text-slate-800">{channelData.ai_image.model}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">OCR Guardrail (Chữ/Giá):</span>
-                  <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                    {channelData.ai_image.ocr_checked ? "Đạt (0 chữ/số)" : "Chưa quét"}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Bộ lọc khuôn mặt / logo:</span>
-                  <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                    {channelData.ai_image.safety_passed ? "An toàn" : "Cảnh báo"}
-                  </span>
-                </div>
-                <div className="pt-1 border-t border-slate-200 flex justify-between items-center text-[11px]">
-                  <span className="text-slate-500">Image Hash:</span>
-                  <span className="font-mono text-slate-600 truncate max-w-[180px]">
-                    {channelData.ai_image.sha256_hash}
-                  </span>
-                </div>
-              </div>
+              )}
+              {(currentImageState.status === "image_pending" || currentImageState.status === "queued") && (
+                <span
+                  data-testid="ai-badge-pending"
+                  className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5 animate-pulse"
+                >
+                  <span>⏳</span> Đang chờ tạo ảnh
+                </span>
+              )}
+              {(currentImageState.status === "running" ||
+                currentImageState.status === "claimed" ||
+                currentImageState.status === "uploaded" ||
+                currentImageState.status === "reviewing") && (
+                <span
+                  data-testid="ai-badge-running"
+                  className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-blue-100 text-blue-900 border border-blue-300 flex items-center gap-1.5"
+                >
+                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                  Đang xử lý GPU
+                </span>
+              )}
+              {currentImageState.status === "needs_assets" && (
+                <span
+                  data-testid="ai-badge-needs-assets"
+                  className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5"
+                >
+                  <span>⚠️</span> Cần ảnh thật
+                </span>
+              )}
+              {currentImageState.status === "failed" && (
+                <span
+                  data-testid="ai-badge-failed"
+                  className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-rose-100 text-rose-900 border border-rose-300 flex items-center gap-1.5"
+                >
+                  <span>❌</span> Lỗi tạo ảnh
+                </span>
+              )}
+              {currentImageState.status === "cancelled" && (
+                <span
+                  data-testid="ai-badge-cancelled"
+                  className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-slate-100 text-slate-700 border border-slate-300 flex items-center gap-1.5"
+                >
+                  <span>🚫</span> Đã hủy
+                </span>
+              )}
             </div>
-          )}
+
+            {/* 1. TRẠNG THÁI COMPLETED: Hiển thị ảnh đầy đủ bằng MediaAssetImage */}
+            {currentImageState.status === "completed" && (
+              <div className="space-y-4" data-testid="image-completed-container">
+                <MediaAssetImage
+                  asset={{
+                    url: currentImageState.image_url,
+                    alt_text: `Ảnh minh họa AI cho bài ${selectedChannel.toUpperCase()}: ${currentImageState.prompt}`,
+                    is_ai_generated: true,
+                    source_type: "ai_generated",
+                    model_name: currentImageState.model_name,
+                    seed: currentImageState.seed,
+                    width: currentImageState.aspect_ratio === "1:1" ? 1024 : 768,
+                    height: currentImageState.aspect_ratio === "1:1" ? 1024 : 1344,
+                    content_hash: currentImageState.content_hash,
+                  }}
+                  aspectRatio={currentImageState.aspect_ratio}
+                  containerClassName="w-full shadow-sm max-h-[420px]"
+                  showCaption={true}
+                />
+
+                {/* Metadata Card */}
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Mô hình AI:</span>
+                    <span className="font-mono font-bold text-slate-800">{currentImageState.model_name}</span>
+                  </div>
+                  {currentImageState.seed !== null && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Seed:</span>
+                      <code className="font-mono font-bold text-slate-700 bg-slate-200/60 px-1.5 py-0.5 rounded">
+                        {currentImageState.seed}
+                      </code>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Kích thước:</span>
+                    <span className="font-mono text-slate-700">
+                      {currentImageState.dimensions} ({currentImageState.aspect_ratio})
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">OCR Guardrail (Chữ/Giá):</span>
+                    <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      {currentImageState.ocr_checked ? "Đạt (0 chữ/số)" : "Chưa quét"}
+                    </span>
+                  </div>
+                  {currentImageState.content_hash && (
+                    <div className="pt-1 border-t border-slate-200 flex justify-between items-center text-[11px]">
+                      <span className="text-slate-500">SHA-256 Hash:</span>
+                      <span className="font-mono text-slate-600 truncate max-w-[200px]" title={currentImageState.content_hash}>
+                        {currentImageState.content_hash}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action button: Tạo lại ảnh */}
+                <button
+                  type="button"
+                  data-testid="regenerate-image-btn"
+                  onClick={handleRegenerateImage}
+                  disabled={isRegenerating}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>🔄</span>
+                  <span>{isRegenerating ? "Đang gửi yêu cầu..." : "Tạo lại ảnh (Đổi Seed mới)"}</span>
+                </button>
+              </div>
+            )}
+
+            {/* 2. TRẠNG THÁI IMAGE_PENDING / QUEUED */}
+            {(currentImageState.status === "image_pending" || currentImageState.status === "queued") && (
+              <div
+                data-testid="image-pending-state"
+                className="p-6 text-center bg-slate-50 rounded-xl border border-slate-200 space-y-4"
+              >
+                <div className="w-12 h-12 rounded-full border-4 border-amber-200 border-t-amber-600 animate-spin mx-auto" />
+                <div>
+                  <div className="text-sm font-bold text-slate-800">
+                    Tác vụ đang nằm trong hàng đợi sinh ảnh...
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto line-clamp-2">
+                    "{currentImageState.prompt}"
+                  </p>
+                </div>
+
+                {/* Cảnh báo rõ khi gpu_online = false */}
+                {!currentImageState.gpu_online && (
+                  <div
+                    data-testid="gpu-offline-warning"
+                    className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 text-left"
+                  >
+                    <span className="text-base leading-none">⚠️</span>
+                    <div>
+                      <div className="font-bold text-amber-950">
+                        đang chờ máy GPU (hiện chưa có máy trạm online)
+                      </div>
+                      <p className="mt-1 text-amber-800 leading-relaxed">
+                        Hệ thống đã xếp yêu cầu vào hàng đợi. Máy trạm GPU cục bộ hiện đang ngoại tuyến hoặc bận. Ảnh sẽ tự động được khuếch tán ngay khi máy trạm kết nối lại.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* NÚT HỦY KHI CÒN QUEUED */}
+                <div className="pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    data-testid="cancel-image-job-btn"
+                    onClick={handleCancelImageJob}
+                    disabled={isCancelling}
+                    className="px-4 py-2 bg-white text-rose-600 border border-rose-300 hover:bg-rose-50 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                  >
+                    <span>✕</span>
+                    <span>{isCancelling ? "Đang hủy..." : "Hủy yêu cầu sinh ảnh"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. TRẠNG THÁI RUNNING / CLAIMED */}
+            {(currentImageState.status === "running" ||
+              currentImageState.status === "claimed" ||
+              currentImageState.status === "uploaded" ||
+              currentImageState.status === "reviewing") && (
+              <div
+                data-testid="image-running-state"
+                className="p-6 text-center bg-blue-50/60 rounded-xl border border-blue-200 space-y-4"
+              >
+                <div className="relative w-14 h-14 mx-auto">
+                  <div className="absolute inset-0 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin" />
+                  <span className="absolute inset-0 flex items-center justify-center text-xl">⚡</span>
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-blue-950">
+                    Máy trạm GPU đang thực hiện khuếch tán hình ảnh...
+                  </div>
+                  <p className="text-xs text-blue-800 mt-1 max-w-sm mx-auto leading-relaxed">
+                    Đang chạy mô hình Juggernaut XL v9 (30 steps, Euler Ancestral). Quá trình mất khoảng 15-30 giây.
+                  </p>
+                </div>
+                <div className="text-[11px] font-mono text-slate-500">
+                  Trạng thái: <span className="font-bold text-blue-800 uppercase">{currentImageState.status}</span>
+                </div>
+              </div>
+            )}
+
+            {/* 4. TRẠNG THÁI NEEDS_ASSETS (Nhắc dùng ảnh thật) */}
+            {currentImageState.status === "needs_assets" && (
+              <div
+                data-testid="image-needs-assets-state"
+                className="p-5 bg-amber-50/90 border-2 border-amber-300 rounded-xl text-left space-y-4"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center text-xl shrink-0">
+                    ⚠️
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-amber-950">
+                      Yêu cầu sử dụng ảnh chụp thực tế từ kho tài nguyên
+                    </h4>
+                    <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                      Không thể tạo ảnh hợp lệ do vi phạm tiêu chuẩn chính sách (phát hiện giá/chữ qua OCR) hoặc đã đạt giới hạn thử lại tối đa. Vui lòng tải lên hoặc chọn ảnh chụp thực tế của doanh nghiệp.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white/80 rounded-lg border border-amber-200 text-xs text-slate-700 space-y-1">
+                  <div className="font-semibold text-slate-800">Gợi ý hành động:</div>
+                  <ul className="list-disc list-inside text-slate-600 space-y-0.5">
+                    <li>Chọn ảnh phòng / món ăn / dịch vụ thật từ kho Media Assets</li>
+                    <li>Tải lên hình ảnh thực tế có độ phân giải cao</li>
+                    <li>Hoặc bấm "Tạo lại ảnh AI" để thử lại với seed ngẫu nhiên mới</li>
+                  </ul>
+                </div>
+
+                <div className="flex flex-wrap gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    data-testid="use-real-asset-btn"
+                    onClick={() => {
+                      setActionNotice({
+                        type: "info",
+                        msg: "Đã mở ngăn chọn ảnh thật từ kho tài nguyên doanh nghiệp (Media Assets).",
+                      });
+                    }}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>📁</span>
+                    <span>Chọn ảnh thật từ kho</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="regenerate-image-btn"
+                    onClick={handleRegenerateImage}
+                    disabled={isRegenerating}
+                    className="px-4 py-2 bg-white hover:bg-amber-100/50 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <span>🔄</span>
+                    <span>{isRegenerating ? "Đang gửi..." : "Tạo lại ảnh AI"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 5. TRẠNG THÁI FAILED */}
+            {currentImageState.status === "failed" && (
+              <div
+                data-testid="image-failed-state"
+                className="p-5 bg-rose-50/90 border-2 border-rose-300 rounded-xl text-left space-y-3.5"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-300 text-rose-800 flex items-center justify-center text-xl shrink-0">
+                    ❌
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-rose-950">
+                      Quá trình sinh ảnh thất bại
+                    </h4>
+                    <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+                      {currentImageState.error_message || "Máy trạm GPU gặp sự cố kỹ thuật trong quá trình khuếch tán hình ảnh."}
+                    </p>
+                  </div>
+                </div>
+
+                {currentImageState.error_code && (
+                  <div className="p-2.5 bg-white/90 rounded-lg border border-rose-200 text-xs font-mono text-rose-900 flex items-center justify-between">
+                    <span className="text-slate-500 font-sans">Mã lỗi:</span>
+                    <span className="font-bold">{currentImageState.error_code}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    data-testid="regenerate-image-btn"
+                    onClick={handleRegenerateImage}
+                    disabled={isRegenerating}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <span>🔄</span>
+                    <span>{isRegenerating ? "Đang thử lại..." : "Tạo lại ảnh"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 6. TRẠNG THÁI CANCELLED */}
+            {currentImageState.status === "cancelled" && (
+              <div
+                data-testid="image-cancelled-state"
+                className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-3"
+              >
+                <div className="text-2xl">🚫</div>
+                <div className="text-sm font-bold text-slate-800">Tác vụ sinh ảnh đã bị hủy</div>
+                <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                  Yêu cầu đã được thu hồi an toàn khỏi hàng đợi máy trạm.
+                </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    data-testid="regenerate-image-btn"
+                    onClick={handleRegenerateImage}
+                    disabled={isRegenerating}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>✨</span>
+                    <span>Tạo ảnh mới</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* TikTok Storyboard View (Nếu là kênh TikTok) */}
           {selectedChannel === "tiktok" && channelData.tiktok_storyboard && (
@@ -911,7 +1651,7 @@ export default function ApprovalView({
               <h3 className="text-lg font-black text-slate-900">Từ Chối Duyệt Nội Dung</h3>
               <button
                 onClick={() => setShowRejectModal(false)}
-                className="text-slate-400 hover:text-slate-700 font-bold"
+                className="text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -948,13 +1688,13 @@ export default function ApprovalView({
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
               <button
                 onClick={() => setShowRejectModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={handleConfirmReject}
-                className="px-5 py-2 rounded-xl text-xs font-black bg-rose-600 text-white hover:bg-rose-700 shadow"
+                className="px-5 py-2 rounded-xl text-xs font-black bg-rose-600 text-white hover:bg-rose-700 shadow cursor-pointer"
               >
                 Xác Nhận Từ Chối
               </button>

@@ -6,13 +6,39 @@
  * can use to publish safely by hand.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 export interface ManualPackFile {
   filename: string;
   content: string;
 }
 
+export interface ManualPackJobInput {
+  contentId: string;
+  workspaceId?: string;
+  workspace_id?: string;
+  title?: string;
+  bodyMarkdown?: string;
+  metaTitle?: string;
+  metaDescription?: string;
+  slug?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  mediaUrl?: string;
+  mediaType?: 'video' | 'image';
+  isAiGenerated?: boolean;
+  cta?: string;
+  imageContentHash?: string;
+  storageKey?: string;
+  imageFileName?: string;
+  imageFileContent?: string;
+  requiresImage?: boolean;
+}
+
 export interface ManualPack {
-  channel: 'Facebook' | 'TikTok' | 'Instagram';
+  channel: 'Facebook' | 'FacebookGroup' | 'TikTok' | 'Instagram';
   contentId: string;
   workspaceId: string;
   title: string;
@@ -22,6 +48,11 @@ export interface ManualPack {
   mediaUrl?: string;
   mediaType?: 'video' | 'image';
   isAiGenerated: boolean;
+  imageContentHash?: string;
+  storageKey?: string;
+  imageFileName?: string;
+  hasMissingAsset?: boolean;
+  missingAssetReason?: string;
   utmSource: string;
   utmMedium: string;
   utmCampaign: string;
@@ -32,24 +63,8 @@ export interface ManualPack {
 }
 
 export function generateManualPack(
-  job: {
-    contentId: string;
-    workspaceId?: string;
-    workspace_id?: string;
-    title?: string;
-    bodyMarkdown?: string;
-    metaTitle?: string;
-    metaDescription?: string;
-    slug?: string;
-    utmSource?: string;
-    utmMedium?: string;
-    utmCampaign?: string;
-    mediaUrl?: string;
-    mediaType?: 'video' | 'image';
-    isAiGenerated?: boolean;
-    cta?: string;
-  },
-  channel: 'Facebook' | 'TikTok' | 'Instagram'
+  job: ManualPackJobInput,
+  channel: 'Facebook' | 'FacebookGroup' | 'TikTok' | 'Instagram'
 ): ManualPack {
   const workspaceId = job.workspaceId ?? job.workspace_id ?? 'unknown';
   const utmSource = job.utmSource || 'social';
@@ -59,10 +74,37 @@ export function generateManualPack(
   const title = job.metaTitle || job.title || 'Untitled';
   const rawBody = job.bodyMarkdown || '';
 
+  // Xử lý đính kèm file ảnh từ media_assets / storage cục bộ
+  let resolvedImageContent = job.imageFileContent;
+  let resolvedFileName = job.imageFileName;
+  if (!resolvedFileName && job.storageKey) {
+    resolvedFileName = path.basename(job.storageKey);
+  }
+  if (!resolvedImageContent && job.storageKey) {
+    try {
+      const localDir = process.env.LOCAL_STORAGE_DIR || path.resolve(process.cwd(), 'apps/api/public/uploads');
+      const cleanKey = job.storageKey.replace(/^uploads[\\/]/, '');
+      const physicalPath = path.resolve(localDir, cleanKey);
+      if (fs.existsSync(physicalPath)) {
+        resolvedImageContent = fs.readFileSync(physicalPath).toString('base64');
+      }
+    } catch {
+      // Bỏ qua nếu fs không khả dụng trong môi trường sandbox cô lập
+    }
+  }
+
+  // Kiểm tra tính toàn vẹn của tài sản ảnh
+  const isImageRequired = Boolean(job.requiresImage || job.imageContentHash);
+  const hasValidMedia = Boolean(job.mediaUrl || job.storageKey || resolvedImageContent);
+  const hasMissingAsset = isImageRequired && !hasValidMedia;
+  const missingAssetReason = hasMissingAsset
+    ? `Thiếu file ảnh hợp lệ từ media_assets theo content_hash (${job.imageContentHash || 'unknown'}) đã khóa lúc duyệt.`
+    : undefined;
+
   // Chuẩn bị caption hoàn chỉnh có nhãn AI theo chính sách nếu cần
   let caption = rawBody.trim();
   if (isAiGenerated) {
-    if (channel === 'Facebook') {
+    if (channel === 'Facebook' || channel === 'FacebookGroup') {
       if (!caption.includes('[Ảnh tạo bởi AI]')) {
         caption += '\n\n[Ảnh tạo bởi AI]\n#AIgenerated #ImaginedWithAI';
       }
@@ -75,11 +117,32 @@ export function generateManualPack(
 
   // Hướng dẫn chi tiết từng bước cho từng kênh
   const instructions: string[] = [];
-  if (channel === 'Facebook') {
+  if (hasMissingAsset) {
+    instructions.push(
+      `⚠️ CẢNH BÁO QUAN TRỌNG: Bài viết này bị thiếu file ảnh tương ứng với content_hash (${job.imageContentHash || 'unknown'}) đã khóa lúc duyệt. KHÔNG đăng bài hỏng khi chưa bổ sung đủ tài sản ảnh!`
+    );
+  }
+
+  if (channel === 'FacebookGroup') {
+    instructions.push(`1. Mở Facebook Group mục tiêu với tư cách Quản trị viên (Admin hoặc Fanpage liên kết).`);
+    instructions.push(`2. Chọn 'Viết bài' (Write something) và dán nội dung từ file caption.txt.`);
+    if (hasValidMedia) {
+      const sourceDesc = resolvedFileName ? `từ file '${resolvedFileName}'` : 'từ đường dẫn trong file media_urls.txt';
+      const hashDesc = job.imageContentHash ? ` (Mã SHA-256 đã khóa: ${job.imageContentHash})` : '';
+      instructions.push(`3. Tải/lấy ảnh ${sourceDesc}${hashDesc} và đính kèm vào bài viết.`);
+    }
+    if (isAiGenerated) {
+      instructions.push(`4. QUAN TRỌNG: Đảm bảo nhãn minh bạch [Ảnh tạo bởi AI] được giữ nguyên trong bài viết theo chính sách của Meta.`);
+    }
+    instructions.push(`5. Kiểm tra câu hỏi thảo luận cuối bài và bấm 'Đăng' (Post).`);
+    instructions.push(`6. Sao chép URL bài viết trong Group và cập nhật lại external_post_id vào hệ thống.`);
+  } else if (channel === 'Facebook') {
     instructions.push(`1. Mở Meta Business Suite hoặc Fanpage quản trị của workspace ${workspaceId}.`);
     instructions.push(`2. Chọn 'Tạo bài viết' (Create Post) và dán toàn bộ nội dung từ file caption.txt.`);
-    if (job.mediaUrl) {
-      instructions.push(`3. Tải ảnh/video từ link trong file media_urls.txt và đính kèm vào bài viết.`);
+    if (hasValidMedia) {
+      const sourceDesc = resolvedFileName ? `từ file '${resolvedFileName}'` : 'từ link trong file media_urls.txt';
+      const hashDesc = job.imageContentHash ? ` (Mã SHA-256 đã khóa: ${job.imageContentHash})` : '';
+      instructions.push(`3. Tải ảnh/video ${sourceDesc}${hashDesc} và đính kèm vào bài viết.`);
     }
     if (isAiGenerated) {
       instructions.push(`4. QUAN TRỌNG: Bật tùy chọn 'Thông tin về AI' / 'Gắn nhãn do AI tạo' theo chính sách minh bạch của Meta.`);
@@ -101,14 +164,28 @@ export function generateManualPack(
     instructions.push(`3. Đăng bài và lưu lại ID bài viết.`);
   }
 
+  // Định dạng chi tiết media trong media_urls.txt
+  const mediaDetails = hasValidMedia
+    ? [
+        `Media URL: ${job.mediaUrl || 'N/A'}`,
+        `Type: ${job.mediaType || 'image'}`,
+        `Content Hash (SHA-256): ${job.imageContentHash || 'N/A'}`,
+        `Storage Key: ${job.storageKey || 'N/A'}`,
+        `File Name: ${resolvedFileName || 'N/A'}`,
+        `AI Generated: ${isAiGenerated ? 'Yes' : 'No'}`,
+      ].join('\n')
+    : 'Không có media đính kèm.';
+
   // Tạo các file trong virtual zip bundle
   const files: Record<string, string> = {
     'caption.txt': caption,
-    'media_urls.txt': job.mediaUrl ? `Media URL: ${job.mediaUrl}\nType: ${job.mediaType || 'unknown'}` : 'Không có media đính kèm.',
+    'media_urls.txt': mediaDetails,
     'instructions.md': `# HƯỚNG DẪN ĐĂNG BÀI THỦ CÔNG (${channel.toUpperCase()})\n\n` +
       `- **Mã bài viết:** ${job.contentId}\n` +
       `- **Workspace:** ${workspaceId}\n` +
-      `- **Nhãn AI:** ${isAiGenerated ? 'CÓ (Bắt buộc gắn nhãn AI)' : 'KHÔNG'}\n\n` +
+      `- **Nhãn AI:** ${isAiGenerated ? 'CÓ (Bắt buộc gắn nhãn AI)' : 'KHÔNG'}\n` +
+      `- **Ảnh đính kèm (SHA-256):** ${job.imageContentHash || (hasValidMedia ? 'Có media' : 'Không có')}\n\n` +
+      (hasMissingAsset ? `> ❌ **LỖI THIẾU TÀI SẢN**: ${missingAssetReason}\n\n` : '') +
       `## Các bước thực hiện:\n` +
       instructions.map((step) => `${step}`).join('\n\n'),
     'metadata.json': JSON.stringify(
@@ -120,12 +197,32 @@ export function generateManualPack(
         isAiGenerated,
         mediaUrl: job.mediaUrl,
         mediaType: job.mediaType,
+        imageContentHash: job.imageContentHash,
+        storageKey: job.storageKey,
+        imageFileName: resolvedFileName,
+        hasMissingAsset,
+        missingAssetReason,
         createdAt: new Date().toISOString(),
       },
       null,
       2
     ),
   };
+
+  if (hasMissingAsset) {
+    files['ERROR_MISSING_IMAGE.txt'] =
+      `[CẢNH BÁO: KHÔNG ĐƯỢC ĐĂNG BÀI HỎNG]\n` +
+      `Lý do: ${missingAssetReason}\n` +
+      `Mã bài viết: ${job.contentId}\n` +
+      `Workspace: ${workspaceId}\n` +
+      `Vui lòng kiểm tra lại kho media_assets để tải ảnh hợp lệ trước khi thực hiện xuất bản.`;
+  }
+
+  // Đính kèm file ảnh trực tiếp vào gói virtual zip nếu có nội dung
+  if (resolvedImageContent) {
+    const filename = resolvedFileName || 'attached_image.webp';
+    files[filename] = resolvedImageContent;
+  }
 
   return {
     channel,
@@ -138,6 +235,11 @@ export function generateManualPack(
     mediaUrl: job.mediaUrl,
     mediaType: job.mediaType,
     isAiGenerated,
+    imageContentHash: job.imageContentHash,
+    storageKey: job.storageKey,
+    imageFileName: resolvedFileName,
+    hasMissingAsset,
+    missingAssetReason,
     utmSource,
     utmMedium,
     utmCampaign,
@@ -149,23 +251,7 @@ export function generateManualPack(
 }
 
 export function generateManualPacks(
-  job: {
-    contentId: string;
-    workspaceId?: string;
-    workspace_id?: string;
-    title?: string;
-    bodyMarkdown?: string;
-    metaTitle?: string;
-    metaDescription?: string;
-    slug?: string;
-    utmSource?: string;
-    utmMedium?: string;
-    utmCampaign?: string;
-    mediaUrl?: string;
-    mediaType?: 'video' | 'image';
-    isAiGenerated?: boolean;
-    cta?: string;
-  },
+  job: ManualPackJobInput,
   channels: ('Facebook' | 'TikTok' | 'Instagram')[]
 ): ManualPack[] {
   return channels.map((channel) => generateManualPack(job, channel));
