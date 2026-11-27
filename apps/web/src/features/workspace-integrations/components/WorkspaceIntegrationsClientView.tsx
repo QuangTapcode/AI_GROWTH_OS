@@ -1,6 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
+import DashboardSidebar, {
+  DEFAULT_WORKSPACES,
+  type WorkspaceItem,
+} from "@/features/dashboard/components/DashboardSidebar";
+import DashboardHeader from "@/features/dashboard/components/DashboardHeader";
 import {
   MOCK_WORKSPACE_PROFILE,
   MOCK_BRAND_TONES,
@@ -18,6 +23,10 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function WorkspaceIntegrationsClientView() {
   const { language, t } = useLanguage();
+  const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceItem>(
+    DEFAULT_WORKSPACES[0]
+  );
+  const [activeTab, setActiveTab] = useState("workspace-integrations");
 
   // Sub-tab: "workspace" (Profile & Brand Voice) vs "integrations" (Connected Feeds)
   const [currentSubTab, setCurrentSubTab] = useState<"workspace" | "integrations">(
@@ -217,8 +226,26 @@ export default function WorkspaceIntegrationsClientView() {
         </div>
       )}
 
-      {/* ── Main Content Area (No Left Sidebar — Embedded in 3D Integration Reception) ── */}
-      <div className="main-wrapper w-full">
+      {/* ── Left Sidebar ── */}
+      <DashboardSidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        selectedWorkspace={currentWorkspace}
+        onWorkspaceChange={setCurrentWorkspace}
+      />
+
+      {/* ── Main Content Area ── */}
+      <div className="main-wrapper">
+        <DashboardHeader
+          workspaceName={currentWorkspace.name}
+          currentPageTitle="Workspace & Integrations"
+          searchPlaceholder={
+            language === "vi"
+              ? "Tìm kiếm cài đặt không gian, tích hợp..."
+              : "Search workspace configuration, feeds..."
+          }
+        />
+
         <main className="content-body">
           {/* 1. PAGE HEADER */}
           <div className="wi-header">
