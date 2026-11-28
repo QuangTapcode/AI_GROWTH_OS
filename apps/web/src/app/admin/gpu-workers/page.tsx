@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import AppShell from "@/features/shell/AppShell";
 import { apiRequest } from "@/lib/api";
 import { getSelectedWorkspaceId } from "@/lib/session";
 
@@ -42,11 +43,11 @@ interface AdminGpuData {
   recent_jobs: RecentJobItem[];
 }
 
-export default function GpuWorkersAdminPage() {
+function GpuWorkersAdminContent() {
   const [data, setData] = useState<AdminGpuData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
 
   const fetchAdminData = useCallback(async () => {
@@ -119,7 +120,7 @@ export default function GpuWorkersAdminPage() {
                 GPU Worker Cluster (Reverse-Connect)
               </span>
               <span className="text-xs text-slate-400">
-                Cập nhật lúc: {lastRefreshed.toLocaleTimeString()}
+                Cập nhật lúc: {lastRefreshed ? lastRefreshed.toLocaleTimeString("vi-VN", { hour12: false }) : "—"}
               </span>
             </div>
             <h1 className="text-2xl font-black text-slate-900 mt-2 tracking-tight">
@@ -357,9 +358,9 @@ export default function GpuWorkersAdminPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4 font-sans text-slate-500 text-[11px]">
-                          <div>{new Date(job.created_at).toLocaleTimeString()}</div>
+                          <div>{new Date(job.created_at).toLocaleTimeString("vi-VN", { hour12: false })}</div>
                           <div className="text-[10px] text-slate-400">
-                            {new Date(job.created_at).toLocaleDateString()}
+                            {new Date(job.created_at).toLocaleDateString("vi-VN")}
                           </div>
                         </td>
                       </tr>
@@ -378,6 +379,14 @@ export default function GpuWorkersAdminPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GpuWorkersAdminPage() {
+  return (
+    <AppShell activeTab="gpu-workers" pageTitle="Phòng Máy Chủ GPU Workers">
+      <GpuWorkersAdminContent />
+    </AppShell>
   );
 }
 

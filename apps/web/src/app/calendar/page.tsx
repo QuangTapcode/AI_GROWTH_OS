@@ -7,9 +7,9 @@ import { ContentCalendar } from '@/features/calendar/ContentCalendar';
 function Content() {
   const { workspace } = useWorkspace();
   return (
-    <div className="max-w-6xl mx-auto py-6 px-4">
+    <main className="flex-1 p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
       <ContentCalendar workspaceId={workspace.id} />
-    </div>
+    </main>
   );
 }
 

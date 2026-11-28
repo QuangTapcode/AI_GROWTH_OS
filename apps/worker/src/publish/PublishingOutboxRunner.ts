@@ -330,8 +330,20 @@ export class PublishingOutboxRunner {
         // Bỏ qua nếu bảng media_assets chưa được định nghĩa trong mock pool
       }
 
-      // Nếu truy vấn được hỗ trợ nhưng không tìm thấy hoặc asset bị rejected -> dừng ngay, không đăng bài hỏng
-      if (mediaQueryExecuted && (!mediaAssetRow || mediaAssetRow.status === 'rejected')) {
+      // Nếu truy vấn được hỗ trợ nhưng asset bị rejected, hoặc không tìm thấy trong media_assets
+      // cho ảnh bắt buộc tra cứu kho (generated_image / image_content_hash) -> dừng ngay, không đăng bài hỏng.
+      // Với bài Playbook dùng ảnh stock trực tiếp (https://... trong image_assets[0]), vẫn cho phép dùng image.url nếu không có trong media_assets.
+      const requiresStrictMediaLookup = Boolean(
+        approvedPost?.generated_image?.content_hash ||
+        payload.image_content_hash ||
+        payload.media_content_hash ||
+        !asString(image?.url) ||
+        !/^https?:\/\//i.test(asString(image?.url) ?? '')
+      );
+      if (
+        mediaQueryExecuted &&
+        (mediaAssetRow?.status === 'rejected' || (!mediaAssetRow && requiresStrictMediaLookup))
+      ) {
         return this.failEvent(
           event.id,
           job.id,

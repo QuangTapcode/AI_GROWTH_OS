@@ -4371,8 +4371,8 @@ Quy tắc:
       string,
       { post_url: string; published_at: Date | null; job_id: string | null; img_url: string | null; body_text: string | null; post_title?: string | null }
     >();
-    const groupFailedBySource = new Map<string, { error: string; job_id: string | null }>();
-    const groupFailedByTitle = new Map<string, { error: string; job_id: string | null }>();
+    const groupFailedBySource = new Map<string, { error: string; job_id: string | null; scheduled_for?: Date | null }>();
+    const groupFailedByTitle = new Map<string, { error: string; job_id: string | null; scheduled_for?: Date | null }>();
 
     for (const gp of communityGroupPostRows) {
       const titleKey = normalizeGroupPostKey(gp.post_title);
@@ -4427,6 +4427,7 @@ Quy tắc:
             groupFailedBySource.set(job.source_id, {
               error: job.error_message || 'Đăng vào Group thất bại',
               job_id: job.job_id,
+              scheduled_for: job.scheduled_for ? new Date(job.scheduled_for) : null,
             });
           }
         } else if (!groupPublishedBySource.has(job.source_id) && !groupScheduledBySource.has(job.source_id)) {
@@ -4512,13 +4513,15 @@ Quy tắc:
         const ta =
           (targetMode === 'fanpage'
             ? fanpageScheduledBySource.get(a.id)?.scheduled_for?.getTime()
-            : groupScheduledBySource.get(a.id)?.scheduled_for?.getTime()) ??
+            : (groupScheduledBySource.get(a.id)?.scheduled_for?.getTime() ??
+              groupFailedBySource.get(a.id)?.scheduled_for?.getTime())) ??
           fanpagePublishedBySource.get(a.id)?.published_at?.getTime() ??
           Number.MAX_SAFE_INTEGER;
         const tb =
           (targetMode === 'fanpage'
             ? fanpageScheduledBySource.get(b.id)?.scheduled_for?.getTime()
-            : groupScheduledBySource.get(b.id)?.scheduled_for?.getTime()) ??
+            : (groupScheduledBySource.get(b.id)?.scheduled_for?.getTime() ??
+              groupFailedBySource.get(b.id)?.scheduled_for?.getTime())) ??
           fanpagePublishedBySource.get(b.id)?.published_at?.getTime() ??
           Number.MAX_SAFE_INTEGER;
         return ta !== tb ? ta - tb : a.title.localeCompare(b.title);
@@ -4666,6 +4669,8 @@ Quy tắc:
           targetDateUtc = new Date(groupPub.published_at);
         } else if (groupSched?.scheduled_for) {
           targetDateUtc = new Date(groupSched.scheduled_for);
+        } else if (groupFail?.scheduled_for) {
+          targetDateUtc = new Date(groupFail.scheduled_for);
         } else if (fanpagePub?.published_at) {
           targetDateUtc = new Date(fanpagePub.published_at);
         } else if (webPub?.published_at) {

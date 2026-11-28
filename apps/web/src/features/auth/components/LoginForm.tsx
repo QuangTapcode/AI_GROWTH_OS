@@ -258,12 +258,12 @@ export function LoginForm() {
               type="button"
               onClick={() => {
                 saveSession({
-                  token: "demo-token-preview",
+                  token: "a0000000-0000-4000-8000-000000000001",
                   expiresAt: new Date(Date.now() + 86400000 * 365).toISOString(),
                   user: {
-                    id: "demo-user-1",
-                    email: "demo@growthos.ai",
-                    full_name: "AI Growth Director",
+                    id: "a0000000-0000-4000-8000-000000000001",
+                    email: "owner.tripc.demo@gmail.com",
+                    full_name: "Linh Tran",
                   },
                 });
                 router.replace(nextPath());

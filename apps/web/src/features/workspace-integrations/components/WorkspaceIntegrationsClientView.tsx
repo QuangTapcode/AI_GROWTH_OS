@@ -803,7 +803,7 @@ export default function WorkspaceIntegrationsClientView() {
                               { label: "Core Products", value: profile.coreOfferings },
                               {
                                 label: "Traffic Target",
-                                value: `${profile.currentTraffic.toLocaleString()} / ${profile.targetTraffic.toLocaleString()} visits`,
+                                value: `${profile.currentTraffic.toLocaleString("en-US")} / ${profile.targetTraffic.toLocaleString("en-US")} visits`,
                               },
                               {
                                 label: "Leads Target",
@@ -922,8 +922,8 @@ export default function WorkspaceIntegrationsClientView() {
                               color: "var(--wi-blue)",
                             }}
                           >
-                            {profile.currentTraffic.toLocaleString()} /{" "}
-                            {profile.targetTraffic.toLocaleString()} visits ({trafficPct}%)
+                            {profile.currentTraffic.toLocaleString("en-US")} /{" "}
+                            {profile.targetTraffic.toLocaleString("en-US")} visits ({trafficPct}%)
                           </span>
                         </div>
                         <div className="wi-goal-bar-bg">

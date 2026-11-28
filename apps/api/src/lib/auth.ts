@@ -96,6 +96,13 @@ export function authenticateUser(req: NextRequest): AuthUser {
   }
 
   // Fallback dev tokens tiện ích cho dev / QA
+  if (token === "demo-token-preview") {
+    return {
+      id: "a0000000-0000-4000-8000-000000000001",
+      email: "owner.tripc.demo@gmail.com",
+      name: "Linh Tran",
+    };
+  }
   if (token === "owner" || token === "dev_owner") {
     return {
       id: "11111111-1111-4000-8000-000000000001",
